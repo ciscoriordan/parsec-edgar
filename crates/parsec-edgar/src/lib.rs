@@ -20,6 +20,7 @@
 mod client;
 mod company;
 mod crawl;
+mod efts;
 mod encoding;
 mod error;
 mod filing_index;
@@ -32,6 +33,7 @@ mod sections;
 pub use client::{Client, ClientBuilder};
 pub use company::Company;
 pub use crawl::{CrawlQuery, Document};
+pub use efts::{FULL_TEXT_MAX_RESULTS, FULL_TEXT_PAGE_SIZE, FullTextFiler, FullTextHit, FullTextQuery, FullTextResults};
 pub use error::{Error, Result};
 pub use filing_index::{Filer, FilingIndex, IndexDocument, parse_filing_index};
 pub use filings::{Filing, FilingQuery};

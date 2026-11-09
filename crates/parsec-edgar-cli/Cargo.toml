@@ -1,10 +1,11 @@
 [package]
 name = "parsec-edgar-cli"
-description = "Command-line client for SEC EDGAR: companies, filings, clean text and Item sections as JSON"
+description = "Command-line client for SEC EDGAR: companies, filings, clean text and Item sections as JSON, plus an MCP server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-rust-version.workspace = true
+# rmcp, used by the MCP server, needs Rust 1.88.
+rust-version = "1.88"
 
 [[bin]]
 name = "parsec-edgar"
@@ -13,5 +14,9 @@ path = "src/main.rs"
 [dependencies]
 parsec-edgar = { path = "../parsec-edgar", version = "0.1.0" }
 clap = { version = "4.6", features = ["derive", "env"] }
-serde = "1"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rmcp = { version = "3.9", features = ["server", "macros", "transport-io", "transport-streamable-http-server"] }
+schemars = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "net", "signal", "sync"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
