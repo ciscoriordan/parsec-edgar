@@ -12,13 +12,12 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::client::Client;
-use crate::company::parse_cik;
 use crate::encoding;
 use crate::error::{Error, Result};
-use crate::filings::Filing;
+use crate::filings::{Filing, HistoryScope};
 use crate::html::document_to_text;
 use crate::index::{FIRST_YEAR, IndexEntry, Quarter, parse_date, today};
-use crate::profile::{CompanyProfile, SubmissionsProfile};
+use crate::profile::CompanyProfile;
 
 /// Which filings a crawl covers.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -242,24 +241,12 @@ impl Client {
         company: &str,
         query: &CrawlQuery,
     ) -> Result<(Vec<Filing>, CompanyProfile)> {
-        let cik = match parse_cik(company.trim()) {
-            Some(cik) => cik,
-            None => self.company(company)?.cik,
-        };
+        let cik = self.cik_of(company)?;
         let (since, until) = query.date_bounds()?;
-        let sub: CompanySubmissions = self.get_json(&format!("https://data.sec.gov/submissions/CIK{cik:010}.json"))?;
-        let name = sub.profile.name.clone();
-        let mut filings = sub.filings.recent.to_filings(cik, &name);
-        let oldest_recent = filings.iter().map(|f| f.filing_date.clone()).min();
-        for page in pages_to_read(&sub.filings.files, oldest_recent.as_deref(), since.as_deref(), until.as_deref()) {
-            let cols: FilingColumns = self.get_json(&format!("https://data.sec.gov/submissions/{}", page.name))?;
-            filings.extend(cols.to_filings(cik, &name));
-        }
-        filings.retain(|f| query.matches(&f.form, &f.filing_date));
-        filings.sort_by(|a, b| {
-            b.filing_date.cmp(&a.filing_date).then_with(|| b.accession_number.cmp(&a.accession_number))
-        });
-        filings.dedup_by(|a, b| a.accession_number == b.accession_number);
+        let sub = self.submissions(cik)?;
+        // Without a lower bound a company crawl reads the whole history, up to `until`.
+        let scope = HistoryScope { since: since.as_deref(), until: until.as_deref(), all_history: true, limit: None };
+        let filings = self.submission_filings(cik, &sub, scope, |f| query.matches(&f.form, &f.filing_date))?;
         Ok((filings, sub.profile.into_profile(cik)))
     }
 
@@ -270,114 +257,6 @@ impl Client {
         let bytes = self.get_bytes(&url)?;
         Ok(Document { url, bytes })
     }
-}
-
-/// A submissions API response: the company's profile, and its filings stored
-/// column by column. Read here rather than through [`Client::filings`] so that
-/// one request gives both.
-#[derive(Deserialize)]
-struct CompanySubmissions {
-    #[serde(flatten)]
-    profile: SubmissionsProfile,
-    #[serde(default)]
-    filings: SubmissionFilings,
-}
-
-#[derive(Deserialize, Default)]
-#[serde(default)]
-struct SubmissionFilings {
-    recent: FilingColumns,
-    /// Older filings, one JSON file per page.
-    files: Vec<HistoryPage>,
-}
-
-#[derive(Deserialize, Default, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase", default)]
-struct HistoryPage {
-    name: String,
-    filing_from: Option<String>,
-    filing_to: Option<String>,
-}
-
-#[derive(Deserialize, Default)]
-#[serde(rename_all = "camelCase", default)]
-struct FilingColumns {
-    accession_number: Vec<String>,
-    filing_date: Vec<String>,
-    report_date: Vec<Option<String>>,
-    acceptance_date_time: Vec<Option<String>>,
-    form: Vec<String>,
-    items: Vec<Option<String>>,
-    size: Vec<Option<u64>>,
-    #[serde(rename = "isXBRL")]
-    is_xbrl: Vec<serde_json::Value>,
-    #[serde(rename = "isInlineXBRL")]
-    is_inline_xbrl: Vec<serde_json::Value>,
-    primary_document: Vec<Option<String>>,
-    primary_doc_description: Vec<Option<String>>,
-}
-
-impl FilingColumns {
-    /// One [`Filing`] per row, built the way [`Client::filings`] builds them.
-    fn to_filings(&self, cik: u64, company: &str) -> Vec<Filing> {
-        let text = |v: &[Option<String>], i: usize| v.get(i).cloned().flatten().filter(|s| !s.is_empty());
-        let flag = |v: &[serde_json::Value], i: usize| {
-            v.get(i).is_some_and(|x| x.as_u64() == Some(1) || x.as_bool() == Some(true))
-        };
-        (0..self.accession_number.len())
-            .map(|i| {
-                let mut f = Filing {
-                    cik,
-                    company: company.to_owned(),
-                    accession_number: self.accession_number[i].clone(),
-                    form: self.form.get(i).cloned().unwrap_or_default(),
-                    filing_date: self.filing_date.get(i).cloned().unwrap_or_default(),
-                    report_date: text(&self.report_date, i),
-                    acceptance_datetime: text(&self.acceptance_date_time, i),
-                    primary_document: text(&self.primary_document, i),
-                    primary_doc_description: text(&self.primary_doc_description, i),
-                    items: text(&self.items, i)
-                        .map(|s| s.split(',').map(|x| x.trim().to_owned()).filter(|x| !x.is_empty()).collect())
-                        .unwrap_or_default(),
-                    size: self.size.get(i).copied().flatten(),
-                    is_xbrl: flag(&self.is_xbrl, i),
-                    is_inline_xbrl: flag(&self.is_inline_xbrl, i),
-                    index_url: String::new(),
-                    primary_document_url: None,
-                };
-                let folder = f.folder_url();
-                f.index_url = format!("{folder}/{}-index.htm", f.accession_number);
-                f.primary_document_url = f.primary_document.as_ref().map(|d| format!("{folder}/{d}"));
-                f
-            })
-            .collect()
-    }
-}
-
-/// The older history pages a company crawl reads. None when the recent block
-/// already reaches back past `since`; otherwise every page that overlaps
-/// `since` to `until`, so a crawl with no lower bound reads the whole history.
-fn pages_to_read<'a>(
-    pages: &'a [HistoryPage],
-    oldest_recent: Option<&str>,
-    since: Option<&str>,
-    until: Option<&str>,
-) -> Vec<&'a HistoryPage> {
-    // Filings of the oldest recent day can continue on a page, so a `since` on that day reads it.
-    if let (Some(s), Some(oldest)) = (since, oldest_recent)
-        && s > oldest
-    {
-        return Vec::new();
-    }
-    pages
-        .iter()
-        .filter(|p| {
-            let ends_before = since.zip(p.filing_to.as_deref()).is_some_and(|(s, to)| to < s);
-            let starts_after =
-                until.zip(p.filing_from.as_deref()).is_some_and(|(u, from)| from.get(..u.len()).unwrap_or(from) > u);
-            !ends_before && !starts_after
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -501,65 +380,5 @@ mod tests {
         let q = CrawlQuery::new(&["10-K"]).years(1991, 1993);
         assert_eq!(q.quarters.len(), 4);
         assert!(q.since.is_none() && q.until.is_none());
-    }
-
-    #[test]
-    fn company_history_pages() {
-        let page = |name: &str, from: &str, to: &str| HistoryPage {
-            name: name.into(),
-            filing_from: Some(from.into()),
-            filing_to: Some(to.into()),
-        };
-        let pages = [page("p1.json", "2014-02-01", "2025-11-01"), page("p2.json", "1994-01-01", "2014-01-31")];
-        let names = |since: Option<&str>, until: Option<&str>| -> Vec<String> {
-            pages_to_read(&pages, Some("2025-11-02"), since, until).iter().map(|p| p.name.clone()).collect()
-        };
-        // Only an upper bound: every page up to it. This used to read none.
-        assert_eq!(names(None, Some("2015")), ["p1.json", "p2.json"]);
-        assert_eq!(names(None, Some("2013")), ["p2.json"]);
-        // No bounds at all: the whole history.
-        assert_eq!(names(None, None), ["p1.json", "p2.json"]);
-        // A lower bound inside the recent block needs no pages.
-        assert!(names(Some("2026"), None).is_empty());
-        // The oldest recent day may continue on a page.
-        assert_eq!(names(Some("2025-11-02"), None), Vec::<String>::new());
-        assert_eq!(pages_to_read(&pages, Some("2025-11-01"), Some("2025-11-01"), None).len(), 1);
-        assert_eq!(names(Some("2010"), Some("2015")), ["p1.json", "p2.json"]);
-        assert_eq!(names(Some("2015"), Some("2016")), ["p1.json"]);
-    }
-
-    #[test]
-    fn parses_submissions_with_profile() {
-        let json = r#"{"cik":"0000320193","name":"Apple Inc.","sic":"3571","sicDescription":"Electronic Computers",
-            "stateOfIncorporation":"CA","fiscalYearEnd":"0926","tickers":["AAPL"],
-            "addresses":{"business":{"stateOrCountry":"CA"}},
-            "filings":{"recent":{"accessionNumber":["0000320193-25-000079","0001214156-25-000011"],
-                "filingDate":["2025-10-31","2025-10-03"],"reportDate":["2025-09-27","2025-10-01"],
-                "acceptanceDateTime":["2025-10-31T10:01:26.000Z","2025-10-03T22:33:53.000Z"],
-                "form":["10-K","4"],"items":["",""],"size":[1,2],"isXBRL":[1,0],"isInlineXBRL":[1,0],
-                "primaryDocument":["aapl-20250927.htm","xslF345X05/wk-form4_1759530830.xml"],
-                "primaryDocDescription":["10-K","FORM 4"]},
-                "files":[{"name":"CIK0000320193-submissions-001.json","filingCount":1000,
-                    "filingFrom":"1994-01-26","filingTo":"2015-01-01"}]}}"#;
-        let sub: CompanySubmissions = serde_json::from_str(json).unwrap();
-        let filings = sub.filings.recent.to_filings(320193, &sub.profile.name);
-        assert_eq!(filings.len(), 2);
-        assert_eq!(filings[0].company, "Apple Inc.");
-        assert_eq!(
-            filings[1].primary_document_url.as_deref(),
-            Some(
-                "https://www.sec.gov/Archives/edgar/data/320193/000121415625000011/xslF345X05/wk-form4_1759530830.xml"
-            )
-        );
-        assert_eq!(
-            filings[0].index_url,
-            "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/0000320193-25-000079-index.htm"
-        );
-        assert!(filings[0].is_xbrl && filings[0].is_inline_xbrl && filings[0].items.is_empty());
-        assert_eq!(sub.filings.files[0].filing_to.as_deref(), Some("2015-01-01"));
-        let profile = sub.profile.into_profile(320193);
-        assert_eq!(profile.sic.as_deref(), Some("3571"));
-        assert_eq!(profile.state_location.as_deref(), Some("CA"));
-        assert_eq!(profile.fiscal_year_end.as_deref(), Some("0926"));
     }
 }

@@ -60,12 +60,12 @@ impl Client {
                 return Ok(c.clone());
             }
             // Filers without a listed ticker are missing from the ticker file.
-            let sub = self.submissions(cik)?;
+            let profile = self.submissions(cik)?.profile.into_profile(cik);
             return Ok(Company {
                 cik,
-                name: sub.name,
-                ticker: sub.tickers.into_iter().flatten().next(),
-                exchange: sub.exchanges.into_iter().flatten().next(),
+                name: profile.name,
+                ticker: profile.tickers.into_iter().next(),
+                exchange: profile.exchanges.into_iter().next(),
             });
         }
         let ticker = normalize_ticker(q);
