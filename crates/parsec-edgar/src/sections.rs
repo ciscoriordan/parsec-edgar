@@ -264,13 +264,14 @@ fn title_key(tail: &str) -> String {
     tail.chars().filter(|c| c.is_alphabetic()).flat_map(char::to_lowercase).take(30).collect()
 }
 
-/// `Item 9 A. Controls`: a letter set apart from the number by spaces only
+/// `Item 9 A. Controls` and `Item 1.A. Risk Factors`: a letter set apart from
+/// the number by spaces only, or by a separator with no space after it,
 /// belongs to it (in `ITEM 1. A. GENERAL` it starts the title). Done here
 /// rather than in the heading regex, which stays fast that way.
 fn split_letter<'a>(label: &str, between: &str, tail: &'a str) -> (String, &'a str) {
     let b = tail.as_bytes();
     if label.bytes().all(|d| d.is_ascii_digit())
-        && between.trim().is_empty()
+        && (between.trim().is_empty() || !between.ends_with(char::is_whitespace))
         && b.len() >= 2
         && matches!(b[0], b'A'..=b'C')
         && matches!(b[1], b'.' | b':')
@@ -372,7 +373,7 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
         .trim_end_matches(['\n', '\r'])
         .rsplit('\n')
         .take(2)
-        .take_while(|l| !is_item_line(l) || bare_item_label(l).as_deref() == Some(label));
+        .take_while(|l| !PERIODIC_HEADING.is_match(l) || bare_item_label(l).as_deref() == Some(label));
     std::iter::once(&text[start..line_end])
         .chain(above)
         .find_map(|l| PART_MARK.captures(l))
@@ -399,6 +400,8 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
     // later copy is no longer than the earlier one.
     let mut contents = vec![false; n];
     let mut body = vec![false; n];
+    // The later copy of any matched pair, which the spread below must not take.
+    let mut paired = vec![false; n];
     let mut later_copies: Vec<(usize, usize)> = Vec::new();
     for a in 0..n {
         if cands[a].title.chars().count() < 5 {
@@ -415,12 +418,13 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
                 } else {
                     later_copies.push((a, b));
                 }
+                paired[b] = true;
                 break;
             }
         }
     }
     for i in (0..n.saturating_sub(1)).rev() {
-        if contents[i + 1] && !body[i] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
+        if contents[i + 1] && !paired[i] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
             contents[i] = true;
         }
     }
@@ -1016,6 +1020,51 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_1", "item_9a"]);
+    }
+
+    #[test]
+    fn letter_joined_to_the_number_by_a_period_is_part_of_it() {
+        // "Item 1.A." has no space after the period, so the letter belongs to the number.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\n{body}\nItem 1.A. Risk Factors\n{body}\nItem 1.B. Unresolved Staff Comments\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_1b"]);
+    }
+
+    #[test]
+    fn short_body_item_before_a_second_contents_list_is_kept() {
+        // The empty body "Item 6. [Reserved]" sits just before a second
+        // contents list; it is a body heading, not part of that list.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\t3\nItem 5. Market for Registrant's Common Equity\t20\n\
+             Item 6. [Reserved]\t21\nItem 7. Management's Discussion and Analysis\t22\n\
+             Item 1. Business\n{body}\nItem 5. Market for Registrant's Common Equity\n{body}\n\
+             Item 6. [Reserved]\n\
+             Item 7. Management's Discussion and Analysis\t22\nItem 8. Financial Statements\t40\n\
+             Item 7. Management's Discussion and Analysis\n{body}\nItem 8. Financial Statements\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_5", "item_6", "item_7", "item_8"]);
+    }
+
+    #[test]
+    fn part_line_search_stops_at_a_part_prefixed_item_line() {
+        // "PART II - Item 6. Exhibits" is a contents row for another Item, not
+        // the PART line of the body's first heading.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I - Item 1. Financial Statements\t3\n\
+             PART I - Item 2. Management's Discussion and Analysis\t12\n\
+             PART II - Item 6. Exhibits\t20\n\
+             Item 1. Financial Statements\n{body}\n\
+             Item 2. Management's Discussion and Analysis\n{body}\n\
+             PART II - OTHER INFORMATION\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
     }
 
     #[test]

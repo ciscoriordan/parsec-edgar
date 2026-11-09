@@ -175,12 +175,12 @@ The last misses on the development set are span-only. In Netflix's 2003 and 2017
 8. **Item lists after the signatures.** A list of Item headings printed again after the signatures is ignored.
 9. **Review fixes.** A code review found layouts where changes 2, 3 and 8 lose Items that the initial commit found, and two layouts that change 6 gets wrong. Unit tests written for layouts near each rule found two more cases. Each case now has a unit test that fails without its fix:
    - A "Signatures" line inside the table of contents no longer makes the body's headings look like a list printed after the signatures. Only a signatures line at or after the first body heading counts, so an empty "Item 6. [Reserved]" and a short last Item are kept.
-   - Contents entries spread to their neighbors, but not onto a body heading, so a short Item ("Not applicable.") just before a Part II contents list is kept.
+   - Contents entries spread to their neighbors, but not onto the later copy of a heading that appears twice, so a short body Item ("Not applicable.", "Item 6. [Reserved]") just before a second contents list is kept.
    - A bare heading ("ITEM 1." with "BUSINESS" on the next line) is kept when its next line is the title of the heading that follows it, or the Item's standard title. Only bare running headers are dropped.
-   - The search for a PART line above a 10-Q heading stops at another Item's line, so a "PART II" in the contents no longer moves the body's first Items to Part II.
+   - The search for a PART line above a 10-Q heading stops at another Item's heading line, including a contents row such as "PART II - Item 6. Exhibits", so a "PART II" in the contents no longer moves the body's first Items to Part II.
    - Out-of-order 10-Q Items are added only before the signatures.
    - A 10-Q Item with no PART line above it takes its part from its title, when the title is the standard title of that Item in only one part. A lone "Item 1. Legal Proceedings" is then Part II.
-   - A letter joins the Item number only when spaces alone separate them ("Item 9 A."), so "ITEM 1. A. GENERAL" stays Item 1.
+   - A letter joins the Item number when spaces alone separate them ("Item 9 A.") or when a separator with no space after it does ("Item 1.A."), so "ITEM 1. A. GENERAL" stays Item 1.
 
 The tests in `crates/parsec-edgar/src/sections.rs` also cover layouts where each special rule must not fire: a short attached document, a signature sentence without "duly caused", sub-item references, undefined Items mentioned in the text, short Part-marked lines and page lines that only look like headers or footers.
 
@@ -206,7 +206,7 @@ Each rule was turned off alone, and the table counts the filings whose score cha
 | Tie-break: the earlier Item wins | 0 alone, 2 together with title-based parts | 0 | IBM 10-Q 2000, Coca-Cola 10-Q 2001 |
 | 10-Q part from the Item's title | 0 alone, 3 together with one of the two rules above | 0 | HP 10-Q 2004, IBM 10-Q 2000, Coca-Cola 10-Q 2001 |
 | Out-of-order Items only before the signatures | 0 | 0 | None; it guards a layout found in review |
-| Letter joined to the Item number ("Item 9 A.") | 1 | 0 | Berkshire Hathaway 10-K 2004 |
+| Letter joined to the Item number ("Item 9 A.", "Item 1.A.") | 1 | 0 | Berkshire Hathaway 10-K 2004 |
 
 ### Speed
 
