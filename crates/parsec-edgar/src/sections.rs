@@ -31,19 +31,20 @@
 //!
 //! Some annual report text has no Item heading of its own and belongs to no
 //! Item: financial statements printed with no Item 8 heading or after Item 9
-//! of a 10-K, and statements, schedules, an exhibit index or a consent printed
-//! after the last Item. A block heading (an auditors' report, an index to the
-//! financial statements, a financial statement schedule, an exhibit index or
-//! an accountants' consent) ends the Items that never hold such text: changes
-//! in accountants (10-K Item 9, 10-KSB Item 8) and the Item after the exhibits
-//! (10-K Item 16, 10-KSB Item 14). It ends 10-K Item 7A too when no Item 8
-//! heading was found. It does not when the section also holds the next Item
-//! ("Items 9 and 9A.", or "ITEM 9 A" after "ITEM 9."), or when the Item after
-//! the exhibits is titled as the exhibits Item (Item 16 of some 2003 10-Ks).
-//! In other Items these headings are part of the Item: the statements (10-K
-//! Item 8, 10-KSB Item 7), the report on internal control (10-K Item 9A,
-//! 10-KSB Item 8A), and the statements and exhibit index of the exhibits Item
-//! (10-K Item 15, 10-KSB Item 13).
+//! of a 10-K, and statements, schedules, an exhibit index, a consent or a
+//! glossary printed after the last Item. A block heading (an auditors' report,
+//! an index to the financial statements, a financial statement schedule, an
+//! exhibit index or an accountants' consent) ends the Items that never hold
+//! such text: changes in accountants (10-K Item 9, 10-KSB Item 8) and the Item
+//! after the exhibits (10-K Item 16, 10-KSB Item 14), which a glossary heading
+//! ends too. It ends 10-K Item 7A too when no Item 8 heading was found. It
+//! does not when the section also holds the next Item ("Items 9 and 9A.", or
+//! "ITEM 9 A" after "ITEM 9."), or when the Item after the exhibits is titled
+//! as the exhibits Item (Item 16 of some 2003 10-Ks). In other Items these
+//! headings are part of the Item: the statements (10-K Item 8, 10-KSB Item 7),
+//! the report on internal control (10-K Item 9A, 10-KSB Item 8A), and the
+//! statements and exhibit index of the exhibits Item (10-K Item 15, 10-KSB
+//! Item 13).
 
 use std::sync::LazyLock;
 
@@ -345,6 +346,11 @@ static BLOCK_HEADING: LazyLock<Regex> = LazyLock::new(|| {
         r"(?im)^[ \t]*(?:report[ \t]+of[ \t]+(?:[^\n,]{1,60},[ \t]*)?independent\b|independent[ \t]+(?:registered[ \t]+public[ \t]+accounting[ \t]+firm|auditors?['’]?s?['’]?|accountants['’]?)[ \t]+(?:report|consent)\b|index[ \t]+to[ \t]+(?:the[ \t]+)?(?:consolidated[ \t]+)?financial[ \t]+statements\b|schedule[ \t]+[ivx]{1,4}\b|exhibits?[ \t]+index\b|index[ \t]+(?:to|of)[ \t]+exhibits\b|consent[ \t]+of[ \t]+independent\b)",
     )
     .unwrap()
+});
+
+/// A glossary's heading line: `GLOSSARY`, `Glossary of Terms and Acronyms`.
+static GLOSSARY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?im)^[ \t]*glossary(?:[ \t]+(?:of|and)[ \t]+[^\n.:;]{1,60})?[ \t]*:?[ \t]*$").unwrap()
 });
 
 /// `PART I`, `Part II - Other Information`, also as the start of a heading line.
@@ -900,14 +906,13 @@ fn signatures_after(text: &str, from: usize) -> Option<usize> {
         .or_else(|| SIGNATURE_BLOCK.find_at(text, from).map(|m| m.start()))
 }
 
-/// Start of the first block heading in a section, after its heading line.
-/// The heading must start with a capital letter, so a wrapped sentence
-/// ("report of independent accountants on the 1997 statements ...") does not
-/// count.
-fn block_start(text: &str, start: usize, end: usize) -> Option<usize> {
+/// Start of the first line in a section, after its heading line, that `re`
+/// matches (a block or glossary heading). The line must start with a capital
+/// letter, so a wrapped sentence ("report of independent accountants on the
+/// 1997 statements ...") does not count.
+fn heading_start(re: &Regex, text: &str, start: usize, end: usize) -> Option<usize> {
     let from = text[start..end].find('\n').map_or(end, |i| start + i + 1);
-    BLOCK_HEADING
-        .find_iter(&text[from..end])
+    re.find_iter(&text[from..end])
         .map(|m| from + m.start())
         .find(|&p| text[p..].trim_start_matches([' ', '\t']).starts_with(char::is_uppercase))
 }
@@ -1081,20 +1086,29 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     // Text with no Item heading of its own belongs to no Item. A block heading
     // ends the Items that never hold financial statements or an exhibit
     // index: changes in accountants (10-K Item 9, 10-KSB Item 8) and the Item
-    // after the exhibits (10-K Item 16, 10-KSB Item 14). It also ends 10-K
-    // Item 7A when no Item 8 heading was found: the statements after it are
-    // then Item 8's text without its heading. A 10-KSB's statements (Item 7)
-    // follow MD&A (Item 6), which keeps them like 10-K Item 7 does.
+    // after the exhibits (10-K Item 16, 10-KSB Item 14), which a glossary
+    // heading ends too. It also ends 10-K Item 7A when no Item 8 heading was
+    // found: the statements after it are then Item 8's text without its
+    // heading. A 10-KSB's statements (Item 7) follow MD&A (Item 6), which
+    // keeps them like 10-K Item 7 does.
     let no_item_8 = !picks.iter().any(|&(_, k)| keys[k].item == "8");
-    let ends_at_block = |item: &str, cand: &Candidate| match (kind, item) {
+    // The exhibits Item: 10-K Item 15, 10-KSB Item 13, or an Item printed
+    // with a title that names the exhibits or the financial statements but
+    // whose standard title does not name the statements (Item 14 of 10-Ks
+    // before 2003, Item 16 of some for 2003).
+    let exhibits_item = |key: &Key, cand: &Candidate| {
+        kind.annual()
+            && (key.title.contains("Exhibits")
+                || (!key.title.contains("Financial Statements")
+                    && (cand.title.contains("exhibit") || cand.title.contains("financialstatement"))))
+    };
+    let after_exhibits = |key: &Key, cand: &Candidate| {
+        matches!((kind, key.item), (FormKind::TenK, "16") | (FormKind::TenKsb, "14")) && !exhibits_item(key, cand)
+    };
+    let ends_at_block = |key: &Key, cand: &Candidate| match (kind, key.item) {
         (FormKind::TenK, "9") | (FormKind::TenKsb, "8") => true,
-        // Unless it is titled as the exhibits Item, as Item 16 of some 10-Ks
-        // for 2003 is.
-        (FormKind::TenK, "16") | (FormKind::TenKsb, "14") => {
-            !(cand.title.contains("exhibit") || cand.title.contains("financialstatement"))
-        }
         (FormKind::TenK, "7A") => no_item_8,
-        _ => false,
+        _ => after_exhibits(key, cand),
     };
     // A section that holds the next Item too keeps its block headings: its
     // heading names a second Item ("Items 9 and 9A."), or a heading with the
@@ -1117,8 +1131,10 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             let start = cand.pos;
             let next = starts.get(i + 1).copied().unwrap_or(doc_end);
             let end = stops.iter().copied().find(|&p| p > start && p < next).unwrap_or(next).max(start);
-            let end = if ends_at_block(key.item, cand) && !holds_more(ci, end) {
-                block_start(text, start, end).unwrap_or(end)
+            let end = if ends_at_block(key, cand) && !holds_more(ci, end) {
+                let block = heading_start(&BLOCK_HEADING, text, start, end);
+                let glossary = after_exhibits(key, cand).then(|| heading_start(&GLOSSARY, text, start, end)).flatten();
+                block.into_iter().chain(glossary).min().unwrap_or(end)
             } else {
                 end
             };
@@ -2564,6 +2580,63 @@ mod tests {
             let s = extract_sections(&text, FormKind::TenK);
             assert_eq!(ids(&s), ["item_14", "item_15", "item_16"], "{heading}");
             assert!(s[2].text.ends_with("EXHIBIT INDEX\n3.1\tArticles of Incorporation"), "{heading}");
+        }
+    }
+
+    #[test]
+    fn glossary_after_the_item_after_the_exhibits_ends_it() {
+        let body = BODY.repeat(30);
+        let glossary = "In this report the following terms have the meanings specified below.\n\
+                        Gross acre. An acre in which the trust owns a working interest.\n\
+                        MMcf. Million cubic feet of natural gas.\n";
+        for heading in ["GLOSSARY", "Glossary", "Glossary of Terms and Acronyms", "GLOSSARY OF SELECTED TERMS:"] {
+            let text = format!(
+                "Item 15. Exhibits and Financial Statement Schedules\n{body}\nItem 16. Form 10-K Summary\n\
+                 Not applicable.\n{heading}\n{glossary}SIGNATURES\nPursuant to ...\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_15", "item_16"], "{heading}");
+            assert_eq!(s[1].text, "Item 16. Form 10-K Summary\nNot applicable.", "{heading}");
+        }
+        // A glossary printed as a table before the exhibit index, and one
+        // after a 10-KSB's Item 14.
+        let text = format!(
+            "Item 15. Exhibits and Financial Statement Schedules\n{body}\nItem 16. Form 10-K Summary\nNone.\n\
+             Glossary\nThroughout this Form 10-K, the Company uses certain abbreviations, acronyms and terms.\n\
+             ABO\tAccumulated Benefit Obligations\tFINRA\tFinancial Industry Regulatory Authority\n\
+             Exhibit Index\n3.1\tCharter\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[1].text, "Item 16. Form 10-K Summary\nNone.");
+        let text = format!(
+            "ITEM 13. EXHIBITS\n{body}\nITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\n\
+             GLOSSARY OF TERMS\n{glossary}SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_13", "item_14"]);
+        assert_eq!(s[1].end, text.find("GLOSSARY OF TERMS").unwrap());
+    }
+
+    #[test]
+    fn glossaries_inside_other_items_stay_there() {
+        // A glossary at the start of Item 1, in MD&A, and in Item 7A of a
+        // filing with no Item 8 heading, where a block heading would end it.
+        // In Item 16, lines that only mention the glossary stay.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 1. BUSINESS\nGLOSSARY OF TERMS\nMMcf. Million cubic feet.\n{body}\n\
+             ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\nGlossary\nABO\tAccumulated Benefit Obligations\n{body}\n\
+             ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK\n{body}\nGlossary of Market Terms\n\
+             VaR\tValue at risk\n{body}\nITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n\
+             ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\nITEM 16. FORM 10-K SUMMARY\n\
+             Glossary terms are defined in Item 1.\nGlossary of terms used in this summary appears on page 3.\n\
+             glossary\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_7a", "item_9", "item_15", "item_16"]);
+        for (i, sec) in s.iter().enumerate() {
+            let next = s.get(i + 1).map_or(text.find("SIGNATURES").unwrap(), |n| n.start);
+            assert_eq!(sec.end, next, "{}", sec.id);
         }
     }
 
