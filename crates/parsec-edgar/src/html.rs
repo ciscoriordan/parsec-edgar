@@ -128,9 +128,11 @@ fn looks_like_html(s: &str) -> bool {
         .any(|t| head.contains(t))
 }
 
-/// Old plain-text filings: drop SGML layout tags, then the same line cleanup as HTML.
+/// Old plain-text filings: drop SGML layout tags, then the same line cleanup
+/// as HTML. Some filers number the page tags, as in "<Page 2>".
 fn plain_text(s: &str) -> String {
-    static TAGS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)</?(?:PAGE|S|C|CAPTION|TABLE|FN)>").unwrap());
+    static TAGS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)</?(?:PAGE(?:[ \t]+\d{1,3})?|S|C|CAPTION|TABLE|FN)>").unwrap());
     finish(&TAGS.replace_all(s, ""))
 }
 
@@ -477,11 +479,23 @@ fn finish(text: &str) -> String {
     join_lines(&kept_lines(text, &[], &[]))
 }
 
-/// A bare page number, such as "12", "Page 12", "F-3", "- 7 -" or "ii",
-/// with the number in the first group that matched.
+/// A bare page number, such as "12", "Page 12", "F-3", "F - 3", "- 7 -" or
+/// "ii", with the number in the first group that matched. Old text filings
+/// escape a line that starts with a dash as "- -", so "- -7-" is one too.
 static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?:(?i:page)\s+)?(?:(\d{1,3})|([ivxlc]{1,7})|F-(\d{1,3})|[-–—]\s*(\d{1,3})\s*[-–—])$").unwrap()
+    Regex::new(concat!(
+        r"^(?:(?i:page)\s+)?",
+        r"(?:(\d{1,3})|([ivxlc]{1,7})|F\s*[-‐‑‒–—−]\s*(\d{1,3})|(?:-\s+)?[-–—]\s*(\d{1,3})\s*[-–—])$",
+    ))
+    .unwrap()
 });
+
+/// A page number alone on its line after a dash and a prefix of one to three
+/// capital letters ("FS - 12", "S-3", "II-4"), a chapter number ("7-3"), or
+/// nothing ("- 4"), with an optional final ".". The prefix is in the first
+/// group, the chapter in the second and the page in the third.
+static PAGE_LABEL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:([A-Z]{1,3})|(\d{1,2}))?\s*[-‐‑‒–—−]\s*(\d{1,3})\.?$").unwrap());
 
 /// The lines [`finish`] keeps, trimmed, as slices of `text` in order. The
 /// lines starting at the sorted offsets `cell_lines` belong to table cells
@@ -583,19 +597,34 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
 /// Running page headers and footers: short lines that repeat with only a page
 /// number changing, such as "Apple Inc. | 2026 Form 10-K | 23",
 /// "26  JPMorgan Chase & Co./2007 Annual Report", "Page 3 of 25 (Form 10-K)",
-/// or a row of three cells with the page number in the middle one,
-/// "2021 Form 10-K<TAB>95<TAB>WEC Energy Group, Inc." (where front matter
-/// pages may be numbered "i", "ii" and so on).
+/// a row of three cells with the page number in the middle one,
+/// "2021 Form 10-K<TAB>95<TAB>WEC Energy Group, Inc.", or a page number with
+/// a prefix alone on its line, "FS - 12". Front matter pages may be numbered
+/// "i", "ii" and so on.
 ///
-/// The page numbers must mostly increase through the document, which data
-/// rows do not do; a page numbered in roman numerals followed by one in
-/// digits counts as an increase. The text beside the number needs 10
-/// letters, because short lines such as cross-references ("See page 4") also
-/// come with rising numbers. Shorter text is enough when it names the form
+/// Each family of copies, the same text with the page number in the same
+/// place, needs five copies, and the page numbers must mostly increase
+/// through the document, which data rows do not do. A page numbered in roman
+/// numerals followed by one in digits counts as an increase, and so does a
+/// "Page 1 of M" after any page, as when each exhibit numbers its own pages
+/// (the page must not be past the count, "Page 4 of 3"). The text beside the
+/// number needs 10 letters and a space, because short lines such as
+/// cross-references ("See page 4") and captions ("Note 4") also come with
+/// rising numbers. Fewer letters are enough when the text names the form
 /// ("2021 Form 10-K 100") or the line starts with "Page N of M" ("Page 3 of
-/// 26"), and the copies are mostly not on consecutive lines, as the rows of a
+/// 26"). Any text, even one short word, is enough when a "|" separates the
+/// number from it ("ACME | 23"), or when the number is at the start of some
+/// copies and at the end of others, at least two of each, as on facing pages
+/// ("24 ACME", "ACME 25"): captions do neither. With fewer than 10 letters
+/// the copies must also mostly not be on consecutive lines, as the rows of a
 /// table are. Rows with the number in the middle must also mostly not be on
 /// consecutive lines, whatever their length.
+///
+/// A page number with a prefix alone on its line (see `PAGE_LABEL`) belongs
+/// to the family of its prefix, or of all chapter numbers ("7-3"). Its copies
+/// must mostly not be on consecutive lines, and must mostly come one to three
+/// pages after the copy before (see `page_steps`), as page numbers do and
+/// lists of exhibits ("EX-21", "EX-23", "EX-31") do not.
 ///
 /// Lines of table cells (`is_cell`) are data and never count on their own.
 /// A short row printed cell by cell (`rows`, as ranges of `lines`) counts as
@@ -611,8 +640,8 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> Ha
     static FORM_NAME: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"(?i)\b(?:10[-‐‑‒–—][KQ]|8[-‐‑‒–—]K|20[-‐‑‒–—]F|40[-‐‑‒–—]F)").unwrap());
     let letters = |s: &str| s.chars().filter(|c| c.is_alphabetic()).count();
-    // Whether most of the `n` copies of a family pass a test.
-    let mostly = |count: usize, n: usize| count * 10 >= (n - 1) * 9;
+    // Whether at least 90% of `total` copies or steps between copies pass a test.
+    let mostly = |count: usize, total: usize| count * 10 >= total * 9;
     let mut drop = HashSet::new();
 
     // Line indexes and page numbers, keyed as page_numbers keys them.
@@ -622,22 +651,29 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> Ha
             continue;
         }
         for page in page_numbers(line).into_iter().flatten() {
-            let (before, after, page_first) = page.key;
-            let short = letters(before) + letters(after) < MIN_LETTERS;
-            let form = FORM_NAME.is_match(before) || FORM_NAME.is_match(after);
-            if !(before.contains(' ') || after.contains(' ')) || (short && !page_first && !form) {
-                continue;
-            }
             families.entry(page.key).or_default().push((i, page));
         }
     }
-    for (&(before, after, _), seen) in &families {
-        if seen.len() < MIN_REPEATS {
+    for (&(before, after, place), seen) in &families {
+        let n = seen.len();
+        if n < MIN_REPEATS {
             continue;
         }
-        let apart = seen.windows(2).filter(|w| w[1].0 > w[0].0 + 1).count();
-        let short = letters(before) + letters(after) < MIN_LETTERS;
-        if mostly(rising(seen), seen.len()) && ((!short && after.is_empty()) || mostly(apart, seen.len())) {
+        let apart = mostly(seen.windows(2).filter(|w| w[1].0 > w[0].0 + 1).count(), n - 1);
+        let furniture = match place {
+            Place::Label | Place::Chapter => apart && mostly(page_steps(seen), n - 1),
+            Place::Edge | Place::PageOf | Place::Middle => {
+                let short = letters(before) + letters(after) < MIN_LETTERS;
+                let spaced = before.contains(' ') || after.contains(' ');
+                let form = FORM_NAME.is_match(before) || FORM_NAME.is_match(after);
+                let piped = mostly(seen.iter().filter(|(_, p)| p.piped).count(), n);
+                let first = seen.iter().filter(|(_, p)| p.first).count();
+                let facing = place == Place::Edge && first >= 2 && n - first >= 2;
+                let text = (spaced && (!short || form)) || place == Place::PageOf || piped || facing;
+                text && mostly(rising(seen), n - 1) && ((!short && after.is_empty()) || apart)
+            }
+        };
+        if furniture {
             drop.extend(seen.iter().map(|&(i, _)| i));
         }
     }
@@ -652,7 +688,7 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> Ha
         }
         for (j, line) in row.iter().enumerate() {
             for page in page_numbers(line).into_iter().flatten() {
-                let (before, after, page_first) = page.key;
+                let (before, after, place) = page.key;
                 let mut key = String::new();
                 for (k, l) in row.iter().enumerate() {
                     if k > 0 {
@@ -664,7 +700,7 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> Ha
                         key.push_str(l);
                     }
                 }
-                if letters(&key) < MIN_LETTERS && !page_first && !FORM_NAME.is_match(&key) {
+                if letters(&key) < MIN_LETTERS && place != Place::PageOf && !FORM_NAME.is_match(&key) {
                     continue;
                 }
                 row_families.entry(key).or_default().push((r, page));
@@ -672,8 +708,9 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> Ha
         }
     }
     for seen in row_families.values() {
+        let n = seen.len();
         let apart = seen.windows(2).filter(|w| rows[w[1].0].start > rows[w[0].0].end).count();
-        if seen.len() >= MIN_REPEATS && mostly(rising(seen), seen.len()) && mostly(apart, seen.len()) {
+        if n >= MIN_REPEATS && mostly(rising(seen), n - 1) && mostly(apart, n - 1) {
             drop.extend(seen.iter().flat_map(|&(r, _)| rows[r].clone()));
         }
     }
@@ -682,70 +719,151 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> Ha
 
 /// How many copies of a running header or footer have a higher page number
 /// than the copy before, counting a page numbered in roman numerals followed
-/// by one in digits, as when the front matter gives way to the body.
+/// by one in digits, as when the front matter gives way to the body, and a
+/// "Page 1 of M" after any page, as when each exhibit numbers its own pages.
 fn rising(seen: &[(usize, PageNumber)]) -> usize {
     seen.windows(2)
         .filter(|w| {
             let (a, b) = (&w[0].1, &w[1].1);
-            if a.roman == b.roman { b.number > a.number } else { a.roman }
+            if b.of.is_some() && b.number == 1 {
+                true
+            } else if a.roman == b.roman {
+                b.number > a.number
+            } else {
+                a.roman
+            }
         })
         .count()
 }
 
-/// The text before and after a page number, and whether the line starts with
-/// "Page N of M". A number at the start or end of a line leaves its text in
-/// the first place, so that headers with the number on alternate sides of the
-/// page are one family.
-type PageKey<'a> = (&'a str, &'a str, bool);
+/// How many copies of a page number with a prefix come one to three pages
+/// after the copy before: later in the same chapter, or on one of the first
+/// three pages of one of the next three chapters ("1-8", then "2-1").
+fn page_steps(seen: &[(usize, PageNumber)]) -> usize {
+    let near = |a: u32, b: u32| b > a && b - a <= 3;
+    seen.windows(2)
+        .filter(|w| {
+            let (a, b) = (&w[0].1, &w[1].1);
+            if a.chapter == b.chapter { near(a.number, b.number) } else { near(a.chapter, b.chapter) && b.number <= 3 }
+        })
+        .count()
+}
+
+/// Where a page number sits in its line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Place {
+    /// Alone, or at the start or end of the line.
+    Edge,
+    /// In a leading "Page N of M".
+    PageOf,
+    /// In the middle cell of a row of three cells.
+    Middle,
+    /// Alone after a prefix of capital letters, or nothing, and a dash: "FS - 12", "- 4".
+    Label,
+    /// Alone after a chapter number and a dash: "7-3".
+    Chapter,
+}
+
+/// The text before and after a page number, and where it sits. A number at
+/// the start or end of a line leaves its text in the first place, so that
+/// headers with the number on alternate sides of the page are one family. In
+/// "Page N of M" the text is what follows M, so that exhibits of different
+/// lengths are one family, and a page number with a prefix keeps only the
+/// prefix.
+type PageKey<'a> = (&'a str, &'a str, Place);
 
 /// A page number found in a line, and the text around it.
 struct PageNumber<'a> {
     number: u32,
     /// Written in roman numerals.
     roman: bool,
+    /// The chapter of a page numbered as "7-3", else 0.
+    chapter: u32,
+    /// The page count M in "Page N of M".
+    of: Option<u32>,
+    /// The number is at the start of the line.
+    first: bool,
+    /// A "|" separates the number from the text.
+    piped: bool,
     key: PageKey<'a>,
 }
 
+impl<'a> PageNumber<'a> {
+    /// A page number in digits, with nothing else known about it.
+    fn new(number: u32, key: PageKey<'a>) -> Self {
+        PageNumber { number, roman: false, chapter: 0, of: None, first: false, piped: false, key }
+    }
+}
+
 /// The page numbers of a line that may be a running header or footer, with
-/// the text around them: a bare page number, or one at the start or end of
-/// the line, in a leading "Page N of M", or in the middle cell of a row of
-/// three cells, in digits or, in the front matter, in roman numerals. A line
-/// can have both of the last two, as "2021 Annual Report<TAB>61<TAB>Part II,
-/// Item 8" does.
+/// the text around them: a bare page number, or one with a prefix alone on
+/// the line (`PAGE_LABEL`), or one at the start or end of the line, in a
+/// leading "Page N of M", or in the middle cell of a row of three cells, in
+/// digits or, in the front matter, in roman numerals. A line can have both of
+/// the last two, as "2021 Annual Report<TAB>61<TAB>Part II, Item 8" does.
 fn page_numbers<'a>(line: &'a str) -> [Option<PageNumber<'a>>; 2] {
-    // The page number comes first, in a leading "Page N of M", or last.
+    // The page number comes first, in a leading "Page N of M", or last, in
+    // digits or in lowercase roman numerals.
     static NUMBERED: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(concat!(
             r"^(?:(\d{1,3})(?:\s*\|\s*|\s+)(\S.*)",
-            r"|(?i:page)\s+(\d{1,3})\s+((?i:of)\s+\d{1,3}\b.*)",
-            r"|(.*\S)(?:\s*\|\s*|\s+)(\d{1,3}))$",
+            r"|(?i:page)\s+(\d{1,3})\s+(?i:of)\s+(\d{1,3})\b(.*)",
+            r"|(.*\S)(?:\s*\|\s*|\s+)(\d{1,3})",
+            r"|([ivxlc]{1,7})(?:\s*\|\s*|\s+)(\S.*)",
+            r"|(.*\S)(?:\s*\|\s*|\s+)([ivxlc]{1,7}))$",
         ))
         .unwrap()
     });
-    let page =
-        |number: Option<u32>, roman: bool, key: PageKey<'a>| number.map(|number| PageNumber { number, roman, key });
+    let none = || [None, None];
     if let Some(c) = PAGE_NUMBER.captures(line) {
         let roman = c.get(2).is_some();
-        let Some(m) = (1..5).find_map(|g| c.get(g)) else { return [None, None] };
+        let Some(m) = (1..5).find_map(|g| c.get(g)) else { return none() };
         let number = if roman { self::roman(m.as_str()) } else { m.as_str().parse().ok() };
-        return [page(number, roman, (&line[..m.start()], &line[m.end()..], false)), None];
+        let key = (&line[..m.start()], &line[m.end()..], Place::Edge);
+        return [number.map(|number| PageNumber { roman, ..PageNumber::new(number, key) }), None];
     }
-    let edge = line.starts_with(|c: char| c.is_ascii_digit())
-        || line.ends_with(|c: char| c.is_ascii_digit())
+    if let Some(c) = PAGE_LABEL.captures(line) {
+        let Ok(number) = c[3].parse() else { return none() };
+        let page = match c.get(2) {
+            Some(chapter) => PageNumber {
+                chapter: chapter.as_str().parse().unwrap_or(0),
+                ..PageNumber::new(number, ("", "", Place::Chapter))
+            },
+            None => PageNumber::new(number, (c.get(1).map_or("", |m| m.as_str()), "", Place::Label)),
+        };
+        return [Some(page), None];
+    }
+    let numeral = |c: char| c.is_ascii_digit() || matches!(c, 'i' | 'v' | 'x' | 'l' | 'c');
+    let edge = line.starts_with(numeral)
+        || line.ends_with(numeral)
         || line.get(..4).is_some_and(|s| s.eq_ignore_ascii_case("page"));
     let at_edge = edge.then(|| NUMBERED.captures(line)).flatten().and_then(|c| {
-        let number = c.get(1).or_else(|| c.get(3)).or_else(|| c.get(6))?;
-        let rest = c.get(2).or_else(|| c.get(4)).or_else(|| c.get(5))?;
-        let rest = rest.as_str().trim_matches(|c: char| c == '|' || c.is_whitespace());
-        page(number.as_str().parse().ok(), false, (rest, "", c.get(3).is_some()))
+        if let (Some(page), Some(of)) = (c.get(3), c.get(4)) {
+            let (page, of): (u32, u32) = (page.as_str().parse().ok()?, of.as_str().parse().ok()?);
+            let key = (c.get(5).map_or("", |m| m.as_str().trim()), "", Place::PageOf);
+            return (page <= of).then(|| PageNumber { of: Some(of), first: true, ..PageNumber::new(page, key) });
+        }
+        // The number and the text, in each order and spelling.
+        let (number, rest, first) = [(1, 2, true), (7, 6, false), (8, 9, true), (11, 10, false)]
+            .into_iter()
+            .find_map(|(n, r, first)| Some((c.get(n)?, c.get(r)?, first)))?;
+        let roman = !number.as_str().starts_with(|c: char| c.is_ascii_digit());
+        let value = if roman { self::roman(number.as_str())? } else { number.as_str().parse().ok()? };
+        let text = rest.as_str().trim_matches(|c: char| c == '|' || c.is_whitespace());
+        // What separates the number from the text.
+        let at = text.as_ptr() as usize - line.as_ptr() as usize;
+        let between = if first { &line[number.end()..at] } else { &line[at + text.len()..number.start()] };
+        let piped = between.contains('|');
+        Some(PageNumber { roman, first, piped, ..PageNumber::new(value, (text, "", Place::Edge)) })
     });
     let mut cells = line.split('\t');
     let in_middle = match (cells.next(), cells.next(), cells.next(), cells.next()) {
         (Some(before), Some(number), Some(after), None) => {
+            let key = (before, after, Place::Middle);
             if number.len() <= 3 && number.bytes().all(|b| b.is_ascii_digit()) {
-                page(number.parse().ok(), false, (before, after, false))
+                number.parse().ok().map(|n| PageNumber::new(n, key))
             } else {
-                page(roman(number), true, (before, after, false))
+                roman(number).map(|n| PageNumber { roman: true, ..PageNumber::new(n, key) })
             }
         }
         _ => None,
@@ -816,8 +934,154 @@ mod tests {
 
     #[test]
     fn page_numbers_and_toc_links_dropped() {
-        let html = "<p>Text</p><p>12</p><p>Table of Contents</p><p>F-3</p><p>- 7 -</p><p>ii</p><p>More</p>";
-        assert_eq!(html_to_text(html), "Text\nMore\n");
+        let html = "<p>Text</p><p>12</p><p>Table of Contents</p><p>F-3</p><p>- 7 -</p><p>ii</p><p>More</p>\
+                    <p>F - 4</p><p>F\u{2011}5</p><p>- -8-</p><p>End</p>";
+        assert_eq!(html_to_text(html), "Text\nMore\nEnd\n");
+    }
+
+    /// Text of `pages` pages, each "Text of page N." followed by `footer`
+    /// with "{}" replaced by that page's number, and the text without the footers.
+    fn paged(footer: &str, pages: impl IntoIterator<Item = String>) -> (String, String) {
+        let (mut html, mut want) = (String::new(), String::new());
+        for page in pages {
+            html += &format!("<p>Text of page {page}.</p><p>{}</p>", footer.replace("{}", &page));
+            want += &format!("Text of page {page}.\n");
+        }
+        (html, want)
+    }
+
+    fn numbered(pages: std::ops::Range<u32>) -> Vec<String> {
+        pages.map(|n| n.to_string()).collect()
+    }
+
+    /// Page numbers alone on their line after a letter prefix, a chapter
+    /// number or a dash go when five or more of them come a page or a few
+    /// apart, with any of the dashes filings use.
+    #[test]
+    fn page_numbers_with_a_prefix_dropped() {
+        for footer in ["FS - {}", "S-{}", "II-{}", "E \u{2013} {}", "K-{}", "F\u{2011}{}.", "- {}"] {
+            let (html, want) = paged(footer, numbered(1..7));
+            assert_eq!(html_to_text(&html), want, "{footer}");
+        }
+        // Pages skipped here and there, and chapter-page numbers.
+        let (html, want) = paged("FS - {}", ["1", "2", "4", "5", "8", "9"].map(String::from));
+        assert_eq!(html_to_text(&html), want);
+        let chapters = ["1-1", "1-2", "1-3", "2-1", "2-2", "4-1", "4-2"].map(String::from);
+        let (html, want) = paged("{}", chapters);
+        assert_eq!(html_to_text(&html), want);
+    }
+
+    /// Lines that look like page numbers with a prefix but are lists stay:
+    /// exhibit numbers, which jump; ranges; labels on consecutive lines; too
+    /// few copies; and numbered captions such as "1." over a note's title.
+    #[test]
+    fn prefixed_numbers_that_are_not_pages_stay() {
+        let mut html = String::new();
+        for n in [3, 4, 10, 21, 23, 31, 32] {
+            html += &format!("<p>EX-{n}</p><p>Description of exhibit {n}.</p>");
+        }
+        for range in ["0-3", "4-12", "13-24", "25-36", "37-48", "49-60"] {
+            html += &format!("<p>{range}</p><p>Months to maturity.</p>");
+        }
+        for n in 1..7 {
+            html += &format!("<p>S-{n}</p>");
+        }
+        for n in 1..5 {
+            html += &format!("<p>Text.</p><p>A-{n}</p>");
+        }
+        for n in 1..9 {
+            html += &format!("<p>{n}.</p><p>Title of note {n}</p><p>Text of note {n}.</p>");
+        }
+        let text = html_to_text(&html);
+        for (start, copies) in [("EX-", 7), ("Months", 6), ("S-", 6), ("A-", 4)] {
+            assert_eq!(text.lines().filter(|l| l.starts_with(start)).count(), copies, "{start}");
+        }
+        for range in ["0-3", "4-12", "13-24", "25-36", "37-48", "49-60"] {
+            assert!(text.contains(&format!("\n{range}\n")), "{range}");
+        }
+        assert_eq!(text.lines().filter(|l| l.len() <= 2 && l.ends_with('.')).count(), 8);
+    }
+
+    /// Running headers numbered in roman numerals at the start or end of the
+    /// line in the front matter go with the rest of their family.
+    #[test]
+    fn running_headers_with_roman_page_numbers_dropped() {
+        let pages = ["i", "ii", "iii", "iv", "1", "2", "3"].map(String::from);
+        for header in ["Acme Corporation Annual Report {}", "{} | Acme Corporation Annual Report"] {
+            let (html, want) = paged(header, pages.clone());
+            assert_eq!(html_to_text(&html), want, "{header}");
+        }
+        // Roman numerals beside fewer than 10 letters are captions, and ones
+        // that do not rise are check marks.
+        let mut html = String::new();
+        for n in ["i", "ii", "iii", "iv", "v", "vi"] {
+            html += &format!("<p>Proposal {n}</p><p>Text of the proposal.</p>");
+            html += "<p>Indicate by check mark whether the registrant is a shell company. Yes ¨ No x</p><p>Text.</p>";
+        }
+        let text = html_to_text(&html);
+        assert_eq!(text.matches("Proposal").count(), 6);
+        assert_eq!(text.matches("No x").count(), 6);
+    }
+
+    /// Running headers of one short word that does not name the form go when
+    /// a "|" separates the page number, or when the number is at the start of
+    /// some copies and at the end of others, as on facing pages. Otherwise
+    /// they cannot be told from numbered captions such as "Note 4", and stay.
+    #[test]
+    fn short_running_headers_dropped_when_their_layout_shows_it() {
+        for header in ["ACME | {}", "{} | ACME"] {
+            let (html, want) = paged(header, numbered(20..26));
+            assert_eq!(html_to_text(&html), want, "{header}");
+        }
+        let mut html = String::new();
+        let mut want = String::new();
+        for page in 20..26 {
+            let header = if page % 2 == 0 { format!("{page} ACME") } else { format!("ACME {page}") };
+            html += &format!("<p>Text of page {page}.</p><p>{header}</p>");
+            want += &format!("Text of page {page}.\n");
+        }
+        assert_eq!(html_to_text(&html), want);
+
+        // One side only, or one copy on the other side.
+        let mut html = String::new();
+        for n in 1..8 {
+            html += &format!("<p>Note {n}</p><p>Text of note {n}.</p><p>ACME {}</p>", n + 20);
+        }
+        html += "<p>Text.</p><p>28 ACME</p>";
+        let text = html_to_text(&html);
+        assert_eq!(text.lines().filter(|l| l.starts_with("Note ")).count(), 7);
+        assert_eq!(text.matches("ACME").count(), 8);
+    }
+
+    /// "Page N of M" footers that start again at page 1 in each exhibit go,
+    /// while other lines whose numbers start again stay.
+    #[test]
+    fn page_of_footers_that_restart_in_each_exhibit_dropped() {
+        let pages = ["1 of 3", "2 of 3", "3 of 3", "1 of 2", "2 of 2", "1 of 1", "1 of 4", "2 of 4"].map(String::from);
+        let (html, want) = paged("Page {}", pages);
+        assert_eq!(html_to_text(&html), want);
+
+        // Numbers that start again at 1 outside "Page N of M", and "Page N of
+        // M" that goes back to a page other than 1.
+        let mut html = String::new();
+        for n in [1, 2, 3, 1, 2, 1, 2, 3] {
+            html += &format!("<p>Supplemental Indenture No. {n}</p><p>Description of the indenture.</p>");
+            html += &format!("<p>Page {} of 4</p><p>Text.</p>", n + 1);
+        }
+        let text = html_to_text(&html);
+        assert_eq!(text.matches("Supplemental Indenture No.").count(), 8);
+        assert_eq!(text.matches(" of 4").count(), 8);
+
+        // Pages past the count are not page numbers, so too few copies are left.
+        let (html, _) = paged("Page {} of 2", numbered(1..9));
+        assert_eq!(html_to_text(&html).matches(" of 2").count(), 8);
+    }
+
+    /// Old text filings that number their page tags, as in "<Page 2>".
+    #[test]
+    fn numbered_page_tags_dropped() {
+        let raw = "<DOCUMENT>\n<TEXT>\nPart I\n<Page  2>\nItem 1. Business\n<PAGE>\nText.\n<Page 3>\n</TEXT>";
+        assert_eq!(document_to_text(raw), "Part I\nItem 1. Business\nText.\n");
     }
 
     #[test]
