@@ -1,0 +1,67 @@
+{
+  "accession": "0001362310-08-008386",
+  "cik": 1048911,
+  "company": "FEDEX CORP",
+  "form": "10-Q",
+  "filing_date": "2008-12-19",
+  "url": "https://www.sec.gov/Archives/edgar/data/1048911/000136231008008386/c78389e10vq.htm",
+  "agent": "agent 0001362310",
+  "tags": [],
+  "labeled": true,
+  "notes": "The financial statements follow the table of contents with no Item 1 heading. Exhibits follow the exhibit index.",
+  "items": [
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Results of Operations and Financial Condition",
+      "occurrence": 0,
+      "next": "GENERAL"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "As of November 30, 2008, there had been "
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "The management of FedEx, with the partic"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "For a description of all material pendin"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "There have been no material changes from"
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "For the information called for by this i"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit"
+    }
+  ],
+  "absent": [
+    "part_1_item_1",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

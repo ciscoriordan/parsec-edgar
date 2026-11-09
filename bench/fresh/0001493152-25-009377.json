@@ -1,0 +1,150 @@
+{
+  "accession": "0001493152-25-009377",
+  "cik": 793524,
+  "company": "RESEARCH FRONTIERS INC",
+  "form": "10-K",
+  "filing_date": "2025-03-06",
+  "url": "https://www.sec.gov/Archives/edgar/data/793524/000149315225009377/form10-k.htm",
+  "agent": "M2 Compliance",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Smaller reporting company. Item 6 is printed bare ('ITEM 6.') above 'None.'. The financial statements follow the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.\tBUSINESS",
+      "occurrence": 0,
+      "next": "Forward-Looking Statements"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A.\tRISK FACTORS",
+      "occurrence": 0,
+      "next": "In addition to the other information in "
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B.\tUNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.\tPROPERTIES",
+      "occurrence": 0,
+      "next": "The Company currently occupies approxima"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.\tLEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "There are no legal proceedings pending b"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.\tMINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "N/A"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.\tMARKET FOR THE REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "(a) Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.\tMANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "Forward-Looking Statements"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8.\tFINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "The consolidated financial statements li",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.\tCHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A.\tCONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Conclusion Regarding the Effectiveness o"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B.\tOTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.\tDIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "The Company has adopted a Code of Ethics"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.\tEXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this Item 11",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.\tSECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The information required by this Item 12",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.\tCERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS AND DIRECTOR INDEPENDENCE.",
+      "occurrence": 0,
+      "next": "The information required by this Item 13",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14.\tPRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "Our independent registered public accoun"
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15.\tEXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a)(1) and (2) Financial Statements and "
+    },
+    {
+      "id": "item_16",
+      "text": "ITEM 16.\tFORM 10-K SUMMARY",
+      "occurrence": 0,
+      "next": "None."
+    }
+  ],
+  "absent": [
+    "item_1c",
+    "item_7a",
+    "item_9c"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

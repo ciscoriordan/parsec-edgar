@@ -1,0 +1,155 @@
+{
+  "accession": "0001166691-22-000009",
+  "cik": 1166691,
+  "company": "COMCAST CORP",
+  "form": "10-K",
+  "filing_date": "2022-02-02",
+  "url": "https://www.sec.gov/Archives/edgar/data/1166691/000116669122000009/cmcsa-20211231.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1: Business",
+      "occurrence": 0,
+      "next": "We are a global media and technology com"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A: Risk Factors",
+      "occurrence": 0,
+      "next": "Risks Related to Our Business, Industry "
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B: Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2: Properties",
+      "occurrence": 0,
+      "next": "We believe that substantially all of our"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3: Legal Proceedings",
+      "occurrence": 0,
+      "next": "See Note 15 included in this Annual Repo",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4: Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5: Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Comcast’s Class A common stock is listed"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6: [Reserved]",
+      "occurrence": 0,
+      "next": "[Reserved]"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7: Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Management’s discussion and analysis of "
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A: Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Interest Rate Risk Management"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8: Comcast Corporation Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "Index\tPage"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9: Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A: Controls and Procedures",
+      "occurrence": 0,
+      "next": "Conclusions regarding disclosure control"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B: Other Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9c",
+      "text": "Item 9C: Disclosure Regarding Foreign Jurisdictions that Prevent Inspections",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10: Directors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "Except for the information regarding exe"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11: Executive Compensation",
+      "occurrence": 0,
+      "next": "We incorporate the information required ",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12: Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "We incorporate the information required ",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13: Certain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "We incorporate the information required ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14: Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "We incorporate the information required ",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15: Exhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a) Our consolidated financial statement"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16: Form 10-K Summary",
+      "occurrence": 0,
+      "next": "None."
+    }
+  ],
+  "end": {
+    "text": "Signatures",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

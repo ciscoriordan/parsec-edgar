@@ -1,0 +1,47 @@
+{
+  "accession": "0000093410-99-000045",
+  "cik": 93410,
+  "company": "CHEVRON CORP",
+  "form": "10-Q",
+  "filing_date": "1999-08-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/93410/000009341099000045/0000093410-99-000045.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Part I has no Item headings in the body: the financial statements follow 'PART I. FINANCIAL INFORMATION' and MD&A has an unnumbered heading. The contents list Items 1 and 2 with page numbers. A wrapped line in Part II Item 1 starts with 'Item 3A of the Corporation's Annual Report'.",
+  "items": [
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.  Legal Proceedings",
+      "occurrence": 0,
+      "next": "Item 3A of the  Corporation's  Annual  R"
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.  Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "The following  matters were  submitted t"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a)   Exhibits"
+    }
+  ],
+  "absent": [
+    "part_1_item_1",
+    "part_1_item_2",
+    "part_1_item_3",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant  to the  requirements  of the  "
+  }
+}

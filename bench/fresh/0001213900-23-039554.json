@@ -1,0 +1,87 @@
+{
+  "accession": "0001213900-23-039554",
+  "cik": 1530163,
+  "company": "Samsara Luggage, Inc.",
+  "form": "10-Q",
+  "filing_date": "2023-05-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/1530163/000121390023039554/f10q0323_samsaralug.htm",
+  "agent": "EdgarAgents",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Smaller reporting company. Headings mix 'Item 2 -' and 'Item 3. -' punctuation.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "SAMSARA LUGGAGE, INC."
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2 - Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "You should read the following discussion"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. - Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "We are a smaller reporting company as de"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. - Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1 - Legal Proceedings",
+      "occurrence": 0,
+      "next": "We know of no material, existing or pend"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "There have been no material changes to t"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Mine Safety Disclosure",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit No.\tDescription"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

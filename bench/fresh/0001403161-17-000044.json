@@ -1,0 +1,147 @@
+{
+  "accession": "0001403161-17-000044",
+  "cik": 1403161,
+  "company": "VISA INC.",
+  "form": "10-K",
+  "filing_date": "2017-11-17",
+  "url": "https://www.sec.gov/Archives/edgar/data/1403161/000140316117000044/v093017.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. Business",
+      "occurrence": 0,
+      "next": "OVERVIEW"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "Regulatory Risks"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B.\tUnresolved Staff Comments",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.\tProperties",
+      "occurrence": 0,
+      "next": "At September 30, 2017, we owned or lease"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "Refer to Note 19—Legal Matters to our co",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.\tMine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.\tMarket for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Price Range of Common Stock"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.\tSelected Financial Data",
+      "occurrence": 0,
+      "next": "The following tables present selected Vi"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "This management’s discussion and analysi"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A.\tQuantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "Market risk is the potential economic lo"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8.\tFinancial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "VISA INC."
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B.\tOther Information",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.\tDirectors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "The information required by this item co",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "The information required by this item co",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information required by this item pu",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.\tCertain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "The information required by this item co",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14.\tPrincipal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15.\tExhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "The following documents are filed as par"
+    }
+  ],
+  "absent": [
+    "item_16"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

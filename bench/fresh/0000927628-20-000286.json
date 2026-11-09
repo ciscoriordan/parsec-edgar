@@ -1,0 +1,87 @@
+{
+  "accession": "0000927628-20-000286",
+  "cik": 927628,
+  "company": "CAPITAL ONE FINANCIAL CORP",
+  "form": "10-Q",
+  "filing_date": "2020-11-02",
+  "url": "https://www.sec.gov/Archives/edgar/data/927628/000092762820000286/cof-20200930.htm",
+  "agent": "self",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "Item 2 (MD&A, ending with a glossary) is printed before Item 1. Item 1 opens with its own page index. The exhibit index sits between Item 6 and the signatures.",
+  "items": [
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations (“MD&A”)",
+      "occurrence": 0,
+      "next": "This discussion contains forward-looking"
+    },
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements and Notes",
+      "occurrence": 0,
+      "next": "Page"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "For a discussion of the quantitative and"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "The information required by Item 103 of "
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "We are not aware of any material changes"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "The following table presents information"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "An index to exhibits has been filed as p"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

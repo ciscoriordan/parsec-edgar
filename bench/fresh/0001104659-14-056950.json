@@ -1,0 +1,57 @@
+{
+  "accession": "0001104659-14-056950",
+  "cik": 1800,
+  "company": "ABBOTT LABORATORIES",
+  "form": "10-Q",
+  "filing_date": "2014-08-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/1800/000110465914056950/a14-13985_110q.htm",
+  "agent": "Toppan Merrill",
+  "tags": [],
+  "labeled": true,
+  "notes": "The financial statements follow the table of contents with no Item 1 heading. No Item 3 heading. 'PART I. FINANCIAL INFORMATION' is repeated above Item 4.",
+  "items": [
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Financial Review - Results of Operations"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "(a) Evaluation of disclosure controls an"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "Abbott is involved in various claims, le"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "(c) Issuer Purchases of Equity Securitie"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "Incorporated by reference to the Exhibit"
+    }
+  ],
+  "absent": [
+    "part_1_item_1",
+    "part_1_item_3",
+    "part_2_item_1a",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}
