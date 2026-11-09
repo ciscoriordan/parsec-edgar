@@ -44,10 +44,15 @@ pub struct Table {
     /// cells left out. A row is a line of tab-separated cells in the text,
     /// unless a cell has several lines, such as a header "Year Ended" over
     /// "December 31,", or the row is over 1,000 characters: then each cell
-    /// starts a line of the text and keeps its line breaks. The lines of the
-    /// cells of a row with two or more cells are never removed as page numbers
-    /// or running headers (in a row over 1,000 characters, only cells of one
-    /// line).
+    /// starts a line of the text and keeps its line breaks.
+    ///
+    /// A row printed as one line is removed as a running header or footer
+    /// like any other line. In a row of two or more cells printed cell by
+    /// cell, no line is removed on its own as a page number or running
+    /// header (in a row over 1,000 characters, this holds only for cells of
+    /// one line), so values such as "390" stay. A short row printed cell by
+    /// cell is removed as a whole when it repeats on five or more pages with
+    /// only a rising page number changing, as a running footer does.
     pub rows: Vec<Vec<String>>,
 }
 
@@ -56,7 +61,7 @@ pub fn html_to_text(html: &str) -> String {
     let doc = Html::parse_document(html);
     let mut out = Out::default();
     render(doc.tree.root(), &mut out);
-    join_lines(&kept_lines(&out.buf, &out.cell_lines))
+    join_lines(&kept_lines(&out.buf, &out.cell_lines, &out.cell_rows))
 }
 
 /// Convert an HTML document to clean plain text, exactly as [`html_to_text`]
@@ -74,7 +79,7 @@ pub fn html_to_text_and_tables(html: &str) -> (String, Vec<Table>) {
     let doc = Html::parse_document(html);
     let mut out = Out { rows: Some(Vec::new()), ..Out::default() };
     render(doc.tree.root(), &mut out);
-    let lines = kept_lines(&out.buf, &out.cell_lines);
+    let lines = kept_lines(&out.buf, &out.cell_lines, &out.cell_rows);
     let text = join_lines(&lines);
     let tables = locate_tables(&out.buf, &lines, &text, out.rows.unwrap_or_default());
     (text, tables)
@@ -142,8 +147,12 @@ struct Out {
     /// Start in `buf` of each line of the cells of rows printed cell by cell
     /// with two or more cells (in rows over 1,000 characters, only of cells of
     /// one line), in order. These lines are table data, never page numbers or
-    /// page furniture.
+    /// page furniture on their own.
     cell_lines: Vec<usize>,
+    /// Where in `buf` each row printed cell by cell with two or more cells and
+    /// at most 1,000 characters is, in order. Such a row is removed as a whole
+    /// when it repeats on several pages as a running header or footer.
+    cell_rows: Vec<Range<usize>>,
     /// Table rows rendered into `buf`, recorded only when tables are wanted.
     rows: Option<Vec<RowRecord>>,
 }
@@ -337,6 +346,7 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
     let all_lines = !data_row && short && groups.len() > 1;
     let mut ranges = Vec::new();
     out.newline();
+    let row_start = out.buf.len();
     for (g, group) in groups.iter().enumerate() {
         if !data_row {
             out.newline();
@@ -356,6 +366,7 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
                 let moved = |p: usize| p - cell.text.start + shift;
                 if !all_lines {
                     out.cell_lines.extend(cell.out.cell_lines.iter().map(|&p| moved(p)));
+                    out.cell_rows.extend(cell.out.cell_rows.iter().map(|r| moved(r.start)..moved(r.end)));
                 }
                 if let (Some(rows), Some(inner)) = (&mut out.rows, &mut cell.out.rows) {
                     for mut row in inner.drain(..) {
@@ -377,6 +388,9 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
         if out.rows.is_some() {
             ranges.push(at..out.buf.len());
         }
+    }
+    if all_lines {
+        out.cell_rows.push(row_start..out.buf.len());
     }
     if let (Some(rows), Some(table)) = (&mut out.rows, enclosing_table(tr)) {
         let in_thead = tr.parent().and_then(|p| p.value().as_element().map(|e| e.name() == "thead"));
@@ -460,17 +474,23 @@ fn ends_like_number(cell: &str) -> bool {
 /// Trim lines and drop empty lines, bare page numbers, "Table of Contents"
 /// links and running page headers and footers.
 fn finish(text: &str) -> String {
-    join_lines(&kept_lines(text, &[]))
+    join_lines(&kept_lines(text, &[], &[]))
 }
+
+/// A bare page number, such as "12", "Page 12", "F-3", "- 7 -" or "ii",
+/// with the number in the first group that matched.
+static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(?:(?i:page)\s+)?(?:(\d{1,3})|([ivxlc]{1,7})|F-(\d{1,3})|[-–—]\s*(\d{1,3})\s*[-–—])$").unwrap()
+});
 
 /// The lines [`finish`] keeps, trimmed, as slices of `text` in order. The
 /// lines starting at the sorted offsets `cell_lines` belong to table cells
-/// (see `Out::cell_lines`) and are not dropped as page numbers or page furniture.
-fn kept_lines<'a>(text: &'a str, cell_lines: &[usize]) -> Vec<&'a str> {
-    static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"^(?:(?i:page)\s+)?(?:\d{1,3}|[ivxlc]{1,7}|F-\d{1,3}|[-–—]\s*\d{1,3}\s*[-–—])$").unwrap()
-    });
+/// (see `Out::cell_lines`) and are not dropped as page numbers or page
+/// furniture on their own, but those of a row of `cell_rows` (byte ranges of
+/// `text`, see `Out::cell_rows`) are dropped together when the row is.
+fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>]) -> Vec<&'a str> {
     debug_assert!(cell_lines.is_sorted(), "cell lines are recorded in text order");
+    debug_assert!(cell_rows.is_sorted_by_key(|r| r.start), "cell rows are recorded in text order");
     let mut cell_lines = cell_lines.iter().copied().peekable();
     let mut lines = Vec::new();
     let mut is_cell = Vec::new();
@@ -485,7 +505,14 @@ fn kept_lines<'a>(text: &'a str, cell_lines: &[usize]) -> Vec<&'a str> {
         lines.push(line);
         is_cell.push(cell);
     }
-    let furniture = page_furniture(&lines, &is_cell);
+    // The kept lines of each row.
+    let starts: Vec<usize> = lines.iter().map(|l| l.as_ptr() as usize - text.as_ptr() as usize).collect();
+    let rows: Vec<Range<usize>> = cell_rows
+        .iter()
+        .map(|r| starts.partition_point(|&s| s < r.start)..starts.partition_point(|&s| s < r.end))
+        .filter(|r| !r.is_empty())
+        .collect();
+    let furniture = page_furniture(&lines, &is_cell, &rows);
     lines.into_iter().enumerate().filter(|(i, _)| !furniture.contains(i)).map(|(_, l)| l).collect()
 }
 
@@ -561,17 +588,131 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
 /// pages may be numbered "i", "ii" and so on).
 ///
 /// The page numbers must mostly increase through the document, which data
-/// rows do not do. The text beside the number needs 10 letters, because short
-/// lines such as cross-references ("See page 4") also come with rising
-/// numbers. Shorter text is enough when it names the form ("2021 Form 10-K
-/// 100") or the line starts with "Page N of M" ("Page 3 of 26"), and the
-/// copies are mostly not on consecutive lines, as the rows of a table are.
-/// Rows with the number in the middle must also mostly not be on consecutive
-/// lines, whatever their length. Lines of table cells (`is_cell`) are data
-/// and never count.
-fn page_furniture(lines: &[&str], is_cell: &[bool]) -> HashSet<usize> {
+/// rows do not do; a page numbered in roman numerals followed by one in
+/// digits counts as an increase. The text beside the number needs 10
+/// letters, because short lines such as cross-references ("See page 4") also
+/// come with rising numbers. Shorter text is enough when it names the form
+/// ("2021 Form 10-K 100") or the line starts with "Page N of M" ("Page 3 of
+/// 26"), and the copies are mostly not on consecutive lines, as the rows of a
+/// table are. Rows with the number in the middle must also mostly not be on
+/// consecutive lines, whatever their length.
+///
+/// Lines of table cells (`is_cell`) are data and never count on their own.
+/// A short row printed cell by cell (`rows`, as ranges of `lines`) counts as
+/// one copy: its lines, with the page number taken out of one of them, must
+/// repeat as the text of a line does, as in a footer with the company name
+/// over the report name and the page number in the next cell. Its copies
+/// must also mostly not be next to each other, as the rows of a table are.
+fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> HashSet<usize> {
     const MIN_REPEATS: usize = 5;
     const MIN_LETTERS: usize = 10;
+    const MAX_LEN: usize = 120;
+    // Filings also spell the dash as a non-breaking hyphen (U+2011) or an en dash.
+    static FORM_NAME: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)\b(?:10[-‐‑‒–—][KQ]|8[-‐‑‒–—]K|20[-‐‑‒–—]F|40[-‐‑‒–—]F)").unwrap());
+    let letters = |s: &str| s.chars().filter(|c| c.is_alphabetic()).count();
+    // Whether most of the `n` copies of a family pass a test.
+    let mostly = |count: usize, n: usize| count * 10 >= (n - 1) * 9;
+    let mut drop = HashSet::new();
+
+    // Line indexes and page numbers, keyed as page_numbers keys them.
+    let mut families: HashMap<PageKey, Vec<(usize, PageNumber)>> = HashMap::new();
+    for (i, line) in lines.iter().enumerate() {
+        if line.len() > MAX_LEN || is_cell[i] {
+            continue;
+        }
+        for page in page_numbers(line).into_iter().flatten() {
+            let (before, after, page_first) = page.key;
+            let short = letters(before) + letters(after) < MIN_LETTERS;
+            let form = FORM_NAME.is_match(before) || FORM_NAME.is_match(after);
+            if !(before.contains(' ') || after.contains(' ')) || (short && !page_first && !form) {
+                continue;
+            }
+            families.entry(page.key).or_default().push((i, page));
+        }
+    }
+    for (&(before, after, _), seen) in &families {
+        if seen.len() < MIN_REPEATS {
+            continue;
+        }
+        let apart = seen.windows(2).filter(|w| w[1].0 > w[0].0 + 1).count();
+        let short = letters(before) + letters(after) < MIN_LETTERS;
+        if mostly(rising(seen), seen.len()) && ((!short && after.is_empty()) || mostly(apart, seen.len())) {
+            drop.extend(seen.iter().map(|&(i, _)| i));
+        }
+    }
+
+    // The same for rows printed cell by cell: indexes into `rows` and page
+    // numbers, keyed by the lines of the row with the page number taken out.
+    let mut row_families: HashMap<String, Vec<(usize, PageNumber)>> = HashMap::new();
+    for (r, range) in rows.iter().enumerate() {
+        let row = &lines[range.clone()];
+        if row.iter().map(|l| l.len() + 1).sum::<usize>() > MAX_LEN {
+            continue;
+        }
+        for (j, line) in row.iter().enumerate() {
+            for page in page_numbers(line).into_iter().flatten() {
+                let (before, after, page_first) = page.key;
+                let mut key = String::new();
+                for (k, l) in row.iter().enumerate() {
+                    if k > 0 {
+                        key.push('\n');
+                    }
+                    if k == j {
+                        key.extend([before, "\0", after]);
+                    } else {
+                        key.push_str(l);
+                    }
+                }
+                if letters(&key) < MIN_LETTERS && !page_first && !FORM_NAME.is_match(&key) {
+                    continue;
+                }
+                row_families.entry(key).or_default().push((r, page));
+            }
+        }
+    }
+    for seen in row_families.values() {
+        let apart = seen.windows(2).filter(|w| rows[w[1].0].start > rows[w[0].0].end).count();
+        if seen.len() >= MIN_REPEATS && mostly(rising(seen), seen.len()) && mostly(apart, seen.len()) {
+            drop.extend(seen.iter().flat_map(|&(r, _)| rows[r].clone()));
+        }
+    }
+    drop
+}
+
+/// How many copies of a running header or footer have a higher page number
+/// than the copy before, counting a page numbered in roman numerals followed
+/// by one in digits, as when the front matter gives way to the body.
+fn rising(seen: &[(usize, PageNumber)]) -> usize {
+    seen.windows(2)
+        .filter(|w| {
+            let (a, b) = (&w[0].1, &w[1].1);
+            if a.roman == b.roman { b.number > a.number } else { a.roman }
+        })
+        .count()
+}
+
+/// The text before and after a page number, and whether the line starts with
+/// "Page N of M". A number at the start or end of a line leaves its text in
+/// the first place, so that headers with the number on alternate sides of the
+/// page are one family.
+type PageKey<'a> = (&'a str, &'a str, bool);
+
+/// A page number found in a line, and the text around it.
+struct PageNumber<'a> {
+    number: u32,
+    /// Written in roman numerals.
+    roman: bool,
+    key: PageKey<'a>,
+}
+
+/// The page numbers of a line that may be a running header or footer, with
+/// the text around them: a bare page number, or one at the start or end of
+/// the line, in a leading "Page N of M", or in the middle cell of a row of
+/// three cells, in digits or, in the front matter, in roman numerals. A line
+/// can have both of the last two, as "2021 Annual Report<TAB>61<TAB>Part II,
+/// Item 8" does.
+fn page_numbers<'a>(line: &'a str) -> [Option<PageNumber<'a>>; 2] {
     // The page number comes first, in a leading "Page N of M", or last.
     static NUMBERED: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(concat!(
@@ -581,67 +722,35 @@ fn page_furniture(lines: &[&str], is_cell: &[bool]) -> HashSet<usize> {
         ))
         .unwrap()
     });
-    // Filings also spell the dash as a non-breaking hyphen (U+2011) or an en dash.
-    static FORM_NAME: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(?i)\b(?:10[-‐‑‒–—][KQ]|8[-‐‑‒–—]K|20[-‐‑‒–—]F|40[-‐‑‒–—]F)").unwrap());
-    let letters = |s: &str| s.chars().filter(|c| c.is_alphabetic()).count();
-    // Line indexes and page numbers, keyed as page_number keys them.
-    let mut families: HashMap<PageKey, Vec<(usize, u32)>> = HashMap::new();
-    for (i, line) in lines.iter().enumerate() {
-        if line.len() > 120 || is_cell[i] {
-            continue;
-        }
-        let Some((num, key)) = page_number(line, &NUMBERED) else { continue };
-        let (before, after, page_first) = key;
-        let short = letters(before) + letters(after) < MIN_LETTERS;
-        let form = FORM_NAME.is_match(before) || FORM_NAME.is_match(after);
-        if !(before.contains(' ') || after.contains(' ')) || (short && !page_first && !form) {
-            continue;
-        }
-        families.entry(key).or_default().push((i, num));
+    let page =
+        |number: Option<u32>, roman: bool, key: PageKey<'a>| number.map(|number| PageNumber { number, roman, key });
+    if let Some(c) = PAGE_NUMBER.captures(line) {
+        let roman = c.get(2).is_some();
+        let Some(m) = (1..5).find_map(|g| c.get(g)) else { return [None, None] };
+        let number = if roman { self::roman(m.as_str()) } else { m.as_str().parse().ok() };
+        return [page(number, roman, (&line[..m.start()], &line[m.end()..], false)), None];
     }
-    let mut drop = HashSet::new();
-    for (&(before, after, _), seen) in &families {
-        if seen.len() < MIN_REPEATS {
-            continue;
-        }
-        let mostly = |count: usize| count * 10 >= (seen.len() - 1) * 9;
-        let rising = seen.windows(2).filter(|w| w[1].1 > w[0].1).count();
-        let apart = seen.windows(2).filter(|w| w[1].0 > w[0].0 + 1).count();
-        let short = letters(before) + letters(after) < MIN_LETTERS;
-        if mostly(rising) && ((!short && after.is_empty()) || mostly(apart)) {
-            drop.extend(seen.iter().map(|&(i, _)| i));
-        }
-    }
-    drop
-}
-
-/// The text before and after a page number, and whether the line starts with
-/// "Page N of M". A number at the start or end of a line leaves its text in
-/// the first place, so that headers with the number on alternate sides of the
-/// page are one family.
-type PageKey<'a> = (&'a str, &'a str, bool);
-
-/// The page number of a line that may be a running header or footer, and the
-/// text around it.
-fn page_number<'a>(line: &'a str, numbered: &Regex) -> Option<(u32, PageKey<'a>)> {
     let edge = line.starts_with(|c: char| c.is_ascii_digit())
         || line.ends_with(|c: char| c.is_ascii_digit())
         || line.get(..4).is_some_and(|s| s.eq_ignore_ascii_case("page"));
-    if let Some(c) = edge.then(|| numbered.captures(line)).flatten() {
-        let num = c.get(1).or_else(|| c.get(3)).or_else(|| c.get(6))?;
+    let at_edge = edge.then(|| NUMBERED.captures(line)).flatten().and_then(|c| {
+        let number = c.get(1).or_else(|| c.get(3)).or_else(|| c.get(6))?;
         let rest = c.get(2).or_else(|| c.get(4)).or_else(|| c.get(5))?;
         let rest = rest.as_str().trim_matches(|c: char| c == '|' || c.is_whitespace());
-        return Some((num.as_str().parse().ok()?, (rest, "", c.get(3).is_some())));
-    }
-    // A row of three cells with the page number in the middle one, in digits
-    // or, in the front matter, in roman numerals.
+        page(number.as_str().parse().ok(), false, (rest, "", c.get(3).is_some()))
+    });
     let mut cells = line.split('\t');
-    let (Some(before), Some(num), Some(after), None) = (cells.next(), cells.next(), cells.next(), cells.next()) else {
-        return None;
+    let in_middle = match (cells.next(), cells.next(), cells.next(), cells.next()) {
+        (Some(before), Some(number), Some(after), None) => {
+            if number.len() <= 3 && number.bytes().all(|b| b.is_ascii_digit()) {
+                page(number.parse().ok(), false, (before, after, false))
+            } else {
+                page(roman(number), true, (before, after, false))
+            }
+        }
+        _ => None,
     };
-    let n = if num.len() <= 3 && num.bytes().all(|b| b.is_ascii_digit()) { num.parse().ok() } else { roman(num) };
-    Some((n?, (before, after, false)))
+    [at_edge, in_middle]
 }
 
 /// The value of a lowercase roman numeral of up to 7 letters, such as "xiv".
@@ -768,6 +877,72 @@ mod tests {
         let (text, tables) = tables_of(&html);
         assert_eq!(text, want);
         assert!(tables.is_empty(), "{tables:?}");
+    }
+
+    /// A row of three cells with the page number in the middle one is a
+    /// footer even when its last cell ends in a number, and footers numbered
+    /// "i", "ii" and so on before the body's "1" rise like any others.
+    #[test]
+    fn running_footers_with_the_page_number_in_the_middle_ending_in_a_number_dropped() {
+        let numbers = |pages: &[&str]| pages.iter().map(|p| p.to_string()).collect::<Vec<_>>();
+        for (footer, pages) in [
+            ("2021 Annual Report</td><td>{}</td><td>Part II, Item 8", numbers(&["61", "62", "63", "64", "65", "66"])),
+            ("2021 Form 10-K</td><td>{}</td><td>WEC Energy Group, Inc.", numbers(&["i", "ii", "iii", "1", "2", "3"])),
+        ] {
+            let mut html = String::new();
+            let mut want = String::new();
+            for page in pages {
+                html += &format!(
+                    "<p>Text of page {page}.</p><table><tr><td>{}</td></tr></table>",
+                    footer.replace("{}", &page)
+                );
+                want += &format!("Text of page {page}.\n");
+            }
+            let (text, tables) = tables_of(&html);
+            assert_eq!(text, want, "{footer}");
+            assert!(tables.is_empty(), "{tables:?}");
+        }
+    }
+
+    /// A running footer printed as a row of cells, one of them of several
+    /// lines, goes as a whole, as one printed as a line of cells does. Rows
+    /// printed cell by cell whose numbers do not rise like pages, or which
+    /// follow each other in one table, stay.
+    #[test]
+    fn running_footers_printed_cell_by_cell_dropped() {
+        for footer in [
+            "<td>Acme Corporation Annual Report</td><td>{}</td>",
+            "<td><p>Acme Corporation</p><p>2021 Annual Report</p></td><td>{}</td>",
+            "<td>{}</td><td>Acme Corporation<br>2021 Annual Report</td><td>Part II</td>",
+            "<td><p>Apple Inc.</p><p>2026 Form 10-K | {}</p></td><td>Investor Relations</td>",
+            "<td>Acme<br>Annual Report</td><td>Page {}</td>",
+        ] {
+            let mut html = String::new();
+            let mut want = String::new();
+            for page in 20..26 {
+                html += &format!(
+                    "<p>Text of page {page}.</p><table><tr>{}</tr></table>",
+                    footer.replace("{}", &page.to_string())
+                );
+                want += &format!("Text of page {page}.\n");
+            }
+            let (text, tables) = tables_of(&html);
+            assert_eq!(text, want, "{footer}");
+            assert!(tables.is_empty(), "{tables:?}");
+        }
+
+        let mut html = String::new();
+        for n in [12, 9, 14, 3, 20, 1] {
+            html +=
+                &format!("<p>Text.</p><table><tr><td>Acme Corporation<br>Store count</td><td>{n}</td></tr></table>");
+        }
+        html += "<table>";
+        for n in 1..7 {
+            html += &format!("<tr><td>Acme Corporation<br>Store count</td><td>{n}</td></tr>");
+        }
+        html += "</table>";
+        let text = html_to_text(&html);
+        assert_eq!(text.matches("Acme Corporation\nStore count\n").count(), 12);
     }
 
     #[test]
