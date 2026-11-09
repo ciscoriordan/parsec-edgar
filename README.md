@@ -295,10 +295,10 @@ let (filings, profile) = client.crawl_company_with_profile("AAPL", &tenks)?;  //
 ```
 
 - `start` and `end` are byte offsets in the text, as for sections, so a table belongs to the section whose `start..end` holds its `start`. The `tables` command adds that section's id to each table, and `--item` keeps only the tables of the given sections.
-- Cells read exactly as in the text: `$` and `)` or `%` cells are merged into their numbers, and empty cells are left out. A row is one line of tab-separated cells in the text, unless a cell has several lines (the RSU header above) or the row is over 1,000 characters; then the text has its cells one after another, and the cells keep their line breaks.
+- Cells read exactly as in the text: `$` and `)` or `%` cells are merged into their numbers (a cell of several lines, such as a header, is not a number), and empty cells are left out. A row is one line of tab-separated cells in the text, unless a cell has several lines (the RSU header above) or the row is over 1,000 characters; then the text has its cells one after another, and the cells keep their line breaks.
 - `header_rows` lists the rows inside `<thead>` and the rows whose cells are all `<th>`. Most filings use neither, so the list is usually empty; no other guess is made about headers.
-- Lines removed from the text as page numbers or running headers are removed from the tables too, and a table left with no rows is dropped.
-- Layout tables, whose rows are all long blocks of text (some filings wrap whole pages in a table), are not returned, while the tables inside them are. A table in a cell of another table is returned on its own, inside the outer table's offsets, except a one-row table that became a single cell of the outer row.
+- The lines of the cells of a row with two or more cells are never removed as page numbers or running headers, so values such as "390" or "x" stay. In a row over 1,000 characters, which is a layout table, this holds only for cells of one line. Other lines removed from the text as page numbers or running headers, such as a page number in a one-cell row, are removed from the tables too, and a table left with no rows is dropped.
+- Layout tables, whose rows are all long blocks of text (some filings wrap whole pages in a table), are not returned, while the tables inside them are. A table in a cell of another table is returned on its own, inside the outer table's offsets, except a one-row table that became a single cell of the outer row. Tables nested more than 50 deep are printed as plain blocks of text and not returned.
 - Plain-text filings (most filings before 2001) have no tables.
 
 Over the 129 benchmark filings that is about 19,600 tables, and converting with tables takes about 2% longer than `html_to_text`, whose own speed is unchanged.
@@ -324,7 +324,7 @@ Accuracy is measured against 129 hand-labeled filings from 1997 to 2026 (`bench/
 - An executive officers section without its own Item number, or numbered "Item 4(a)" (Lockheed Martin 2006), stays in Item 4.
 - Item numbers the form does not define are not mapped to an Item: when Item 5 is printed only as "Item 5A" and "Item 5B" (McDonald's 2003), Item 5 is missing from the output.
 - A heading with two separators, such as "Item 3. - Quantitative and Qualitative Disclosures" (Samsara Luggage 2023 10-Q), is not recognized, and its text goes to the Item before it.
-- Running page headers and footers are removed when they carry a page number and repeat on five or more pages; short ones such as "2021 Form 10-K 100" stay.
+- Running page headers and footers are removed when they repeat on five or more pages with a rising page number at the start or end of the line, in a leading "Page N of M", or in the middle cell of a three-cell row ("2021 Form 10-K", "95", "WEC Energy Group, Inc."). Some stay: footers whose numbering starts again in each exhibit ("Page 1 of 3", then "Page 1 of 2"), short ones with fewer than 10 letters beside the number that do not name the form, numbers with a prefix such as "FS - 12" (Ford 2010), and numbers in the middle of a line that is not a three-cell row.
 - Table cells are not aligned to columns: empty cells are left out and a cell spanning several columns is one cell, so a row can have fewer cells than the rows around it, and a header row usually has no cell above the row labels.
 
 ## Layout
