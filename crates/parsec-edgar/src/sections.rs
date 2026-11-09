@@ -14,6 +14,13 @@
 //! fixes its part, and without one a title that only one part uses for that
 //! Item number does. The last Item ends at the signatures or where a
 //! separately paginated attached document (an annual report) begins.
+//!
+//! Lettered headings of Items the form does not define stay out of the chain.
+//! When the chain has no Item of their number, the first one printed where
+//! that Item belongs starts it ("Item 5A" and "Item 5B" print Item 5).
+//! Otherwise a titled one ends the Item before it, and so does the executive
+//! officers section numbered "Item 4A" or "Item 4(a)", which never starts an
+//! Item.
 
 use std::sync::LazyLock;
 
@@ -227,6 +234,11 @@ static SIGNATURE_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
 static SUB_ITEM: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:\((?:[a-z]|\d{1,2}|[ivx]{1,4})\))+[\s.:\-–—]*$").unwrap());
 
+/// A title that names executive officers: Form 10-K lets a filer list them in
+/// Part I under a caption of its own ("Executive Officers of the Registrant"),
+/// which is not one of the form's Items.
+static OFFICERS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bexecutive\s+officers\b").unwrap());
+
 /// `PART I`, `Part II - Other Information`, also as the start of a heading line.
 static PART_MARK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*(?i:part)[ \t]+(II|I)(?-u:\b)").unwrap());
 
@@ -250,6 +262,8 @@ struct Candidate {
     /// 10-Q part whose standard title for this Item number matches the
     /// heading's title, when only one part's does ("Item 1. Legal Proceedings").
     title_part: Option<&'static str>,
+    /// The title names executive officers.
+    officers: bool,
     /// Distance to the next heading of a different Item.
     gap: usize,
     score: f64,
@@ -303,6 +317,29 @@ fn split_letter<'a>(label: &str, between: &str, tail: &'a str) -> (String, &'a s
     }
 }
 
+/// `ITEM 4(a). EXECUTIVE OFFICERS OF THE REGISTRANT`: the executive officers
+/// caption numbered as a sub-item reads as the lettered Item `4A`, which the
+/// form does not define. Other titled sub-items are paragraphs of their Item
+/// and keep its number: `Item 14(a). Financial Statements`, `Item 6 (a).
+/// Exhibits`, and `Item 10(b). Executive Officers` under Item 10, whose title
+/// names executive officers.
+fn officers_sub_item<'a>(label: &str, tail: &'a str, keys: &[Key]) -> (String, &'a str) {
+    let b = tail.as_bytes();
+    if label.bytes().all(|d| d.is_ascii_digit())
+        && b.len() > 3
+        && b[0] == b'('
+        && b[1].is_ascii_alphabetic()
+        && b[2] == b')'
+        && OFFICERS.is_match(&tail[3..])
+        && !keys.iter().any(|k| k.item == label && OFFICERS.is_match(k.title))
+    {
+        let title = tail[3..].trim_start_matches([' ', '\t', '.', ':', '-', '–', '—']);
+        (format!("{label}{}", b[1].to_ascii_uppercase() as char), title)
+    } else {
+        (label.to_owned(), tail)
+    }
+}
+
 fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     let re = match kind {
         FormKind::EightK => &*CURRENT_HEADING,
@@ -319,16 +356,19 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
             let (label, tail) = if kind == FormKind::EightK {
                 (label, tail.as_str())
             } else {
-                split_letter(&label, &text[number.end()..tail.start()], tail.as_str())
+                let (label, tail) = split_letter(&label, &text[number.end()..tail.start()], tail.as_str());
+                officers_sub_item(&label, tail, keys_for(kind))
             };
             let bare = !tail.chars().any(char::is_alphabetic);
-            let title = if bare { title_key(next_line_title(text, m.end())) } else { title_key(tail) };
+            let title_text = if bare { next_line_title(text, m.end()) } else { tail };
+            let title = title_key(title_text);
+            let officers = OFFICERS.is_match(title_text);
             let (part, title_part) = if kind == FormKind::TenQ {
                 (part_above(text, m.start(), &label), part_by_title(&label, &title))
             } else {
                 (None, None)
             };
-            Candidate { pos: m.start(), label, heading, bare, title, part, title_part, gap: 0, score: 0.0 }
+            Candidate { pos: m.start(), label, heading, bare, title, part, title_part, officers, gap: 0, score: 0.0 }
         })
         .collect();
     set_gaps(&mut cands, text.len());
@@ -590,6 +630,41 @@ fn add_out_of_order(text: &str, cands: &[Candidate], keys: &[Key], picks: &mut V
     picks.sort_by_key(|&(c, _)| cands[c].pos);
 }
 
+/// The Item number without its letter: `5` for `5A`.
+fn item_number(label: &str) -> &str {
+    label.trim_end_matches(|c: char| c.is_ascii_alphabetic())
+}
+
+/// Some filings print an Item only as lettered headings the form does not
+/// define: "Item 5A. Market for Registrant's Common Equity" and "Item 5B.
+/// Equity Compensation Plan Information" for Item 5. The chain cannot hold
+/// them, so the first one that sits where the Item of its number belongs,
+/// between the chain's Items before and after it in form order, starts that
+/// Item when the chain has none. In a 10-Q that order also picks the part. The
+/// executive officers caption ("Item 4A. Executive Officers") is not an Item
+/// and never does. Returns the Items filled this way.
+fn add_lettered(cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize)>) -> Vec<&'static str> {
+    let mut filled = Vec::new();
+    for (ci, c) in cands.iter().enumerate() {
+        let number = item_number(&c.label);
+        if number.len() == c.label.len() || c.officers || keys.iter().any(|k| k.item == c.label) {
+            continue;
+        }
+        let at = picks.partition_point(|&(p, _)| cands[p].pos < c.pos);
+        let (Some(&(_, before)), Some(&(_, after))) = (at.checked_sub(1).and_then(|i| picks.get(i)), picks.get(at))
+        else {
+            continue;
+        };
+        let Some(ki) = (before + 1..after).find(|&ki| keys[ki].item == number) else { continue };
+        if picks.iter().any(|&(_, k)| k == ki) {
+            continue;
+        }
+        picks.insert(at, (ci, ki));
+        filled.push(keys[ki].item);
+    }
+    filled
+}
+
 /// Order chain states by total score. On a tie the earlier Item wins, so an
 /// unmarked 10-Q "Item 2" between Part I Item 1 and Part II Item 6 stays in Part I.
 fn better(a_total: f64, a_key: usize, b_total: f64, b_key: usize) -> std::cmp::Ordering {
@@ -643,15 +718,25 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     if kind == FormKind::TenQ {
         add_out_of_order(text, &cands, keys, &mut picks);
     }
+    let filled = add_lettered(&cands, keys, &mut picks);
 
     let starts: Vec<usize> = picks.iter().map(|&(c, _)| cands[c].pos).collect();
     let last_start = *starts.last().expect("chain is non-empty");
     let doc_end = signatures_after(text, last_start).unwrap_or(text.len());
     let doc_end = attached_document(text, last_start, doc_end).unwrap_or(doc_end);
     // Titled headings of Items the form does not define ("Item 4A. Executive
-    // Officers") end the section before them.
+    // Officers") end the section before them, except the lettered headings of
+    // an Item filled from them ("Item 5B" inside Item 5).
     let stops: Vec<usize> = if kind == FormKind::TenK {
-        cands.iter().filter(|c| !c.bare && !keys.iter().any(|k| k.item == c.label)).map(|c| c.pos).collect()
+        cands
+            .iter()
+            .filter(|c| {
+                !c.bare
+                    && !keys.iter().any(|k| k.item == c.label)
+                    && (c.officers || !filled.contains(&item_number(&c.label)))
+            })
+            .map(|c| c.pos)
+            .collect()
     } else {
         Vec::new()
     };
@@ -1381,5 +1466,134 @@ mod tests {
                     Item 9.01 Financial Statements and Exhibits.\n(d) Exhibits\nSIGNATURE\n";
         let s = extract_sections(text, FormKind::EightK);
         assert_eq!(ids(&s), ["item_2.02", "item_9.01"]);
+    }
+
+    #[test]
+    fn officers_section_numbered_as_a_sub_item_ends_the_item() {
+        // "ITEM 4(a)" is the executive officers section, which the form puts
+        // outside its Items, as with "Item 4A".
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 3.\tLegal Proceedings\t20\nItem 4.\tSubmission of Matters to a Vote of Security Holders\t35\n\
+             Item 4(a)\tExecutive Officers of the Registrant\t35\nItem 5.\tMarket for the Registrant's Common Equity\t37\n\
+             ITEM 3.\tLEGAL PROCEEDINGS\n{body}\n\
+             ITEM 4.\tSUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNo matters were submitted.\n\
+             ITEM 4(a). EXECUTIVE OFFICERS OF THE REGISTRANT\n{body}\nPART II\n\
+             ITEM 5.\tMARKET FOR THE REGISTRANT'S COMMON EQUITY\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_3", "item_4", "item_5"]);
+        assert_eq!(
+            s[1].text,
+            "ITEM 4.\tSUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNo matters were submitted."
+        );
+        assert!(s[2].text.starts_with("ITEM 5.\tMARKET"));
+        // With no Item 4 heading, the section is not Item 4 either.
+        let text = format!(
+            "Item 3. Legal Proceedings\n{body}\nItem 4 (a) - Executive Officers of the Registrant\n{body}\n\
+             Item 5. Market for the Registrant's Common Equity\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_3", "item_5"]);
+        assert!(s[0].text.ends_with(body.trim()));
+    }
+
+    #[test]
+    fn other_sub_items_and_unnumbered_officers_sections_stay_in_their_item() {
+        // Paragraphs of an Item printed as titled sub-items, a sub-item of the
+        // Item that covers executive officers, and an executive officers
+        // section with no Item number all belong to the Item before them.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\n{body}\nInformation about our Executive Officers\n{body}\n\
+             Item 4. Submission of Matters to a Vote of Security Holders\nNone.\n\
+             Executive Officers of the Registrant\n{body}\nPART II\n\
+             Item 5. Market for Registrant's Common Equity\n{body}\n\
+             Item 10. Directors and Executive Officers of the Registrant\nSee the proxy statement.\n\
+             Item 10(b). Executive Officers of the Registrant\n{body}\n\
+             Item 11. Executive Compensation\n{body}\n\
+             Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\n\
+             Item 14(a). Financial Statements\n{body}\nItem 14(b). Reports on Form 8-K\nNone.\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_4", "item_5", "item_10", "item_11", "item_14"]);
+        assert!(s[0].text.contains("\nInformation about our Executive Officers\n"));
+        assert!(s[1].text.contains("\nExecutive Officers of the Registrant\n"));
+        assert!(s[3].text.contains("\nItem 10(b). Executive Officers of the Registrant\n"));
+        assert!(s[5].text.ends_with("Item 14(b). Reports on Form 8-K\nNone."));
+        // A 10-Q's "ITEM 6 (a). Exhibits" is Item 6, and "(b)" stays inside it.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nPART II\nITEM 6 (a). Exhibits\n{body}\n\
+             ITEM 6 (b). Reports on Form 8-K\nNone.\nSIGNATURE\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_2_item_6"]);
+        assert!(s[1].text.ends_with("ITEM 6 (b). Reports on Form 8-K\nNone."));
+    }
+
+    #[test]
+    fn lettered_headings_of_an_undefined_item_start_the_item_of_their_number() {
+        // Item 5 is printed only as "Item 5A" and "Item 5B", and the list of
+        // headings after the signatures repeats them.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Part I\nItem 1. BUSINESS\n{body}\nItem 4. SUBMISSION OF MATTERS TO A VOTE OF SHAREHOLDERS\nNone.\n\
+             Part II\nItem 5A. MARKET FOR REGISTRANT'S COMMON EQUITY AND RELATED SHAREHOLDER MATTERS\n{body}\n\
+             Item 5B. EQUITY COMPENSATION PLAN INFORMATION\n{body}\nItem 6. SELECTED FINANCIAL DATA\n{body}\n\
+             Signatures\nPursuant to...\nPart I Item 1. BUSINESS\nItem 4. SUBMISSION OF MATTERS TO A VOTE OF SHAREHOLDERS\n\
+             Part II\nItem 5A. MARKET FOR REGISTRANT'S COMMON EQUITY AND RELATED SHAREHOLDER MATTERS\n\
+             Item 5B. EQUITY COMPENSATION PLAN INFORMATION\nItem 6. SELECTED FINANCIAL DATA\nSignatures\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_4", "item_5", "item_6"]);
+        assert_eq!(s[1].text, "Item 4. SUBMISSION OF MATTERS TO A VOTE OF SHAREHOLDERS\nNone.\nPart II");
+        assert!(s[2].heading.starts_with("Item 5A. MARKET"));
+        assert!(s[2].text.contains("\nItem 5B. EQUITY COMPENSATION PLAN INFORMATION\n"));
+        assert!(s[2].text.ends_with(body.trim()));
+        // In a 10-Q the form's order picks the part: Part II Item 2.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 1. Legal Proceedings\n{body}\n\
+             Item 2A. Unregistered Sales of Equity Securities and Use of Proceeds.\n{body}\n\
+             Item 2B. Use of Proceeds from Registered Securities.\nNone.\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_2", "part_2_item_6"]);
+        assert!(s[3].heading.starts_with("Item 2A."));
+        assert!(s[3].text.ends_with("Item 2B. Use of Proceeds from Registered Securities.\nNone."));
+    }
+
+    #[test]
+    fn lettered_headings_do_not_replace_a_found_item_or_the_officers_section() {
+        // With an Item 5 heading, "Item 5A" ends Item 5 as before. An
+        // executive officers section numbered "Item 4A" never becomes Item 4,
+        // even when the filing prints no Item 4 heading.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 4. Mine Safety Disclosures\nNot applicable.\nItem 4A. Executive Officers of the Registrant\n{body}\n\
+             Item 5. Market for Registrant's Common Equity\nSee below.\n\
+             Item 5A. Supplementary Market Information\n{body}\nItem 6. [Reserved]\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_4", "item_5", "item_6"]);
+        assert_eq!(s[0].text, "Item 4. Mine Safety Disclosures\nNot applicable.");
+        assert_eq!(s[1].text, "Item 5. Market for Registrant's Common Equity\nSee below.");
+        let text = format!(
+            "Item 3. Legal Proceedings\n{body}\nItem 4A. Executive Officers of the Registrant\n{body}\n\
+             Item 5. Market for Registrant's Common Equity\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_3", "item_5"]);
+        assert!(s[0].text.ends_with(body.trim()));
+        // After a 10-Q Item added out of order, the Items between it and the
+        // next one in form order are already in the chain.
+        let text = format!(
+            "Item 2. Management's Discussion and Analysis\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             Part I. Financial Information\nItem 1. Financial Statements\n{body}\n\
+             Item 2A. Supplementary Financial Information\n{body}\n\
+             Part II. Other Information\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSignature\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_2", "part_1_item_4", "part_1_item_1", "part_2_item_1", "part_2_item_6"]);
     }
 }
