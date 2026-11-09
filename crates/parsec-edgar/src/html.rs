@@ -39,9 +39,15 @@ fn first_document_body(raw: &str) -> Option<&str> {
     Some(&rest[start..end])
 }
 
+/// Old plain-text filings use SGML `<TABLE>`, `<S>` and `<C>` tags, so a bare
+/// `<table` does not mean HTML: only tags that plain-text filings never use count.
 fn looks_like_html(s: &str) -> bool {
-    let head: String = s.chars().take(8192).collect::<String>().to_ascii_lowercase();
-    ["<html", "<body", "<div", "<p>", "<p ", "<table", "<font", "<br"].iter().any(|t| head.contains(t))
+    let mut end = s.len().min(64 * 1024);
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    let head = s[..end].to_ascii_lowercase();
+    ["<html", "<body", "<div", "<p>", "<p ", "<font", "<br", "<tr>", "<tr ", "<td", "<span"].iter().any(|t| head.contains(t))
 }
 
 /// Old plain-text filings: drop SGML layout tags, then the same line cleanup as HTML.
@@ -276,5 +282,15 @@ mod tests {
     fn full_submission_plain_text() {
         let raw = "<SEC-DOCUMENT>\n<DOCUMENT>\n<TYPE>10-K\n<TEXT>\n<PAGE>\nITEM 1. BUSINESS\n\n  We make things.\n</TEXT>\n</DOCUMENT>";
         assert_eq!(document_to_text(raw), "ITEM 1. BUSINESS\nWe make things.\n");
+    }
+
+    #[test]
+    fn sgml_tables_stay_plain_text() {
+        let raw = "<DOCUMENT>\n<TEXT>\n<PAGE>\nITEM 6. SELECTED FINANCIAL DATA\n<TABLE>\n<CAPTION>\n<S>      <C>\n\
+                   Net sales   $ 6,134\n</TABLE>\nITEM 7. MANAGEMENT'S DISCUSSION\n</TEXT>";
+        assert_eq!(
+            document_to_text(raw),
+            "ITEM 6. SELECTED FINANCIAL DATA\nNet sales   $ 6,134\nITEM 7. MANAGEMENT'S DISCUSSION\n"
+        );
     }
 }
