@@ -501,8 +501,10 @@ fn build_query(args: &CrawlArgs) -> Result<CrawlQuery, Error> {
             Some(u) => Quarter::of_date(u)?,
             None => Quarter::current(),
         };
-        query.quarters =
-            Quarter::range(Quarter::of_date(since)?, until).into_iter().filter(|q| wanted.contains(&q.quarter)).collect();
+        query.quarters = Quarter::range(Quarter::of_date(since)?, until)
+            .into_iter()
+            .filter(|q| wanted.contains(&q.quarter()))
+            .collect();
     }
     Ok(query)
 }

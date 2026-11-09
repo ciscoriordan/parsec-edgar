@@ -18,14 +18,35 @@ use crate::encoding;
 use crate::error::{Error, Result};
 
 /// The first quarter with an EDGAR full index.
-const FIRST_YEAR: u16 = 1993;
+pub(crate) const FIRST_YEAR: u16 = 1993;
+const LAST_YEAR: u16 = 9999;
 
-/// A calendar quarter, e.g. `2024Q3`.
+/// Days after a quarter starts during which a missing index means it is not
+/// published yet. The SEC builds it after the quarter's first business day,
+/// which can be the 4th after New Year's and a weekend.
+const NEW_INDEX_GRACE_DAYS: i64 = 7;
+
+/// A calendar quarter, e.g. `2024Q3`. Always valid: the year is 1993 to 9999
+/// and the quarter 1 to 4, also when deserialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "QuarterFields")]
 pub struct Quarter {
-    pub year: u16,
-    /// 1 to 4.
-    pub quarter: u8,
+    year: u16,
+    quarter: u8,
+}
+
+#[derive(Deserialize)]
+struct QuarterFields {
+    year: u16,
+    quarter: u8,
+}
+
+impl TryFrom<QuarterFields> for Quarter {
+    type Error = Error;
+
+    fn try_from(f: QuarterFields) -> Result<Self> {
+        Self::new(f.year, f.quarter)
+    }
 }
 
 impl Quarter {
@@ -33,10 +54,19 @@ impl Quarter {
         if !(1..=4).contains(&quarter) {
             return Err(Error::Invalid(format!("quarters are 1 to 4, got {quarter}")));
         }
-        if !(FIRST_YEAR..=9999).contains(&year) {
+        if !(FIRST_YEAR..=LAST_YEAR).contains(&year) {
             return Err(Error::Invalid(format!("the EDGAR full index starts in {FIRST_YEAR}, got {year}")));
         }
         Ok(Self { year, quarter })
+    }
+
+    pub fn year(&self) -> u16 {
+        self.year
+    }
+
+    /// 1 to 4.
+    pub fn quarter(&self) -> u8 {
+        self.quarter
     }
 
     /// The quarter holding a date (`YYYY-MM-DD` or `YYYY-MM`; a bare `YYYY` means its first quarter).
@@ -54,31 +84,36 @@ impl Quarter {
     /// Every quarter from `from` to `to`, inclusive.
     pub fn range(from: Quarter, to: Quarter) -> Vec<Quarter> {
         let mut out = Vec::new();
-        let mut q = from;
-        while q <= to {
-            out.push(q);
-            q = q.next();
+        let mut q = Some(from);
+        while let Some(cur) = q.filter(|c| *c <= to) {
+            out.push(cur);
+            q = cur.next();
         }
         out
     }
 
-    pub fn next(self) -> Self {
-        if self.quarter == 4 {
-            Self { year: self.year + 1, quarter: 1 }
-        } else {
-            Self { year: self.year, quarter: self.quarter + 1 }
-        }
+    /// The quarter after this one, or `None` after 9999Q4.
+    pub fn next(self) -> Option<Self> {
+        if self.quarter == 4 { Self::new(self.year + 1, 1).ok() } else { Self::new(self.year, self.quarter + 1).ok() }
     }
 
     /// First day, `YYYY-MM-DD`.
     pub fn first_day(&self) -> String {
-        format!("{}-{:02}-01", self.year, (self.quarter - 1) * 3 + 1)
+        format!("{}-{:02}-01", self.year, self.first_month())
     }
 
     /// Last day, `YYYY-MM-DD`.
     pub fn last_day(&self) -> String {
-        let day = if matches!(self.quarter, 1 | 4) { 31 } else { 30 };
-        format!("{}-{:02}-{day}", self.year, self.quarter * 3)
+        let (m, d) = self.last_month_day();
+        format!("{}-{m:02}-{d}", self.year)
+    }
+
+    fn first_month(&self) -> u32 {
+        (self.quarter as u32 - 1) * 3 + 1
+    }
+
+    fn last_month_day(&self) -> (u32, u32) {
+        (self.quarter as u32 * 3, if matches!(self.quarter, 1 | 4) { 31 } else { 30 })
     }
 
     /// URL of the gzipped master index.
@@ -89,8 +124,16 @@ impl Quarter {
     /// The SEC rewrites a quarter's index every night until the quarter is over.
     /// Allow a few days after it ends before treating the file as final.
     fn is_final(&self, today_days: i64) -> bool {
-        let (y, m, d) = parse_date(&self.last_day()).expect("valid date");
-        today_days > days_from_civil(y as i64, m, d) + 3
+        let (m, d) = self.last_month_day();
+        today_days > days_from_civil(self.year as i64, m, d) + 3
+    }
+
+    /// Whether a failed fetch of this quarter's index means only that the SEC
+    /// has not built it yet. It answers 403 (or 404) for a missing index, and a
+    /// new quarter's index appears after its first business day.
+    fn index_not_published(&self, today_days: i64, err: &Error) -> bool {
+        let first = days_from_civil(self.year as i64, self.first_month(), 1);
+        matches!(err, Error::Status { status: 403 | 404, .. }) && today_days < first + NEW_INDEX_GRACE_DAYS
     }
 }
 
@@ -187,10 +230,17 @@ impl Client {
     ///
     /// One request. Finished quarters are cached; the current quarter is fetched
     /// fresh, since the SEC adds the previous business day's filings every night.
+    /// A quarter that started in the last few days, or has not started, may
+    /// have no index yet; it then has no rows.
     pub fn full_index(&self, quarter: Quarter) -> Result<Vec<IndexEntry>> {
         let url = quarter.master_index_url();
-        let bytes =
-            if quarter.is_final(today_days()) { self.get_bytes(&url)? } else { self.get_bytes_fresh(&url)? };
+        let today = today_days();
+        let fetched = if quarter.is_final(today) { self.get_bytes(&url) } else { self.get_bytes_fresh(&url) };
+        let bytes = match fetched {
+            Ok(bytes) => bytes,
+            Err(e) if quarter.index_not_published(today, &e) => return Ok(Vec::new()),
+            Err(e) => return Err(e),
+        };
         let raw = gunzip_if_needed(&bytes).map_err(|e| Error::Network { url, message: e.to_string() })?;
         Ok(parse_master_index(&encoding::decode(&raw)))
     }
@@ -345,6 +395,37 @@ bad line\n\
         assert!(Quarter::new(1992, 4).is_err());
         let r = Quarter::range(Quarter::new(2023, 3).unwrap(), Quarter::new(2024, 2).unwrap());
         assert_eq!(r.iter().map(|q| q.to_string()).collect::<Vec<_>>(), ["2023Q3", "2023Q4", "2024Q1", "2024Q2"]);
+    }
+
+    #[test]
+    fn quarters_are_validated_when_deserialized() {
+        let q: Quarter = serde_json::from_str(r#"{"year":2024,"quarter":3}"#).unwrap();
+        assert_eq!(q, Quarter::new(2024, 3).unwrap());
+        assert_eq!(serde_json::to_string(&q).unwrap(), r#"{"year":2024,"quarter":3}"#);
+        // These used to deserialize, then panic in first_day, last_day or full_index.
+        for bad in [r#"{"year":2024,"quarter":5}"#, r#"{"year":2024,"quarter":0}"#, r#"{"year":1990,"quarter":1}"#] {
+            assert!(serde_json::from_str::<Quarter>(bad).is_err(), "{bad}");
+        }
+        assert!(Quarter::new(2024, 0).is_err());
+        assert_eq!(Quarter::new(9999, 4).unwrap().next(), None);
+        assert_eq!(Quarter::new(2024, 4).unwrap().next(), Some(Quarter::new(2025, 1).unwrap()));
+        let last = Quarter::new(9999, 4).unwrap();
+        assert_eq!(Quarter::range(last, last), [last]);
+    }
+
+    #[test]
+    fn missing_index_of_a_new_quarter_is_empty() {
+        let q = Quarter::new(2027, 1).unwrap();
+        let missing = |status| Error::Status { status, url: q.master_index_url() };
+        // The SEC answers 403 for an index it has not built yet.
+        assert!(q.index_not_published(days_from_civil(2027, 1, 1), &missing(403)));
+        assert!(q.index_not_published(days_from_civil(2027, 1, 4), &missing(404)));
+        assert!(q.index_not_published(days_from_civil(2026, 12, 20), &missing(403)));
+        // A week in, a 403 is something else, such as the rate limit.
+        assert!(!q.index_not_published(days_from_civil(2027, 1, 8), &missing(403)));
+        assert!(!q.index_not_published(days_from_civil(2027, 1, 2), &missing(500)));
+        let net = Error::Network { url: q.master_index_url(), message: "reset".into() };
+        assert!(!q.index_not_published(days_from_civil(2027, 1, 2), &net));
     }
 
     #[test]
