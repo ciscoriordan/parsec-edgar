@@ -1,0 +1,87 @@
+{
+  "accession": "0001654954-22-013771",
+  "cik": 1040470,
+  "company": "AEHR TEST SYSTEMS",
+  "form": "10-Q",
+  "filing_date": "2022-10-14",
+  "url": "https://www.sec.gov/Archives/edgar/data/1040470/000165495422013771/aehr_10q.htm",
+  "agent": "agent 0001654954",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. FINANCIAL STATEMENTS (Unaudited)",
+      "occurrence": 0,
+      "next": "AEHR TEST SYSTEMS"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion of the financia"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISKS",
+      "occurrence": 0,
+      "next": "We had no holdings of derivative financi"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "EVALUATION OF DISCLOSURE CONTROLS AND PR"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "Please refer to the description of the r",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. DEFAULTS UPON SENIOR SECURITIES",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not Applicable."
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. EXHIBITS",
+      "occurrence": 0,
+      "next": "Exhibit No.\tDescription"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

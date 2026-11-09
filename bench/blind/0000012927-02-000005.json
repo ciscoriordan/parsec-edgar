@@ -1,0 +1,118 @@
+{
+  "accession": "0000012927-02-000005",
+  "cik": 12927,
+  "company": "BOEING CO",
+  "form": "10-K",
+  "filing_date": "2002-03-08",
+  "url": "https://www.sec.gov/Archives/edgar/data/12927/000001292702000005/k2001doc.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Pre-2003 numbering: Item 14 is exhibits. Wrapped cross-reference lines start with 'Item 8 of this report' and, after the signatures, 'Item 14(a) 2 in this Annual Report'.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.     Business",
+      "occurrence": 0,
+      "next": "The Boeing Company, together with its su"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.         Properties",
+      "occurrence": 0,
+      "next": "The locations and covered areas of the C"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.     Legal Proceedings",
+      "occurrence": 0,
+      "next": "Various legal proceedings, claims and in"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.     Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "There were no matters submitted to a vot"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.     Market for Registrant's Common Equity and Related Stockholder",
+      "occurrence": 0,
+      "next": "Matters",
+      "incorporated": true
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.     Selected Financial Data",
+      "occurrence": 0,
+      "next": "Information required by this item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.     Management's Discussion and Analysis of Financial Condition",
+      "occurrence": 0,
+      "next": "and Results of Operations",
+      "incorporated": true
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.    Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "The Company has financial instruments th"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.     Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The following consolidated financial sta",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.     Changes in and Disagreements with Accountants on Accounting",
+      "occurrence": 0,
+      "next": "and Financial Disclosure"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "Executive Officers"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.    Executive Compensation *",
+      "occurrence": 0,
+      "next": "Item 12.    Security Ownership of Certai",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.    Security Ownership of Certain Beneficial Owners and Management *",
+      "occurrence": 0,
+      "next": "Item 13.    Certain Relationships and Re",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.    Certain Relationships and Related Transactions *",
+      "occurrence": 0,
+      "next": "*     Information required by Items 11, ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.    Exhibits, Financial Statement Schedules, and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a)   List of documents filed as part of"
+    }
+  ],
+  "end": {
+    "text": "Signatures",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

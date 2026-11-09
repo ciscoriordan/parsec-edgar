@@ -1,0 +1,83 @@
+{
+  "accession": "0001437749-14-020867",
+  "cik": 766792,
+  "company": "CVD EQUIPMENT CORP",
+  "form": "10-Q",
+  "filing_date": "2014-11-14",
+  "url": "https://www.sec.gov/Archives/edgar/data/766792/000143774914020867/cvv20140930_10q.htm",
+  "agent": "agent 0001437749",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1 – Financial Statements",
+      "occurrence": 0,
+      "next": "CVD EQUIPMENT CORPORATION AND SUBSIDIARI"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "Except for historical information contai"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "On January 26, 2010, the Company commenc"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults Upon Senior Securities.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Mine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not Applicable."
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "The exhibits below are hereby furnished "
+    }
+  ],
+  "absent": [
+    "part_2_item_1a"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}
