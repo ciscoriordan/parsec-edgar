@@ -8,7 +8,7 @@ Fast SEC EDGAR client and filing parser written in Rust, with Python bindings an
 - Split 10-K, 10-Q and 8-K filings into Item sections (Item 1A Risk Factors, Item 7 MD&A, 8-K Item 2.02, and so on)
 - Stays within the SEC fair-access limit (8 requests per second by default, 10 at most) and caches archive documents on disk
 
-Status: early development (0.1.0).
+Status: early development (0.1.1).
 
 ## Install
 
@@ -276,7 +276,7 @@ Each section has `id`, `part` (10-Q only), `item`, `title` (the standard title),
 
 How it works: every line that looks like an Item heading is a candidate, including table-of-contents entries and running page headers. Table-of-contents entries whose heading reappears in the body at a longer stretch of text, bare page headers just before an Item's titled heading, and lists of Items printed again after the signatures are dropped first. The extractor then picks one candidate per Item so that the chosen headings follow the form's Item order and start the longest runs of text. In a 10-Q, a PART line just above an Item decides whether it belongs to Part I or Part II. Without one, an Item whose title is the standard title of only one part goes to that part ("Item 4. Controls and Procedures" is Part I). Items printed out of order (Part II before Part I) are kept when a PART line marks them and they come before the signatures. The last Item ends at the signatures, at the signature block's opening sentence when there is no signatures heading, or at an attached document with its own paginated table of contents, such as a full annual report.
 
-Accuracy is measured against 129 hand-labeled filings from 1997 to 2026 (`bench/`). On 25 of them, labeled after all tuning and scored once, the extractor finds 345 of the 349 labeled Item starts and no false ones (F1 0.994), with span accuracy 0.935. The two earlier test sets, at their first scoring and before their misses were fixed, gave F1 0.989 with span 0.997 (19 filings) and F1 0.955 with span 0.875 (20 filings). On the 104 filings it was tuned on, it scores F1 1.000 and span 0.993; those are in-sample numbers. Span accuracy is computed per filing as the characters assigned to the right Item divided by the characters inside any labeled or predicted Item, then averaged over filings. On the 25 untouched filings, edgar-crawler scores F1 0.961 with span 0.843, and edgartools 0.900 with span 0.705. [bench/README.md](bench/README.md) has the details, every miss, and how many benchmark filings each rule rests on.
+Accuracy is measured against 129 hand-labeled filings from 1997 to 2026 (`bench/`). On 25 of them, labeled after all tuning and scored once, the extractor finds 345 of the 349 labeled Item starts and no false ones (F1 0.994), with span accuracy 0.935. The two earlier test sets, at their first scoring and before their misses were fixed, gave F1 0.989 with span 0.997 (19 filings) and F1 0.955 with span 0.875 (20 filings). On the 104 filings it was tuned on, it scores F1 1.000 and span 0.993; those are in-sample numbers. Span accuracy is computed per filing as the characters assigned to the right Item divided by the characters inside any labeled or predicted Item, then averaged over filings. On the 25 untouched filings, edgar-crawler scores F1 0.961 with span 0.843, and edgartools 0.900 with span 0.705. [bench/README.md](https://github.com/ciscoriordan/parsec-edgar/blob/main/bench/README.md) has the details, every miss, and how many benchmark filings each rule rests on.
 
 ## Known limitations
 
