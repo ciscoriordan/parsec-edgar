@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::client::Client;
 use crate::error::{Error, Result};
 use crate::filings::Filing;
-use crate::index::{IndexEntry, civil_from_days, days_from_civil};
+use crate::index::{IndexEntry, civil_from_days, dashed_accession, days_from_civil};
 use crate::profile::CompanyProfile;
 
 /// The parsed `-index.htm` page of one filing.
@@ -114,13 +114,16 @@ impl FilingIndex {
 
 impl Client {
     /// Fetch and parse a filing's `-index.htm` page. One request, cached.
+    /// `accession` may be dashed or 18 digits.
     pub fn filing_index(&self, cik: u64, accession: &str) -> Result<FilingIndex> {
+        let accession_number = dashed_accession(accession)
+            .ok_or_else(|| Error::Invalid(format!("not an accession number: {accession:?}")))?;
         let entry = IndexEntry {
             cik,
             company: String::new(),
             form: String::new(),
             filing_date: String::new(),
-            accession_number: accession.to_owned(),
+            accession_number,
         };
         let url = entry.index_url();
         let index = parse_filing_index(&self.get_text(&url)?);
@@ -522,6 +525,29 @@ mod tests {
         };
         assert_eq!(idx.primary_document("10-k").unwrap().document.as_deref(), Some("a.htm"));
         assert_eq!(idx.primary_document("8-K12B").unwrap().seq, Some(1));
+    }
+
+    /// A filing resolved from the full index should match the submissions API's view of it.
+    #[test]
+    #[ignore = "network"]
+    fn index_and_submissions_agree() {
+        let ua = std::env::var("PARSEC_EDGAR_USER_AGENT").unwrap_or_else(|_| "parsec-edgar tests dev@pars.ec".into());
+        let client = Client::builder(ua).requests_per_second(3.0).build().unwrap();
+        let cases = [
+            (320193, "AAPL", "10-K", "2024-11-01", "0000320193-24-000123"),
+            (1045810, "NVDA", "8-K", "2025-02-26", "0001045810-25-000021"),
+            (789019, "MSFT", "10-K", "1997-09-29", "0001017062-97-001764"),
+        ];
+        for (cik, ticker, form, date, acc) in cases {
+            let (from_index, _) = client.resolve_index_entry(&entry(cik, ticker, form, date, acc)).unwrap();
+            let from_api = client.filing(ticker, acc).unwrap();
+            assert_eq!(from_index.primary_document, from_api.primary_document, "{acc}");
+            assert_eq!(from_index.primary_document_url, from_api.primary_document_url, "{acc}");
+            assert_eq!(from_index.report_date, from_api.report_date, "{acc}");
+            assert_eq!(from_index.acceptance_datetime, from_api.acceptance_datetime, "{acc}");
+            assert_eq!(from_index.items, from_api.items, "{acc}");
+            assert_eq!(from_index.index_url, from_api.index_url, "{acc}");
+        }
     }
 
     #[test]

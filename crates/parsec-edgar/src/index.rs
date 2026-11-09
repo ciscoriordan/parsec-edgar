@@ -175,7 +175,8 @@ fn parse_master_line(line: &str) -> Option<IndexEntry> {
     Some(IndexEntry { cik, company: company.to_owned(), form: form.to_owned(), filing_date, accession_number })
 }
 
-fn dashed_accession(s: &str) -> Option<String> {
+/// `0000320193-24-000123` or `000032019324000123` to the dashed form.
+pub(crate) fn dashed_accession(s: &str) -> Option<String> {
     let digits: String = s.chars().filter(|c| *c != '-').collect();
     (digits.len() == 18 && digits.bytes().all(|b| b.is_ascii_digit()))
         .then(|| format!("{}-{}-{}", &digits[..10], &digits[10..12], &digits[12..]))
