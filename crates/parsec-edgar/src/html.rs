@@ -272,38 +272,60 @@ fn finish(text: &str) -> String {
 }
 
 /// Running page headers and footers: short lines that repeat with only a page
-/// number changing, such as "Apple Inc. | 2026 Form 10-K | 23" or
-/// "26  JPMorgan Chase & Co./2007 Annual Report". The page numbers must
-/// mostly increase through the document, which data rows do not do.
+/// number changing, such as "Apple Inc. | 2026 Form 10-K | 23",
+/// "26  JPMorgan Chase & Co./2007 Annual Report" or "Page 3 of 25 (Form 10-K)".
+/// The page numbers must mostly increase through the document, which data rows
+/// do not do. The text beside the number needs 10 letters, because short
+/// lines such as cross-references ("See page 4") also come with rising
+/// numbers. Shorter text is enough when it names the form ("2021 Form 10-K
+/// 100") or the line starts with "Page N of M" ("Page 3 of 26"), and the
+/// copies are mostly not on consecutive lines, as the rows of a table are.
 fn page_furniture(lines: &[&str]) -> HashSet<usize> {
     const MIN_REPEATS: usize = 5;
-    static NUMBERED: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"^(?:(\d{1,3})(?:\s*\|\s*|\s+)(\S.*)|(.*\S)(?:\s*\|\s*|\s+)(\d{1,3}))$").unwrap());
-    let mut families: HashMap<&str, Vec<(usize, u32)>> = HashMap::new();
+    const MIN_LETTERS: usize = 10;
+    // The page number comes first, in a leading "Page N of M", or last.
+    static NUMBERED: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(concat!(
+            r"^(?:(\d{1,3})(?:\s*\|\s*|\s+)(\S.*)",
+            r"|(?i:page)\s+(\d{1,3})\s+((?i:of)\s+\d{1,3}\b.*)",
+            r"|(.*\S)(?:\s*\|\s*|\s+)(\d{1,3}))$",
+        ))
+        .unwrap()
+    });
+    static FORM_NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(?:10-K|10-Q|8-K|20-F|40-F)").unwrap());
+    // Keyed by the text beside the page number and whether the line starts with "Page N of M".
+    let mut families: HashMap<(&str, bool), Vec<(usize, u32)>> = HashMap::new();
     for (i, line) in lines.iter().enumerate() {
-        let numbered = line.starts_with(|c: char| c.is_ascii_digit()) || line.ends_with(|c: char| c.is_ascii_digit());
+        let numbered = line.starts_with(|c: char| c.is_ascii_digit())
+            || line.ends_with(|c: char| c.is_ascii_digit())
+            || line.get(..4).is_some_and(|s| s.eq_ignore_ascii_case("page"));
         if line.len() > 120 || !numbered {
             continue;
         }
         let Some(c) = NUMBERED.captures(line) else { continue };
-        let (Some(num), Some(rest)) = (c.get(1).or_else(|| c.get(4)), c.get(2).or_else(|| c.get(3))) else {
-            continue;
-        };
+        let num = c.get(1).or_else(|| c.get(3)).or_else(|| c.get(6));
+        let rest = c.get(2).or_else(|| c.get(4)).or_else(|| c.get(5));
+        let (Some(num), Some(rest)) = (num, rest) else { continue };
         let rest = rest.as_str().trim_matches(|c: char| c == '|' || c.is_whitespace());
-        if rest.chars().filter(|c| c.is_alphabetic()).count() < 10 || !rest.contains(' ') {
+        let page_first = c.get(3).is_some();
+        let short = rest.chars().filter(|c| c.is_alphabetic()).count() < MIN_LETTERS;
+        if !rest.contains(' ') || (short && !page_first && !FORM_NAME.is_match(rest)) {
             continue;
         }
         if let Ok(n) = num.as_str().parse() {
-            families.entry(rest).or_default().push((i, n));
+            families.entry((rest, page_first)).or_default().push((i, n));
         }
     }
     let mut drop = HashSet::new();
-    for seen in families.values() {
+    for (&(rest, _), seen) in &families {
         if seen.len() < MIN_REPEATS {
             continue;
         }
+        let mostly = |count: usize| count * 10 >= (seen.len() - 1) * 9;
         let rising = seen.windows(2).filter(|w| w[1].1 > w[0].1).count();
-        if rising * 10 >= (seen.len() - 1) * 9 {
+        let apart = seen.windows(2).filter(|w| w[1].0 > w[0].0 + 1).count();
+        let short = rest.chars().filter(|c| c.is_alphabetic()).count() < MIN_LETTERS;
+        if mostly(rising) && (!short || mostly(apart)) {
             drop.extend(seen.iter().map(|&(i, _)| i));
         }
     }
@@ -371,6 +393,23 @@ mod tests {
     }
 
     #[test]
+    fn short_page_headers_naming_the_form_dropped() {
+        // Fewer than 10 letters beside the page number, but the line names the
+        // form or starts with "Page N of M".
+        for header in
+            ["2021 FORM 10-K {}", "Form 10-Q Page {}", "{} | Form 10-K", "Page {} of 125 (Form 10-K)", "PAGE {} OF 125"]
+        {
+            let mut html = String::new();
+            let mut want = String::new();
+            for page in 98..104 {
+                html += &format!("<p>Text of page {page}.</p><p>{}</p>", header.replace("{}", &page.to_string()));
+                want += &format!("Text of page {page}.\n");
+            }
+            assert_eq!(html_to_text(&html), want, "{header}");
+        }
+    }
+
+    #[test]
     fn page_furniture_keeps_lines_that_only_look_like_it() {
         let mut html = String::new();
         // The heading itself has no page number and stays, while the running
@@ -379,22 +418,51 @@ mod tests {
         for page in 30..36 {
             html += &format!("<p>Text of page {page}.</p><p>Item 7. Management's Discussion and Analysis {page}</p>");
         }
-        // Too few repeats, too few letters, or numbers that do not rise like pages.
+        // Too few repeats.
         for page in 40..44 {
-            html += &format!("<p>Annual Report on Form 10-K {page}</p>");
+            html += &format!("<p>Annual Report on Form 10-K {page}</p><p>Text of page {page}.</p>");
+            html += &format!("<p>Form 10-Q Page {page}</p><p>Text of page {page}.</p>");
         }
-        for page in 50..56 {
-            html += &format!("<p>Form 10-K {page}</p>");
-        }
+        // Numbers that do not rise like pages.
         for n in [12, 9, 14, 3, 20, 1] {
             html += &format!("<p>Number of employees at year end {n}</p>");
+            html += &format!("<p>2021 Form 10-K {n}</p><p>Text that mentions the report.</p>");
         }
+        // Short lines with rising numbers that name no form and do not start
+        // with "Page N of M": note headings, cross-references and exhibit rows.
+        // A sentence that starts with "Page N" is not a page footer either.
+        for n in 1..9 {
+            html += &format!(
+                "<p>Note {n}</p><p>Text of note {n}.</p><p>See page {n}</p><p>For footnotes see page {n}.</p>\
+                 <p>Page {n} of the Annual Report is incorporated herein by reference.</p>"
+            );
+        }
+        html += "<table>";
+        for n in [3, 10, 21, 23, 31, 32] {
+            html += &format!("<tr><td>EXHIBIT {n}</td></tr>");
+        }
+        // Rows that name the form on consecutive lines are a table, not one line per page.
+        for n in 50..56 {
+            html += &format!("<tr><td>Form 10-Q</td><td>{n}</td></tr>");
+        }
+        html += "</table>";
         let text = html_to_text(&html);
         assert!(text.starts_with("Item 7. Management's Discussion and Analysis\nText of page 30.\n"));
         assert_eq!(text.matches("Management's Discussion").count(), 1);
-        assert_eq!(text.matches("Annual Report on Form 10-K").count(), 4);
-        assert_eq!(text.matches("Form 10-K 5").count(), 6);
-        assert_eq!(text.matches("Number of employees").count(), 6);
+        for (start, copies) in [
+            ("Annual Report on Form 10-K ", 4),
+            ("Form 10-Q Page ", 4),
+            ("Number of employees", 6),
+            ("2021 Form 10-K ", 6),
+            ("Note ", 8),
+            ("See page ", 8),
+            ("For footnotes see page ", 8),
+            ("Page ", 8),
+            ("EXHIBIT ", 6),
+            ("Form 10-Q\t", 6),
+        ] {
+            assert_eq!(text.lines().filter(|l| l.starts_with(start)).count(), copies, "{start}");
+        }
     }
 
     #[test]
