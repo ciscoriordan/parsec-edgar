@@ -80,14 +80,7 @@ enum Command {
     /// Bulk download filings by form and date (all companies, or a list) into JSON files.
     Crawl(crawl::CrawlArgs),
     /// Run an MCP server for LLM clients (stdio unless --http is given).
-    Mcp {
-        /// Serve Streamable HTTP at this address instead, e.g. 127.0.0.1:8080 (endpoint /mcp).
-        #[arg(long, value_name = "ADDR")]
-        http: Option<std::net::SocketAddr>,
-        /// Host header value to accept over HTTP besides localhost, e.g. mcp.example.com. Repeat for several.
-        #[arg(long = "allow-host", value_name = "HOST", requires = "http")]
-        allow_hosts: Vec<String>,
-    },
+    Mcp(mcp::McpArgs),
 }
 
 #[derive(Args)]
@@ -144,7 +137,7 @@ fn run(cli: Cli) -> Result<(), Error> {
             print_json(&serde_json::json!({ "filing": filing, "sections": sections }));
         }
         Command::Crawl(args) => crawl::run(&client, args)?,
-        Command::Mcp { http, allow_hosts } => mcp::serve(client, http, allow_hosts)?,
+        Command::Mcp(args) => mcp::serve(client, args)?,
     }
     Ok(())
 }

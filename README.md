@@ -32,11 +32,11 @@ parsec-edgar sections MSFT --form 10-Q --no-text                   # ids, titles
 parsec-edgar sections AAPL --accession 0000320193-26-000026
 ```
 
-Archive documents are cached in `~/.cache/parsec-edgar` (override with `--cache-dir` or `PARSEC_EDGAR_CACHE`, disable with `--no-cache`). Filing lists and the ticker file are always fetched fresh.
+Archive documents (filings, their index pages and finished quarters of the full index) are cached in `~/.cache/parsec-edgar` (override with `--cache-dir` or `PARSEC_EDGAR_CACHE`, disable with `--no-cache`). Filing lists, the ticker file and full-text search results are not cached on disk, so each command fetches them fresh. The MCP server keeps some of them in memory while it runs (see below).
 
 ## MCP server
 
-`parsec-edgar mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude and other LLM clients can look up companies, list filings, search the full text of EDGAR and read filings one section at a time. It is part of the command-line tool (`cargo install --path crates/parsec-edgar-cli`) and uses the same User-Agent, cache and rate settings.
+`parsec-edgar mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude and other LLM clients can look up companies, list filings, search the full text of EDGAR and read filings one section at a time. It is part of the command-line tool (`cargo install --path crates/parsec-edgar-cli`, which needs Rust 1.88 or newer for the rmcp library) and uses the same User-Agent, cache directory and rate settings.
 
 | Tool | Returns |
 |---|---|
@@ -44,10 +44,14 @@ Archive documents are cached in `~/.cache/parsec-edgar` (override with `--cache-
 | `list_filings` | Compact rows (accession, form, filing date, period, 8-K Items), filtered by form and filing date |
 | `get_filing_outline` | Filing metadata, total length, and the Item sections' ids, titles and character counts, without the text |
 | `read_section` | One Item section as clean text, `max_chars` characters at a time (default 20,000), with `next_offset` while more remains |
-| `read_filing_text` | The whole primary document the same way, for forms without Item sections (S-1, DEF 14A, 20-F, ...) |
-| `search_full_text` | SEC full-text search hits since 2001: company, CIK, form, filing date, accession and document URL |
+| `read_filing_text` | The whole primary document the same way, for forms without Item sections (S-1, DEF 14A, 20-F, ...), or one exhibit named by `document` |
+| `search_full_text` | SEC full-text search hits since 2001: company, CIK, form, filing date, accession and document URL, plus the exhibit type and file name (`document`) when the match is in an exhibit |
 
-The tool descriptions steer the model to call `get_filing_outline` first and then read only the sections it needs. For Apple's 2026 10-K the outline is about 2,200 characters, while the full text is 232,000 and Risk Factors alone is 87,000. Offsets count characters, and a page ends at a paragraph, line or word boundary when there is one near the limit. Failures (unknown ticker, missing section, bad date) come back as tool errors that name the next step, for example the list of section ids that do exist.
+The tool descriptions steer the model to call `get_filing_outline` first and then read only the sections it needs. For Apple's 2026 10-K the outline is about 2,200 characters, while the full text is 230,000 and Risk Factors alone is 86,000. Offsets count characters, and a page ends at a paragraph, line or word boundary when there is one near the limit. Failures (unknown ticker or CIK, missing section, bad date) come back as tool errors that name the next step, for example the list of section ids that do exist.
+
+Many search hits are in exhibits rather than the primary document, for example the EX-99.1 press release attached to an 8-K. For those, `search_full_text` returns the exhibit's file name as `document`, and `read_filing_text` (or `get_filing_outline`) reads that exhibit when given the hit's accession and `document`. Only plain file names ending in `.htm`, `.html`, `.txt` or `.xml` are accepted.
+
+While it runs, the server keeps in memory the six most recently read documents (so paging through one parses it once), every filing it has looked up by accession number, and the latest filing of each form for 10 minutes. Calls that need the same document at the same time share one download. It loads the SEC ticker file once, so a ticker added or changed after the server started is found only by CIK until the server restarts.
 
 ### Claude Code
 
@@ -82,7 +86,7 @@ parsec-edgar mcp --http 127.0.0.1:8080        # endpoint http://127.0.0.1:8080/m
 claude mcp add --transport http parsec-edgar http://127.0.0.1:8080/mcp
 ```
 
-The HTTP server accepts only requests addressed to `localhost`, `127.0.0.1` or `::1`, which blocks DNS rebinding from web pages. Behind a reverse proxy, add the public name with `--allow-host mcp.example.com`. It has no authentication of its own, so do not expose it directly to the internet.
+The HTTP server accepts only requests addressed to `localhost`, `127.0.0.1`, `::1` or the address it listens on, which blocks DNS rebinding from web pages. With `--http 0.0.0.0:8080` it listens on every interface but still accepts only the loopback names, so give the names other machines use with `--allow-host`; behind a reverse proxy, add the public name the same way (`--allow-host mcp.example.com`). Requests from web pages must also carry a local `Origin` (`http://localhost` or `http://127.0.0.1` on any port) or one given with `--allow-origin https://app.example.com`. Native clients send no `Origin` and are not affected. The server has no authentication of its own, so do not expose it directly to the internet.
 
 ### Testing
 
@@ -108,7 +112,9 @@ for hit in &results.hits {
 }
 ```
 
-Words must all appear, `"double quotes"` match a phrase, `OR` matches either term, and `-word` excludes one. A form filter also matches the form's amendments. The SEC counts at most 10,000 hits (`total_is_exact` is false beyond that), does not page past 10,000, and returns no text snippets, so read a hit with the filing tools above.
+Words must all appear, `"double quotes"` match a phrase, `OR` matches either term, and `-word` excludes one. A form filter also matches the form's amendments. The SEC counts at most 10,000 hits (`total_is_exact` is false beyond that) and serves none past the 10,000th, so `offset` must be below 10,000. A hit whose search record names no filer or no file is left out of `hits` and its position listed in `skipped`, so the next page starts at `offset + hits.len() + skipped.len()`.
+
+The search returns no text snippets. To read a hit, fetch `hit.document_url` and convert it with `document_to_text`, or use the MCP tools above. `hit.document` is the file that matched, which is often an exhibit (`hit.document_type` such as `EX-99.1`) rather than the filing's primary document.
 
 ## Python
 

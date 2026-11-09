@@ -4,11 +4,14 @@
 //! outline first and then only the sections it needs.
 
 use std::collections::{HashMap, VecDeque};
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use parsec_edgar::{Client, Company, Error, Filing, FilingQuery, FormKind, FullTextQuery, Section, extract_sections};
+use parsec_edgar::{
+    Client, Company, Error, FULL_TEXT_MAX_RESULTS, FULL_TEXT_PAGE_SIZE, Filing, FilingQuery, FormKind, FullTextHit,
+    FullTextQuery, FullTextResults, Section, document_to_text, extract_sections,
+};
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{Implementation, ServerCapabilities, ServerConfig};
@@ -17,6 +20,7 @@ use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, Stream
 use rmcp::{ServerHandler, ServiceExt, tool, tool_handler, tool_router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
+use tokio::sync::OnceCell;
 
 const DEFAULT_MAX_CHARS: usize = 20_000;
 const MAX_MAX_CHARS: usize = 100_000;
@@ -34,14 +38,31 @@ const INSTRUCTIONS: &str = "Tools for SEC EDGAR filings (10-K, 10-Q, 8-K, proxy 
 Typical flow: find_company (or use a ticker directly), then list_filings or search_full_text to pick a filing, \
 then get_filing_outline to see its Item sections and their sizes, then read_section for only the parts you need. \
 Text comes in pages of max_chars characters (default 20,000, about 5,000 tokens); follow next_offset only when \
-you need more. Use read_filing_text for forms without Item sections.";
+you need more. Use read_filing_text for forms without Item sections, and with a search hit's document for \
+exhibits.";
+
+/// Options of `parsec-edgar mcp`.
+#[derive(clap::Args)]
+pub struct McpArgs {
+    /// Serve Streamable HTTP at this address instead, e.g. 127.0.0.1:8080 (endpoint /mcp).
+    #[arg(long, value_name = "ADDR")]
+    http: Option<SocketAddr>,
+    /// Host header value to accept over HTTP besides localhost and the address served,
+    /// e.g. mcp.example.com. Repeat for several.
+    #[arg(long = "allow-host", value_name = "HOST", requires = "http")]
+    allow_hosts: Vec<String>,
+    /// Browser origin to accept over HTTP besides localhost, e.g. https://app.example.com
+    /// (add :* for any port). Repeat for several.
+    #[arg(long = "allow-origin", value_name = "ORIGIN", requires = "http")]
+    allow_origins: Vec<String>,
+}
 
 /// Run the server until the client disconnects (stdio) or Ctrl-C (HTTP).
-pub fn serve(client: Client, http: Option<SocketAddr>, allow_hosts: Vec<String>) -> Result<(), Error> {
+pub fn serve(client: Client, args: McpArgs) -> Result<(), Error> {
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
     let server = EdgarServer::new(client);
     runtime.block_on(async move {
-        match http {
+        match args.http {
             None => {
                 let running = server
                     .serve(rmcp::transport::stdio())
@@ -49,25 +70,72 @@ pub fn serve(client: Client, http: Option<SocketAddr>, allow_hosts: Vec<String>)
                     .map_err(|e| Error::Invalid(format!("MCP initialization failed: {e}")))?;
                 running.waiting().await.map_err(|e| Error::Invalid(format!("MCP server stopped: {e}")))?;
             }
-            Some(addr) => serve_http(server, addr, allow_hosts).await?,
+            Some(addr) => serve_http(server, addr, &args.allow_hosts, &args.allow_origins).await?,
         }
         Ok(())
     })
 }
 
-async fn serve_http(server: EdgarServer, addr: SocketAddr, allow_hosts: Vec<String>) -> Result<(), Error> {
-    let mut config = StreamableHttpServerConfig::default();
-    if !allow_hosts.is_empty() {
-        let mut hosts = config.allowed_hosts.clone();
-        hosts.extend(allow_hosts);
-        config = config.with_allowed_hosts(hosts);
-    }
+/// Which requests the HTTP server answers, and the endpoint to print.
+#[derive(Debug, PartialEq)]
+struct HttpAccess {
+    /// Accepted `Host` header values (any port).
+    hosts: Vec<String>,
+    /// Accepted browser `Origin` values. Requests without an Origin, from native clients, always pass.
+    origins: Vec<String>,
+    url: String,
+    note: Option<String>,
+}
+
+/// Loopback names always work. A specific address served is accepted too, while
+/// for 0.0.0.0 or :: other names must be given with --allow-host.
+fn http_access(bound: SocketAddr, allow_hosts: &[String], allow_origins: &[String]) -> HttpAccess {
+    let mut hosts: Vec<String> = vec!["localhost".into(), "127.0.0.1".into(), "::1".into()];
+    let mut origins: Vec<String> = ["localhost", "127.0.0.1", "[::1]"]
+        .iter()
+        .flat_map(|h| [format!("http://{h}:*"), format!("https://{h}:*")])
+        .collect();
+    let ip = bound.ip();
+    let mut note = None;
+    let shown = if ip.is_unspecified() {
+        note = Some(
+            "listening on all interfaces: requests must address localhost or 127.0.0.1, \
+             or a name given with --allow-host"
+                .to_owned(),
+        );
+        SocketAddr::new(IpAddr::from([127, 0, 0, 1]), bound.port())
+    } else {
+        if !hosts.contains(&ip.to_string()) {
+            let host = if ip.is_ipv6() { format!("[{ip}]") } else { ip.to_string() };
+            origins.push(format!("http://{host}:*"));
+            hosts.push(host);
+        }
+        bound
+    };
+    hosts.extend(allow_hosts.iter().cloned());
+    origins.extend(allow_origins.iter().cloned());
+    HttpAccess { hosts, origins, url: format!("http://{shown}/mcp"), note }
+}
+
+async fn serve_http(
+    server: EdgarServer,
+    addr: SocketAddr,
+    allow_hosts: &[String],
+    allow_origins: &[String],
+) -> Result<(), Error> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let access = http_access(listener.local_addr()?, allow_hosts, allow_origins);
+    let config = StreamableHttpServerConfig::default()
+        .with_allowed_hosts(access.hosts)
+        .with_allowed_origins(access.origins);
     let cancel = config.cancellation_token.clone();
     let service =
         StreamableHttpService::new(move || Ok(server.clone()), Arc::new(LocalSessionManager::default()), config);
     let router = axum::Router::new().nest_service("/mcp", service);
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    eprintln!("parsec-edgar MCP server listening on http://{}/mcp", listener.local_addr()?);
+    eprintln!("parsec-edgar MCP server listening on {}", access.url);
+    if let Some(note) = access.note {
+        eprintln!("{note}");
+    }
     axum::serve(listener, router)
         .with_graceful_shutdown(async move {
             let _ = tokio::signal::ctrl_c().await;
@@ -84,14 +152,19 @@ pub struct EdgarServer {
     tool_router: ToolRouter<Self>,
 }
 
-/// A filing's text and sections, parsed once.
+/// One document of a filing, as text and sections, parsed once. Co-registrants
+/// share it, so it holds no filer metadata: that comes from the filing each call resolves.
 struct Doc {
-    filing: Filing,
+    /// File name of an exhibit or other attachment; `None` for the primary document.
+    document: Option<String>,
     text: String,
     total_chars: usize,
-    /// `None` for forms without Item sections.
+    /// `None` for forms without Item sections, and for attachments.
     sections: Option<Vec<Section>>,
 }
+
+/// Accession number, and the file name of an attachment or "" for the primary document.
+type DocKey = (String, String);
 
 #[derive(Default)]
 struct Cache {
@@ -99,8 +172,30 @@ struct Cache {
     by_accession: HashMap<(String, String), Filing>,
     /// (company, form) to the latest filing, with the time it was looked up.
     latest: HashMap<(String, String), (Instant, Filing)>,
-    /// Most recently used last.
-    docs: VecDeque<Arc<Doc>>,
+    /// Parsed documents, most recently used last.
+    docs: VecDeque<(DocKey, Arc<Doc>)>,
+    /// Documents being loaded, so concurrent calls share one download and parse.
+    loading: HashMap<DocKey, Arc<OnceCell<Arc<Doc>>>>,
+}
+
+impl Cache {
+    /// A parsed document, which becomes the most recently used.
+    fn get_doc(&mut self, key: &DocKey) -> Option<Arc<Doc>> {
+        let i = self.docs.iter().position(|(k, _)| k == key)?;
+        let entry = self.docs.remove(i)?;
+        let doc = entry.1.clone();
+        self.docs.push_back(entry);
+        Some(doc)
+    }
+
+    /// Keep a parsed document, dropping the least recently used beyond DOC_CACHE_SIZE.
+    fn put_doc(&mut self, key: DocKey, doc: Arc<Doc>) {
+        self.docs.retain(|(k, _)| *k != key);
+        self.docs.push_back((key, doc));
+        while self.docs.len() > DOC_CACHE_SIZE {
+            self.docs.pop_front();
+        }
+    }
 }
 
 // Tool parameters. Doc comments become the schema descriptions the model sees.
@@ -134,6 +229,9 @@ struct FilingParams {
     accession: Option<String>,
     /// Without an accession, use the latest filing of this form (default 10-K).
     form: Option<String>,
+    /// File name of an exhibit or other attachment of the filing, from a search_full_text hit's `document`
+    /// (e.g. ex99-1.htm). Needs the accession. Omit for the primary document.
+    document: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -160,6 +258,9 @@ struct ReadTextParams {
     accession: Option<String>,
     /// Without an accession, use the latest filing of this form (default 10-K).
     form: Option<String>,
+    /// File name of an exhibit or other attachment of the filing, from a search_full_text hit's `document`
+    /// (e.g. ex99-1.htm). Needs the accession. Omit for the primary document.
+    document: Option<String>,
     /// Character offset to start at (default 0). Use next_offset from the previous page.
     offset: Option<usize>,
     /// Maximum characters to return (default 20000, at most 100000).
@@ -262,28 +363,10 @@ impl EdgarServer {
         let limit = p.limit.unwrap_or(DEFAULT_FILINGS).clamp(1, MAX_FILINGS);
         let client = self.client.clone();
         let company = p.company.clone();
-        // Ask for one extra row to know whether more exist.
-        let mut query = FilingQuery::new().limit(limit + 1);
-        query.forms = p.forms;
-        query.since = p.since;
-        query.until = p.until;
-        let filings = blocking(move || {
-            let mut filings = client.filings(&company, &query).map_err(explain)?;
-            if filings.len() <= limit {
-                // The recent block ran out: read the older history pages too.
-                filings = client.filings(&company, &query.all_history(true)).map_err(explain)?;
-            }
-            Ok(filings)
-        })
-        .await?;
+        let query = list_query(p.forms, p.since, p.until, limit);
+        let filings = blocking(move || client.filings(&company, &query).map_err(explain)).await?;
         let rows: Vec<FilingRow> = filings.iter().take(limit).map(FilingRow::from).collect();
-        let note = if filings.len() > limit {
-            Some("more filings match: raise limit or narrow with since/until")
-        } else if rows.is_empty() {
-            Some("no filings match these filters")
-        } else {
-            None
-        };
+        let note = list_note(filings.len(), limit);
         Ok(to_json(&FilingList {
             company: filings.first().map(|f| f.company.clone()),
             cik: filings.first().map(|f| f.cik),
@@ -297,25 +380,31 @@ impl EdgarServer {
         description = "Outline of one filing without its text: filing metadata, the total character count and, \
             for 10-K, 10-Q and 8-K (and amendments), the Item sections with ids, titles and character counts. \
             Call this first, then read only the sections you need with read_section. Identify the filing by \
-            company plus accession, or company plus form for the latest filing of that form (default 10-K).",
+            company plus accession, or company plus form for the latest filing of that form (default 10-K). \
+            For an exhibit hit from search_full_text, also pass its document.",
         annotations(title = "Filing outline", read_only_hint = true, open_world_hint = true)
     )]
     async fn get_filing_outline(&self, Parameters(p): Parameters<FilingParams>) -> Result<String, String> {
-        let doc = self.doc(&p.company, p.accession.as_deref(), p.form.as_deref()).await?;
-        let next = match &doc.sections {
-            Some(s) if !s.is_empty() => {
+        let (filing, doc) =
+            self.doc(&p.company, p.accession.as_deref(), p.form.as_deref(), p.document.as_deref()).await?;
+        let next = match (&doc.document, &doc.sections) {
+            (Some(name), _) => format!(
+                "{name} is an exhibit or attachment without Item sections; read it with read_filing_text, \
+                 passing the same accession and document"
+            ),
+            (None, Some(s)) if !s.is_empty() => {
                 "read_section with one of these ids; long sections come in pages of max_chars".to_owned()
             }
-            Some(_) => "no Item headings were found in this filing; use read_filing_text".to_owned(),
-            None => format!(
+            (None, Some(_)) => "no Item headings were found in this filing; use read_filing_text".to_owned(),
+            (None, None) => format!(
                 "Item sections are extracted for 10-K, 10-Q and 8-K only, not {}; use read_filing_text",
-                doc.filing.form
+                filing.form
             ),
         };
         let sections = doc.sections.as_ref().map(|sections| {
             sections.iter().map(|s| SectionRow { id: &s.id, title: &s.title, chars: s.text.chars().count() }).collect()
         });
-        Ok(to_json(&Outline { filing: FilingMeta::from(&doc.filing), total_chars: doc.total_chars, next, sections }))
+        Ok(to_json(&Outline { filing: FilingMeta::new(&filing, &doc), total_chars: doc.total_chars, next, sections }))
     }
 
     #[tool(
@@ -327,26 +416,28 @@ impl EdgarServer {
         annotations(title = "Read section", read_only_hint = true, open_world_hint = true)
     )]
     async fn read_section(&self, Parameters(p): Parameters<ReadSectionParams>) -> Result<String, String> {
-        let doc = self.doc(&p.company, p.accession.as_deref(), p.form.as_deref()).await?;
+        let (filing, doc) = self.doc(&p.company, p.accession.as_deref(), p.form.as_deref(), None).await?;
         let Some(sections) = &doc.sections else {
-            return Err(format!("{} filings have no Item sections; use read_filing_text instead", doc.filing.form));
+            return Err(format!("{} filings have no Item sections; use read_filing_text instead", filing.form));
         };
         let section = find_section(sections, &p.section)?;
         let page = paginate(&section.text, p.offset.unwrap_or(0), max_chars(p.max_chars))?;
-        Ok(page_response(FilingMeta::from(&doc.filing), Some(section), &page, "read_section"))
+        Ok(page_response(FilingMeta::new(&filing, &doc), Some(section), &page, "read_section"))
     }
 
     #[tool(
-        description = "Read the full clean text of a filing's primary document in pages: a JSON header line, then up \
-            to max_chars characters starting at offset, with next_offset set when more remains. Use it for forms \
-            without Item sections (S-1, DEF 14A, 20-F, 6-K, ...) or when get_filing_outline finds none; for 10-K, \
-            10-Q and 8-K prefer read_section.",
+        description = "Read the full clean text of a filing's primary document, or of one exhibit given as \
+            document, in pages: a JSON header line, then up to max_chars characters starting at offset, with \
+            next_offset set when more remains. Use it for forms without Item sections (S-1, DEF 14A, 20-F, 6-K, \
+            ...), when get_filing_outline finds none, and for exhibit hits from search_full_text (pass the hit's \
+            accession and document); for 10-K, 10-Q and 8-K prefer read_section.",
         annotations(title = "Read filing text", read_only_hint = true, open_world_hint = true)
     )]
     async fn read_filing_text(&self, Parameters(p): Parameters<ReadTextParams>) -> Result<String, String> {
-        let doc = self.doc(&p.company, p.accession.as_deref(), p.form.as_deref()).await?;
+        let (filing, doc) =
+            self.doc(&p.company, p.accession.as_deref(), p.form.as_deref(), p.document.as_deref()).await?;
         let page = paginate(&doc.text, p.offset.unwrap_or(0), max_chars(p.max_chars))?;
-        Ok(page_response(FilingMeta::from(&doc.filing), None, &page, "read_filing_text"))
+        Ok(page_response(FilingMeta::new(&filing, &doc), None, &page, "read_filing_text"))
     }
 
     #[tool(
@@ -354,12 +445,14 @@ impl EdgarServer {
             all appear; \"double quotes\" match a phrase, OR between terms matches either, -word excludes. Filter by \
             forms (a form also matches its amendments), filing dates and company. Returns matching documents (main \
             documents and exhibits), best match first, with company, CIK, form, filing date, accession and \
-            document URL. To read a hit, pass its cik as company and its accession to get_filing_outline, then \
-            read_section (or read_filing_text). Page with offset and next_offset.",
+            document URL. To read a hit in a main document, pass its cik as company and its accession to \
+            get_filing_outline, then read_section (or read_filing_text). A hit in an exhibit has document_type \
+            and document set: pass its cik, accession and document to read_filing_text, since the matching text \
+            is not in the main document. Page with offset and next_offset.",
         annotations(title = "Full-text search", read_only_hint = true, open_world_hint = true)
     )]
     async fn search_full_text(&self, Parameters(p): Parameters<SearchParams>) -> Result<String, String> {
-        let limit = p.limit.unwrap_or(DEFAULT_HITS).clamp(1, parsec_edgar::FULL_TEXT_PAGE_SIZE);
+        let limit = p.limit.unwrap_or(DEFAULT_HITS).clamp(1, FULL_TEXT_PAGE_SIZE);
         let offset = p.offset.unwrap_or(0);
         let client = self.client.clone();
         let mut query =
@@ -377,11 +470,8 @@ impl EdgarServer {
             client.full_text_search(&query).map_err(explain)
         })
         .await?;
-        let hits: Vec<_> = results.hits.iter().take(limit).map(SearchRow::from).collect();
-        let shown_end = offset + hits.len();
-        let next_offset =
-            (shown_end < results.total as usize && shown_end < parsec_edgar::FULL_TEXT_MAX_RESULTS && !hits.is_empty())
-                .then_some(shown_end);
+        let (shown, next_offset) = search_window(offset, limit, &results);
+        let hits: Vec<_> = results.hits.iter().take(shown).map(SearchRow::from).collect();
         // EFTS stops counting at 10,000: show "10000+" then.
         let total = if results.total_is_exact {
             serde_json::json!(results.total)
@@ -406,31 +496,62 @@ impl ServerHandler for EdgarServer {
 }
 
 impl EdgarServer {
-    /// Resolve a filing and load its text, from the cache when possible.
-    async fn doc(&self, company: &str, accession: Option<&str>, form: Option<&str>) -> Result<Arc<Doc>, String> {
-        let company = company.trim().to_owned();
+    /// Resolve a filing and load one of its documents (the primary one unless
+    /// `document` names another), from the cache when possible.
+    async fn doc(
+        &self,
+        company: &str,
+        accession: Option<&str>,
+        form: Option<&str>,
+        document: Option<&str>,
+    ) -> Result<(Filing, Arc<Doc>), String> {
+        let company = company.trim();
         if company.is_empty() {
             return Err("company is empty: pass a ticker or CIK (find_company looks them up)".into());
         }
-        let filing = self.filing(&company, accession, form).await?;
-        if let Some(doc) = self.cached_doc(&filing.accession_number) {
-            return Ok(doc);
+        let document = document.map(str::trim).filter(|d| !d.is_empty());
+        if let Some(name) = document {
+            check_document_name(name)?;
+            if accession.is_none_or(|a| a.trim().is_empty()) {
+                return Err("document needs the accession of its filing, as given by search_full_text".into());
+            }
         }
+        let filing = self.filing(company, accession, form).await?;
+        // The primary document named explicitly is read as the primary document.
+        let attachment = document
+            .filter(|name| !filing.primary_document.as_deref().is_some_and(|p| p.eq_ignore_ascii_case(name)))
+            .map(str::to_owned);
+        let key = (filing.accession_number.clone(), attachment.clone().unwrap_or_default());
         let client = self.client.clone();
-        let doc = blocking(move || {
-            let text = client.filing_text(&filing).map_err(explain)?;
-            let sections = FormKind::from_form(&filing.form).map(|kind| extract_sections(&text, kind));
-            let total_chars = text.chars().count();
-            Ok(Arc::new(Doc { filing, text, total_chars, sections }))
-        })
-        .await?;
+        let target = filing.clone();
+        let doc = self.shared_doc(key, move || load_doc(&client, &target, attachment)).await?;
+        Ok((filing, doc))
+    }
+
+    /// The parsed document for `key`, loading it with `load` unless it is cached.
+    /// Concurrent calls for one document share a single download and parse.
+    async fn shared_doc(
+        &self,
+        key: DocKey,
+        load: impl FnOnce() -> Result<Doc, String> + Send + 'static,
+    ) -> Result<Arc<Doc>, String> {
+        let cell = {
+            let mut cache = self.lock();
+            if let Some(doc) = cache.get_doc(&key) {
+                return Ok(doc);
+            }
+            cache.loading.entry(key.clone()).or_default().clone()
+        };
+        let init = || async move { blocking(move || load().map(Arc::new)).await };
+        let loaded = cell.get_or_try_init(init).await.cloned();
         let mut cache = self.lock();
-        cache.docs.retain(|d| d.filing.accession_number != doc.filing.accession_number);
-        cache.docs.push_back(doc.clone());
-        while cache.docs.len() > DOC_CACHE_SIZE {
-            cache.docs.pop_front();
+        if let Ok(doc) = &loaded {
+            cache.put_doc(key.clone(), doc.clone());
         }
-        Ok(doc)
+        if cache.loading.get(&key).is_some_and(|c| Arc::ptr_eq(c, &cell)) {
+            cache.loading.remove(&key);
+        }
+        loaded
     }
 
     async fn filing(&self, company: &str, accession: Option<&str>, form: Option<&str>) -> Result<Filing, String> {
@@ -459,17 +580,45 @@ impl EdgarServer {
         Ok(filing)
     }
 
-    fn cached_doc(&self, accession: &str) -> Option<Arc<Doc>> {
-        let mut cache = self.lock();
-        let i = cache.docs.iter().position(|d| d.filing.accession_number == accession)?;
-        let doc = cache.docs.remove(i)?;
-        cache.docs.push_back(doc.clone());
-        Some(doc)
-    }
-
     fn lock(&self) -> std::sync::MutexGuard<'_, Cache> {
         self.cache.lock().unwrap_or_else(|e| e.into_inner())
     }
+}
+
+/// Download and parse the primary document of a filing, or the attachment named `attachment`.
+fn load_doc(client: &Client, filing: &Filing, attachment: Option<String>) -> Result<Doc, String> {
+    let Some(name) = attachment else {
+        let text = client.filing_text(filing).map_err(explain)?;
+        let sections = FormKind::from_form(&filing.form).map(|kind| extract_sections(&text, kind));
+        return Ok(Doc { document: None, total_chars: text.chars().count(), text, sections });
+    };
+    let raw = client.get_text(&format!("{}/{name}", filing.folder_url())).map_err(|e| match e {
+        Error::Status { status: 404, .. } => format!(
+            "filing {} has no document {name:?}; pass the document of a search_full_text hit, \
+             or leave document out for the primary document",
+            filing.accession_number
+        ),
+        e => explain(e),
+    })?;
+    let text = document_to_text(&raw);
+    Ok(Doc { document: Some(name), total_chars: text.chars().count(), text, sections: None })
+}
+
+/// A document is a file name from a search hit, such as `ex99-1.htm`: no paths,
+/// and only formats that convert to text.
+fn check_document_name(name: &str) -> Result<(), String> {
+    let plain = name.len() <= 200
+        && !name.starts_with('.')
+        && !name.contains("..")
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
+    if !plain {
+        return Err(format!("document must be a file name from search_full_text, such as ex99-1.htm, not {name:?}"));
+    }
+    let ext = name.rsplit_once('.').map(|(_, ext)| ext.to_ascii_lowercase());
+    if !matches!(ext.as_deref(), Some("htm" | "html" | "txt" | "xml")) {
+        return Err(format!("{name:?} is not a text document; only .htm, .html, .txt and .xml files can be read"));
+    }
+    Ok(())
 }
 
 /// Run blocking client work off the async runtime.
@@ -490,9 +639,49 @@ fn explain(e: Error) -> String {
             "{e}. The SEC is throttling requests; wait a minute before retrying, and check that \
              PARSEC_EDGAR_USER_AGENT names you and a contact email"
         ),
-        Error::Status { status: 404, url } => format!("the SEC has no document at {url} (HTTP 404)"),
+        Error::Status { status: 404, url } => match submissions_cik(&url) {
+            Some(cik) => format!("no EDGAR filer has CIK {cik}; use find_company to search by name or ticker"),
+            None => format!("the SEC has no document at {url} (HTTP 404)"),
+        },
         other => other.to_string(),
     }
+}
+
+/// The CIK of a submissions API URL, which answers 404 for a CIK that does not exist.
+fn submissions_cik(url: &str) -> Option<u64> {
+    url.strip_prefix("https://data.sec.gov/submissions/CIK")?.strip_suffix(".json")?.parse().ok()
+}
+
+/// The query list_filings sends. One row past `limit` shows whether more filings
+/// match. Older history pages are read only when the recent block has too few.
+fn list_query(forms: Vec<String>, since: Option<String>, until: Option<String>, limit: usize) -> FilingQuery {
+    FilingQuery { forms, since, until, limit: Some(limit + 1), all_history: true }
+}
+
+fn list_note(found: usize, limit: usize) -> Option<&'static str> {
+    if found > limit {
+        Some("more filings match: raise limit or narrow with since/until")
+    } else if found == 0 {
+        Some("no filings match these filters")
+    } else {
+        None
+    }
+}
+
+/// How many of a page's hits to show for `limit`, and the offset of the next page.
+/// Offsets count every hit EFTS returned, including those it left out as unreadable.
+fn search_window(offset: usize, limit: usize, results: &FullTextResults) -> (usize, Option<usize>) {
+    let returned = results.hits.len() + results.skipped.len();
+    let (mut shown, mut used) = (0, 0);
+    while used < returned && (shown < limit || results.skipped.contains(&used)) {
+        if !results.skipped.contains(&used) {
+            shown += 1;
+        }
+        used += 1;
+    }
+    let end = offset + used;
+    let more = used > 0 && (end as u64) < results.total && end < FULL_TEXT_MAX_RESULTS;
+    (shown, more.then_some(end))
 }
 
 #[derive(Serialize)]
@@ -622,11 +811,15 @@ struct SearchRow {
     /// Exhibit type such as EX-10.1, when the hit is not the main document.
     #[serde(skip_serializing_if = "Option::is_none")]
     document_type: Option<String>,
+    /// File name of that exhibit, for the document parameter of read_filing_text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    document: Option<String>,
     url: String,
 }
 
-impl From<&parsec_edgar::FullTextHit> for SearchRow {
-    fn from(h: &parsec_edgar::FullTextHit) -> Self {
+impl From<&FullTextHit> for SearchRow {
+    fn from(h: &FullTextHit) -> Self {
+        // The main document's type is the form, or the form without "/A" in an amendment.
         let is_main = h.document_type.eq_ignore_ascii_case(&h.form)
             || h.form.split('/').next().is_some_and(|base| h.document_type.eq_ignore_ascii_case(base));
         Self {
@@ -637,6 +830,7 @@ impl From<&parsec_edgar::FullTextHit> for SearchRow {
             period: h.report_date.clone(),
             accession: h.accession_number.clone(),
             document_type: (!is_main).then(|| h.document_type.clone()),
+            document: (!is_main).then(|| h.document.clone()),
             url: h.document_url.clone(),
         }
     }
@@ -673,7 +867,22 @@ struct FilingMeta<'a> {
     accession: &'a str,
     #[serde(skip_serializing_if = "<[String]>::is_empty")]
     items: &'a [String],
+    /// The exhibit or attachment read, when it is not the primary document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    document: Option<&'a str>,
     url: String,
+}
+
+impl<'a> FilingMeta<'a> {
+    /// Metadata of the filing as this call resolved it, for one of its documents.
+    fn new(f: &'a Filing, doc: &'a Doc) -> Self {
+        let mut meta = Self::from(f);
+        if let Some(name) = &doc.document {
+            meta.document = Some(name);
+            meta.url = format!("{}/{name}", f.folder_url());
+        }
+        meta
+    }
 }
 
 impl<'a> From<&'a Filing> for FilingMeta<'a> {
@@ -686,6 +895,7 @@ impl<'a> From<&'a Filing> for FilingMeta<'a> {
             period: f.report_date.as_deref(),
             accession: &f.accession_number,
             items: &f.items,
+            document: None,
             url: f.primary_document_url.clone().unwrap_or_else(|| f.full_submission_url()),
         }
     }
@@ -995,6 +1205,293 @@ mod tests {
         assert_eq!(p.forms, ["8-K"]);
         let p: ListFilingsParams = serde_json::from_str(r#"{"company":"AAPL"}"#).unwrap();
         assert!(p.forms.is_empty());
+    }
+
+    fn filing_of(cik: u64, company: &str, accession: &str, document: &str) -> Filing {
+        let folder = format!("https://www.sec.gov/Archives/edgar/data/{cik}/{}", accession.replace('-', ""));
+        serde_json::from_value(serde_json::json!({
+            "cik": cik,
+            "company": company,
+            "accession_number": accession,
+            "form": "10-K",
+            "filing_date": "2025-02-14",
+            "primary_document": document,
+            "primary_document_url": format!("{folder}/{document}"),
+        }))
+        .unwrap()
+    }
+
+    fn offline_server() -> EdgarServer {
+        EdgarServer::new(Client::builder("parsec tests test@example.com").build().unwrap())
+    }
+
+    fn doc(text: &str, document: Option<&str>) -> Arc<Doc> {
+        let sections = document.is_none().then(Vec::new);
+        let document = document.map(str::to_owned);
+        Arc::new(Doc { document, total_chars: text.chars().count(), text: text.to_owned(), sections })
+    }
+
+    fn key(acc: &str, document: &str) -> DocKey {
+        (acc.to_owned(), document.to_owned())
+    }
+
+    fn json(out: Result<String, String>) -> serde_json::Value {
+        serde_json::from_str(&out.unwrap()).unwrap()
+    }
+
+    const PBF: &str = "0001566011-25-000004";
+
+    /// A server that already holds PBF's 10-K, filed by two co-registrants, and its EX-21.1.
+    fn pbf_server() -> EdgarServer {
+        let server = offline_server();
+        let mut cache = server.lock();
+        let holding = filing_of(1566011, "PBF Holding Co LLC", PBF, "pbfh-20241231.htm");
+        let finance = filing_of(1566097, "PBF Finance Corp", PBF, "pbfh-20241231.htm");
+        cache.by_accession.insert(("1566011".into(), PBF.replace('-', "")), holding);
+        cache.by_accession.insert(("1566097".into(), PBF.replace('-', "")), finance);
+        cache.put_doc(key(PBF, ""), doc("Item 1. Business\n\nWe refine oil.\n", None));
+        cache.put_doc(key(PBF, "ex211.htm"), doc("Subsidiaries of PBF Holding\n", Some("ex211.htm")));
+        drop(cache);
+        server
+    }
+
+    fn outline_params(company: &str, accession: Option<&str>, document: Option<&str>) -> FilingParams {
+        FilingParams {
+            company: company.into(),
+            accession: accession.map(Into::into),
+            form: None,
+            document: document.map(Into::into),
+        }
+    }
+
+    /// Co-registrants share one accession number; each sees its own name and CIK.
+    #[tokio::test]
+    async fn co_registrants_keep_their_own_metadata() {
+        let server = pbf_server();
+        for (cik, name) in [(1566011, "PBF Holding Co LLC"), (1566097, "PBF Finance Corp")] {
+            let p = outline_params(&cik.to_string(), Some(PBF), None);
+            let out = json(server.get_filing_outline(Parameters(p)).await);
+            assert_eq!((out["company"].as_str(), out["cik"].as_u64()), (Some(name), Some(cik)));
+            assert!(out["url"].as_str().unwrap().contains(&format!("/data/{cik}/")), "{out}");
+        }
+    }
+
+    /// Exhibits from search hits are read by file name, from the same filing folder.
+    #[tokio::test]
+    async fn reads_exhibits_by_document() {
+        let server = pbf_server();
+        let p = outline_params("1566097", Some(PBF), Some("ex211.htm"));
+        let out = json(server.get_filing_outline(Parameters(p)).await);
+        assert_eq!(out["document"], "ex211.htm");
+        assert_eq!(out["url"], "https://www.sec.gov/Archives/edgar/data/1566097/000156601125000004/ex211.htm");
+        assert!(out.get("sections").is_none());
+        assert!(out["next"].as_str().unwrap().contains("read_filing_text"), "{out}");
+
+        let p = ReadTextParams {
+            company: "1566011".into(),
+            accession: Some(PBF.into()),
+            form: None,
+            document: Some("ex211.htm".into()),
+            offset: None,
+            max_chars: None,
+        };
+        let text = server.read_filing_text(Parameters(p)).await.unwrap();
+        assert!(text.ends_with("\n\nSubsidiaries of PBF Holding\n"), "{text}");
+        assert!(text.starts_with(r#"{"company":"PBF Holding Co LLC","cik":1566011,"#), "{text}");
+
+        // The primary document named explicitly is the primary document, with its sections.
+        let p = outline_params("1566011", Some(PBF), Some("PBFH-20241231.htm"));
+        let out = json(server.get_filing_outline(Parameters(p)).await);
+        assert!(out.get("document").is_none() && out["sections"].is_array(), "{out}");
+    }
+
+    #[tokio::test]
+    async fn rejects_bad_document_names() {
+        let server = pbf_server();
+        for bad in ["../../../etc/passwd", "a/b.htm", "..htm", ".htaccess", "x.htm?y=1", "a b.htm", "ex%2F.htm"] {
+            let err = server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), Some(bad)))).await;
+            assert!(err.unwrap_err().contains("file name"), "{bad}");
+        }
+        let err = server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), Some("chart.jpg")))).await;
+        assert!(err.unwrap_err().contains("not a text document"));
+        let err = server.get_filing_outline(Parameters(outline_params("1566011", None, Some("ex211.htm")))).await;
+        assert!(err.unwrap_err().contains("needs the accession"));
+        assert!(check_document_name("d123456dex991.htm").is_ok());
+        assert!(check_document_name("primary_doc.xml").is_ok());
+        assert!(check_document_name("0001193125-09-012345.TXT").is_ok());
+    }
+
+    /// Calls that need the same document at once share one load.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_loads_share_one_download() {
+        let server = offline_server();
+        let loads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let calls = (0..6).map(|_| {
+            let server = server.clone();
+            let loads = loads.clone();
+            tokio::spawn(async move {
+                server
+                    .shared_doc(key("acc", ""), move || {
+                        loads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        std::thread::sleep(Duration::from_millis(200));
+                        Ok(Doc { document: None, text: "text".into(), total_chars: 4, sections: None })
+                    })
+                    .await
+            })
+        });
+        let docs: Vec<Arc<Doc>> = futures_join(calls).await;
+        assert_eq!(loads.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert!(docs.iter().all(|d| Arc::ptr_eq(d, &docs[0])));
+        let cache = server.lock();
+        assert!(cache.loading.is_empty());
+        assert_eq!(cache.docs.len(), 1);
+    }
+
+    async fn futures_join<T>(handles: impl Iterator<Item = tokio::task::JoinHandle<Result<T, String>>>) -> Vec<T> {
+        let mut out = Vec::new();
+        for h in handles.collect::<Vec<_>>() {
+            out.push(h.await.unwrap().unwrap());
+        }
+        out
+    }
+
+    /// A failed load is not cached, and the next call tries again.
+    #[tokio::test]
+    async fn failed_loads_are_retried() {
+        let server = offline_server();
+        let err = server.shared_doc(key("acc", ""), || Err("HTTP 503".into())).await;
+        assert_eq!(err.err().as_deref(), Some("HTTP 503"));
+        let empty = || Ok(Doc { document: None, text: String::new(), total_chars: 0, sections: None });
+        assert!(server.shared_doc(key("acc", ""), empty).await.is_ok());
+        assert!(server.lock().loading.is_empty());
+    }
+
+    #[test]
+    fn doc_cache_keeps_the_most_recently_used() {
+        let mut cache = Cache::default();
+        for i in 0..DOC_CACHE_SIZE {
+            cache.put_doc(key(&i.to_string(), ""), doc("x", None));
+        }
+        // Reading 0 makes 1 the least recently used.
+        assert!(cache.get_doc(&key("0", "")).is_some());
+        cache.put_doc(key("new", ""), doc("x", None));
+        assert_eq!(cache.docs.len(), DOC_CACHE_SIZE);
+        assert!(cache.get_doc(&key("1", "")).is_none());
+        assert!(cache.get_doc(&key("0", "")).is_some());
+        // An attachment is cached apart from the primary document of its filing.
+        cache.put_doc(key("0", "ex99-1.htm"), doc("y", Some("ex99-1.htm")));
+        assert_eq!(cache.get_doc(&key("0", "")).unwrap().text, "x");
+        assert_eq!(cache.get_doc(&key("0", "ex99-1.htm")).unwrap().text, "y");
+        // Putting a key again replaces it instead of adding a second copy.
+        cache.put_doc(key("0", ""), doc("z", None));
+        assert_eq!(cache.docs.iter().filter(|(k, _)| *k == key("0", "")).count(), 1);
+    }
+
+    #[test]
+    fn unknown_ciks_point_to_find_company() {
+        let url = "https://data.sec.gov/submissions/CIK0009999999.json".to_owned();
+        let msg = explain(Error::Status { status: 404, url });
+        assert_eq!(msg, "no EDGAR filer has CIK 9999999; use find_company to search by name or ticker");
+        let url = "https://data.sec.gov/submissions/CIK0000320193-submissions-001.json".to_owned();
+        assert!(explain(Error::Status { status: 404, url }).contains("no document at"));
+        let url = "https://www.sec.gov/Archives/edgar/data/1/2/a.htm".to_owned();
+        assert!(explain(Error::Status { status: 404, url }).contains("no document at"));
+    }
+
+    #[test]
+    fn list_filings_reads_history_in_the_same_call() {
+        let q = list_query(vec!["10-K".into()], Some("2010".into()), None, 20);
+        assert_eq!(q.limit, Some(21));
+        assert!(q.all_history);
+        assert_eq!(list_note(21, 20), Some("more filings match: raise limit or narrow with since/until"));
+        assert_eq!(list_note(20, 20), None);
+        assert_eq!(list_note(0, 20), Some("no filings match these filters"));
+    }
+
+    fn results(total: u64, exact: bool, hits: usize, skipped: &[usize]) -> FullTextResults {
+        let hit: FullTextHit = serde_json::from_value(serde_json::json!({
+            "cik": 1, "company": "A", "form": "8-K", "filing_date": "2025-01-02",
+            "accession_number": "0000000001-25-000001", "document": "a.htm", "document_type": "8-K",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/1/000000000125000001/a.htm"
+        }))
+        .unwrap();
+        FullTextResults { total, total_is_exact: exact, hits: vec![hit; hits], skipped: skipped.to_vec() }
+    }
+
+    #[test]
+    fn search_paging() {
+        // A full page of 100, shown 20 at a time.
+        assert_eq!(search_window(0, 20, &results(250, true, 100, &[])), (20, Some(20)));
+        // The last hits: nothing after them.
+        assert_eq!(search_window(240, 20, &results(250, true, 10, &[])), (10, None));
+        assert_eq!(search_window(230, 20, &results(250, true, 20, &[])), (20, None));
+        // Over 10,000 hits (not an exact count): pages stop at the 10,000th.
+        assert_eq!(search_window(9_900, 20, &results(10_000, false, 100, &[])), (20, Some(9_920)));
+        assert_eq!(search_window(9_980, 20, &results(10_000, false, 20, &[])), (20, None));
+        // No hits at all.
+        assert_eq!(search_window(0, 20, &results(0, true, 0, &[])), (0, None));
+    }
+
+    /// Hits EFTS returned but the client could not read still count for offsets,
+    /// so the next page neither repeats nor skips hits.
+    #[test]
+    fn search_paging_counts_unreadable_hits() {
+        // Raw positions A, B (unreadable), C, D with limit 2: show A and C, continue at D.
+        assert_eq!(search_window(0, 2, &results(4, true, 3, &[1])), (2, Some(3)));
+        // Unreadable hits right after the shown ones are stepped over.
+        assert_eq!(search_window(0, 2, &results(10, true, 3, &[2, 3])), (2, Some(4)));
+        // Only unreadable hits are left: the page is used up.
+        assert_eq!(search_window(8, 2, &results(10, true, 0, &[0, 1])), (0, None));
+    }
+
+    fn hit(form: &str, document_type: &str, document: &str) -> FullTextHit {
+        let mut h = results(1, true, 1, &[]).hits.remove(0);
+        h.form = form.into();
+        h.document_type = document_type.into();
+        h.document = document.into();
+        h
+    }
+
+    /// Main documents carry no document fields; exhibits name their type and file.
+    #[test]
+    fn search_rows_tell_exhibits_from_main_documents() {
+        // The fixture's hits: Apple's 10-K, Windtree's EX-10.76 and the Immersion 13D/A's EX-99.1.
+        let main = SearchRow::from(&hit("10-K", "10-K", "aapl-20260926.htm"));
+        assert_eq!((main.document_type, main.document), (None, None));
+        let ex = SearchRow::from(&hit("10-K", "EX-10.76", "ex_802014.htm"));
+        assert_eq!(ex.document_type.as_deref(), Some("EX-10.76"));
+        assert_eq!(ex.document.as_deref(), Some("ex_802014.htm"));
+        let ex = SearchRow::from(&hit("SC 13D/A", "EX-99.1", "ex991to13da506297074_120409.htm"));
+        assert_eq!(ex.document.as_deref(), Some("ex991to13da506297074_120409.htm"));
+        // Amendments: the main document may carry the form with or without "/A".
+        assert_eq!(SearchRow::from(&hit("10-K/A", "10-K/A", "a.htm")).document, None);
+        assert_eq!(SearchRow::from(&hit("10-K/A", "10-K", "a.htm")).document, None);
+        assert_eq!(SearchRow::from(&hit("8-K/A", "EX-99.1", "b.htm")).document.as_deref(), Some("b.htm"));
+    }
+
+    #[test]
+    fn http_hosts_and_origins() {
+        let local = http_access("127.0.0.1:8080".parse().unwrap(), &[], &[]);
+        assert_eq!(local.hosts, ["localhost", "127.0.0.1", "::1"]);
+        assert!(local.origins.contains(&"http://localhost:*".to_owned()));
+        assert_eq!(local.url, "http://127.0.0.1:8080/mcp");
+        assert_eq!(local.note, None);
+
+        // A specific address is accepted as the Host and as an origin.
+        let lan = http_access("192.168.1.5:8080".parse().unwrap(), &["mcp.example.com".into()], &[]);
+        assert_eq!(lan.hosts, ["localhost", "127.0.0.1", "::1", "192.168.1.5", "mcp.example.com"]);
+        assert!(lan.origins.contains(&"http://192.168.1.5:*".to_owned()));
+        assert_eq!(lan.url, "http://192.168.1.5:8080/mcp");
+        let v6 = http_access("[fd00::5]:8080".parse().unwrap(), &[], &[]);
+        assert!(v6.hosts.contains(&"[fd00::5]".to_owned()));
+        assert_eq!(v6.url, "http://[fd00::5]:8080/mcp");
+
+        // All interfaces: print an address that works, and say how to add names.
+        let any = http_access("0.0.0.0:8080".parse().unwrap(), &[], &["https://app.example.com".into()]);
+        assert_eq!(any.hosts, ["localhost", "127.0.0.1", "::1"]);
+        assert_eq!(any.url, "http://127.0.0.1:8080/mcp");
+        assert!(any.note.unwrap().contains("--allow-host"));
+        assert_eq!(any.origins.last().map(String::as_str), Some("https://app.example.com"));
     }
 
     #[test]

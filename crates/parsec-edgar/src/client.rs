@@ -72,6 +72,8 @@ impl ClientBuilder {
             max_retries: self.max_retries,
             tickers: OnceLock::new(),
             requests: AtomicU64::new(0),
+            #[cfg(test)]
+            stubs: Mutex::default(),
         })
     }
 }
@@ -88,6 +90,16 @@ pub struct Client {
     max_retries: u32,
     pub(crate) tickers: OnceLock<Vec<Company>>,
     requests: AtomicU64,
+    /// Test responses served instead of the network, and the URLs fetched.
+    #[cfg(test)]
+    stubs: Mutex<Option<Stubs>>,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct Stubs {
+    bodies: std::collections::HashMap<String, Vec<u8>>,
+    fetched: Vec<String>,
 }
 
 impl Client {
@@ -146,6 +158,12 @@ impl Client {
     }
 
     fn fetch(&self, url: &str) -> Result<Vec<u8>> {
+        #[cfg(test)]
+        if let Some(stubs) = self.stubs.lock().unwrap().as_mut() {
+            self.requests.fetch_add(1, Ordering::Relaxed);
+            stubs.fetched.push(url.to_owned());
+            return stubs.bodies.get(url).cloned().ok_or_else(|| Error::Status { status: 404, url: url.to_owned() });
+        }
         let mut attempt = 0;
         loop {
             self.limiter.acquire();
@@ -192,15 +210,41 @@ impl Client {
         }
         Some(dir.join("Archives").join(rest))
     }
+
+    /// Serve `body` for `url` instead of the network. Once any stub is set,
+    /// unknown URLs get a 404 and nothing goes to the network.
+    #[cfg(test)]
+    pub(crate) fn stub(&self, url: &str, body: impl Into<Vec<u8>>) {
+        self.stubs.lock().unwrap().get_or_insert_with(Stubs::default).bodies.insert(url.to_owned(), body.into());
+    }
+
+    /// URLs fetched from the stubs so far, in order, then cleared.
+    #[cfg(test)]
+    pub(crate) fn take_fetched(&self) -> Vec<String> {
+        self.stubs.lock().unwrap().as_mut().map(|s| std::mem::take(&mut s.fetched)).unwrap_or_default()
+    }
 }
 
+/// Write through a temp file and rename it into place, so readers never see a
+/// partial file. Each write has its own temp name: threads of one process may
+/// cache the same document at once.
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let tmp = path.with_extension(format!("tmp{}", std::process::id()));
-    std::fs::write(&tmp, bytes)?;
-    std::fs::rename(&tmp, path)?;
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(format!(".{}-{}.tmp", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+    let tmp = PathBuf::from(tmp);
+    let written = std::fs::write(&tmp, bytes).and_then(|()| std::fs::rename(&tmp, path));
+    if let Err(e) = written {
+        let _ = std::fs::remove_file(&tmp);
+        // Archive documents never change, so a copy another writer put in place
+        // is as good as ours (Windows refuses to replace a file that is open).
+        if !path.is_file() {
+            return Err(e.into());
+        }
+    }
     Ok(())
 }
 
@@ -255,6 +299,48 @@ mod tests {
         );
         assert_eq!(c.cache_path("https://data.sec.gov/submissions/CIK0000320193.json"), None);
         assert_eq!(c.cache_path("https://www.sec.gov/Archives/../etc/passwd"), None);
+    }
+
+    /// A fresh directory under the system temp directory.
+    pub(crate) fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("parsec-edgar-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Threads that download the same uncached document at once all succeed,
+    /// and the cached file is always complete.
+    #[test]
+    fn concurrent_cache_writes() {
+        let dir = temp_dir("concurrent-cache");
+        let c = Client::builder("a@b.c").cache_dir(Some(dir.clone())).build().unwrap();
+        let body = vec![b'x'; 512 * 1024];
+        for round in 0..30 {
+            let url = format!("https://www.sec.gov/Archives/edgar/data/1/{round}/a.htm");
+            c.stub(&url, body.clone());
+            std::thread::scope(|s| {
+                let handles: Vec<_> = (0..8).map(|_| s.spawn(|| c.get_bytes(&url))).collect();
+                for h in handles {
+                    let got = h.join().unwrap().unwrap_or_else(|e| panic!("round {round}: {e}"));
+                    assert_eq!(got.len(), body.len());
+                }
+            });
+            assert_eq!(std::fs::read(c.cache_path(&url).unwrap()).unwrap().len(), body.len());
+        }
+        // No temp files are left behind.
+        let leftovers: Vec<_> = walk(&dir).into_iter().filter(|p| !p.ends_with("a.htm")).collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn walk(dir: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        for e in std::fs::read_dir(dir).unwrap().flatten() {
+            let p = e.path();
+            if p.is_dir() { out.extend(walk(&p)) } else { out.push(p) }
+        }
+        out
     }
 
     #[test]

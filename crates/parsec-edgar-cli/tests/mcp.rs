@@ -182,6 +182,11 @@ fn stdio_protocol_offline() {
     assert!(is_error && msg.contains("needs a query"), "{msg}");
     let (is_error, msg) = s.call("get_filing_outline", json!({ "company": "" }));
     assert!(is_error && msg.contains("company is empty"), "{msg}");
+    let (is_error, msg) = s.call(
+        "read_filing_text",
+        json!({ "company": "AAPL", "accession": "0000320193-26-000026", "document": "../../../etc/passwd" }),
+    );
+    assert!(is_error && msg.contains("file name"), "{msg}");
 }
 
 #[test]
@@ -201,6 +206,17 @@ fn missing_user_agent_is_a_clear_error() {
 
 /// Send one HTTP/1.0 POST to the local server and return (status, headers, body).
 fn http_post(port: u16, host: &str, session: Option<&str>, body: &Value) -> (u16, String, String) {
+    http_post_from(port, host, None, session, body)
+}
+
+/// The same, with an Origin header as a browser would send.
+fn http_post_from(
+    port: u16,
+    host: &str,
+    origin: Option<&str>,
+    session: Option<&str>,
+    body: &Value,
+) -> (u16, String, String) {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
     stream.set_read_timeout(Some(Duration::from_secs(30))).unwrap();
     let body = body.to_string();
@@ -210,6 +226,9 @@ fn http_post(port: u16, host: &str, session: Option<&str>, body: &Value) -> (u16
          Content-Length: {}\r\n",
         body.len()
     );
+    if let Some(origin) = origin {
+        req.push_str(&format!("Origin: {origin}\r\n"));
+    }
     if let Some(id) = session {
         req.push_str(&format!("Mcp-Session-Id: {id}\r\n"));
     }
@@ -237,7 +256,7 @@ fn rpc_result(body: &str, id: u64) -> Value {
 #[test]
 fn http_protocol_offline() {
     let mut child = offline_command()
-        .args(["mcp", "--http", "127.0.0.1:0"])
+        .args(["mcp", "--http", "127.0.0.1:0", "--allow-origin", "https://app.example.com"])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -277,6 +296,10 @@ fn http_protocol_offline() {
 
     // Requests naming another host are refused (DNS rebinding protection).
     assert_eq!(http_post(port, "evil.example.com", None, &init).0, 403);
+    // So are browser requests from other origins; local pages and --allow-origin pass.
+    assert_eq!(http_post_from(port, &host, Some("https://evil.example.com"), None, &init).0, 403);
+    assert_eq!(http_post_from(port, &host, Some("http://localhost:6274"), None, &init).0, 200);
+    assert_eq!(http_post_from(port, &host, Some("https://app.example.com"), None, &init).0, 200);
 
     let _ = child.kill();
     let _ = child.wait();
@@ -369,28 +392,54 @@ fn stdio_end_to_end() {
         assert!(hit["url"].as_str().unwrap().starts_with("https://www.sec.gov/Archives/edgar/data/320193/"));
     }
     let hit = &hits[0];
-    let hit_outline: Value = serde_json::from_str(
-        &s.ok("get_filing_outline", json!({ "company": hit["cik"].to_string(), "accession": hit["accession"] })),
-    )
+    let hit_outline: Value = serde_json::from_str(&s.ok(
+        "get_filing_outline",
+        json!({ "company": hit["cik"].to_string(), "accession": hit["accession"], "document": hit["document"] }),
+    ))
     .unwrap();
     assert_eq!(hit_outline["accession"], hit["accession"]);
     let wide: Value = serde_json::from_str(&s.ok(
         "search_full_text",
-        json!({ "query": "\"supply chain disruption\"", "forms": "8-K", "since": "2025-01", "until": "2025-06", "limit": 3 }),
+        json!({ "query": "\"supply chain disruption\"", "forms": "8-K", "since": "2025-01", "until": "2025-06", "limit": 20 }),
     ))
     .unwrap();
-    assert_eq!(wide["hits"].as_array().unwrap().len(), 3);
-    assert_eq!(wide["next_offset"], 3);
-    for hit in wide["hits"].as_array().unwrap() {
+    let wide_hits = wide["hits"].as_array().unwrap();
+    assert_eq!(wide_hits.len(), 20);
+    assert_eq!(wide["next_offset"], 20);
+    for hit in wide_hits {
         let filed = hit["filed"].as_str().unwrap();
         assert!(("2025-01-01"..="2025-06-30").contains(&filed), "{filed}");
     }
+
+    // An 8-K hit is usually in an exhibit such as the EX-99.1 press release: read that exhibit.
+    let exhibit = wide_hits.iter().find(|h| h["document"].is_string()).expect("an exhibit hit");
+    let text = s.ok(
+        "read_filing_text",
+        json!({ "company": exhibit["cik"].to_string(), "accession": exhibit["accession"],
+                "document": exhibit["document"], "max_chars": 100000 }),
+    );
+    let (h, body) = page(&text);
+    assert_eq!(h["document"], exhibit["document"]);
+    assert_eq!(h["url"], exhibit["url"]);
+    let words: String =
+        body.chars().map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { ' ' }).collect::<String>();
+    let words = words.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(words.contains("supply chain disruption"), "the exhibit does not contain the search phrase");
+
+    // Paging deep into a large result set reaches the last hits EFTS serves.
+    let deep: Value =
+        serde_json::from_str(&s.ok("search_full_text", json!({ "query": "revenue", "offset": 9950, "limit": 100 })))
+            .unwrap();
+    assert_eq!(deep["hits"].as_array().unwrap().len(), 50);
+    assert!(deep["next_offset"].is_null());
 
     // Errors come back as tool errors with a next step.
     let (is_error, msg) = s.call("read_section", json!({ "company": "AAPL", "section": "item_99" }));
     assert!(is_error && msg.contains("available: item_1"), "{msg}");
     let (is_error, msg) = s.call("list_filings", json!({ "company": "NOTATICKERXYZ" }));
     assert!(is_error && msg.contains("find_company"), "{msg}");
+    let (is_error, msg) = s.call("list_filings", json!({ "company": "9999999999" }));
+    assert!(is_error && msg.contains("no EDGAR filer has CIK 9999999999") && msg.contains("find_company"), "{msg}");
     let (is_error, msg) = s.call("find_company", json!({ "query": "qqqzzzxxyy" }));
     assert!(is_error && msg.contains("no company matches"), "{msg}");
     let (is_error, msg) = s.call("search_full_text", json!({ "query": "tariffs", "since": "2025/01" }));

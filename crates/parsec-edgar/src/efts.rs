@@ -38,9 +38,12 @@ pub struct FullTextQuery {
     pub until: Option<String>,
     /// Only filings by these filers.
     pub ciks: Vec<u64>,
-    /// Number of hits to skip, for paging. One request returns up to 100 hits.
+    /// Number of hits to skip, for paging, below 10,000. One request returns up to 100 hits.
     pub offset: usize,
 }
+
+/// The largest `from` EFTS accepts: it serves no hit past the 10,000th.
+const LAST_PAGE_START: usize = FULL_TEXT_MAX_RESULTS - FULL_TEXT_PAGE_SIZE;
 
 impl FullTextQuery {
     pub fn new(query: impl Into<String>) -> Self {
@@ -72,7 +75,9 @@ impl FullTextQuery {
         self
     }
 
-    /// The EFTS request URL for this query.
+    /// The EFTS request URL for this query. EFTS refuses pages that reach past
+    /// 10,000 hits, so an offset in the last 100 asks for the page at 9,900;
+    /// [`Client::full_text_search`] then drops the hits before the offset.
     pub fn url(&self) -> Result<String> {
         let q = self.query.trim();
         if q.is_empty() {
@@ -106,10 +111,16 @@ impl FullTextQuery {
             };
             url.push_str(&format!("&dateRange=custom&startdt={start}&enddt={end}"));
         }
-        if self.offset > 0 {
-            url.push_str(&format!("&from={}", self.offset));
+        let from = self.offset.min(LAST_PAGE_START);
+        if from > 0 {
+            url.push_str(&format!("&from={from}"));
         }
         Ok(url)
+    }
+
+    /// Hits at the start of the requested page that come before `offset`.
+    fn hits_before_offset(&self) -> usize {
+        self.offset.saturating_sub(LAST_PAGE_START)
     }
 }
 
@@ -122,6 +133,11 @@ pub struct FullTextResults {
     pub total_is_exact: bool,
     /// Matching documents, best match first. A filing appears once per matching document.
     pub hits: Vec<FullTextHit>,
+    /// Positions, counted from the query's offset, of hits left out of `hits`
+    /// because they name no filer or no file. The next page starts at
+    /// `offset + hits.len() + skipped.len()`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skipped: Vec<usize>,
 }
 
 /// One matching document.
@@ -169,7 +185,7 @@ impl Client {
     /// Returns one page of up to 100 hits starting at `query.offset`.
     pub fn full_text_search(&self, query: &FullTextQuery) -> Result<FullTextResults> {
         let url = query.url()?;
-        parse_response(&self.get_bytes(&url)?, &url)
+        parse_response(&self.get_bytes(&url)?, &url, query.hits_before_offset())
     }
 }
 
@@ -221,18 +237,28 @@ struct RawSource {
     file_description: Option<String>,
 }
 
-fn parse_response(bytes: &[u8], url: &str) -> Result<FullTextResults> {
+/// Parse one EFTS page, dropping its first `skip` hits.
+fn parse_response(bytes: &[u8], url: &str, skip: usize) -> Result<FullTextResults> {
     let raw: RawResponse =
         serde_json::from_slice(bytes).map_err(|source| Error::Json { url: url.to_owned(), source })?;
     // EFTS reports query errors with HTTP 200 and an error message.
     if let Some(msg) = raw.error_message {
         return Err(Error::Invalid(format!("full-text search failed: {msg}")));
     }
-    let hits = raw.hits.ok_or_else(|| Error::Invalid(format!("no hits in full-text search response from {url}")))?;
+    let raw_hits = raw.hits.ok_or_else(|| Error::Invalid(format!("no hits in full-text search response from {url}")))?;
+    let mut hits = Vec::new();
+    let mut skipped = Vec::new();
+    for (i, raw) in raw_hits.hits.into_iter().skip(skip).enumerate() {
+        match convert_hit(raw) {
+            Some(hit) => hits.push(hit),
+            None => skipped.push(i),
+        }
+    }
     Ok(FullTextResults {
-        total: hits.total.value,
-        total_is_exact: hits.total.relation != "gte",
-        hits: hits.hits.into_iter().filter_map(convert_hit).collect(),
+        total: raw_hits.total.value,
+        total_is_exact: raw_hits.total.relation != "gte",
+        hits,
+        skipped,
     })
 }
 
@@ -356,7 +382,7 @@ mod tests {
     #[test]
     fn parses_fixture() {
         // Hits copied from real EFTS responses (November 2026).
-        let r = parse_response(FIXTURE.as_bytes(), "fixture").unwrap();
+        let r = parse_response(FIXTURE.as_bytes(), "fixture", 0).unwrap();
         assert_eq!(r.total, 10_000);
         assert!(!r.total_is_exact);
         assert_eq!(r.hits.len(), 6);
@@ -407,7 +433,7 @@ mod tests {
     #[test]
     fn reports_search_errors() {
         let body = br#"{"errorType":"ResponseError","errorMessage":"failed to parse date field [bad]"}"#;
-        let err = parse_response(body, "fixture").unwrap_err().to_string();
+        let err = parse_response(body, "fixture", 0).unwrap_err().to_string();
         assert!(err.contains("failed to parse date field"), "{err}");
     }
 
@@ -441,6 +467,47 @@ mod tests {
         assert!(FullTextQuery::new("  ").url().is_err());
         assert!(FullTextQuery::new("x").offset(10_000).url().is_err());
         assert!(FullTextQuery::new("x").since("2025/01").url().is_err());
+    }
+
+    /// EFTS refuses `from` + 100 past 10,000, so offsets in the last page ask for
+    /// the page at 9,900 and drop the hits before the offset.
+    #[test]
+    fn last_page_offsets() {
+        assert!(FullTextQuery::new("x").offset(9_900).url().unwrap().ends_with("&from=9900"));
+        assert!(FullTextQuery::new("x").offset(9_950).url().unwrap().ends_with("&from=9900"));
+        assert!(FullTextQuery::new("x").offset(9_999).url().unwrap().ends_with("&from=9900"));
+        assert!(FullTextQuery::new("x").offset(9_899).url().unwrap().ends_with("&from=9899"));
+        let client = Client::builder("a@b.c").build().unwrap();
+        let q = FullTextQuery::new("x").offset(9_904);
+        client.stub(&q.url().unwrap(), FIXTURE);
+        let r = client.full_text_search(&q).unwrap();
+        assert_eq!(r.hits.len(), 2);
+        assert_eq!(r.hits[0].form, "SC 13D/A");
+    }
+
+    /// A hit without a CIK or a file name is left out, and its position is kept
+    /// so that paging does not drift.
+    #[test]
+    fn unreadable_hits_are_counted() {
+        let hit = |id: &str, ciks: &str| {
+            format!(r#"{{"_id": "{id}", "_source": {{"ciks": [{ciks}], "display_names": ["A  (CIK 0000000001)"],
+                "form": "8-K", "file_date": "2025-01-02", "adsh": "0000000001-25-000001"}}}}"#)
+        };
+        let body = format!(
+            r#"{{"hits": {{"total": {{"value": 5, "relation": "eq"}}, "hits": [{}, {}, {}, {}, {}]}}}}"#,
+            hit("0000000001-25-000001:a.htm", r#""0000000001""#),
+            hit("0000000001-25-000001:b.htm", ""),
+            hit("0000000001-25-000001", r#""0000000001""#),
+            hit("0000000001-25-000001:d.htm", r#""0000000001""#),
+            hit("0000000001-25-000001:e.htm", r#""x""#),
+        );
+        let r = parse_response(body.as_bytes(), "test", 0).unwrap();
+        let docs: Vec<&str> = r.hits.iter().map(|h| h.document.as_str()).collect();
+        assert_eq!(docs, ["a.htm", "d.htm"]);
+        assert_eq!(r.skipped, [1, 2, 4]);
+        let r = parse_response(body.as_bytes(), "test", 2).unwrap();
+        assert_eq!(r.hits.len(), 1);
+        assert_eq!(r.skipped, [0, 2]);
     }
 
     #[test]
