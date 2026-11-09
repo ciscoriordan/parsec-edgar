@@ -335,6 +335,33 @@ mod tests {
     }
 
     #[test]
+    fn page_furniture_keeps_lines_that_only_look_like_it() {
+        let mut html = String::new();
+        // The heading itself has no page number and stays, while the running
+        // headers made from it go.
+        html += "<p>Item 7. Management's Discussion and Analysis</p>";
+        for page in 30..36 {
+            html += &format!("<p>Text of page {page}.</p><p>Item 7. Management's Discussion and Analysis {page}</p>");
+        }
+        // Too few repeats, too few letters, or numbers that do not rise like pages.
+        for page in 40..44 {
+            html += &format!("<p>Annual Report on Form 10-K {page}</p>");
+        }
+        for page in 50..56 {
+            html += &format!("<p>Form 10-K {page}</p>");
+        }
+        for n in [12, 9, 14, 3, 20, 1] {
+            html += &format!("<p>Number of employees at year end {n}</p>");
+        }
+        let text = html_to_text(&html);
+        assert!(text.starts_with("Item 7. Management's Discussion and Analysis\nText of page 30.\n"));
+        assert_eq!(text.matches("Management's Discussion").count(), 1);
+        assert_eq!(text.matches("Annual Report on Form 10-K").count(), 4);
+        assert_eq!(text.matches("Form 10-K 5").count(), 6);
+        assert_eq!(text.matches("Number of employees").count(), 6);
+    }
+
+    #[test]
     fn deep_nesting_does_not_overflow() {
         let html = format!("{}deep{}", "<font>".repeat(100_000), "</font>".repeat(100_000));
         assert_eq!(html_to_text(&html), "deep\n");
