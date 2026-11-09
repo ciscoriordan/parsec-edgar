@@ -78,7 +78,9 @@ impl Quarter {
     /// The quarter holding today's date (UTC).
     pub fn current() -> Self {
         let (y, m, _) = civil_from_days(today_days());
-        Self { year: y as u16, quarter: ((m - 1) / 3 + 1) as u8 }
+        // Kept in range even when the system clock is far off.
+        let year = y.clamp(FIRST_YEAR as i64, LAST_YEAR as i64) as u16;
+        Self { year, quarter: ((m - 1) / 3 + 1) as u8 }
     }
 
     /// Every quarter from `from` to `to`, inclusive.
