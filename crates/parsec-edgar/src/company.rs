@@ -1,5 +1,5 @@
-use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
-use std::time::{Duration, Instant};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
@@ -32,18 +32,27 @@ struct TickerFile {
     data: Vec<Vec<serde_json::Value>>,
 }
 
-/// A client's ticker list, downloaded again once it is older than `max_age`.
+/// A client's ticker list. Once it is `max_age` old, a lookup starts a new
+/// download on another thread and keeps using the old list until it has arrived.
 pub(crate) struct Tickers {
     max_age: Duration,
+    /// How long a caller with no list waits for a download under way before it downloads the list itself.
+    wait_limit: Duration,
     state: Mutex<TickerState>,
-    /// Held during a download, so one caller downloads while the others wait for it or use the old list.
-    download: Mutex<()>,
+    /// Notified when a download ends.
+    ended: Condvar,
+    #[cfg(test)]
+    clock: Mutex<TestClock>,
 }
 
 #[derive(Default)]
 struct TickerState {
-    /// The list in use, and when it was downloaded.
-    list: Option<(Arc<[Company]>, Instant)>,
+    /// The list in use, and when its download ended.
+    list: Option<(Arc<[Company]>, Moment)>,
+    /// The download under way, if any.
+    download: Option<Claim>,
+    /// Downloads started so far, to number them.
+    started: u64,
     /// Downloads finished so far, failed ones included, so a caller that waited for one can tell it ended.
     attempts: u64,
     /// Why the last download failed, while there is no list to fall back on.
@@ -53,66 +62,82 @@ struct TickerState {
     retry_at: Option<Instant>,
 }
 
+/// A time read from both clocks. `Instant` never goes back, but on macOS and
+/// Linux it stops while the machine sleeps. The wall clock counts sleep, but it
+/// can be set back.
+#[derive(Clone, Copy)]
+struct Moment {
+    instant: Instant,
+    wall: SystemTime,
+}
+
+impl Moment {
+    /// Time from `self` to `now`, the longer of the two clocks' readings. When
+    /// the wall clock reads earlier than at `self`, it has been set back and
+    /// the age is unknown: `Duration::MAX`, so the list is downloaded again.
+    fn age(&self, now: Moment) -> Duration {
+        let wall = now.wall.duration_since(self.wall).unwrap_or(Duration::MAX);
+        now.instant.saturating_duration_since(self.instant).max(wall)
+    }
+}
+
+/// A download under way: the process that started it, its number, and when it started.
+#[derive(Clone, Copy)]
+struct Claim {
+    pid: u32,
+    id: u64,
+    started: Instant,
+}
+
 impl Tickers {
-    pub(crate) fn new(max_age: Duration) -> Self {
-        Self { max_age, state: Mutex::default(), download: Mutex::new(()) }
+    pub(crate) fn new(max_age: Duration, wait_limit: Duration) -> Self {
+        Self {
+            max_age,
+            wait_limit,
+            state: Mutex::default(),
+            ended: Condvar::new(),
+            #[cfg(test)]
+            clock: Mutex::default(),
+        }
     }
 
     fn state(&self) -> MutexGuard<'_, TickerState> {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
-}
 
-impl Client {
-    /// All companies with a listed ticker, from the SEC's `company_tickers_exchange.json`.
-    /// A company with several share classes appears once per ticker.
-    ///
-    /// The list is downloaded at first use and again once it is older than the client's
-    /// [`tickers_max_age`](crate::ClientBuilder::tickers_max_age) (one day by default). The old
-    /// list stays in use until a new one has arrived: one caller downloads it while the others
-    /// keep using the old list, and after a failed download the next try waits one minute,
-    /// doubling with each failure up to an hour. An error is returned only while there is no list yet.
-    pub fn companies(&self) -> Result<Arc<[Company]>> {
-        self.companies_at(Instant::now())
+    fn now(&self) -> Moment {
+        let now = Moment { instant: Instant::now(), wall: SystemTime::now() };
+        #[cfg(test)]
+        let now = self.clock.lock().unwrap().apply(now);
+        now
     }
 
-    /// [`Client::companies`] as of `now`, so tests can move the clock.
-    fn companies_at(&self, now: Instant) -> Result<Arc<[Company]>> {
-        let tickers = &self.tickers;
-        let (old, seen) = {
-            let state = tickers.state();
-            if let Some((list, loaded)) = &state.list {
-                let fresh = now.saturating_duration_since(*loaded) < tickers.max_age;
-                let backing_off = state.retry_at.is_some_and(|at| now < at);
-                if fresh || backing_off {
-                    return Ok(list.clone());
-                }
-            }
-            (state.list.as_ref().map(|(list, _)| list.clone()), state.attempts)
-        };
-        // With a list to fall back on, a caller does not wait for a download under way.
-        let _download = match (tickers.download.try_lock(), &old) {
-            (Ok(guard), _) => guard,
-            (Err(TryLockError::WouldBlock), Some(list)) => return Ok(list.clone()),
-            (Err(TryLockError::WouldBlock), None) => tickers.download.lock().unwrap_or_else(|e| e.into_inner()),
-            (Err(TryLockError::Poisoned(e)), _) => e.into_inner(),
-        };
-        {
-            // A download that finished while this caller waited is its answer too.
-            let state = tickers.state();
-            if state.attempts != seen {
-                if let Some((list, _)) = &state.list {
-                    return Ok(list.clone());
-                }
-                if let Some(e) = &state.error {
-                    return Err(copy_error(e));
-                }
-            }
-        }
-        let downloaded = self.download_companies();
-        let mut state = tickers.state();
+    /// Whether the download `claim` can still end: it runs in this process and
+    /// started less than `wait_limit` ago. A child process forked during a
+    /// download inherits the claim, but not the thread doing the download.
+    fn live(&self, claim: &Claim, now: Instant) -> bool {
+        claim.pid == std::process::id() && now.saturating_duration_since(claim.started) < self.wait_limit
+    }
+
+    /// Record a new download as the one under way, in place of any earlier one.
+    fn claim(&self, state: &mut TickerState, now: Instant) -> Claim {
+        state.started += 1;
+        let claim = Claim { pid: std::process::id(), id: state.started, started: now };
+        state.download = Some(claim);
+        claim
+    }
+
+    /// Record how the download `claim` ended, and wake the callers waiting for it.
+    /// The list's age and the wait before the next try count from now, when the download ended.
+    fn finish(&self, claim: Claim, downloaded: Result<Vec<Company>>) -> Result<Arc<[Company]>> {
+        let now = self.now();
+        let mut state = self.state();
         state.attempts += 1;
-        match (downloaded, old) {
+        if state.download.is_some_and(|c| c.id == claim.id) {
+            state.download = None;
+        }
+        let old = state.list.as_ref().map(|(list, _)| list.clone());
+        let result = match (downloaded, old) {
             (Ok(list), _) => {
                 let list: Arc<[Company]> = list.into();
                 state.list = Some((list.clone(), now));
@@ -123,13 +148,82 @@ impl Client {
             }
             (Err(_), Some(old)) => {
                 state.failures = state.failures.saturating_add(1);
-                state.retry_at = Some(now + retry_wait(state.failures));
+                state.retry_at = Some(now.instant + retry_wait(state.failures));
                 Ok(old)
             }
             (Err(e), None) => {
                 state.error = Some(copy_error(&e));
                 Err(e)
             }
+        };
+        drop(state);
+        self.ended.notify_all();
+        result
+    }
+}
+
+impl Client {
+    /// All companies with a listed ticker, from the SEC's `company_tickers_exchange.json`.
+    /// A company with several share classes appears once per ticker.
+    ///
+    /// The list is downloaded at first use. Once it is older than the client's
+    /// [`tickers_max_age`](crate::ClientBuilder::tickers_max_age) (one day by default,
+    /// counting time the machine is asleep), the next call starts a download on another
+    /// thread and returns the old list, as do all calls until the new list has arrived.
+    /// After a failed download the next try waits one minute from the failure, doubling
+    /// with each failure in a row up to an hour. An error is returned only while there
+    /// is no list yet.
+    ///
+    /// The list is shared: iterate it with `.iter()`, and pass `&list` where a
+    /// `&[Company]` is wanted. A list returned earlier stays valid after a new one
+    /// replaces it. Up to version 0.1.1 this method returned `&[Company]`.
+    pub fn companies(&self) -> Result<Arc<[Company]>> {
+        let tickers = &self.tickers;
+        let mut state = tickers.state();
+        let seen = state.attempts;
+        let claim = loop {
+            let now = tickers.now();
+            if let Some((list, loaded)) = &state.list {
+                let list = list.clone();
+                let stale = loaded.age(now) >= tickers.max_age;
+                let backing_off = state.retry_at.is_some_and(|at| now.instant < at);
+                let downloading = state.download.is_some_and(|c| tickers.live(&c, now.instant));
+                if stale && !backing_off && !downloading {
+                    let claim = tickers.claim(&mut state, now.instant);
+                    drop(state);
+                    self.refresh_in_background(claim);
+                }
+                return Ok(list);
+            }
+            // A first download that failed while this caller waited is its answer too.
+            if state.attempts != seen
+                && let Some(e) = &state.error
+            {
+                return Err(copy_error(e));
+            }
+            match state.download {
+                Some(c) if tickers.live(&c, now.instant) => {
+                    let left = tickers.wait_limit.saturating_sub(now.instant.saturating_duration_since(c.started));
+                    state = tickers.ended.wait_timeout(state, left).unwrap_or_else(|e| e.into_inner()).0;
+                }
+                // No download under way, or one that will not end: download the list here.
+                _ => break tickers.claim(&mut state, now.instant),
+            }
+        };
+        drop(state);
+        tickers.finish(claim, self.download_companies())
+    }
+
+    /// Download the list again on another thread, for [`Client::companies`].
+    fn refresh_in_background(&self, claim: Claim) {
+        let client = self.share();
+        let spawned = std::thread::Builder::new().name("parsec-edgar-tickers".into()).spawn(move || {
+            let downloaded = client.download_companies();
+            let _ = client.tickers.finish(claim, downloaded);
+        });
+        // Without a thread the refresh fails, and the next try waits as after any failure.
+        if let Err(e) = spawned {
+            let _ = self.tickers.finish(claim, Err(e.into()));
         }
     }
 
@@ -218,6 +312,47 @@ fn normalize_ticker(q: &str) -> String {
     q.to_ascii_uppercase().replace(['.', '/'], "-")
 }
 
+/// Offsets tests add to the clocks. Time awake moves both clocks, time asleep only the wall clock.
+#[cfg(test)]
+#[derive(Default)]
+struct TestClock {
+    awake: Duration,
+    asleep: Duration,
+    set_back: Duration,
+}
+
+#[cfg(test)]
+impl TestClock {
+    fn apply(&self, now: Moment) -> Moment {
+        Moment { instant: now.instant + self.awake, wall: now.wall + self.awake + self.asleep - self.set_back }
+    }
+}
+
+#[cfg(test)]
+impl Tickers {
+    /// Move both clocks forward, as when time passes with the machine awake.
+    fn advance(&self, by: Duration) {
+        self.clock.lock().unwrap().awake += by;
+    }
+
+    /// Move the wall clock forward only, as when time passes with the machine asleep.
+    fn sleep(&self, by: Duration) {
+        self.clock.lock().unwrap().asleep += by;
+    }
+
+    fn set_back(&self, by: Duration) {
+        self.clock.lock().unwrap().set_back += by;
+    }
+
+    /// Wait until no download is under way.
+    fn wait_idle(&self) {
+        let mut state = self.state();
+        while state.download.is_some() {
+            state = self.ended.wait(state).unwrap();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,6 +373,7 @@ mod tests {
     }
 
     const DAY: Duration = DEFAULT_TICKERS_MAX_AGE;
+    const HOUR: Duration = Duration::from_secs(60 * 60);
     const MINUTE: Duration = Duration::from_secs(60);
 
     /// A ticker file with one row per ticker, each with its own CIK.
@@ -261,57 +397,166 @@ mod tests {
         c
     }
 
+    /// The list, after waiting for the refresh that the call may have started.
+    fn lookup(c: &Client) -> Arc<[Company]> {
+        let list = c.companies().unwrap();
+        c.tickers.wait_idle();
+        list
+    }
+
+    /// `companies()` run on another thread, or None if it has not returned within `limit`.
+    fn companies_within(c: &Client, limit: Duration) -> Option<Result<Arc<[Company]>>> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let other = c.share();
+        std::thread::spawn(move || tx.send(other.companies()));
+        rx.recv_timeout(limit).ok()
+    }
+
     #[test]
     fn list_is_downloaded_again_after_max_age() {
         let c = client(&["AAA"]);
-        let t0 = Instant::now();
-        assert_eq!(listed(&c.companies_at(t0).unwrap()), ["AAA"]);
+        assert_eq!(listed(&c.companies().unwrap()), ["AAA"]);
         assert_eq!(c.take_fetched(), [TICKERS_URL]);
 
         c.stub(TICKERS_URL, ticker_file(&["AAA", "NEW"]));
-        assert_eq!(listed(&c.companies_at(t0 + DAY - MINUTE).unwrap()), ["AAA"]);
+        c.tickers.advance(DAY - MINUTE);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
         assert!(c.take_fetched().is_empty());
 
-        assert_eq!(listed(&c.companies_at(t0 + DAY).unwrap()), ["AAA", "NEW"]);
+        // The call that finds the list a day old gets the old one and starts a download.
+        c.tickers.advance(MINUTE);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
         assert_eq!(c.take_fetched(), [TICKERS_URL]);
+        assert_eq!(listed(&lookup(&c)), ["AAA", "NEW"]);
         // The new list is good for another day.
-        assert_eq!(listed(&c.companies_at(t0 + DAY + DAY - MINUTE).unwrap()), ["AAA", "NEW"]);
+        c.tickers.advance(DAY - MINUTE);
+        assert_eq!(listed(&lookup(&c)), ["AAA", "NEW"]);
         assert!(c.take_fetched().is_empty());
     }
 
     #[test]
     fn failed_refresh_keeps_the_old_list_and_backs_off() {
         let c = client(&["AAA"]);
-        let t0 = Instant::now();
-        c.companies_at(t0).unwrap();
+        lookup(&c);
         c.take_fetched();
 
-        // A refresh that fails returns the old list, with no error.
+        // A refresh that fails leaves the old list in use, with no error.
         c.stub(TICKERS_URL, "<html>Service Unavailable</html>");
-        let t1 = t0 + DAY;
-        assert_eq!(listed(&c.companies_at(t1).unwrap()), ["AAA"]);
+        c.tickers.advance(DAY);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
         assert_eq!(c.take_fetched(), [TICKERS_URL]);
         // No new try for a minute.
-        assert_eq!(listed(&c.companies_at(t1 + MINUTE / 2).unwrap()), ["AAA"]);
+        c.tickers.advance(MINUTE / 2);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
         assert!(c.take_fetched().is_empty());
         // The second failure waits two minutes.
-        let t2 = t1 + MINUTE;
-        assert_eq!(listed(&c.companies_at(t2).unwrap()), ["AAA"]);
+        c.tickers.advance(MINUTE / 2);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
         assert_eq!(c.take_fetched(), [TICKERS_URL]);
         c.stub(TICKERS_URL, ticker_file(&["AAA", "NEW"]));
-        c.companies_at(t2 + MINUTE).unwrap();
+        c.tickers.advance(MINUTE);
+        lookup(&c);
         assert!(c.take_fetched().is_empty());
 
-        let t3 = t2 + 2 * MINUTE;
-        assert_eq!(listed(&c.companies_at(t3).unwrap()), ["AAA", "NEW"]);
+        c.tickers.advance(MINUTE);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
         assert_eq!(c.take_fetched(), [TICKERS_URL]);
+        assert_eq!(listed(&lookup(&c)), ["AAA", "NEW"]);
         // A success starts a new day and clears the failures. An empty file is a failure too.
-        c.companies_at(t3 + DAY - MINUTE).unwrap();
+        c.tickers.advance(DAY - MINUTE);
+        lookup(&c);
         assert!(c.take_fetched().is_empty());
         c.stub(TICKERS_URL, ticker_file(&[]));
-        assert_eq!(listed(&c.companies_at(t3 + DAY).unwrap()), ["AAA", "NEW"]);
-        assert_eq!(listed(&c.companies_at(t3 + DAY + MINUTE).unwrap()), ["AAA", "NEW"]);
+        c.tickers.advance(MINUTE);
+        assert_eq!(listed(&lookup(&c)), ["AAA", "NEW"]);
+        c.tickers.advance(MINUTE);
+        assert_eq!(listed(&lookup(&c)), ["AAA", "NEW"]);
         assert_eq!(c.take_fetched(), [TICKERS_URL, TICKERS_URL]);
+    }
+
+    /// Lookups do not wait for a refresh, even when the server takes ten minutes
+    /// to fail, and the next try waits a minute from that failure.
+    #[test]
+    fn slow_refresh_holds_up_no_lookup_and_backs_off_from_its_end() {
+        let c = client(&["AAA"]);
+        lookup(&c);
+        c.take_fetched();
+        c.stub(TICKERS_URL, "<html>Service Unavailable</html>");
+        c.tickers.advance(DAY);
+
+        let held = c.hold_fetches();
+        let first = companies_within(&c, Duration::from_secs(10)).expect("a lookup with a list waited for the refresh");
+        assert_eq!(listed(&first.unwrap()), ["AAA"]);
+        // Later lookups get the old list too, and start no other download.
+        assert_eq!(listed(&c.companies().unwrap()), ["AAA"]);
+        c.tickers.advance(10 * MINUTE);
+        drop(held);
+        c.tickers.wait_idle();
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+
+        c.tickers.advance(MINUTE / 2);
+        lookup(&c);
+        assert!(c.take_fetched().is_empty(), "a new try within a minute of the failure");
+        c.tickers.advance(MINUTE / 2);
+        lookup(&c);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+    }
+
+    /// The list's age counts time the machine spends asleep, which `Instant` leaves out.
+    #[test]
+    fn list_age_counts_time_asleep() {
+        let c = client(&["AAA"]);
+        lookup(&c);
+        c.take_fetched();
+        c.stub(TICKERS_URL, ticker_file(&["AAA", "NEW"]));
+
+        // Two hours awake, then the rest of the day asleep.
+        c.tickers.advance(2 * HOUR);
+        lookup(&c);
+        assert!(c.take_fetched().is_empty());
+        c.tickers.sleep(DAY - 2 * HOUR);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+        assert_eq!(listed(&lookup(&c)), ["AAA", "NEW"]);
+
+        // When the wall clock is set back, the age is unknown, so the list is downloaded once more.
+        c.tickers.set_back(HOUR);
+        lookup(&c);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+        lookup(&c);
+        assert!(c.take_fetched().is_empty());
+    }
+
+    /// A child process forked during the first download inherits the parent's
+    /// claim on it, but not the thread doing it, so it downloads the list itself.
+    #[test]
+    fn first_lookup_does_not_wait_for_a_download_in_another_process() {
+        let c = client(&["AAA"]);
+        {
+            let mut state = c.tickers.state();
+            let claim = c.tickers.claim(&mut state, c.tickers.now().instant);
+            state.download = Some(Claim { pid: claim.pid.wrapping_add(1), ..claim });
+        }
+        let got = companies_within(&c, Duration::from_secs(10)).expect("waited for a download in another process");
+        assert_eq!(listed(&got.unwrap()), ["AAA"]);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+    }
+
+    /// A caller with no list waits for a download under way in this process at most the wait limit.
+    #[test]
+    fn first_lookup_waits_at_most_the_wait_limit() {
+        let mut c = client(&["AAA"]);
+        Arc::get_mut(&mut c.tickers).unwrap().wait_limit = Duration::from_millis(300);
+        // A download that never ends.
+        {
+            let mut state = c.tickers.state();
+            c.tickers.claim(&mut state, c.tickers.now().instant);
+        }
+        let started = Instant::now();
+        let got = companies_within(&c, Duration::from_secs(10)).expect("waited past the wait limit");
+        assert_eq!(listed(&got.unwrap()), ["AAA"]);
+        assert!(started.elapsed() >= Duration::from_millis(300));
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
     }
 
     #[test]
@@ -319,23 +564,6 @@ mod tests {
         let waits: Vec<u64> = (1..=9).map(|n| retry_wait(n).as_secs() / 60).collect();
         assert_eq!(waits, [1, 2, 4, 8, 16, 32, 60, 60, 60]);
         assert_eq!(retry_wait(u32::MAX), MAX_RETRY_WAIT);
-    }
-
-    /// While one caller refreshes the list, the others use the old one without waiting.
-    #[test]
-    fn lookups_during_a_refresh_use_the_old_list() {
-        let c = client(&["AAA"]);
-        let t0 = Instant::now();
-        c.companies_at(t0).unwrap();
-        c.stub(TICKERS_URL, ticker_file(&["AAA", "NEW"]));
-        c.take_fetched();
-
-        let refreshing = c.tickers.download.lock().unwrap();
-        assert_eq!(listed(&c.companies_at(t0 + DAY).unwrap()), ["AAA"]);
-        assert!(c.take_fetched().is_empty());
-        drop(refreshing);
-        assert_eq!(listed(&c.companies_at(t0 + DAY).unwrap()), ["AAA", "NEW"]);
-        assert_eq!(c.take_fetched(), [TICKERS_URL]);
     }
 
     #[test]
@@ -380,14 +608,18 @@ mod tests {
         }
     }
 
-    /// The builder's age applies, and a ticker added to the SEC file is found after a refresh.
+    /// The builder's age applies, and a ticker added to the SEC file is found once the refresh has arrived.
     #[test]
     fn new_ticker_is_found_after_refresh() {
         let c = Client::builder("Example Corp admin@example.com").tickers_max_age(Duration::ZERO).build().unwrap();
         c.stub(TICKERS_URL, ticker_file(&["AAA"]));
         assert!(matches!(c.company("NEW"), Err(Error::CompanyNotFound(_))));
         c.stub(TICKERS_URL, ticker_file(&["AAA", "NEW"]));
+        // The lookup that starts the refresh still has the old list.
+        assert!(matches!(c.company("NEW"), Err(Error::CompanyNotFound(_))));
+        c.tickers.wait_idle();
         assert_eq!(c.company("new").unwrap().cik, 2);
-        assert_eq!(c.take_fetched(), [TICKERS_URL, TICKERS_URL]);
+        c.tickers.wait_idle();
+        assert_eq!(c.take_fetched(), [TICKERS_URL, TICKERS_URL, TICKERS_URL]);
     }
 }

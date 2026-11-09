@@ -48,6 +48,17 @@ def test_client_needs_a_contact_email():
         pe.Client("Example Corp")
 
 
+def test_client_tickers_max_age():
+    ua = "Example Corp admin@example.com"
+    for seconds in (0, 3600, 1.5, 86400 * 365, float("inf"), 1e300):
+        pe.Client(ua, tickers_max_age=seconds)
+    for bad in (-1, float("nan")):
+        with pytest.raises(ValueError):
+            pe.Client(ua, tickers_max_age=bad)
+    with pytest.raises(TypeError):
+        pe.Client(ua, tickers_max_age="1 day")
+
+
 def run(*args, env=None):
     return subprocess.run(args, capture_output=True, text=True, env=env, timeout=60)
 

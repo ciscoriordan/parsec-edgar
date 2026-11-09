@@ -1,6 +1,7 @@
 //! Python bindings for parsec-edgar. Network calls release the GIL.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use parsec_edgar as pe;
 use pyo3::create_exception;
@@ -24,6 +25,11 @@ fn err(e: pe::Error) -> PyErr {
 /// e.g. "Example Corp admin@example.com". If omitted, the PARSEC_EDGAR_USER_AGENT
 /// or EDGAR_IDENTITY environment variable is used. Archive documents are cached
 /// in `cache_dir` when given.
+///
+/// The SEC ticker list that `company()` reads is downloaded at the first lookup and
+/// again once it is `tickers_max_age` seconds old (default 86400, one day; `math.inf`
+/// keeps the first list). The new list is downloaded on another thread, and lookups
+/// use the old one until it has arrived.
 #[pyclass(frozen, module = "parsec_edgar")]
 struct Client {
     inner: pe::Client,
@@ -32,8 +38,13 @@ struct Client {
 #[pymethods]
 impl Client {
     #[new]
-    #[pyo3(signature = (user_agent=None, *, cache_dir=None, requests_per_second=8.0))]
-    fn new(user_agent: Option<String>, cache_dir: Option<PathBuf>, requests_per_second: f64) -> PyResult<Self> {
+    #[pyo3(signature = (user_agent=None, *, cache_dir=None, requests_per_second=8.0, tickers_max_age=None))]
+    fn new(
+        user_agent: Option<String>,
+        cache_dir: Option<PathBuf>,
+        requests_per_second: f64,
+        tickers_max_age: Option<f64>,
+    ) -> PyResult<Self> {
         let ua = user_agent
             .or_else(|| std::env::var("PARSEC_EDGAR_USER_AGENT").ok())
             .or_else(|| std::env::var("EDGAR_IDENTITY").ok())
@@ -43,12 +54,15 @@ impl Client {
                      or set PARSEC_EDGAR_USER_AGENT; the SEC requires it",
                 )
             })?;
-        let inner = pe::Client::builder(ua)
-            .cache_dir(cache_dir)
-            .requests_per_second(requests_per_second)
-            .build()
-            .map_err(err)?;
-        Ok(Self { inner })
+        let mut builder = pe::Client::builder(ua).cache_dir(cache_dir).requests_per_second(requests_per_second);
+        if let Some(seconds) = tickers_max_age {
+            if seconds.is_nan() || seconds < 0.0 {
+                return Err(PyValueError::new_err("tickers_max_age must be a number of seconds, 0 or more"));
+            }
+            // Infinity, or an age too long for a Duration, keeps the first list.
+            builder = builder.tickers_max_age(Duration::try_from_secs_f64(seconds).unwrap_or(Duration::MAX));
+        }
+        Ok(Self { inner: builder.build().map_err(err)? })
     }
 
     /// Look up a company by ticker or CIK. Returns a dict.
