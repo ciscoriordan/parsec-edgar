@@ -131,7 +131,8 @@ impl Client {
 
     /// Tables of a filing dict's primary document, as a list of dicts with "start" and "end"
     /// (byte offsets in the UTF-8 encoding of text(filing), like section offsets),
-    /// "header_rows" and "rows" (lists of cells).
+    /// "header_rows", "rows" (lists of cells), and "columns" and "spans" (for each cell, its
+    /// column in the table's grid, from 0, and how many columns it covers).
     fn tables<'py>(&self, py: Python<'py>, filing: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let f: pe::Filing = depythonize(filing)?;
         let tables = py.detach(|| self.inner.filing_tables(&f)).map_err(err)?;
@@ -147,7 +148,8 @@ fn html_to_text(py: Python<'_>, html: &str) -> String {
 
 /// Convert filing HTML (or a plain-text or full SGML submission) to clean text, as
 /// html_to_text does, and return (text, tables). Each table is a dict with "start" and
-/// "end" (byte offsets in text.encode()), "header_rows" and "rows" (lists of cells).
+/// "end" (byte offsets in text.encode()), "header_rows", "rows" (lists of cells), and
+/// "columns" and "spans" (for each cell, its column in the table's grid and how many it covers).
 /// Plain-text filings have no tables.
 #[pyfunction]
 fn html_to_text_and_tables<'py>(py: Python<'py>, html: &str) -> PyResult<(String, Bound<'py, PyAny>)> {

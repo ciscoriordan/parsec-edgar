@@ -86,7 +86,8 @@ enum Command {
 
     /// Tables of a filing's primary document as JSON.
     ///
-    /// Each table has its rows of cells, its byte offsets in the clean text (as
+    /// Each table has its rows of cells, each cell's column in the table's grid
+    /// and how many columns it covers, its byte offsets in the clean text (as
     /// printed by `text`), and the id of the Item section it is in.
     Tables {
         company: String,

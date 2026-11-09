@@ -145,7 +145,8 @@ latest = client.latest("AAPL", "10-K")      # a filing dict
 text = client.text(latest)                  # clean text
 for s in client.sections(latest):
     print(s["id"], s["title"], len(s["text"]))
-tables = client.tables(latest)              # [{'start': ..., 'end': ..., 'header_rows': [], 'rows': [[...], ...]}, ...]
+tables = client.tables(latest)              # [{'start': ..., 'end': ..., 'header_rows': [], 'rows': [[...], ...],
+                                            #   'columns': [[...], ...], 'spans': [[...], ...]}, ...]
 
 pe.html_to_text(html)                       # parse documents you already have
 pe.extract_sections(text, "10-K")
@@ -299,11 +300,14 @@ let (filings, profile) = client.crawl_company_with_profile("AAPL", &tenks)?;  //
 {"start": 191504, "end": 191760, "header_rows": [],
  "rows": [["Number of\nRSUs\n(in thousands)", "Weighted-Average\nGrant-Date\nFair Value"],
           ["Balance as of September 27, 2025", "151,574", "$189.75"],
-          ["RSUs granted", "75,538", "$260.81"], ...]}
+          ["RSUs granted", "75,538", "$260.81"], ...],
+ "columns": [[3, 9], [0, 3, 10], [0, 3, 10], ...],
+ "spans": [[3, 3], [3, 2, 1], [3, 2, 1], ...]}
 ```
 
 - `start` and `end` are byte offsets in the text, as for sections, so a table belongs to the section whose `start..end` holds its `start`. The `tables` command adds that section's id to each table, and `--item` keeps only the tables of the given sections. `--item` (in `sections` too) takes the ids the MCP tools take: `8`, `Item 8`, `item_8`, and in a 10-Q an Item number that only one part has, such as `1A` for `part_2_item_1a`. Most 10-Qs have an Item 2 in both parts, so `2` there is an error that lists `part_1_item_2` and `part_2_item_2`; `Part I, Item 2` or `part_1_item_2` names it. An id that names no section is an error that lists the ids found.
 - Cells read exactly as in the text, and empty cells are left out. A `$` or `(` cell is merged into the next cell when that cell starts with a digit, a dash or ".", so `$` and `391,035` give `$391,035`. A `%` cell is merged into the cell before it when that cell ends with a digit or a dash, and a `)` cell when that cell does or leaves a "(" open ("AA (3rd of 21" and ")"). So a header cell such as "Amount" keeps the "%" column beside it as a cell of its own, and "$" beside "N/A" stays apart. Cells of several lines, such as a header, are never merged.
+- `columns` and `spans` give, for each cell of `rows`, its column in the table's grid, counted from 0, and how many columns it covers. The grid is laid out as a browser lays it out: empty cells take their columns too, and `colspan` and `rowspan` count, a `rowspan` only within its `<thead>`, `<tbody>` or `<tfoot>`. A cell merged from `$` and a number takes the number's column and span, and a cell left out of the rows, such as a page number, leaves its columns empty. A header cell is above the values whose column is in its range: above, "Number of RSUs" covers columns 3 to 5 and so holds "151,574" at column 3, and "Weighted-Average Grant-Date Fair Value" covers 9 to 11 and holds "$189.75" at column 10, while "$189.75" is the third cell of its row and the header only the second. A table in a cell of another table has a grid of its own.
 - A row is one line of tab-separated cells in the text, unless a cell has several lines (the RSU header above) or the row is over 1,000 characters; then the text has its cells one after another, and the cells keep their line breaks.
 - `header_rows` lists the rows inside `<thead>` and the rows whose cells are all `<th>`. Most filings use neither, so the list is usually empty; no other guess is made about headers.
 - A row printed as one line can be removed as a running header or footer like any other line; the three-cell footer "2021 Form 10-K", "95", "WEC Energy Group, Inc." is one.
@@ -346,7 +350,7 @@ Accuracy is measured against 129 hand-labeled filings from 1997 to 2026 (`bench/
 - A heading with a comma after the Item number ("Item 8, Financial Statements and Supplementary Data", "ITEMS 9, 9A AND 9B.") is not recognized.
 - 10-KSB and 10-QSB filings (also as EDGAR spells them: 10KSB, 10KSB40, 10QSB) are split with the Form 10-K and 10-Q Items. Section ids follow the Item numbers the filing prints, but the standard title is wrong for 10-KSB Items 6 to 13 (Item 7 is the financial statements, Item 13 the exhibits) and for 10-QSB Part I Item 3 (controls and procedures). A 10-KSB's "Item 8A." and "Item 8B." end Item 8 and are in no section.
 - Running page headers and footers are removed when they repeat on five or more pages with a rising page number at the start or end of the line, in a leading "Page N of M", or in the middle cell of a three-cell row ("2021 Form 10-K", "95", "WEC Energy Group, Inc."), also when the last cell ends in a number ("2021 Annual Report", "61", "Part II, Item 8"). Front matter numbered i, ii, iii followed by pages 1, 2, 3 counts as rising. A short row printed cell by cell is removed as a whole. Some stay: footers whose numbering starts again in each exhibit ("Page 1 of 3", then "Page 1 of 2"), short ones with fewer than 10 letters beside the number that do not name the form ("IBM 2020 23"), numbers with a prefix such as "FS - 12" (Ford 2010), and numbers in the middle of a line that is not a three-cell row.
-- Table cells are not aligned to columns: empty cells are left out and a cell spanning several columns is one cell, so a row can have fewer cells than the rows around it, and a header row usually has no cell above the row labels.
+- Table `columns` follow the filing's HTML grid, so values line up with their headers only as far as the filing's own `colspan` does. A filing that prints a header over the `$` column and the number column without a `colspan` has the header above the `$` column, one column left of the number.
 
 ## Layout
 

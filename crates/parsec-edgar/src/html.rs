@@ -54,6 +54,21 @@ pub struct Table {
     /// cell is removed as a whole when it repeats on five or more pages with
     /// only a rising page number changing, as a running footer does.
     pub rows: Vec<Vec<String>>,
+    /// The grid column of each cell of `rows`, row by row: the first column
+    /// of the table that the cell covers, counting from 0, with `colspan` and
+    /// `rowspan` laid out as browsers lay them out. Empty cells, which `rows`
+    /// leaves out, still take their columns, so a value lines up with the
+    /// header above it even when the two rows have different numbers of
+    /// cells. A cell merged from a `$` or `(` cell, its number and a `)` or
+    /// `%` cell takes the column of its number. The cells of a table inside
+    /// a cell of another one count the columns of their own table.
+    #[serde(default)]
+    pub columns: Vec<Vec<usize>>,
+    /// How many grid columns each cell of `rows` covers, row by row: its
+    /// `colspan`, or for a merged cell that of its number. A header covers
+    /// the values whose column `c` has `columns <= c < columns + spans`.
+    #[serde(default)]
+    pub spans: Vec<Vec<usize>>,
 }
 
 /// Convert an HTML document to clean plain text.
@@ -157,6 +172,10 @@ struct Out {
     cell_rows: Vec<Range<usize>>,
     /// Table rows rendered into `buf`, recorded only when tables are wanted.
     rows: Option<Vec<RowRecord>>,
+    /// For each row group (`<tbody>`, `<thead>` or `<tfoot>`) whose rows are
+    /// recorded, the cells of the rows so far that span rows below: the grid
+    /// columns they cover and how many more rows they cover.
+    spanning: HashMap<NodeId, Vec<(Range<usize>, usize)>>,
 }
 
 /// Where one table row was rendered in `Out::buf`.
@@ -169,6 +188,8 @@ struct RowRecord {
     line: bool,
     /// Byte range of each cell in `Out::buf`.
     cells: Vec<Range<usize>>,
+    /// The grid columns each cell covers.
+    columns: Vec<Range<usize>>,
 }
 
 impl Out {
@@ -304,6 +325,8 @@ struct Cell {
     out: Out,
     /// The cell's text in `out.buf`, trimmed.
     text: Range<usize>,
+    /// The grid columns the cell covers, when tables are wanted.
+    columns: Range<usize>,
 }
 
 impl Cell {
@@ -315,17 +338,29 @@ impl Cell {
 /// Print a table row: as one line of tab-separated cells, or, when a cell has
 /// several lines or the row is long, with each cell starting a line.
 fn render_row(tr: NodeRef<Node>, out: &mut Out) {
-    let mut cells = Vec::new();
-    for child in tr.children() {
-        let Node::Element(el) = child.value() else { continue };
-        if is_skipped(el) {
-            continue;
+    let elements: Vec<(NodeRef<Node>, &Element)> = tr
+        .children()
+        .filter_map(|child| Some((child, child.value().as_element()?)))
+        .filter(|(_, el)| !is_skipped(el))
+        .collect();
+    // Grid columns are laid out only when tables are wanted. Empty cells take
+    // theirs too.
+    let mut columns = match out.rows {
+        Some(_) => {
+            let group = tr.parent().map_or(tr.id(), |p| p.id());
+            place_cells(out.spanning.entry(group).or_default(), elements.iter().map(|(_, el)| colspan_rowspan(el)))
         }
+        None => Vec::new(),
+    }
+    .into_iter();
+    let mut cells = Vec::new();
+    for (child, el) in elements {
+        let columns = columns.next().unwrap_or(0..0);
         let mut cell = Out { depth: out.depth + 1, rows: out.rows.as_ref().map(|_| Vec::new()), ..Out::default() };
         render(child, &mut cell);
         let text = cell.buf.len() - cell.buf.trim_start().len()..cell.buf.trim_end().len();
         if !text.is_empty() {
-            cells.push(Cell { th: el.name() == "th", out: cell, text });
+            cells.push(Cell { th: el.name() == "th", out: cell, text, columns });
         }
     }
     if cells.is_empty() {
@@ -346,7 +381,7 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
     // is a layout table, whose cells can hold whole pages with their page
     // numbers: there only cells of one line count.
     let all_lines = !data_row && short && groups.len() > 1;
-    let mut ranges = Vec::new();
+    let (mut ranges, mut grid) = (Vec::new(), Vec::new());
     out.newline();
     let row_start = out.buf.len();
     for (g, group) in groups.iter().enumerate() {
@@ -389,6 +424,10 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
         }
         if out.rows.is_some() {
             ranges.push(at..out.buf.len());
+            // A merged cell takes the columns of its number, the first of its
+            // cells that is not a `$` or `(`.
+            let number = group.clone().find(|&i| !is_prefix(cells[i].text())).unwrap_or(group.start);
+            grid.push(cells[number].columns.clone());
         }
     }
     if all_lines {
@@ -397,7 +436,7 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
     if let (Some(rows), Some(table)) = (&mut out.rows, enclosing_table(tr)) {
         let in_thead = tr.parent().and_then(|p| p.value().as_element().map(|e| e.name() == "thead"));
         let header = in_thead == Some(true) || cells.iter().all(|c| c.th);
-        rows.push(RowRecord { table, header, line: data_row, cells: ranges });
+        rows.push(RowRecord { table, header, line: data_row, cells: ranges, columns: grid });
     }
     out.has_table = true;
     out.newline();
@@ -405,6 +444,71 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
 
 fn enclosing_table(tr: NodeRef<Node>) -> Option<NodeId> {
     tr.ancestors().find(|n| n.value().as_element().is_some_and(|e| e.name() == "table")).map(|n| n.id())
+}
+
+/// The `colspan` and `rowspan` of a table cell, read as browsers read them:
+/// the leading digits, 1 when there are none or they are 0, and at most 1,000
+/// and 65,534. A `rowspan` of 0, which browsers stretch to the end of the row
+/// group, counts as 1.
+fn colspan_rowspan(el: &Element) -> (usize, usize) {
+    let read = |name: &str, max: usize| {
+        let value = el.attr(name).unwrap_or("").trim_start();
+        let value = value.strip_prefix('+').unwrap_or(value);
+        let digits = &value[..value.find(|c: char| !c.is_ascii_digit()).unwrap_or(value.len())];
+        match digits.parse::<usize>() {
+            Ok(0) => 1,
+            Ok(n) => n.min(max),
+            Err(_) if digits.is_empty() => 1,
+            Err(_) => max,
+        }
+    };
+    (read("colspan", 1000), read("rowspan", 65534))
+}
+
+/// A rowspan is followed only for a cell that starts before this grid
+/// column. Tables in filings are far narrower, and the limit keeps the work
+/// for a row in proportion to its cells even in a table made of thousands of
+/// rows that each span to the end.
+const MAX_SPANNING_COLUMN: usize = 1000;
+
+/// Lay out one row of a table's grid: the columns that each cell, given as
+/// its colspan and rowspan, covers. A cell takes the first column that no
+/// cell of the rows above covers with its rowspan. `spanning` holds those
+/// cells of the rows above, as the columns they cover and how many more rows
+/// they cover, in the order of their first column, and is updated for the
+/// next row.
+fn place_cells(
+    spanning: &mut Vec<(Range<usize>, usize)>,
+    cells: impl Iterator<Item = (usize, usize)>,
+) -> Vec<Range<usize>> {
+    let mut placed = Vec::new();
+    let mut below = Vec::new();
+    let (mut column, mut next) = (0, 0);
+    for (colspan, rowspan) in cells {
+        // Cells keep moving right, so one pass over `spanning` finds every
+        // column that the rows above cover.
+        while let Some((above, _)) = spanning.get(next) {
+            if above.start > column {
+                break;
+            }
+            column = column.max(above.end);
+            next += 1;
+        }
+        placed.push(column..column + colspan);
+        if rowspan > 1 && column < MAX_SPANNING_COLUMN {
+            below.push((column..column + colspan, rowspan - 1));
+        }
+        column += colspan;
+    }
+    spanning.retain_mut(|(_, rows)| {
+        *rows -= 1;
+        *rows > 0
+    });
+    if !below.is_empty() {
+        spanning.extend(below);
+        spanning.sort_by_key(|(columns, _)| columns.start);
+    }
+    placed
 }
 
 /// Financial tables put `$` and closing `)` or `%` in cells of their own: the
@@ -429,7 +533,7 @@ fn merge_cells(cells: &[&str], joins: impl Fn(usize) -> bool) -> Vec<Range<usize
             "%" => number,
             _ => false,
         };
-        if joins_this && matches!(c, "$" | "€" | "£" | "¥" | "(" | "$(" | "($") {
+        if joins_this && is_prefix(c) {
             prefix.get_or_insert(i);
         } else if joins_this && closes && prefix.is_none() {
             merged.last_mut().expect("a run to close").end = i + 1;
@@ -456,6 +560,11 @@ fn merge_cells(cells: &[&str], joins: impl Fn(usize) -> bool) -> Vec<Range<usize
         merged.push(start..cells.len());
     }
     merged
+}
+
+/// A cell that waits for the number after it: a currency sign or "(".
+fn is_prefix(cell: &str) -> bool {
+    matches!(cell, "$" | "€" | "£" | "¥" | "(" | "$(" | "($")
 }
 
 const DASHES: [char; 7] = ['-', '‐', '‑', '‒', '–', '—', '−'];
@@ -569,10 +678,20 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
     let mut found: Vec<(Table, bool)> = Vec::new();
     let mut index: HashMap<NodeId, usize> = HashMap::new();
     for row in rows {
-        let cells: Vec<Range<usize>> = row.cells.iter().filter_map(map).collect();
+        // The cells with any text kept, and their grid columns.
+        let (cells, columns): (Vec<Range<usize>>, Vec<Range<usize>>) =
+            row.cells.iter().zip(row.columns).filter_map(|(cell, columns)| Some((map(cell)?, columns))).unzip();
         let (Some(first), Some(last)) = (cells.first(), cells.last()) else { continue };
         let i = *index.entry(row.table).or_insert_with(|| {
-            found.push((Table { start: first.start, end: last.end, header_rows: Vec::new(), rows: Vec::new() }, false));
+            let table = Table {
+                start: first.start,
+                end: last.end,
+                header_rows: Vec::new(),
+                rows: Vec::new(),
+                columns: Vec::new(),
+                spans: Vec::new(),
+            };
+            found.push((table, false));
             found.len() - 1
         });
         let (table, has_line) = &mut found[i];
@@ -583,6 +702,8 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
             table.header_rows.push(table.rows.len());
         }
         table.rows.push(cells.into_iter().map(|r| text[r].to_owned()).collect());
+        table.spans.push(columns.iter().map(ExactSizeIterator::len).collect());
+        table.columns.push(columns.into_iter().map(|c| c.start).collect());
     }
     let mut tables: Vec<Table> = found.into_iter().filter(|(_, has_line)| *has_line).map(|(t, _)| t).collect();
     for t in &mut tables {
@@ -1337,12 +1458,110 @@ mod tests {
                 };
             }
             assert_eq!(at, t.end, "{t:?}");
+            // A grid column and a span for each cell, in order.
+            assert_eq!(
+                t.columns.iter().map(Vec::len).collect::<Vec<_>>(),
+                t.rows.iter().map(Vec::len).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                t.spans.iter().map(Vec::len).collect::<Vec<_>>(),
+                t.rows.iter().map(Vec::len).collect::<Vec<_>>()
+            );
+            for (columns, spans) in t.columns.iter().zip(&t.spans) {
+                assert!(spans.iter().all(|&s| s >= 1), "{t:?}");
+                assert!(columns.windows(2).enumerate().all(|(k, w)| w[0] + spans[k] <= w[1]), "{t:?}");
+            }
         }
         (text, tables)
     }
 
     fn rows(t: &Table) -> Vec<Vec<&str>> {
         t.rows.iter().map(|r| r.iter().map(String::as_str).collect()).collect()
+    }
+
+    /// Cells keep the grid columns that colspan and rowspan give them, with
+    /// empty and spanned-over columns counted, so values line up with their
+    /// headers. A cell merged from `$`, its number and `%` takes the column
+    /// of its number, and `$` beside "N/A" keeps its own.
+    #[test]
+    fn cells_keep_their_grid_columns() {
+        let html = r#"<table>
+            <tr><td rowspan="2">Segment</td><td colspan="3">Year ended December 31,</td><td></td>
+                <td colspan="3">Change</td></tr>
+            <tr><td colspan="2">2024</td><td>2023</td><td></td><td>Amount</td><td colspan="2">Percent</td></tr>
+            <tr><td>Americas</td><td>$</td><td>167,045</td><td>162,560</td><td></td><td>4,485</td>
+                <td>2.8</td><td>%</td></tr>
+            <tr><td>Europe</td><td rowspan="2">$</td><td>98,000</td><td>95,000</td><td></td>
+                <td colspan="2">3,000</td><td>%</td></tr>
+            <tr><td>Asia</td><td>12,000</td><td style="display: none">hidden</td><td>11,000</td><td></td>
+                <td>$</td><td>N/A</td></tr>
+        </table>"#;
+        let (text, tables) = tables_of(html);
+        let [t] = &tables[..] else { panic!("{tables:?}") };
+        assert_eq!(
+            rows(t),
+            [
+                vec!["Segment", "Year ended December 31,", "Change"],
+                vec!["2024", "2023", "Amount", "Percent"],
+                vec!["Americas", "$167,045", "162,560", "4,485", "2.8%"],
+                vec!["Europe", "$98,000", "95,000", "3,000%"],
+                vec!["Asia", "12,000", "11,000", "$", "N/A"],
+            ]
+        );
+        assert_eq!(
+            t.columns,
+            [vec![0, 1, 5], vec![1, 3, 5, 6], vec![0, 2, 3, 5, 6], vec![0, 2, 3, 5], vec![0, 2, 3, 5, 6]]
+        );
+        assert_eq!(t.spans, [vec![1, 3, 3], vec![2, 1, 1, 2], vec![1; 5], vec![1, 1, 1, 2], vec![1; 5]]);
+        // The text does not change.
+        assert!(text.contains("\nAmericas\t$167,045\t162,560\t4,485\t2.8%\n"));
+
+        // Attributes as browsers read them: leading digits, and 1 for 0 or none.
+        let html = r#"<table><tr><td colspan=" 2px">A</td><td colspan="0">B</td><td colspan="x">C</td>
+            <td rowspan="0">D</td><td colspan="+2">E</td><td>F</td></tr>
+            <tr><td>G</td><td>H</td><td>I</td><td>J</td><td>K</td></tr></table>"#;
+        let (_, tables) = tables_of(html);
+        assert_eq!(tables[0].columns, [vec![0, 2, 3, 4, 5, 7], vec![0, 1, 2, 3, 4]]);
+        assert_eq!(tables[0].spans, [vec![2, 1, 1, 1, 2, 1], vec![1; 5]]);
+        // A cell spanning rows to the left of one that already does.
+        let html = r#"<table><tr><td>A</td><td rowspan="3">B</td></tr><tr><td rowspan="2">C</td><td>D</td></tr>
+            <tr><td>E</td><td>F</td></tr></table>"#;
+        let (_, tables) = tables_of(html);
+        assert_eq!(tables[0].columns, [[0, 1], [0, 2], [2, 3]]);
+        // Spans beyond what browsers allow, even past the largest integer, are cut to it.
+        let html = r#"<table><tr><td colspan="99999999999999999999999">A</td><td colspan="1200">B</td>
+            <td>C</td></tr></table>"#;
+        let (_, tables) = tables_of(html);
+        assert_eq!(tables[0].columns, [[0, 1000, 2000]]);
+        assert_eq!(tables[0].spans, [[1000, 1000, 1]]);
+    }
+
+    /// Rows that each start with a cell spanning every row below take
+    /// columns further and further right, up to the limit for spanning cells,
+    /// and the layout stays fast.
+    #[test]
+    fn rowspans_without_end_stay_fast() {
+        let html = format!("<table>{}</table>", r#"<tr><td rowspan="65534">x</td><td>y</td></tr>"#.repeat(3000));
+        let (_, tables) = tables_of(&html);
+        let [t] = &tables[..] else { panic!("{} tables", tables.len()) };
+        assert_eq!(t.rows.len(), 3000);
+        for (k, columns) in t.columns.iter().enumerate() {
+            let first = k.min(MAX_SPANNING_COLUMN);
+            assert_eq!(columns, &[first, first + 1], "row {k}");
+        }
+    }
+
+    /// Rowspans count within their row group, and a cell dropped from a row
+    /// with its text takes its column with it.
+    #[test]
+    fn grid_columns_follow_row_groups_and_dropped_cells() {
+        let html = "<table><thead><tr><td rowspan=\"3\">Name</td><td>Title</td></tr></thead>\
+                    <tbody><tr><td>Jane Doe</td><td>Chair</td></tr>\
+                    <tr><td>Table of Contents</td><td>Net<br>sales</td><td>5</td></tr></tbody></table>";
+        let (_, tables) = tables_of(html);
+        let [t] = &tables[..] else { panic!("{tables:?}") };
+        assert_eq!(rows(t), [vec!["Name", "Title"], vec!["Jane Doe", "Chair"], vec!["Net\nsales", "5"]]);
+        assert_eq!(t.columns, [[0, 1], [0, 1], [1, 2]]);
     }
 
     #[test]
@@ -1360,6 +1579,8 @@ mod tests {
         );
         assert_eq!(&text[t.start..t.end], "2024\t2023\nNet sales\t$391,035\t$383,285\nNet loss\t(1,234)\t12.5%\n");
         assert!(t.header_rows.is_empty());
+        // The empty first cell takes column 0, and merged cells the column of their number.
+        assert_eq!(t.columns, [vec![1, 2], vec![0, 2, 4], vec![0, 1, 3]]);
     }
 
     /// A cell spanning several columns or rows is one cell, as in the text.
@@ -1554,6 +1775,22 @@ mod tests {
         assert_eq!(rows(inner), [vec!["A", "1"], vec!["B", "2"]]);
         assert!(outer.start < inner.start && inner.end <= outer.end);
         assert_eq!(&text[inner.start..inner.end], "A\t1\nB\t2\n");
+        assert_eq!(outer.columns, [[0, 1], [0, 1], [0, 1]]);
+        assert_eq!(inner.columns, [[0, 1], [0, 1]]);
+
+        // Each table lays out its own grid: a rowspan inside the inner table
+        // moves only its own cells, and the outer cell keeps its colspan.
+        let html = "<table><tr><td colspan=\"2\">Detail</td><td><table>\
+                    <tr><td rowspan=\"2\">North</td><td>East</td></tr><tr><td>West</td></tr>\
+                    <tr><td>South</td><td>Central</td></tr></table></td></tr>\
+                    <tr><td>Sum</td><td>Total</td><td>9</td></tr></table>";
+        let (_, tables) = tables_of(html);
+        let [outer, inner] = &tables[..] else { panic!("{tables:?}") };
+        assert_eq!(rows(inner), [vec!["North", "East"], vec!["West"], vec!["South", "Central"]]);
+        assert_eq!(inner.columns, [vec![0, 1], vec![1], vec![0, 1]]);
+        assert_eq!(rows(outer)[1], ["Sum", "Total", "9"]);
+        assert_eq!(outer.columns, [vec![0, 2], vec![0, 1, 2]]);
+        assert_eq!(outer.spans, [vec![2, 1], vec![1, 1, 1]]);
 
         // A table at the very start of the outer one comes after it.
         let html = "<table><tr><td><table><tr><td>A</td><td>1</td></tr><tr><td>B</td><td>2</td></tr></table></td>\

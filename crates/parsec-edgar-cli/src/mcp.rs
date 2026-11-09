@@ -28,6 +28,9 @@ use crate::find_section;
 const DEFAULT_MAX_CHARS: usize = 20_000;
 const MAX_MAX_CHARS: usize = 100_000;
 const MIN_MAX_CHARS: usize = 200;
+/// read_tables needs more room than the text tools: the smallest part of a
+/// row also carries the grid column and span of its cells.
+const MIN_TABLE_CHARS: usize = 300;
 const DEFAULT_FILINGS: usize = 20;
 const MAX_FILINGS: usize = 200;
 const DEFAULT_HITS: usize = 20;
@@ -521,7 +524,7 @@ impl EdgarServer {
             return Err("no Item headings were found in this filing; use read_filing_text".into());
         }
         let section = find_section(sections, &p.section)?;
-        let page = paginate(&section.text, p.offset.unwrap_or(0), max_chars(p.max_chars))?;
+        let page = paginate(&section.text, p.offset.unwrap_or(0), max_chars(p.max_chars, MIN_MAX_CHARS))?;
         Ok(page_response(FilingMeta::new(&filing, &doc), Some(section), &page, "read_section"))
     }
 
@@ -536,7 +539,7 @@ impl EdgarServer {
     async fn read_filing_text(&self, Parameters(p): Parameters<ReadTextParams>) -> Result<String, String> {
         let (filing, doc) =
             self.doc(&p.company, p.accession.as_deref(), p.form.as_deref(), p.document.as_deref()).await?;
-        let page = paginate(&doc.text, p.offset.unwrap_or(0), max_chars(p.max_chars))?;
+        let page = paginate(&doc.text, p.offset.unwrap_or(0), max_chars(p.max_chars, MIN_MAX_CHARS))?;
         Ok(page_response(FilingMeta::new(&filing, &doc), None, &page, "read_filing_text"))
     }
 
@@ -550,7 +553,10 @@ impl EdgarServer {
             from offset=first_index. Each table has its index (counting every table of the document), its \
             section, text_before (the line just above it, often a title or units such as \"(in millions)\", when \
             that line is short and not part of another table), text_offset (its character position for \
-            read_filing_text), header_rows when the filing marks them, and rows. Returns tables until their \
+            read_filing_text), header_rows when the filing marks them, rows, and columns and spans: for each \
+            cell, its column in the table's grid (from 0, counting empty cells, colspan and rowspan; a cell \
+            joined from `$` and a number takes the number's column) and how many columns it covers, so that a \
+            value lines up with the header whose columns hold its column. Returns tables until their \
             JSON reaches max_chars characters; when more remain, call again with offset=next_offset, plus \
             row=next_row and char=next_char when they are set. A table longer than max_chars is split between \
             rows, and a row longer than max_chars alone is cut inside a cell: join the last cell of one part \
@@ -583,7 +589,7 @@ impl EdgarServer {
             },
         };
         let at = TableCursor { offset: p.offset.unwrap_or(0), row: p.row.unwrap_or(0), char: p.char.unwrap_or(0) };
-        let page = table_page(&doc, section, at, max_chars(p.max_chars))?;
+        let page = table_page(&doc, section, at, max_chars(p.max_chars, MIN_TABLE_CHARS))?;
         Ok(to_json(&TablePageResponse {
             filing: FilingMeta::new(&filing, &doc),
             section: section.map(|s| s.id.as_str()),
@@ -1202,6 +1208,11 @@ struct TableOut<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     first_char: Option<usize>,
     rows: Vec<Cow<'a, [String]>>,
+    /// The grid column of each cell of `rows`, from 0, counting empty cells
+    /// and colspans, as in `parsec_edgar::Table::columns`.
+    columns: Vec<Cow<'a, [usize]>>,
+    /// How many grid columns each cell of `rows` covers.
+    spans: Vec<Cow<'a, [usize]>>,
 }
 
 /// Where a page of tables starts: the index of a table in the document, a row
@@ -1226,7 +1237,7 @@ fn holds(section: &Section, table: &Table) -> bool {
 /// characters of JSON in the list of tables. A table that does not fit waits
 /// for the next page, unless it is the first one, which is then split after as
 /// many rows as fit. When not even one row fits, the row is cut inside a cell.
-/// With `max` of at least MIN_MAX_CHARS every page fits; below that a page
+/// With `max` of at least MIN_TABLE_CHARS every page fits; below that a page
 /// still shows one character, so that paging always moves on.
 fn table_page<'a>(
     doc: &'a Doc,
@@ -1304,30 +1315,28 @@ fn table_page<'a>(
             total_rows: partial.then_some(t.rows.len()),
             first_char: (skip > 0).then_some(skip),
             rows: Vec::new(),
+            columns: Vec::new(),
+            spans: Vec::new(),
         };
         // The rest of a row cut on the page before.
-        let first_part = (skip > 0).then(|| row_piece(&t.rows[first], skip, row_chars(&t.rows[first])));
-        let row_at = |k: usize| -> Cow<'a, [String]> {
+        let first_part = (skip > 0).then(|| row_part(t, first, skip, row_chars(&t.rows[first])));
+        let row_at = |k: usize| -> RowOut<'a> {
             match (&first_part, k) {
-                (Some(part), 0) => Cow::Owned(part.clone()),
-                _ => Cow::Borrowed(&t.rows[first + k]),
+                (Some(part), 0) => part.clone(),
+                _ => whole_row(t, first + k),
             }
         };
         let n = t.rows.len() - first;
         let header = |k: usize| t.header_rows.binary_search(&(first + k)).is_ok();
         let header_cost = |k: usize| if header(k) { digits(first + k) + 1 } else { 0 };
         // How many rows fit beside `meta` characters, and the characters they all take: each row
-        // adds its JSON and a comma, a header row its index and a comma, and the first header row
-        // the header_rows key. Stops at the first row that does not fit.
+        // adds its JSON and a comma to rows, columns and spans, a header row its index and a comma,
+        // and the first header row the header_rows key. Stops at the first row that does not fit.
         let fitting = |meta: usize, room: usize| {
             let (mut size, mut take, mut any_header) = (meta, 0, false);
             while take < n {
-                let row_json = match (&first_part, take) {
-                    (Some(part), 0) => json_chars(part),
-                    _ => json_chars(&t.rows[first + take]),
-                };
                 let key = if header(take) && !any_header { HEADER_ROWS_KEY } else { 0 };
-                let add = row_json + 1 + header_cost(take) + key;
+                let add = row_at(take).json_chars() + 3 + header_cost(take) + key;
                 if size + add > room {
                     break;
                 }
@@ -1342,7 +1351,7 @@ fn table_page<'a>(
         let (take, size) = fitting(json_chars(&out), left);
         if take == n {
             out.header_rows = (0..n).filter(|&k| header(k)).map(|k| first + k).collect();
-            out.rows = (0..n).map(row_at).collect();
+            out.show((0..n).map(row_at));
             page.tables.push(out);
             used += size + comma;
             continue;
@@ -1355,7 +1364,7 @@ fn table_page<'a>(
         out.total_rows = Some(t.rows.len());
         // The title gives way when the smallest part of a row would not fit beside it.
         let first_header = header_cost(0) + if header(0) { HEADER_ROWS_KEY } else { 0 };
-        let smallest = json_chars(&row_piece(&t.rows[first], skip, skip + 1)) + first_header;
+        let smallest = row_part(t, first, skip, skip + 1).json_chars() + first_header;
         if json_chars(&out) + smallest > left {
             out.text_before = None;
         }
@@ -1363,14 +1372,18 @@ fn table_page<'a>(
         let (take, _) = fitting(meta, left);
         let (next_row, next_char) = if take > 0 {
             out.header_rows = (0..take).filter(|&k| header(k)).map(|k| first + k).collect();
-            out.rows = (0..take).map(row_at).collect();
+            out.show((0..take).map(row_at));
             (first + take, 0)
         } else {
             // Not even one row fits: cut it inside a cell.
             let r = &t.rows[first];
-            let end = cut_row(r, skip, left.saturating_sub(meta + first_header));
+            let grid = |c: usize| match (grid_of(&t.columns, first).get(c), grid_of(&t.spans, first).get(c)) {
+                (Some(&column), Some(&span)) => digits(column) + digits(span),
+                _ => 0,
+            };
+            let end = cut_row(r, grid, skip, left.saturating_sub(meta + first_header));
             out.header_rows = if header(0) { vec![first] } else { Vec::new() };
-            out.rows = vec![Cow::Owned(row_piece(r, skip, end))];
+            out.show([row_part(t, first, skip, end)]);
             if end < row_chars(r) { (first, end) } else { (first + 1, 0) }
         };
         used += json_chars(&out);
@@ -1400,24 +1413,82 @@ fn row_chars(row: &[String]) -> usize {
     row.iter().map(|c| c.chars().count()).sum()
 }
 
+/// A row as read_tables shows it: its cells, and the grid column and span of each.
+#[derive(Clone, Debug)]
+struct RowOut<'a> {
+    cells: Cow<'a, [String]>,
+    columns: Cow<'a, [usize]>,
+    spans: Cow<'a, [usize]>,
+}
+
+impl RowOut<'_> {
+    /// Characters of JSON of the row's cells, columns and spans.
+    fn json_chars(&self) -> usize {
+        json_chars(&*self.cells) + json_chars(&*self.columns) + json_chars(&*self.spans)
+    }
+}
+
+impl<'a> TableOut<'a> {
+    /// Show `rows`, after the rows shown so far.
+    fn show(&mut self, rows: impl IntoIterator<Item = RowOut<'a>>) {
+        for row in rows {
+            self.rows.push(row.cells);
+            self.columns.push(row.columns);
+            self.spans.push(row.spans);
+        }
+    }
+}
+
+/// Row `r` of `Table::columns` or `Table::spans`, empty when the table has none.
+fn grid_of(lists: &[Vec<usize>], r: usize) -> &[usize] {
+    lists.get(r).map_or(&[], Vec::as_slice)
+}
+
+/// Row `r` of `t`, whole.
+fn whole_row(t: &Table, r: usize) -> RowOut<'_> {
+    RowOut {
+        cells: Cow::Borrowed(&t.rows[r]),
+        columns: Cow::Borrowed(grid_of(&t.columns, r)),
+        spans: Cow::Borrowed(grid_of(&t.spans, r)),
+    }
+}
+
+/// The part of row `r` of `t` from character `from` to `to` (see
+/// piece_cells), each cell with the grid column and span of the cell it
+/// comes from.
+fn row_part<'a>(t: &Table, r: usize, from: usize, to: usize) -> RowOut<'a> {
+    let (columns, spans) = (grid_of(&t.columns, r), grid_of(&t.spans, r));
+    let (mut part_cells, mut part_columns, mut part_spans) = (Vec::new(), Vec::new(), Vec::new());
+    for (i, cell) in piece_cells(&t.rows[r], from, to) {
+        part_cells.push(cell);
+        if let (Some(&column), Some(&span)) = (columns.get(i), spans.get(i)) {
+            part_columns.push(column);
+            part_spans.push(span);
+        }
+    }
+    RowOut { cells: Cow::Owned(part_cells), columns: Cow::Owned(part_columns), spans: Cow::Owned(part_spans) }
+}
+
 /// The part of `row` from character `from` to `to`, counting its cells one
-/// after another. A part that ends between two cells ends with an empty cell,
-/// so the last cell of one part always joins the first cell of the next.
-fn row_piece(row: &[String], from: usize, to: usize) -> Vec<String> {
+/// after another, with the index in `row` of the cell each part comes from.
+/// A part that ends between two cells ends with an empty cell, the start of
+/// the next one, so the last cell of one part always joins the first cell of
+/// the next.
+fn piece_cells(row: &[String], from: usize, to: usize) -> Vec<(usize, String)> {
     let total = row_chars(row);
     let mut piece = Vec::new();
     let mut at = 0;
-    for cell in row {
+    for (i, cell) in row.iter().enumerate() {
         let len = cell.chars().count();
         if from < at + len && at < to {
             let start = from.saturating_sub(at);
             let end = (to - at).min(len);
-            piece.push(cell.chars().skip(start).take(end - start).collect());
+            piece.push((i, cell.chars().skip(start).take(end - start).collect()));
         }
         at += len;
         if at >= to {
             if at == to && to < total {
-                piece.push(String::new());
+                piece.push((i + 1, String::new()));
             }
             break;
         }
@@ -1425,22 +1496,25 @@ fn row_piece(row: &[String], from: usize, to: usize) -> Vec<String> {
     piece
 }
 
-/// Where to cut `row`, from character `from`, so that the part takes at most
-/// `budget` characters of JSON. The part has at least one character.
-fn cut_row(row: &[String], from: usize, budget: usize) -> usize {
+/// Where to cut `row`, from character `from`, so that the part, with the
+/// grid column and span of each of its cells, takes at most `budget`
+/// characters of JSON. `grid` gives the digits of the column and the span of
+/// a cell of `row`. The part has at least one character.
+fn cut_row(row: &[String], grid: impl Fn(usize) -> usize, from: usize, budget: usize) -> usize {
     let total = row_chars(row);
     let mut best = from + 1;
-    // `[]`, then `""` for the first cell and `,""` for each other one.
-    let mut cost = 2;
+    // `[]` for the cells, the columns and the spans, then for each cell `""`,
+    // its column and its span, each after a comma but for the first cell.
+    let mut cost = 6;
     let mut started = false;
     let mut at = 0;
-    'cells: for cell in row {
+    'cells: for (i, cell) in row.iter().enumerate() {
         let len = cell.chars().count();
         if at + len <= from {
             at += len;
             continue;
         }
-        cost += if started { 3 } else { 2 };
+        cost += 2 + grid(i) + if started { 3 } else { 0 };
         started = true;
         for (k, c) in cell.chars().enumerate().skip(from.saturating_sub(at)) {
             cost += json_escaped_len(c);
@@ -1448,8 +1522,9 @@ fn cut_row(row: &[String], from: usize, budget: usize) -> usize {
                 break 'cells;
             }
             let to = at + k + 1;
-            // A cut between two cells adds the empty cell `,""`.
-            let end = if k + 1 == len && to < total { 3 } else { 0 };
+            // A cut between two cells adds the start of the next one: `,""`,
+            // its column and its span.
+            let end = if k + 1 == len && to < total { 5 + grid(i + 1) } else { 0 };
             if cost + end <= budget {
                 best = to;
             }
@@ -1498,8 +1573,8 @@ struct PageHeader<'a> {
     next_offset: Option<usize>,
 }
 
-fn max_chars(requested: Option<usize>) -> usize {
-    requested.unwrap_or(DEFAULT_MAX_CHARS).clamp(MIN_MAX_CHARS, MAX_MAX_CHARS)
+fn max_chars(requested: Option<usize>, min: usize) -> usize {
+    requested.unwrap_or(DEFAULT_MAX_CHARS).clamp(min, MAX_MAX_CHARS)
 }
 
 /// One page of a longer text. Offsets count characters, not bytes.
@@ -1772,20 +1847,41 @@ mod tests {
 
     /// A table's index and its rows.
     type Rows = (usize, Vec<Vec<String>>);
+    /// The grid columns of a table's rows, or their spans.
+    type Grid = Vec<Vec<usize>>;
+
+    /// The cells of `row` from character `from` to `to`, as read_tables cuts them.
+    fn row_piece(row: &[String], from: usize, to: usize) -> Vec<String> {
+        piece_cells(row, from, to).into_iter().map(|(_, cell)| cell).collect()
+    }
 
     /// Every page from the start, following next_offset, next_row and
     /// next_char: each table's rows with the parts of cut rows joined again,
-    /// and the number of pages. Checks that each page keeps within `max`.
+    /// and the number of pages. Checks that each page keeps within `max`,
+    /// and that the grid columns and spans of the rows shown, joined in the
+    /// same way, are those of the table.
     fn all_pages(doc: &Doc, section: Option<&Section>, max: usize) -> (Vec<Rows>, usize) {
         let (mut tables, mut pages, mut cursor) = (Vec::<Rows>::new(), 0, at(0, 0, 0));
+        let mut grids: Vec<(Grid, Grid)> = Vec::new();
         loop {
             let page = table_page(doc, section, cursor, max).unwrap();
             pages += 1;
             assert!(json_chars(&page.tables) <= max, "{} > {max}: {page:?}", json_chars(&page.tables));
             for t in &page.tables {
+                assert_eq!(
+                    t.columns.iter().map(|c| c.len()).collect::<Vec<_>>(),
+                    t.rows.iter().map(|r| r.len()).collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    t.spans.iter().map(|c| c.len()).collect::<Vec<_>>(),
+                    t.rows.iter().map(|r| r.len()).collect::<Vec<_>>()
+                );
                 let mut rows = t.rows.iter().map(|r| r.to_vec());
+                let owned = |c: &Cow<'_, [usize]>| c.to_vec();
+                let (mut columns, mut spans) = (t.columns.iter().map(owned), t.spans.iter().map(owned));
                 if t.first_row.is_some_and(|r| r > 0) || t.first_char.is_some() {
                     let (index, so_far) = tables.last_mut().expect("a continued table");
+                    let (columns_so_far, spans_so_far) = grids.last_mut().unwrap();
                     assert_eq!(*index, t.index);
                     assert_eq!(so_far.len(), t.first_row.unwrap() + usize::from(t.first_char.is_some()));
                     if t.first_char.is_some() {
@@ -1794,10 +1890,20 @@ mod tests {
                         let cut = so_far.last_mut().unwrap();
                         cut.last_mut().unwrap().push_str(&rest.next().unwrap());
                         cut.extend(rest);
+                        for (so_far, part) in [(columns_so_far, &mut columns), (spans_so_far, &mut spans)] {
+                            let mut rest = part.next().unwrap().into_iter();
+                            let cut = so_far.last_mut().unwrap();
+                            assert_eq!(cut.last(), rest.next().as_ref());
+                            cut.extend(rest);
+                        }
                     }
                     so_far.extend(rows);
+                    let (columns_so_far, spans_so_far) = grids.last_mut().unwrap();
+                    columns_so_far.extend(columns);
+                    spans_so_far.extend(spans);
                 } else {
                     tables.push((t.index, rows.collect()));
+                    grids.push((columns.collect(), spans.collect()));
                 }
             }
             match page.next_offset {
@@ -1805,6 +1911,10 @@ mod tests {
                 None => break,
             }
             assert!(pages < 100_000, "paging does not end");
+        }
+        for ((index, _), (columns, spans)) in tables.iter().zip(&grids) {
+            assert_eq!(columns, &doc.tables[*index].columns);
+            assert_eq!(spans, &doc.tables[*index].spans);
         }
         (tables, pages)
     }
@@ -1843,7 +1953,7 @@ mod tests {
         let rows = rows_of(&tables);
         assert_eq!(rows.len(), 200);
         assert_eq!(rows[150], ["Row 50 of table 1", "$50,000"]);
-        for max in [MIN_MAX_CHARS, 250, 333] {
+        for max in [MIN_TABLE_CHARS, 350, 433] {
             assert_eq!(rows_of(&all_pages(&doc, None, max).0), rows, "{max}");
         }
     }
@@ -1864,7 +1974,7 @@ mod tests {
         let (long, longest) = (layout(60), layout(1500));
         assert!(json_chars(&longest.tables[0].rows[1]) > MAX_MAX_CHARS);
         for (doc, max) in
-            [(&long, MIN_MAX_CHARS), (&long, 1000), (&longest, DEFAULT_MAX_CHARS), (&longest, MAX_MAX_CHARS)]
+            [(&long, MIN_TABLE_CHARS), (&long, 1000), (&longest, DEFAULT_MAX_CHARS), (&longest, MAX_MAX_CHARS)]
         {
             let (tables, pages) = all_pages(doc, None, max);
             assert_eq!(tables, [(0, doc.tables[0].rows.clone())], "{max}");
@@ -1888,12 +1998,25 @@ mod tests {
                 .collect();
         let len = row_chars(&row);
         assert_eq!(row_piece(&row, 0, len), row);
+        // Grid columns of several digits, and spans over several columns.
+        let table = Table {
+            start: 0,
+            end: 0,
+            header_rows: Vec::new(),
+            rows: vec![row.clone()],
+            columns: vec![vec![0, 3, 12, 100, 101, 1000, 1001]],
+            spans: vec![vec![1, 9, 1, 1, 1, 1, 20]],
+        };
+        let grid = |c: usize| match (table.columns[0].get(c), table.spans[0].get(c)) {
+            (Some(&column), Some(&span)) => digits(column) + digits(span),
+            _ => 0,
+        };
         for from in 0..len {
-            for budget in 0..=json_chars(&row) + 3 {
-                let to = cut_row(&row, from, budget);
+            for budget in 0..=whole_row(&table, 0).json_chars() + 3 {
+                let to = cut_row(&row, grid, from, budget);
                 assert!(to > from && to <= len, "{from} {budget} {to}");
-                let piece = row_piece(&row, from, to);
-                assert!(to == from + 1 || json_chars(&piece) <= budget, "{from} {budget} {piece:?}");
+                let part = row_part(&table, 0, from, to);
+                assert!(to == from + 1 || part.json_chars() <= budget, "{from} {budget} {part:?}");
                 // The rest of the row joins this part to give the row back.
                 if to < len {
                     let mut joined = row_piece(&row, 0, to);
@@ -1901,6 +2024,9 @@ mod tests {
                     joined.last_mut().unwrap().push_str(&rest.next().unwrap());
                     joined.extend(rest);
                     assert_eq!(joined, row, "{to}");
+                    // The cell the rest starts in has the column of the last cell of the part.
+                    let rest = row_part(&table, 0, to, len);
+                    assert_eq!(part.columns.last(), rest.columns.first(), "{to}");
                 }
             }
         }
@@ -1914,8 +2040,15 @@ mod tests {
     /// row of a table whose numbers are as long as they get.
     #[test]
     fn smallest_pages_fit() {
-        let piece = row_piece(&["\u{1}".to_owned(), "x".to_owned()], 0, 1);
-        let out = TableOut {
+        let table = Table {
+            start: 0,
+            end: 0,
+            header_rows: Vec::new(),
+            rows: vec![vec!["\u{1}".to_owned(), "x".to_owned()]],
+            columns: vec![vec![999_998, 999_999]],
+            spans: vec![vec![1000, 1000]],
+        };
+        let mut out = TableOut {
             index: 99_999,
             section: Some("part_2_item_1a"),
             text_offset: 999_999_999,
@@ -1924,10 +2057,14 @@ mod tests {
             first_row: Some(999_999),
             total_rows: Some(999_999),
             first_char: Some(999_999_999),
-            rows: vec![Cow::Owned(piece)],
+            rows: Vec::new(),
+            columns: Vec::new(),
+            spans: Vec::new(),
         };
+        out.show([row_part(&table, 0, 0, 1)]);
+        assert_eq!(out.columns, [Cow::Borrowed(&[999_998, 999_999][..])]);
         let size = json_chars(&[out]);
-        assert!(size <= MIN_MAX_CHARS, "{size}");
+        assert!(size <= MIN_TABLE_CHARS, "{size}");
     }
 
     /// Continuation pages list only the header rows they show, so a table of
