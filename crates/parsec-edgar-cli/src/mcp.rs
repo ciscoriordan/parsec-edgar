@@ -117,12 +117,41 @@ fn http_access(bound: SocketAddr, allow_hosts: &[String], allow_origins: &[Strin
     HttpAccess { hosts, origins, url: format!("http://{shown}/mcp"), note }
 }
 
+/// Check an --allow-origin value the way rmcp reads it, since rmcp skips an
+/// entry it cannot read without saying so: `null`, or a scheme and host with
+/// an optional port or `:*`, and no path.
+fn check_origin(value: &str) -> Result<(), Error> {
+    let v = value.trim();
+    if v.eq_ignore_ascii_case("null") {
+        return Ok(());
+    }
+    let (base, any_port) = v.strip_suffix(":*").map_or((v, false), |b| (b, true));
+    let ok = axum::http::Uri::try_from(base).is_ok_and(|uri| {
+        uri.scheme().is_some()
+            // `:*` replaces the port, so an entry cannot carry both.
+            && uri.authority().is_some_and(|a| !a.host().is_empty() && (!any_port || a.port().is_none()))
+            && matches!(uri.path(), "" | "/")
+            && uri.query().is_none()
+    });
+    if ok {
+        Ok(())
+    } else {
+        Err(Error::Invalid(format!(
+            "--allow-origin {value:?} is not an origin: give a scheme and host, \
+             e.g. https://app.example.com, https://app.example.com:8443 or http://localhost:*"
+        )))
+    }
+}
+
 async fn serve_http(
     server: EdgarServer,
     addr: SocketAddr,
     allow_hosts: &[String],
     allow_origins: &[String],
 ) -> Result<(), Error> {
+    for origin in allow_origins {
+        check_origin(origin)?;
+    }
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let access = http_access(listener.local_addr()?, allow_hosts, allow_origins);
     let config = StreamableHttpServerConfig::default()
@@ -1492,6 +1521,17 @@ mod tests {
         assert_eq!(any.url, "http://127.0.0.1:8080/mcp");
         assert!(any.note.unwrap().contains("--allow-host"));
         assert_eq!(any.origins.last().map(String::as_str), Some("https://app.example.com"));
+    }
+
+    #[test]
+    fn allowed_origins_are_checked() {
+        for ok in ["https://app.example.com", "https://app.example.com:8443", "http://localhost:*", "null", "http://[::1]:*"] {
+            assert!(check_origin(ok).is_ok(), "{ok}");
+        }
+        // rmcp would skip these silently, so every browser request would get 403.
+        for bad in ["app.example.com", "app.example.com:443", "https://", "https://app.example.com/path", "https://a.com:8443:*", ""] {
+            assert!(check_origin(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]
