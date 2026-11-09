@@ -159,7 +159,7 @@ pub fn run(client: &Client, args: CrawlArgs) -> Result<(), Error> {
         jobs
     } else {
         if companies.iter().any(|c| parse_cik(c).is_none()) {
-            // Load the ticker file once, before the workers race to load it.
+            // Load the ticker file before the workers start, so a failed download stops the crawl here.
             client.companies()?;
         }
         let found = Mutex::new(Vec::new());
