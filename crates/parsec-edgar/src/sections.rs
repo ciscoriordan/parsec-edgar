@@ -175,6 +175,30 @@ static SIGNATURES: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// Starts of signatures heading lines. A literal search finds the few lines
+/// worth testing, which is much faster than running the line regex over a
+/// long filing.
+fn signature_lines(text: &str) -> Vec<usize> {
+    static WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"SIGNATURE|Signature|S I G N").unwrap());
+    let mut found: Vec<usize> = WORD
+        .find_iter(text)
+        .filter_map(|m| {
+            let start = text[..m.start()].rfind('\n').map_or(0, |n| n + 1);
+            let end = text[m.start()..].find('\n').map_or(text.len(), |n| m.start() + n);
+            SIGNATURES.is_match(&text[start..end]).then_some(start)
+        })
+        .collect();
+    found.dedup();
+    found
+}
+
+/// The signature block's opening sentence, for filings that print no
+/// signatures heading.
+static SIGNATURE_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^[ \t]*Pursuant to the requirements of (?:Section 13|the Securities Exchange Act)[^\n]*duly caused")
+        .unwrap()
+});
+
 /// Bare sub-item references such as `Item 14(d):` or `Item 15(a)(1)`, which
 /// sit inside an Item. `Item 6 (a). Exhibits` has a title and stays.
 static SUB_ITEM: LazyLock<Regex> =
@@ -259,7 +283,7 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
         })
         .collect();
     set_gaps(&mut cands, text.len());
-    let mut cands = drop_running_headers(drop_contents_entries(cands));
+    let mut cands = drop_running_headers(drop_contents_entries(cands, text));
     // Score by the gap to the next heading of a different Item, so repeated
     // running headers of one Item do not split its score.
     set_gaps(&mut cands, text.len());
@@ -295,18 +319,25 @@ fn part_above(text: &str, start: usize) -> Option<&'static str> {
         .map(|c| if &c[1] == "II" { "II" } else { "I" })
 }
 
-/// Drop table-of-contents entries whose heading reappears in the body.
+/// Drop table-of-contents entries whose heading reappears in the body, and
+/// lists of Item headings printed again after the body.
 ///
-/// An entry is a candidate whose Item and title come back later, after other
-/// Items, at a heading that starts a longer stretch of text. In a 10-Q this
-/// matters most: a contents entry for Part I Item 2 could otherwise be taken
-/// as Part I and the body heading as Part II. Entries just before a dropped
-/// one belong to the same contents block and go too (an Item listed in the
-/// contents whose body has no heading).
-fn drop_contents_entries(cands: Vec<Candidate>) -> Vec<Candidate> {
+/// Two candidates are the same heading when they share Item and title and
+/// other Items come between them. The earlier copy is a contents entry when
+/// it starts the shorter stretch of text; the later copy is a listing when
+/// the signatures come between them. In a 10-Q this matters most: a contents
+/// entry for Part I Item 2 could otherwise be taken as Part I and the body
+/// heading as Part II. Entries just before a dropped contents entry belong to
+/// the same contents block and go too (an Item listed in the contents whose
+/// body has no heading); short entries just after a dropped listing entry go
+/// with it.
+fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
     const SAME_BLOCK: usize = 2000;
     let n = cands.len();
-    let mut drop = vec![false; n];
+    let mut signatures: Option<Vec<usize>> = None;
+    // A contents entry before the body, and a listing after it.
+    let mut contents = vec![false; n];
+    let mut after = vec![false; n];
     for a in 0..n {
         if cands[a].title.chars().count() < 5 {
             continue;
@@ -318,19 +349,29 @@ fn drop_contents_entries(cands: Vec<Candidate>) -> Vec<Candidate> {
             } else if other_between
                 && (cands[a].title.starts_with(&cands[b].title) || cands[b].title.starts_with(&cands[a].title))
                 && cands[b].title.chars().count() >= 5
-                && cands[b].gap > cands[a].gap
             {
-                drop[a] = true;
+                if cands[b].gap > cands[a].gap {
+                    contents[a] = true;
+                } else {
+                    let sigs = signatures.get_or_insert_with(|| signature_lines(text));
+                    after[b] = sigs.iter().any(|&p| p > cands[a].pos && p < cands[b].pos);
+                }
                 break;
             }
         }
     }
     for i in (0..n.saturating_sub(1)).rev() {
-        if drop[i + 1] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
-            drop[i] = true;
+        if contents[i + 1] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
+            contents[i] = true;
         }
     }
-    cands.into_iter().zip(drop).filter(|(_, d)| !d).map(|(c, _)| c).collect()
+    // Only short entries: a body heading can follow a second contents table.
+    for i in 1..n {
+        if after[i - 1] && cands[i].pos - cands[i - 1].pos <= SAME_BLOCK && cands[i].gap <= SAME_BLOCK {
+            after[i] = true;
+        }
+    }
+    cands.into_iter().enumerate().filter(|&(i, _)| !contents[i] && !after[i]).map(|(_, c)| c).collect()
 }
 
 /// Drop a bare running page header ("Item 7") that comes just before the
@@ -483,7 +524,11 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
 
     let starts: Vec<usize> = picks.iter().map(|&(c, _)| cands[c].pos).collect();
     let last_start = *starts.last().expect("chain is non-empty");
-    let doc_end = SIGNATURES.find_at(text, last_start).map_or(text.len(), |m| m.start());
+    let doc_end = signature_lines(&text[last_start..])
+        .first()
+        .map(|&p| last_start + p)
+        .or_else(|| SIGNATURE_BLOCK.find_at(text, last_start).map(|m| m.start()))
+        .unwrap_or(text.len());
     let doc_end = attached_document(text, last_start, doc_end).unwrap_or(doc_end);
     // Titled headings of Items the form does not define ("Item 4A. Executive
     // Officers") end the section before them.
@@ -646,6 +691,45 @@ mod tests {
         assert_eq!(s[0].heading, "ITEM 1. BUSINESS");
         assert_eq!(s[1].text, "ITEM 4. MINE SAFETY DISCLOSURES\nNot applicable.");
         assert_eq!(s[3].text, "Item 14. Exhibits\n(a) Documents filed");
+    }
+
+    #[test]
+    fn item_list_after_signatures_ignored() {
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Financial Statements\n{body}{body}\nItem 2. Management's Discussion\n{body}\n\
+             Item 4. Controls and Procedures\n{body}\nItem 1. Legal Proceedings\nNone.\nItem 6. Exhibits\nList\n\
+             SIGNATURE\nPursuant to...\nEXHIBIT INDEX\nItem 1. Financial Statements\nItem 2. Management's Discussion\n\
+             Item 4. Controls and Procedures\nItem 1. Legal Proceedings\nItem 3. Defaults Upon Senior Securities\n\
+             Item 6. Exhibits\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(s[4].text, "Item 6. Exhibits\nList");
+    }
+
+    #[test]
+    fn second_contents_table_after_signatures_heading() {
+        // A bare contents list, a signatures heading, a page-numbered contents
+        // list, then the body.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\nItem 2. Properties\nItem 3. Legal Proceedings\nSIGNATURES\n\
+             Item 1. Business 1\nItem 2. Properties 9\nItem 3. Legal Proceedings 10\n\
+             Item 1. Business\n{body}\nItem 2. Properties\n{body}\nItem 3. Legal Proceedings\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3"]);
+        assert!(s[0].text.starts_with("Item 1. Business\nLorem"));
+    }
+
+    #[test]
+    fn signature_sentence_ends_last_item_without_heading() {
+        let text = "Item 8.01 Other Events.\nWe did things.\n\
+                    Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused \
+                    this report to be signed.\nEXHIBIT INDEX\n99.1 Press release";
+        let s = extract_sections(text, FormKind::EightK);
+        assert_eq!(s[0].text, "Item 8.01 Other Events.\nWe did things.");
     }
 
     #[test]
