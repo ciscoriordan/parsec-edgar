@@ -337,8 +337,7 @@ impl Client {
 }
 
 fn sort_newest_first(filings: &mut [Filing]) {
-    filings
-        .sort_by(|a, b| b.filing_date.cmp(&a.filing_date).then_with(|| b.accession_number.cmp(&a.accession_number)));
+    filings.sort_by(|a, b| b.filing_date.cmp(&a.filing_date).then_with(|| b.accession_number.cmp(&a.accession_number)));
 }
 
 /// The year in a dashed accession number: `0000320193-24-000123` -> 2024.

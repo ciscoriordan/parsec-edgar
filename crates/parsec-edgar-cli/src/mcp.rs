@@ -154,9 +154,8 @@ async fn serve_http(
     }
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let access = http_access(listener.local_addr()?, allow_hosts, allow_origins);
-    let config = StreamableHttpServerConfig::default()
-        .with_allowed_hosts(access.hosts)
-        .with_allowed_origins(access.origins);
+    let config =
+        StreamableHttpServerConfig::default().with_allowed_hosts(access.hosts).with_allowed_origins(access.origins);
     let cancel = config.cancellation_token.clone();
     let service =
         StreamableHttpService::new(move || Ok(server.clone()), Arc::new(LocalSessionManager::default()), config);
@@ -1525,11 +1524,20 @@ mod tests {
 
     #[test]
     fn allowed_origins_are_checked() {
-        for ok in ["https://app.example.com", "https://app.example.com:8443", "http://localhost:*", "null", "http://[::1]:*"] {
+        for ok in
+            ["https://app.example.com", "https://app.example.com:8443", "http://localhost:*", "null", "http://[::1]:*"]
+        {
             assert!(check_origin(ok).is_ok(), "{ok}");
         }
         // rmcp would skip these silently, so every browser request would get 403.
-        for bad in ["app.example.com", "app.example.com:443", "https://", "https://app.example.com/path", "https://a.com:8443:*", ""] {
+        for bad in [
+            "app.example.com",
+            "app.example.com:443",
+            "https://",
+            "https://app.example.com/path",
+            "https://a.com:8443:*",
+            "",
+        ] {
             assert!(check_origin(bad).is_err(), "{bad}");
         }
     }

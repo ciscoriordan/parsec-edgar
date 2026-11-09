@@ -131,8 +131,7 @@ impl CrawlQuery {
 
     fn overlaps(&self, q: &Quarter) -> bool {
         let after_since = self.since.as_deref().is_none_or(|s| q.last_day().as_str() >= s);
-        let before_until =
-            self.until.as_deref().is_none_or(|u| q.first_day().get(..u.len()).unwrap_or("") <= u);
+        let before_until = self.until.as_deref().is_none_or(|u| q.first_day().get(..u.len()).unwrap_or("") <= u);
         after_since && before_until
     }
 

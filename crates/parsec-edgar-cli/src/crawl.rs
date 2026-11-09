@@ -905,8 +905,8 @@ mod tests {
         assert!(q.quarters.is_empty());
         assert_eq!(q.quarters_to_read().unwrap(), [Quarter::new(2024, 4).unwrap()]);
 
-        let q = build_query(&args(&["--form", "8-K", "--since", "2023", "--until", "2024-12", "--quarter", "2"]))
-            .unwrap();
+        let q =
+            build_query(&args(&["--form", "8-K", "--since", "2023", "--until", "2024-12", "--quarter", "2"])).unwrap();
         assert_eq!(q.quarters, [Quarter::new(2023, 2).unwrap(), Quarter::new(2024, 2).unwrap()]);
 
         assert!(build_query(&args(&["--form", "8-K", "--quarter", "2"])).is_err());

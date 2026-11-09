@@ -155,7 +155,8 @@ impl Doc {
     /// Character offset of a byte offset.
     pub fn char_of(&self, byte: usize) -> usize {
         if byte >= self.text.len() {
-            return self.chars.last().copied().unwrap_or(0) + self.text[self.starts.last().copied().unwrap_or(0)..].chars().count();
+            return self.chars.last().copied().unwrap_or(0)
+                + self.text[self.starts.last().copied().unwrap_or(0)..].chars().count();
         }
         let l = self.line_of(byte);
         let mut b = byte;
@@ -215,11 +216,8 @@ impl Doc {
                 let head = normalize(&r.text);
                 let with_next = head.clone() + &r.next.as_deref().map(normalize).unwrap_or_default();
                 let hits: Vec<usize> = flat.match_indices(with_next.as_str()).map(|(i, _)| i).collect();
-                let hits = if hits.is_empty() {
-                    flat.match_indices(head.as_str()).map(|(i, _)| i).collect()
-                } else {
-                    hits
-                };
+                let hits =
+                    if hits.is_empty() { flat.match_indices(head.as_str()).map(|(i, _)| i).collect() } else { hits };
                 let i = match hits.len() {
                     0 => return Err(e),
                     1 => hits[0],
@@ -295,7 +293,11 @@ pub fn item_id(kind: FormKind, s: &str) -> Res<String> {
             if item.is_empty() { Err(bad()) } else { Ok(format!("part_{part}_item_{item}")) }
         }
         FormKind::EightK => {
-            if s.contains('.') { Ok(format!("item_{s}")) } else { Err(bad()) }
+            if s.contains('.') {
+                Ok(format!("item_{s}"))
+            } else {
+                Err(bad())
+            }
         }
     }
 }

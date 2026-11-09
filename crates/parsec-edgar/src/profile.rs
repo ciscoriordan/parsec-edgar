@@ -116,7 +116,8 @@ mod tests {
 
     #[test]
     fn tolerates_missing_and_empty_fields() {
-        let json = r#"{"name":"Some Trust","sic":"","stateOfIncorporation":null,"tickers":[],"addresses":{"business":null}}"#;
+        let json =
+            r#"{"name":"Some Trust","sic":"","stateOfIncorporation":null,"tickers":[],"addresses":{"business":null}}"#;
         let p = serde_json::from_str::<SubmissionsProfile>(json).unwrap().into_profile(42);
         assert_eq!(p.name, "Some Trust");
         assert_eq!(p.sic, None);

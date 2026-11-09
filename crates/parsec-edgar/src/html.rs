@@ -48,13 +48,14 @@ fn looks_like_html(s: &str) -> bool {
         end -= 1;
     }
     let head = s[..end].to_ascii_lowercase();
-    ["<html", "<body", "<div", "<p>", "<p ", "<font", "<br", "<tr>", "<tr ", "<td", "<span"].iter().any(|t| head.contains(t))
+    ["<html", "<body", "<div", "<p>", "<p ", "<font", "<br", "<tr>", "<tr ", "<td", "<span"]
+        .iter()
+        .any(|t| head.contains(t))
 }
 
 /// Old plain-text filings: drop SGML layout tags, then the same line cleanup as HTML.
 fn plain_text(s: &str) -> String {
-    static TAGS: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(?i)</?(?:PAGE|S|C|CAPTION|TABLE|FN)>").unwrap());
+    static TAGS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)</?(?:PAGE|S|C|CAPTION|TABLE|FN)>").unwrap());
     finish(&TAGS.replace_all(s, ""))
 }
 
@@ -103,10 +104,46 @@ impl Out {
 fn is_block(name: &str) -> bool {
     matches!(
         name,
-        "p" | "div" | "table" | "thead" | "tbody" | "tfoot" | "ul" | "ol" | "li" | "h1" | "h2" | "h3" | "h4"
-            | "h5" | "h6" | "section" | "article" | "header" | "footer" | "blockquote" | "pre" | "hr" | "center"
-            | "dl" | "dt" | "dd" | "address" | "body" | "html" | "caption" | "form" | "fieldset" | "figure"
-            | "figcaption" | "main" | "nav" | "aside" | "page" | "td" | "th" | "tr"
+        "p" | "div"
+            | "table"
+            | "thead"
+            | "tbody"
+            | "tfoot"
+            | "ul"
+            | "ol"
+            | "li"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "section"
+            | "article"
+            | "header"
+            | "footer"
+            | "blockquote"
+            | "pre"
+            | "hr"
+            | "center"
+            | "dl"
+            | "dt"
+            | "dd"
+            | "address"
+            | "body"
+            | "html"
+            | "caption"
+            | "form"
+            | "fieldset"
+            | "figure"
+            | "figcaption"
+            | "main"
+            | "nav"
+            | "aside"
+            | "page"
+            | "td"
+            | "th"
+            | "tr"
     )
 }
 
@@ -240,9 +277,8 @@ fn finish(text: &str) -> String {
 /// mostly increase through the document, which data rows do not do.
 fn page_furniture(lines: &[&str]) -> HashSet<usize> {
     const MIN_REPEATS: usize = 5;
-    static NUMBERED: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"^(?:(\d{1,3})(?:\s*\|\s*|\s+)(\S.*)|(.*\S)(?:\s*\|\s*|\s+)(\d{1,3}))$").unwrap()
-    });
+    static NUMBERED: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^(?:(\d{1,3})(?:\s*\|\s*|\s+)(\S.*)|(.*\S)(?:\s*\|\s*|\s+)(\d{1,3}))$").unwrap());
     let mut families: HashMap<&str, Vec<(usize, u32)>> = HashMap::new();
     for (i, line) in lines.iter().enumerate() {
         let numbered = line.starts_with(|c: char| c.is_ascii_digit()) || line.ends_with(|c: char| c.is_ascii_digit());

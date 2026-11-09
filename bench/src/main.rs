@@ -136,13 +136,12 @@ fn main() {
 type Res<T> = Result<T, String>;
 
 fn client(cli: &Cli) -> Res<Client> {
-    let ua = cli
-        .user_agent
+    let ua =
+        cli.user_agent.clone().ok_or("set --user-agent or PARSEC_EDGAR_USER_AGENT to your name and contact email")?;
+    let cache = cli
+        .cache_dir
         .clone()
-        .ok_or("set --user-agent or PARSEC_EDGAR_USER_AGENT to your name and contact email")?;
-    let cache = cli.cache_dir.clone().or_else(|| {
-        std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache").join("parsec-edgar"))
-    });
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache").join("parsec-edgar")));
     Client::builder(ua).requests_per_second(cli.rps).cache_dir(cache).build().map_err(|e| e.to_string())
 }
 
@@ -719,8 +718,11 @@ fn report(results: &[FilingResult], name: &str, misses: bool, timing: bool) {
 
     println!("{name}: Item start precision, recall and F1, span accuracy\n");
     let mut header =
-        "| Group                | Filings | Labeled | Predicted | Hits | Precision | Recall |    F1 | Span acc |".to_owned();
-    let mut rule = "|----------------------|--------:|--------:|----------:|-----:|----------:|-------:|------:|---------:|".to_owned();
+        "| Group                | Filings | Labeled | Predicted | Hits | Precision | Recall |    F1 | Span acc |"
+            .to_owned();
+    let mut rule =
+        "|----------------------|--------:|--------:|----------:|-----:|----------:|-------:|------:|---------:|"
+            .to_owned();
     if timing {
         header += " Parse ms¹ | Split ms¹ | Total ms |";
         rule += "----------:|----------:|---------:|";
@@ -750,7 +752,9 @@ fn report(results: &[FilingResult], name: &str, misses: bool, timing: bool) {
     if timing {
         println!("\n¹ median per filing; Parse is document_to_text, Split is extract_sections.");
     }
-    println!("Span acc is the mean over filings of (characters given the right Item) / (characters inside any true or predicted Item).");
+    println!(
+        "Span acc is the mean over filings of (characters given the right Item) / (characters inside any true or predicted Item)."
+    );
 
     let errors: Vec<&FilingResult> = results.iter().filter(|r| r.error.is_some()).collect();
     if !errors.is_empty() {
@@ -814,7 +818,8 @@ mod tests {
             form: "10-Q".into(),
             ..LabelFile::default()
         };
-        let good = FilingResult { labeled: 2, predicted: 2, hits: 2, span_correct: 10, span_union: 10, ..base_result(&label) };
+        let good =
+            FilingResult { labeled: 2, predicted: 2, hits: 2, span_correct: 10, span_union: 10, ..base_result(&label) };
         let bad = FilingResult { error: Some("labels do not resolve".into()), ..base_result(&label) };
         assert_eq!(bad.labeled, 2);
         assert_eq!(bad.span_accuracy(), 0.0);

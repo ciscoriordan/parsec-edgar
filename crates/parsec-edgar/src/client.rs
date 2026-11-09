@@ -59,11 +59,8 @@ impl ClientBuilder {
                 "requests_per_second must be greater than 0 and at most 10 (SEC fair-access limit)".into(),
             ));
         }
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(self.timeout))
-            .http_status_as_error(false)
-            .build()
-            .into();
+        let agent: ureq::Agent =
+            ureq::Agent::config_builder().timeout_global(Some(self.timeout)).http_status_as_error(false).build().into();
         Ok(Client {
             agent,
             user_agent: ua,
@@ -168,12 +165,8 @@ impl Client {
         loop {
             self.limiter.acquire();
             self.requests.fetch_add(1, Ordering::Relaxed);
-            let outcome = self
-                .agent
-                .get(url)
-                .header("User-Agent", &self.user_agent)
-                .header("Accept-Encoding", "gzip")
-                .call();
+            let outcome =
+                self.agent.get(url).header("User-Agent", &self.user_agent).header("Accept-Encoding", "gzip").call();
             let retryable = match outcome {
                 Ok(mut resp) => {
                     let status = resp.status().as_u16();

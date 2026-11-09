@@ -293,6 +293,7 @@ Accuracy is measured against 129 hand-labeled filings from 1997 to 2026 (`bench/
 
 ```sh
 cargo test                       # unit tests, no network
+cargo fmt && cargo clippy --workspace --all-targets   # style (rustfmt.toml) and lints
 cd python && maturin develop     # build the Python extension into the active virtualenv
 cargo run --release -p parsec-edgar-bench -- score   # section accuracy on the labeled filings (downloads them once)
 ```

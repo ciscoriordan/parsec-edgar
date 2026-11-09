@@ -72,7 +72,8 @@ impl FilingIndex {
     /// The main document: the first row whose type equals the form (HTML or text
     /// preferred over PDF), else sequence 1.
     pub fn primary_document(&self, form: &str) -> Option<&IndexDocument> {
-        let is_pdf = |d: &&IndexDocument| d.document.as_deref().is_some_and(|n| n.to_ascii_lowercase().ends_with(".pdf"));
+        let is_pdf =
+            |d: &&IndexDocument| d.document.as_deref().is_some_and(|n| n.to_ascii_lowercase().ends_with(".pdf"));
         let typed: Vec<&IndexDocument> =
             self.documents.iter().filter(|d| d.doc_type.trim().eq_ignore_ascii_case(form.trim())).collect();
         typed

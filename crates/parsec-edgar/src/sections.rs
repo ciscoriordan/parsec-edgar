@@ -87,7 +87,10 @@ const TEN_K: &[Key] = &[
     k("2", "Properties"),
     k("3", "Legal Proceedings"),
     k("4", "Mine Safety Disclosures"),
-    k("5", "Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities"),
+    k(
+        "5",
+        "Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+    ),
     k("6", "[Reserved]"),
     k("7", "Management's Discussion and Analysis of Financial Condition and Results of Operations"),
     k("7A", "Quantitative and Qualitative Disclosures About Market Risk"),
@@ -127,17 +130,29 @@ const EIGHT_K: &[Key] = &[
     k("1.05", "Material Cybersecurity Incidents"),
     k("2.01", "Completion of Acquisition or Disposition of Assets"),
     k("2.02", "Results of Operations and Financial Condition"),
-    k("2.03", "Creation of a Direct Financial Obligation or an Obligation under an Off-Balance Sheet Arrangement of a Registrant"),
-    k("2.04", "Triggering Events That Accelerate or Increase a Direct Financial Obligation or an Obligation under an Off-Balance Sheet Arrangement"),
+    k(
+        "2.03",
+        "Creation of a Direct Financial Obligation or an Obligation under an Off-Balance Sheet Arrangement of a Registrant",
+    ),
+    k(
+        "2.04",
+        "Triggering Events That Accelerate or Increase a Direct Financial Obligation or an Obligation under an Off-Balance Sheet Arrangement",
+    ),
     k("2.05", "Costs Associated with Exit or Disposal Activities"),
     k("2.06", "Material Impairments"),
     k("3.01", "Notice of Delisting or Failure to Satisfy a Continued Listing Rule or Standard; Transfer of Listing"),
     k("3.02", "Unregistered Sales of Equity Securities"),
     k("3.03", "Material Modification to Rights of Security Holders"),
     k("4.01", "Changes in Registrant's Certifying Accountant"),
-    k("4.02", "Non-Reliance on Previously Issued Financial Statements or a Related Audit Report or Completed Interim Review"),
+    k(
+        "4.02",
+        "Non-Reliance on Previously Issued Financial Statements or a Related Audit Report or Completed Interim Review",
+    ),
     k("5.01", "Changes in Control of Registrant"),
-    k("5.02", "Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers"),
+    k(
+        "5.02",
+        "Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers",
+    ),
     k("5.03", "Amendments to Articles of Incorporation or Bylaws; Change in Fiscal Year"),
     k("5.04", "Temporary Suspension of Trading Under Registrant's Employee Benefit Plans"),
     k("5.05", "Amendments to the Registrant's Code of Ethics, or Waiver of a Provision of the Code of Ethics"),
@@ -172,16 +187,13 @@ static PERIODIC_HEADING: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// `Item 2.02 Results of Operations and Financial Condition`
-static CURRENT_HEADING: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[ \t]*(?i:item)[ \t]*(\d{1,2}\.\d{2})[ \t]*[.:\-–—]?[ \t]*([^\n]*)$").unwrap()
-});
+static CURRENT_HEADING: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[ \t]*(?i:item)[ \t]*(\d{1,2}\.\d{2})[ \t]*[.:\-–—]?[ \t]*([^\n]*)$").unwrap());
 
 /// `SIGNATURES`, `Signature`, `Signature(s)`, `S I G N A T U R E S`
 static SIGNATURES: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?m)^[ \t]*(?:S ?I ?G ?N ?A ?T ?U ?R ?E(?: ?S)?|Signatures?|Signature\(s\))[ \t]*[.:]?[ \t]*$",
-    )
-    .unwrap()
+    Regex::new(r"(?m)^[ \t]*(?:S ?I ?G ?N ?A ?T ?U ?R ?E(?: ?S)?|Signatures?|Signature\(s\))[ \t]*[.:]?[ \t]*$")
+        .unwrap()
 });
 
 /// Starts of signatures heading lines. A literal search finds the few lines
@@ -204,8 +216,10 @@ fn signature_lines(text: &str) -> Vec<usize> {
 /// The signature block's opening sentence, for filings that print no
 /// signatures heading.
 static SIGNATURE_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[ \t]*Pursuant to the requirements of (?:Section 13|the Securities Exchange Act)[^\n]*duly caused")
-        .unwrap()
+    Regex::new(
+        r"(?m)^[ \t]*Pursuant to the requirements of (?:Section 13|the Securities Exchange Act)[^\n]*duly caused",
+    )
+    .unwrap()
 });
 
 /// Bare sub-item references such as `Item 14(d):` or `Item 15(a)(1)`, which
@@ -217,9 +231,8 @@ static SUB_ITEM: LazyLock<Regex> =
 static PART_MARK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*(?i:part)[ \t]+(II|I)(?-u:\b)").unwrap());
 
 /// One entry of a page-numbered table of contents: `26<TAB>Five-year summary` or `Introduction<TAB>46`.
-static TOC_ENTRY: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?:(\d{1,3})(?:\t| {2,})\S.*|\S.*?(?:\t| {2,}|\.{3,} ?)(\d{1,3}))$").unwrap()
-});
+static TOC_ENTRY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:(\d{1,3})(?:\t| {2,})\S.*|\S.*?(?:\t| {2,}|\.{3,} ?)(\d{1,3}))$").unwrap());
 
 struct Candidate {
     pos: usize,
@@ -694,9 +707,8 @@ mod tests {
     #[test]
     fn running_headers_do_not_split_items() {
         let body = BODY.repeat(20);
-        let text = format!(
-            "Item 1. Business\n{body}\nItem 1. Business (continued)\n{body}\nItem 1A. Risk Factors\n{body}\n"
-        );
+        let text =
+            format!("Item 1. Business\n{body}\nItem 1. Business (continued)\n{body}\nItem 1A. Risk Factors\n{body}\n");
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_1", "item_1a"]);
         assert!(s[0].text.contains("(continued)"));
@@ -1004,9 +1016,8 @@ mod tests {
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_1", "item_15", "item_16"]);
         assert!(s[1].text.contains("\nItem 15(a)(1)\n"));
-        let text = format!(
-            "PART I\nItem 1. Financial Statements\n{body}\nPART II\nITEM 6 (a). Exhibits\n{body}\nSIGNATURE\n"
-        );
+        let text =
+            format!("PART I\nItem 1. Financial Statements\n{body}\nPART II\nITEM 6 (a). Exhibits\n{body}\nSIGNATURE\n");
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_1", "part_2_item_6"]);
     }
@@ -1015,9 +1026,8 @@ mod tests {
     fn letter_after_a_period_is_not_part_of_the_item_number() {
         // "Item 9 A." is Item 9A, but in "ITEM 1. A. GENERAL" the letter starts the title.
         let body = BODY.repeat(30);
-        let text = format!(
-            "ITEM 1. A. GENERAL DEVELOPMENT OF BUSINESS\n{body}\nItem 9 A. Controls and Procedures\n{body}\n"
-        );
+        let text =
+            format!("ITEM 1. A. GENERAL DEVELOPMENT OF BUSINESS\n{body}\nItem 9 A. Controls and Procedures\n{body}\n");
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_1", "item_9a"]);
     }

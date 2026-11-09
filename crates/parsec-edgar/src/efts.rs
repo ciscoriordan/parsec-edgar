@@ -245,7 +245,8 @@ fn parse_response(bytes: &[u8], url: &str, skip: usize) -> Result<FullTextResult
     if let Some(msg) = raw.error_message {
         return Err(Error::Invalid(format!("full-text search failed: {msg}")));
     }
-    let raw_hits = raw.hits.ok_or_else(|| Error::Invalid(format!("no hits in full-text search response from {url}")))?;
+    let raw_hits =
+        raw.hits.ok_or_else(|| Error::Invalid(format!("no hits in full-text search response from {url}")))?;
     let mut hits = Vec::new();
     let mut skipped = Vec::new();
     for (i, raw) in raw_hits.hits.into_iter().skip(skip).enumerate() {
@@ -254,12 +255,7 @@ fn parse_response(bytes: &[u8], url: &str, skip: usize) -> Result<FullTextResult
             None => skipped.push(i),
         }
     }
-    Ok(FullTextResults {
-        total: raw_hits.total.value,
-        total_is_exact: raw_hits.total.relation != "gte",
-        hits,
-        skipped,
-    })
+    Ok(FullTextResults { total: raw_hits.total.value, total_is_exact: raw_hits.total.relation != "gte", hits, skipped })
 }
 
 fn convert_hit(raw: RawHit) -> Option<FullTextHit> {
@@ -490,8 +486,10 @@ mod tests {
     #[test]
     fn unreadable_hits_are_counted() {
         let hit = |id: &str, ciks: &str| {
-            format!(r#"{{"_id": "{id}", "_source": {{"ciks": [{ciks}], "display_names": ["A  (CIK 0000000001)"],
-                "form": "8-K", "file_date": "2025-01-02", "adsh": "0000000001-25-000001"}}}}"#)
+            format!(
+                r#"{{"_id": "{id}", "_source": {{"ciks": [{ciks}], "display_names": ["A  (CIK 0000000001)"],
+                "form": "8-K", "file_date": "2025-01-02", "adsh": "0000000001-25-000001"}}}}"#
+            )
         };
         let body = format!(
             r#"{{"hits": {{"total": {{"value": 5, "relation": "eq"}}, "hits": [{}, {}, {}, {}, {}]}}}}"#,
