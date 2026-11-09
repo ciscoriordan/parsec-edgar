@@ -75,7 +75,8 @@ enum Command {
         company: String,
         #[command(flatten)]
         which: Which,
-        /// Only these sections, e.g. 1A, item_7, part_2_item_1a, 2.02. Repeat for several.
+        /// Only these sections, e.g. 1A, item_7, "Item 7", part_2_item_1a, 2.02, or in a 10-Q
+        /// an Item number that only one part has. Repeat for several.
         #[arg(long = "item")]
         items: Vec<String>,
         /// Leave out section text (ids, titles, headings and offsets only).
@@ -91,7 +92,8 @@ enum Command {
         company: String,
         #[command(flatten)]
         which: Which,
-        /// Only tables in these sections, e.g. 8, item_7, part_1_item_1. Repeat for several.
+        /// Only tables in these sections, e.g. 8, item_7, "Item 7", part_1_item_1, or in a 10-Q
+        /// an Item number that only one part has. Repeat for several.
         #[arg(long = "item")]
         items: Vec<String>,
     },
@@ -161,9 +163,14 @@ fn run(cli: Cli) -> Result<(), Error> {
         }
         Command::Sections { company, which, items, no_text } => {
             let filing = pick(&client, &company, &which)?;
-            let wanted: Vec<String> = items.iter().map(|i| normalize_section_id(i)).collect();
             let mut sections = client.filing_sections(&filing)?;
-            if !wanted.is_empty() {
+            if !items.is_empty() {
+                if sections.is_empty() {
+                    return Err(Error::Invalid(
+                        "no Item sections were found in this filing; the text command prints its text".into(),
+                    ));
+                }
+                let wanted = wanted_ids(&sections, &items)?;
                 sections.retain(|s| wanted.contains(&s.id));
             }
             if no_text {
@@ -184,7 +191,16 @@ fn run(cli: Cli) -> Result<(), Error> {
                     )));
                 }
             };
-            let wanted: Vec<String> = items.iter().map(|i| normalize_section_id(i)).collect();
+            let wanted = if items.is_empty() {
+                Vec::new()
+            } else if sections.is_empty() {
+                return Err(Error::Invalid(format!(
+                    "no Item sections were found in this filing; leave out --item to print all {} tables",
+                    tables.len()
+                )));
+            } else {
+                wanted_ids(&sections, &items)?
+            };
             let tables = tables_in_sections(&tables, &sections, &wanted);
             print_json(&serde_json::json!({ "filing": filing, "tables": tables }))?;
         }
@@ -222,10 +238,53 @@ fn tables_in_sections<'a>(tables: &'a [Table], sections: &'a [Section], wanted: 
         .collect()
 }
 
-/// `1A` -> `item_1a`; ids that already start with `item_` or `part_` pass through.
-fn normalize_section_id(s: &str) -> String {
-    let s = s.trim().to_ascii_lowercase();
-    if s.starts_with("item_") || s.starts_with("part_") { s } else { format!("item_{s}") }
+/// The ids of the sections that `items` name, or an error when one names none.
+fn wanted_ids(sections: &[Section], items: &[String]) -> Result<Vec<String>, Error> {
+    items.iter().map(|item| find_section(sections, item).map(|s| s.id.clone()).map_err(Error::Invalid)).collect()
+}
+
+/// The section that `wanted` names: an id such as `item_1a`, or another form
+/// of it such as `1A` or `Item 1A`. In a 10-Q, an Item number alone names the
+/// Item when only one part has it. The error lists the ids there are.
+pub(crate) fn find_section<'a>(sections: &'a [Section], wanted: &str) -> Result<&'a Section, String> {
+    let id = normalize_section_id(wanted);
+    if let Some(s) = sections.iter().find(|s| s.id == id) {
+        return Ok(s);
+    }
+    // "1A" in a 10-Q: accept it when only one part has that Item.
+    if id.starts_with("item_") {
+        let suffix = format!("_{id}");
+        let found: Vec<&Section> = sections.iter().filter(|s| s.id.ends_with(&suffix)).collect();
+        match found.as_slice() {
+            [one] => return Ok(one),
+            [] => {}
+            many => {
+                let ids: Vec<&str> = many.iter().map(|s| s.id.as_str()).collect();
+                return Err(format!("section {wanted:?} is ambiguous; use one of {}", ids.join(", ")));
+            }
+        }
+    }
+    let ids: Vec<&str> = sections.iter().map(|s| s.id.as_str()).collect();
+    if ids.is_empty() {
+        return Err("no Item sections were found in this filing".into());
+    }
+    Err(format!("no section {wanted:?} in this filing; available: {}", ids.join(", ")))
+}
+
+/// `Item 1A.` -> `item_1a`, `Part II, Item 1A` -> `part_2_item_1a`, `2.02` -> `item_2.02`.
+pub(crate) fn normalize_section_id(s: &str) -> String {
+    let s = s.trim().trim_end_matches('.').to_ascii_lowercase().replace(',', " ");
+    let mut id = s.split_whitespace().collect::<Vec<_>>().join("_");
+    // One underscore after each keyword, so "item1a" and "item_1a" agree.
+    for word in ["item", "part"] {
+        id = id.replace(&format!("{word}_"), word).replace(word, &format!("{word}_"));
+    }
+    for (roman, n) in [("part_ii_", "part_2_"), ("part_i_", "part_1_")] {
+        if let Some(rest) = id.strip_prefix(roman) {
+            id = format!("{n}{rest}");
+        }
+    }
+    if id.starts_with("item_") || id.starts_with("part_") { id } else { format!("item_{id}") }
 }
 
 fn default_cache_dir() -> Option<PathBuf> {
@@ -272,7 +331,8 @@ mod tests {
         let (text, tables) = parsec_edgar::html_to_text_and_tables(&html);
         let sections = extract_sections(&text, FormKind::TenK);
         let json = |wanted: &[&str]| {
-            let wanted: Vec<String> = wanted.iter().map(|w| normalize_section_id(w)).collect();
+            let items: Vec<String> = wanted.iter().map(|w| w.to_string()).collect();
+            let wanted = wanted_ids(&sections, &items).unwrap();
             serde_json::to_value(tables_in_sections(&tables, &sections, &wanted)).unwrap()
         };
         let all = json(&[]);
@@ -281,8 +341,76 @@ mod tests {
         assert_eq!(all[2]["section"], "item_8");
         assert_eq!(all[2]["rows"], serde_json::json!([["Total assets", "500"]]));
         assert_eq!(all[2]["start"], tables[2].start);
-        let item_8 = json(&["8"]);
-        assert_eq!(item_8.as_array().unwrap().len(), 1);
-        assert_eq!(item_8[0]["rows"][0][0], "Total assets");
+        for item in ["8", "Item 8", "item_8", "ITEM 8."] {
+            let item_8 = json(&[item]);
+            assert_eq!(item_8.as_array().unwrap().len(), 1, "{item}");
+            assert_eq!(item_8[0]["rows"][0][0], "Total assets");
+        }
+        // An id that names no section is an error that lists the ones there are.
+        let err = wanted_ids(&sections, &["9".into()]).unwrap_err().to_string();
+        assert!(err.contains("no section \"9\"") && err.contains("available: item_7, item_8"), "{err}");
+    }
+
+    fn section(id: &str) -> Section {
+        let s = serde_json::json!({
+            "id": id, "item": "", "title": "Risk Factors", "heading": "", "start": 0, "end": 0, "text": ""
+        });
+        serde_json::from_value(s).unwrap()
+    }
+
+    #[test]
+    fn section_ids() {
+        assert_eq!(normalize_section_id("1A"), "item_1a");
+        assert_eq!(normalize_section_id("Item 7."), "item_7");
+        assert_eq!(normalize_section_id("item_7a"), "item_7a");
+        assert_eq!(normalize_section_id("ITEM 2.02"), "item_2.02");
+        assert_eq!(normalize_section_id("2.02"), "item_2.02");
+        assert_eq!(normalize_section_id("Part II, Item 1A"), "part_2_item_1a");
+        assert_eq!(normalize_section_id("part_1_item_2"), "part_1_item_2");
+        assert_eq!(normalize_section_id("part 1 item 2"), "part_1_item_2");
+        assert_eq!(normalize_section_id("item1a"), "item_1a");
+    }
+
+    #[test]
+    fn finds_sections() {
+        let q =
+            [section("part_1_item_1"), section("part_1_item_2"), section("part_2_item_1"), section("part_2_item_1a")];
+        assert_eq!(find_section(&q, "part_1_item_2").unwrap().id, "part_1_item_2");
+        assert_eq!(find_section(&q, "1A").unwrap().id, "part_2_item_1a");
+        assert_eq!(find_section(&q, "Item 2").unwrap().id, "part_1_item_2");
+        let err = find_section(&q, "1").unwrap_err();
+        assert!(err.contains("ambiguous") && err.contains("part_2_item_1"), "{err}");
+        let err = find_section(&q, "item_9").unwrap_err();
+        assert!(err.contains("available: part_1_item_1"), "{err}");
+        assert_eq!(find_section(&[], "1").unwrap_err(), "no Item sections were found in this filing");
+    }
+
+    /// `--item` takes the ids the MCP tools take, so a 10-Q Item number or
+    /// "Item 2" finds its section, and an id that matches none is an error.
+    #[test]
+    fn ten_q_items_by_number() {
+        let body = "<p>We make and sell things in many markets around the world, every quarter.</p>".repeat(30);
+        let html = format!(
+            "<p>PART I. FINANCIAL INFORMATION</p><p>Item 1. Financial Statements</p>{body}\
+             <table><tr><td>Total assets</td><td>500</td></tr></table>{body}\
+             <p>Item 2. Management's Discussion and Analysis</p>{body}\
+             <table><tr><td>Net sales</td><td>100</td></tr></table>{body}\
+             <p>PART II. OTHER INFORMATION</p><p>Item 1A. Risk Factors</p>{body}\
+             <p>Item 6. Exhibits</p>{body}"
+        );
+        let (text, tables) = parsec_edgar::html_to_text_and_tables(&html);
+        let sections = extract_sections(&text, FormKind::TenQ);
+        let ids: Vec<&str> = sections.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["part_1_item_1", "part_1_item_2", "part_2_item_1a", "part_2_item_6"]);
+        for item in ["2", "Item 2", "Part I, Item 2", "part_1_item_2"] {
+            let wanted = wanted_ids(&sections, &[item.into()]).unwrap();
+            assert_eq!(wanted, ["part_1_item_2"], "{item}");
+            let found = tables_in_sections(&tables, &sections, &wanted);
+            assert_eq!(found.len(), 1, "{item}");
+            assert_eq!(found[0].table.rows[0][0], "Net sales");
+        }
+        assert_eq!(wanted_ids(&sections, &["1a".into()]).unwrap(), ["part_2_item_1a"]);
+        let err = wanted_ids(&sections, &["2".into(), "Item 3".into()]).unwrap_err().to_string();
+        assert!(err.contains("no section \"Item 3\"") && err.contains("available: part_1_item_1"), "{err}");
     }
 }

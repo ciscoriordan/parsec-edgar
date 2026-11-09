@@ -83,6 +83,13 @@ pub fn document_to_text_and_tables(raw: &str) -> (String, Vec<Table>) {
     if looks_like_html(body) { html_to_text_and_tables(body) } else { (plain_text(body), Vec::new()) }
 }
 
+/// Whether [`document_to_text`] reads `raw` as HTML. A plain-text document,
+/// such as most filings before 2001, has its tables only in the text, so
+/// [`document_to_text_and_tables`] returns none for it.
+pub fn document_is_html(raw: &str) -> bool {
+    looks_like_html(first_document_body(raw).unwrap_or(raw))
+}
+
 /// For full submissions (`<SEC-DOCUMENT>`), the `<TEXT>` of the first `<DOCUMENT>`.
 fn first_document_body(raw: &str) -> Option<&str> {
     let doc = raw.find("<DOCUMENT>")?;

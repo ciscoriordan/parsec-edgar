@@ -169,6 +169,17 @@ fn check_tools(list: &Value) {
     let required = read_section["inputSchema"]["required"].as_array().unwrap();
     assert!(required.contains(&json!("company")) && required.contains(&json!("section")));
     assert!(read_section["inputSchema"]["properties"]["max_chars"]["description"].as_str().unwrap().contains("20000"));
+    // read_tables pages by table, row and character, with an offset counted over the whole document.
+    let read_tables = tools.iter().find(|t| t["name"] == "read_tables").unwrap();
+    let properties = &read_tables["inputSchema"]["properties"];
+    for cursor in ["offset", "row", "char"] {
+        assert!(properties[cursor]["description"].is_string(), "read_tables has no {cursor}");
+    }
+    assert!(properties["offset"]["description"].as_str().unwrap().contains("every table of the document"));
+    let description = read_tables["description"].as_str().unwrap();
+    assert!(description.contains("tables_outside_items") && description.contains("next_char"), "{description}");
+    let outline = tools.iter().find(|t| t["name"] == "get_filing_outline").unwrap();
+    assert!(outline["description"].as_str().unwrap().contains("tables_outside_items"));
 }
 
 /// Protocol and argument errors over stdio. These calls fail before any SEC request.

@@ -40,7 +40,9 @@ pub use efts::{
 pub use error::{Error, Result};
 pub use filing_index::{Filer, FilingIndex, IndexDocument, parse_filing_index};
 pub use filings::{Filing, FilingQuery};
-pub use html::{Table, document_to_text, document_to_text_and_tables, html_to_text, html_to_text_and_tables};
+pub use html::{
+    Table, document_is_html, document_to_text, document_to_text_and_tables, html_to_text, html_to_text_and_tables,
+};
 pub use index::{IndexEntry, Quarter, parse_master_index};
 pub use profile::CompanyProfile;
 pub use sections::{FormKind, Section, extract_sections};

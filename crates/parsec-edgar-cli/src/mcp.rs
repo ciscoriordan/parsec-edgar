@@ -3,6 +3,7 @@
 //! Tools return compact JSON and page long text and lists of tables, so an
 //! agent can read an outline first and then only the sections it needs.
 
+use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
@@ -10,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use parsec_edgar::{
     Client, Company, Error, FULL_TEXT_MAX_RESULTS, FULL_TEXT_PAGE_SIZE, Filing, FilingQuery, FormKind, FullTextHit,
-    FullTextQuery, FullTextResults, Section, Table, document_to_text_and_tables, extract_sections,
+    FullTextQuery, FullTextResults, Section, Table, document_is_html, document_to_text_and_tables, extract_sections,
 };
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
@@ -21,6 +22,8 @@ use rmcp::{ServerHandler, ServiceExt, tool, tool_handler, tool_router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 use tokio::sync::OnceCell;
+
+use crate::find_section;
 
 const DEFAULT_MAX_CHARS: usize = 20_000;
 const MAX_MAX_CHARS: usize = 100_000;
@@ -193,6 +196,8 @@ struct Doc {
     sections: Option<Vec<Section>>,
     /// Tables, with byte offsets into `text`.
     tables: Vec<Table>,
+    /// False for a plain-text document, whose tables are only in its text.
+    html: bool,
 }
 
 /// Accession number, and the file name of an attachment or "" for the primary document.
@@ -311,13 +316,16 @@ struct ReadTablesParams {
     /// 8-K, from a search_full_text hit's `document`. Needs the accession. Omit for the primary document.
     document: Option<String>,
     /// Only tables in this section: an id from get_filing_outline, e.g. item_8, item_7, part_1_item_1.
-    /// Omit for every table of the document.
+    /// Omit for every table of the document, including those in no Item section.
     section: Option<String>,
-    /// Index of the first table to return (default 0). Use next_offset from the previous page.
+    /// Index of the first table to return (default 0), counting every table of the document, also when a
+    /// section is given: the same index as next_offset, a table's index and tables_outside_items' first_index.
     offset: Option<usize>,
-    /// Rows to skip in that first table (default 0). Use next_row from the previous page when it is set.
+    /// Rows to skip in the table at offset (default 0). Use next_row from the previous page when it is set.
     row: Option<usize>,
-    /// Maximum characters to return (default 20000, at most 100000).
+    /// Characters of that row to skip (default 0). Use next_char from the previous page when it is set.
+    char: Option<usize>,
+    /// Maximum characters of table JSON to return (default 20000, at most 100000).
     max_chars: Option<usize>,
 }
 
@@ -433,7 +441,9 @@ impl EdgarServer {
     #[tool(
         description = "Outline of one filing without its text: filing metadata, the total character count, the \
             number of tables and, for 10-K, 10-Q and 8-K (and amendments), the Item sections with ids, titles, \
-            character counts and table counts. Call this first, then read only the sections you need with \
+            character counts and table counts. Tables in no Item section, such as financial statements printed \
+            after the last Item, are counted in tables_outside_items, each run with first_index, the index to \
+            pass to read_tables as offset. Call this first, then read only the sections you need with \
             read_section, or their tables with read_tables. Identify the filing by company plus accession, or \
             company plus form for the latest filing of that form (default 10-K). For an exhibit hit from \
             search_full_text, also pass its document.",
@@ -442,7 +452,11 @@ impl EdgarServer {
     async fn get_filing_outline(&self, Parameters(p): Parameters<FilingParams>) -> Result<String, String> {
         let (filing, doc) =
             self.doc(&p.company, p.accession.as_deref(), p.form.as_deref(), p.document.as_deref()).await?;
-        let next = match (&doc.document, &doc.sections) {
+        let outside = match &doc.sections {
+            Some(sections) if !sections.is_empty() => outside_runs(sections, &doc.tables),
+            _ => Vec::new(),
+        };
+        let mut next = match (&doc.document, &doc.sections) {
             (Some(name), _) => format!(
                 "{name} is an exhibit or attachment without Item sections; read it with read_filing_text, \
                  passing the same accession and document"
@@ -450,12 +464,25 @@ impl EdgarServer {
             (None, Some(s)) if !s.is_empty() => {
                 "read_section with one of these ids; long sections come in pages of max_chars".to_owned()
             }
+            (None, Some(_)) if !doc.tables.is_empty() => format!(
+                "no Item headings were found in this filing; use read_filing_text, and read_tables without \
+                 section for its {} tables",
+                doc.tables.len()
+            ),
             (None, Some(_)) => "no Item headings were found in this filing; use read_filing_text".to_owned(),
             (None, None) => format!(
                 "Item sections are extracted for 10-K, 10-Q and 8-K only, not {}; use read_filing_text",
                 filing.form
             ),
         };
+        if !outside.is_empty() {
+            next.push_str(
+                "; read the tables in tables_outside_items with read_tables without section, from offset=first_index",
+            );
+        }
+        if !doc.html {
+            next.push_str("; this is a plain-text document, so its tables are only in its text");
+        }
         let sections = doc.sections.as_ref().map(|sections| {
             sections
                 .iter()
@@ -473,6 +500,7 @@ impl EdgarServer {
             tables: doc.tables.len(),
             next,
             sections,
+            tables_outside_items: outside,
         }))
     }
 
@@ -489,6 +517,9 @@ impl EdgarServer {
         let Some(sections) = &doc.sections else {
             return Err(format!("{} filings have no Item sections; use read_filing_text instead", filing.form));
         };
+        if sections.is_empty() {
+            return Err("no Item headings were found in this filing; use read_filing_text".into());
+        }
         let section = find_section(sections, &p.section)?;
         let page = paginate(&section.text, p.offset.unwrap_or(0), max_chars(p.max_chars))?;
         Ok(page_response(FilingMeta::new(&filing, &doc), Some(section), &page, "read_section"))
@@ -513,12 +544,18 @@ impl EdgarServer {
         description = "Read the tables of a filing's primary document, or of one exhibit given as document, as \
             JSON rows of cells: financial statements, schedules and any other table, with `$`, `)` and `%` joined \
             to their numbers as in the text, and empty cells left out. Pass section (an id from \
-            get_filing_outline, such as item_8 for a 10-K's financial statements) for only the tables of that \
-            Item. Each table has its index, its section, text_before (the line just above it, often a title or \
-            units such as \"(in millions)\", when that line is short and not part of another table), \
-            text_offset (its character position for read_filing_text), header_rows when the filing marks them, \
-            and rows. Returns up to max_chars characters of tables; when more remain, call again with \
-            offset=next_offset, and row=next_row when it is set (a table longer than max_chars is split).",
+            get_filing_outline) for only the tables of that Item. A 10-K's financial statements are often in \
+            item_8, but many filings print them after the last Item or in an attached annual report: \
+            get_filing_outline lists those tables under tables_outside_items, and you read them without section, \
+            from offset=first_index. Each table has its index (counting every table of the document), its \
+            section, text_before (the line just above it, often a title or units such as \"(in millions)\", when \
+            that line is short and not part of another table), text_offset (its character position for \
+            read_filing_text), header_rows when the filing marks them, and rows. Returns tables until their \
+            JSON reaches max_chars characters; when more remain, call again with offset=next_offset, plus \
+            row=next_row and char=next_char when they are set. A table longer than max_chars is split between \
+            rows, and a row longer than max_chars alone is cut inside a cell: join the last cell of one part \
+            with the first cell of the next. Plain-text filings (most filings before 2001) have their tables only \
+            in the text: read those with read_section or read_filing_text.",
         annotations(title = "Read tables", read_only_hint = true, open_world_hint = true)
     )]
     async fn read_tables(&self, Parameters(p): Parameters<ReadTablesParams>) -> Result<String, String> {
@@ -527,6 +564,12 @@ impl EdgarServer {
         let section = match p.section.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             None => None,
             Some(wanted) => match &doc.sections {
+                Some(sections) if sections.is_empty() => {
+                    return Err(format!(
+                        "no Item headings were found in this filing; leave out section to read all {} tables",
+                        doc.tables.len()
+                    ));
+                }
                 Some(sections) => Some(find_section(sections, wanted)?),
                 None if doc.document.is_some() => {
                     return Err("exhibits have no Item sections; leave out section to read all their tables".into());
@@ -539,7 +582,8 @@ impl EdgarServer {
                 }
             },
         };
-        let page = table_page(&doc, section, p.offset.unwrap_or(0), p.row.unwrap_or(0), max_chars(p.max_chars))?;
+        let at = TableCursor { offset: p.offset.unwrap_or(0), row: p.row.unwrap_or(0), char: p.char.unwrap_or(0) };
+        let page = table_page(&doc, section, at, max_chars(p.max_chars))?;
         Ok(to_json(&TablePageResponse {
             filing: FilingMeta::new(&filing, &doc),
             section: section.map(|s| s.id.as_str()),
@@ -696,9 +740,8 @@ impl EdgarServer {
 /// Download and parse the primary document of a filing, or the attachment named `attachment`.
 fn load_doc(client: &Client, filing: &Filing, attachment: Option<String>) -> Result<Doc, String> {
     let Some(name) = attachment else {
-        let (text, tables) = document_to_text_and_tables(&client.primary_document(filing).map_err(explain)?);
-        let sections = FormKind::from_form(&filing.form).map(|kind| extract_sections(&text, kind));
-        return Ok(Doc { document: None, total_chars: text.chars().count(), text, sections, tables });
+        let raw = client.primary_document(filing).map_err(explain)?;
+        return Ok(parse_doc(&raw, FormKind::from_form(&filing.form), None));
     };
     let raw = client.get_text(&format!("{}/{name}", filing.folder_url())).map_err(|e| match e {
         Error::Status { status: 404, .. } => format!(
@@ -708,8 +751,14 @@ fn load_doc(client: &Client, filing: &Filing, attachment: Option<String>) -> Res
         ),
         e => explain(e),
     })?;
-    let (text, tables) = document_to_text_and_tables(&raw);
-    Ok(Doc { document: Some(name), total_chars: text.chars().count(), text, sections: None, tables })
+    Ok(parse_doc(&raw, None, Some(name)))
+}
+
+/// Text, tables and, for a form with Items, sections of one downloaded document.
+fn parse_doc(raw: &str, kind: Option<FormKind>, document: Option<String>) -> Doc {
+    let (text, tables) = document_to_text_and_tables(raw);
+    let sections = kind.map(|kind| extract_sections(&text, kind));
+    Doc { document, total_chars: text.chars().count(), text, sections, tables, html: document_is_html(raw) }
 }
 
 /// A document is a file name from a search hit, such as `ex99-1.htm`: no paths,
@@ -1019,6 +1068,9 @@ struct Outline<'a> {
     /// Absent for forms without Item sections.
     #[serde(skip_serializing_if = "Option::is_none")]
     sections: Option<Vec<SectionRow<'a>>>,
+    /// Tables in no Item section, when the filing has Item sections.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    tables_outside_items: Vec<OutsideRun<'a>>,
 }
 
 #[derive(Serialize)]
@@ -1027,6 +1079,71 @@ struct SectionRow<'a> {
     title: &'a str,
     chars: usize,
     tables: usize,
+}
+
+/// Consecutive tables in no Item section: before the first Item, between two
+/// Items, or after the last one.
+#[derive(Debug, PartialEq, Serialize)]
+struct OutsideRun<'a> {
+    /// The Item before the tables; absent before the first Item.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    after: Option<&'a str>,
+    /// The Item after the tables; absent after the last Item.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    before: Option<&'a str>,
+    tables: usize,
+    /// Index of the first of these tables, the offset to pass to read_tables.
+    first_index: usize,
+}
+
+/// The tables that no section holds, grouped by the gap between sections they are in.
+fn outside_runs<'a>(sections: &'a [Section], tables: &[Table]) -> Vec<OutsideRun<'a>> {
+    let mut runs: Vec<OutsideRun<'a>> = Vec::new();
+    for (i, t) in tables.iter().enumerate() {
+        if sections.iter().any(|s| holds(s, t)) {
+            continue;
+        }
+        let after = sections.iter().filter(|s| s.end <= t.start).max_by_key(|s| s.end).map(|s| s.id.as_str());
+        let before = sections.iter().filter(|s| s.start > t.start).min_by_key(|s| s.start).map(|s| s.id.as_str());
+        match runs.last_mut() {
+            Some(run) if run.after == after && run.before == before => run.tables += 1,
+            _ => runs.push(OutsideRun { after, before, tables: 1, first_index: i }),
+        }
+    }
+    runs
+}
+
+/// How many runs of tables in no Item section the note of a section without tables names.
+const MAX_RUNS_NOTED: usize = 4;
+
+const PLAIN_TEXT_NOTE: &str = "this is a plain-text document: its tables are only in its text, \
+    so read them with read_filing_text or read_section";
+
+/// The note for a section without tables: where the tables in no Item section are.
+fn empty_section_note(doc: &Doc) -> String {
+    let runs = doc.sections.as_deref().map(|s| outside_runs(s, &doc.tables)).unwrap_or_default();
+    if runs.is_empty() {
+        return "no tables in this section; get_filing_outline gives the number of tables in each section".into();
+    }
+    let places: Vec<String> = runs
+        .iter()
+        .take(MAX_RUNS_NOTED)
+        .map(|r| {
+            let place = match (r.after, r.before) {
+                (None, Some(b)) => format!("before {b}"),
+                (Some(a), Some(b)) => format!("between {a} and {b}"),
+                (Some(a), None) => format!("after {a}"),
+                (None, None) => "outside the Items".to_owned(),
+            };
+            format!("{} {place} from index {}", r.tables, r.first_index)
+        })
+        .collect();
+    let more = if runs.len() > MAX_RUNS_NOTED { "; more in get_filing_outline's tables_outside_items" } else { "" };
+    format!(
+        "no tables in this section. Tables in no Item section: {}{more}. To read them, call read_tables \
+         without section and with offset set to one of those indexes",
+        places.join("; ")
+    )
 }
 
 #[derive(Serialize)]
@@ -1052,8 +1169,11 @@ struct TablePage<'a> {
     /// Set when the table at next_offset was split: the row to continue at.
     #[serde(skip_serializing_if = "Option::is_none")]
     next_row: Option<usize>,
+    /// Set when that row was cut inside a cell: the character of the row to continue at.
     #[serde(skip_serializing_if = "Option::is_none")]
-    note: Option<&'static str>,
+    next_char: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    note: Option<String>,
     tables: Vec<TableOut<'a>>,
 }
 
@@ -1067,37 +1187,61 @@ struct TableOut<'a> {
     text_offset: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     text_before: Option<&'a str>,
-    /// Indexes of header rows in the whole table.
-    #[serde(skip_serializing_if = "<[usize]>::is_empty")]
-    header_rows: &'a [usize],
+    /// Indexes, in the whole table, of the header rows shown.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    header_rows: Vec<usize>,
     /// Set when only part of the table is shown: the index of its first row shown...
     #[serde(skip_serializing_if = "Option::is_none")]
     first_row: Option<usize>,
     /// ...and its number of rows.
     #[serde(skip_serializing_if = "Option::is_none")]
     total_rows: Option<usize>,
-    rows: &'a [Vec<String>],
+    /// Set when the first row shown continues a row cut on the page before: how
+    /// many characters of that row, counting its cells one after another, came
+    /// before. Its first cell continues the last cell of that page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    first_char: Option<usize>,
+    rows: Vec<Cow<'a, [String]>>,
 }
+
+/// Where a page of tables starts: the index of a table in the document, a row
+/// of that table, and a character of that row.
+#[derive(Clone, Copy, Debug, Default)]
+struct TableCursor {
+    offset: usize,
+    row: usize,
+    char: usize,
+}
+
+/// What `,"header_rows":[]` adds to a table's JSON besides its indexes: 17
+/// characters, less the one comma too many when each index counts a comma.
+const HEADER_ROWS_KEY: usize = 16;
 
 /// Whether a section holds a table: a table belongs to the section its start is in.
 fn holds(section: &Section, table: &Table) -> bool {
     section.start <= table.start && table.start < section.end
 }
 
-/// The tables of `doc` (those in `section` when given) from index `offset`,
-/// skipping `row` rows of the first one, up to `max` characters of JSON. A
-/// table that does not fit waits for the next page, unless it is the first
-/// one, which is then split after as many rows as fit (at least one).
+/// The tables of `doc` (those in `section` when given) from `at`, up to `max`
+/// characters of JSON in the list of tables. A table that does not fit waits
+/// for the next page, unless it is the first one, which is then split after as
+/// many rows as fit. When not even one row fits, the row is cut inside a cell.
+/// With `max` of at least MIN_MAX_CHARS every page fits; below that a page
+/// still shows one character, so that paging always moves on.
 fn table_page<'a>(
     doc: &'a Doc,
     section: Option<&'a Section>,
-    offset: usize,
-    row: usize,
+    at: TableCursor,
     max: usize,
 ) -> Result<TablePage<'a>, String> {
+    let TableCursor { offset, row, char: skip } = at;
     let total = doc.tables.len();
     if offset > total {
-        return Err(format!("offset {offset} is past the last table (the document has {total})"));
+        let indexes = if total > 0 { format!(" (indexes 0 to {})", total - 1) } else { String::new() };
+        return Err(format!(
+            "offset {offset} is past the last table: the document has {total} tables{indexes}, and offset \
+             counts every table of the document, also when a section is given"
+        ));
     }
     let selected: Vec<usize> = (0..total).filter(|&i| section.is_none_or(|s| holds(s, &doc.tables[i]))).collect();
     let mut page = TablePage {
@@ -1105,64 +1249,228 @@ fn table_page<'a>(
         offset,
         next_offset: None,
         next_row: None,
+        next_char: None,
         note: None,
         tables: Vec::new(),
     };
-    if selected.is_empty() {
-        page.note = Some(if section.is_some() { "no tables in this section" } else { "no tables in this document" });
+    let (Some(&first_selected), Some(&last_selected)) = (selected.first(), selected.last()) else {
+        page.note = Some(if !doc.html {
+            PLAIN_TEXT_NOTE.to_owned()
+        } else if doc.tables.is_empty() {
+            "no tables in this document".to_owned()
+        } else {
+            empty_section_note(doc)
+        });
         return Ok(page);
+    };
+    // row and char belong to the table at offset, which must be one of those asked for.
+    if row > 0 || skip > 0 {
+        if selected.binary_search(&offset).is_err() {
+            return Err(match section {
+                Some(s) if offset < total => format!(
+                    "row and char apply to the table at offset, and table {offset} is not in {}, whose tables are \
+                     at indexes {first_selected} to {last_selected}",
+                    s.id
+                ),
+                _ => format!("row and char apply to the table at offset, and there is no table {offset}"),
+            });
+        }
+        let rows = &doc.tables[offset].rows;
+        if row >= rows.len() {
+            return Err(format!("row {row} is past the last row of table {offset}, which has {}", rows.len()));
+        }
+        let len = row_chars(&rows[row]);
+        if skip > 0 && skip >= len {
+            return Err(format!("char {skip} is past the end of row {row} of table {offset}, which has {len}"));
+        }
     }
-    let (mut used, mut chars, mut char_at) = (0, 0, 0);
+    // The brackets around the list of tables.
+    let mut used = 2;
+    let (mut chars, mut char_at) = (0, 0);
     for &i in selected.iter().filter(|&&i| i >= offset) {
         let t = &doc.tables[i];
-        let first = if page.tables.is_empty() { row } else { 0 };
-        if first > 0 && first >= t.rows.len() {
-            return Err(format!("row {first} is past the last row of table {i}, which has {}", t.rows.len()));
-        }
+        let first_on_page = page.tables.is_empty();
+        let (first, skip) = if first_on_page { (row, skip) } else { (0, 0) };
         chars += doc.text[char_at..t.start].chars().count();
         char_at = t.start;
+        let partial = first > 0 || skip > 0;
         let mut out = TableOut {
             index: i,
             section: doc.sections.as_deref().and_then(|s| s.iter().find(|s| holds(s, t))).map(|s| s.id.as_str()),
             text_offset: chars,
             text_before: text_before(doc, t),
-            header_rows: &t.header_rows,
-            first_row: (first > 0).then_some(first),
-            total_rows: (first > 0).then_some(t.rows.len()),
-            rows: &[],
+            header_rows: Vec::new(),
+            first_row: partial.then_some(first),
+            total_rows: partial.then_some(t.rows.len()),
+            first_char: (skip > 0).then_some(skip),
+            rows: Vec::new(),
         };
-        let rows = &t.rows[first..];
-        // Each row adds its JSON and a comma.
-        let row_sizes: Vec<usize> = rows.iter().map(|r| json_chars(r) + 1).collect();
-        let whole = json_chars(&out) + row_sizes.iter().sum::<usize>();
-        if used + whole <= max {
-            out.rows = rows;
+        // The rest of a row cut on the page before.
+        let first_part = (skip > 0).then(|| row_piece(&t.rows[first], skip, row_chars(&t.rows[first])));
+        let row_at = |k: usize| -> Cow<'a, [String]> {
+            match (&first_part, k) {
+                (Some(part), 0) => Cow::Owned(part.clone()),
+                _ => Cow::Borrowed(&t.rows[first + k]),
+            }
+        };
+        let n = t.rows.len() - first;
+        let header = |k: usize| t.header_rows.binary_search(&(first + k)).is_ok();
+        let header_cost = |k: usize| if header(k) { digits(first + k) + 1 } else { 0 };
+        // How many rows fit beside `meta` characters, and the characters they all take: each row
+        // adds its JSON and a comma, a header row its index and a comma, and the first header row
+        // the header_rows key. Stops at the first row that does not fit.
+        let fitting = |meta: usize, room: usize| {
+            let (mut size, mut take, mut any_header) = (meta, 0, false);
+            while take < n {
+                let row_json = match (&first_part, take) {
+                    (Some(part), 0) => json_chars(part),
+                    _ => json_chars(&t.rows[first + take]),
+                };
+                let key = if header(take) && !any_header { HEADER_ROWS_KEY } else { 0 };
+                let add = row_json + 1 + header_cost(take) + key;
+                if size + add > room {
+                    break;
+                }
+                size += add;
+                any_header |= header(take);
+                take += 1;
+            }
+            (take, size)
+        };
+        let comma = usize::from(!first_on_page);
+        let left = max.saturating_sub(used + comma);
+        let (take, size) = fitting(json_chars(&out), left);
+        if take == n {
+            out.header_rows = (0..n).filter(|&k| header(k)).map(|k| first + k).collect();
+            out.rows = (0..n).map(row_at).collect();
             page.tables.push(out);
-            used += whole;
+            used += size + comma;
             continue;
         }
-        if !page.tables.is_empty() {
+        if !first_on_page {
             page.next_offset = Some(i);
             break;
         }
         out.first_row = Some(first);
         out.total_rows = Some(t.rows.len());
-        let mut fit = json_chars(&out) + row_sizes[0];
-        let mut take = 1;
-        while take < rows.len() && fit + row_sizes[take] <= max {
-            fit += row_sizes[take];
-            take += 1;
+        // The title gives way when the smallest part of a row would not fit beside it.
+        let first_header = header_cost(0) + if header(0) { HEADER_ROWS_KEY } else { 0 };
+        let smallest = json_chars(&row_piece(&t.rows[first], skip, skip + 1)) + first_header;
+        if json_chars(&out) + smallest > left {
+            out.text_before = None;
         }
-        out.rows = &rows[..take];
+        let meta = json_chars(&out);
+        let (take, _) = fitting(meta, left);
+        let (next_row, next_char) = if take > 0 {
+            out.header_rows = (0..take).filter(|&k| header(k)).map(|k| first + k).collect();
+            out.rows = (0..take).map(row_at).collect();
+            (first + take, 0)
+        } else {
+            // Not even one row fits: cut it inside a cell.
+            let r = &t.rows[first];
+            let end = cut_row(r, skip, left.saturating_sub(meta + first_header));
+            out.header_rows = if header(0) { vec![first] } else { Vec::new() };
+            out.rows = vec![Cow::Owned(row_piece(r, skip, end))];
+            if end < row_chars(r) { (first, end) } else { (first + 1, 0) }
+        };
+        used += json_chars(&out);
         page.tables.push(out);
-        used = fit;
-        if take < rows.len() {
+        if next_row < t.rows.len() {
             page.next_offset = Some(i);
-            page.next_row = Some(first + take);
+            page.next_row = Some(next_row);
+            page.next_char = (next_char > 0).then_some(next_char);
             break;
         }
     }
+    if page.tables.is_empty() {
+        page.note = Some(match section {
+            Some(s) => format!(
+                "no tables of {} at or after index {offset}: its tables are at indexes {first_selected} to \
+                 {last_selected}",
+                s.id
+            ),
+            None => format!("no tables at or after index {offset}: the last table is at index {last_selected}"),
+        });
+    }
     Ok(page)
+}
+
+/// Characters of a row, counting its cells one after another.
+fn row_chars(row: &[String]) -> usize {
+    row.iter().map(|c| c.chars().count()).sum()
+}
+
+/// The part of `row` from character `from` to `to`, counting its cells one
+/// after another. A part that ends between two cells ends with an empty cell,
+/// so the last cell of one part always joins the first cell of the next.
+fn row_piece(row: &[String], from: usize, to: usize) -> Vec<String> {
+    let total = row_chars(row);
+    let mut piece = Vec::new();
+    let mut at = 0;
+    for cell in row {
+        let len = cell.chars().count();
+        if from < at + len && at < to {
+            let start = from.saturating_sub(at);
+            let end = (to - at).min(len);
+            piece.push(cell.chars().skip(start).take(end - start).collect());
+        }
+        at += len;
+        if at >= to {
+            if at == to && to < total {
+                piece.push(String::new());
+            }
+            break;
+        }
+    }
+    piece
+}
+
+/// Where to cut `row`, from character `from`, so that the part takes at most
+/// `budget` characters of JSON. The part has at least one character.
+fn cut_row(row: &[String], from: usize, budget: usize) -> usize {
+    let total = row_chars(row);
+    let mut best = from + 1;
+    // `[]`, then `""` for the first cell and `,""` for each other one.
+    let mut cost = 2;
+    let mut started = false;
+    let mut at = 0;
+    'cells: for cell in row {
+        let len = cell.chars().count();
+        if at + len <= from {
+            at += len;
+            continue;
+        }
+        cost += if started { 3 } else { 2 };
+        started = true;
+        for (k, c) in cell.chars().enumerate().skip(from.saturating_sub(at)) {
+            cost += json_escaped_len(c);
+            if cost > budget {
+                break 'cells;
+            }
+            let to = at + k + 1;
+            // A cut between two cells adds the empty cell `,""`.
+            let end = if k + 1 == len && to < total { 3 } else { 0 };
+            if cost + end <= budget {
+                best = to;
+            }
+        }
+        at += len;
+    }
+    best
+}
+
+/// Characters that `c` takes in a JSON string, as serde_json writes it.
+fn json_escaped_len(c: char) -> usize {
+    match c {
+        '"' | '\\' | '\u{8}' | '\u{c}' | '\n' | '\r' | '\t' => 2,
+        c if u32::from(c) < 0x20 => 6,
+        _ => 1,
+    }
+}
+
+/// Decimal digits of `n`.
+fn digits(n: usize) -> usize {
+    n.checked_ilog10().map_or(1, |d| d as usize + 1)
 }
 
 /// The line just above a table, when it is short and not part of another
@@ -1188,47 +1496,6 @@ struct PageHeader<'a> {
     total_chars: usize,
     /// Null on the last page.
     next_offset: Option<usize>,
-}
-
-fn find_section<'a>(sections: &'a [Section], wanted: &str) -> Result<&'a Section, String> {
-    let id = normalize_section_id(wanted);
-    if let Some(s) = sections.iter().find(|s| s.id == id) {
-        return Ok(s);
-    }
-    // "1A" in a 10-Q: accept it when only one part has that Item.
-    if id.starts_with("item_") {
-        let suffix = format!("_{id}");
-        let found: Vec<&Section> = sections.iter().filter(|s| s.id.ends_with(&suffix)).collect();
-        match found.as_slice() {
-            [one] => return Ok(one),
-            [] => {}
-            many => {
-                let ids: Vec<&str> = many.iter().map(|s| s.id.as_str()).collect();
-                return Err(format!("section {wanted:?} is ambiguous; use one of {}", ids.join(", ")));
-            }
-        }
-    }
-    let ids: Vec<&str> = sections.iter().map(|s| s.id.as_str()).collect();
-    if ids.is_empty() {
-        return Err("no Item sections were found in this filing; use read_filing_text".into());
-    }
-    Err(format!("no section {wanted:?} in this filing; available: {}", ids.join(", ")))
-}
-
-/// `Item 1A.` -> `item_1a`, `Part II, Item 1A` -> `part_2_item_1a`, `2.02` -> `item_2.02`.
-fn normalize_section_id(s: &str) -> String {
-    let s = s.trim().trim_end_matches('.').to_ascii_lowercase().replace(',', " ");
-    let mut id = s.split_whitespace().collect::<Vec<_>>().join("_");
-    // One underscore after each keyword, so "item1a" and "item_1a" agree.
-    for word in ["item", "part"] {
-        id = id.replace(&format!("{word}_"), word).replace(word, &format!("{word}_"));
-    }
-    for (roman, n) in [("part_ii_", "part_2_"), ("part_i_", "part_1_")] {
-        if let Some(rest) = id.strip_prefix(roman) {
-            id = format!("{n}{rest}");
-        }
-    }
-    if id.starts_with("item_") || id.starts_with("part_") { id } else { format!("item_{id}") }
 }
 
 fn max_chars(requested: Option<usize>) -> usize {
@@ -1396,37 +1663,11 @@ mod tests {
         .unwrap()
     }
 
-    #[test]
-    fn section_ids() {
-        assert_eq!(normalize_section_id("1A"), "item_1a");
-        assert_eq!(normalize_section_id("Item 7."), "item_7");
-        assert_eq!(normalize_section_id("item_7a"), "item_7a");
-        assert_eq!(normalize_section_id("ITEM 2.02"), "item_2.02");
-        assert_eq!(normalize_section_id("2.02"), "item_2.02");
-        assert_eq!(normalize_section_id("Part II, Item 1A"), "part_2_item_1a");
-        assert_eq!(normalize_section_id("part_1_item_2"), "part_1_item_2");
-        assert_eq!(normalize_section_id("part 1 item 2"), "part_1_item_2");
-        assert_eq!(normalize_section_id("item1a"), "item_1a");
-    }
-
     fn section(id: &str) -> Section {
         let s = serde_json::json!({
             "id": id, "item": "", "title": "Risk Factors", "heading": "", "start": 0, "end": 0, "text": ""
         });
         serde_json::from_value(s).unwrap()
-    }
-
-    #[test]
-    fn finds_sections() {
-        let q =
-            [section("part_1_item_1"), section("part_1_item_2"), section("part_2_item_1"), section("part_2_item_1a")];
-        assert_eq!(find_section(&q, "part_1_item_2").unwrap().id, "part_1_item_2");
-        assert_eq!(find_section(&q, "1A").unwrap().id, "part_2_item_1a");
-        assert_eq!(find_section(&q, "Item 2").unwrap().id, "part_1_item_2");
-        let err = find_section(&q, "1").unwrap_err();
-        assert!(err.contains("ambiguous") && err.contains("part_2_item_1"), "{err}");
-        let err = find_section(&q, "item_9").unwrap_err();
-        assert!(err.contains("available: part_1_item_1"), "{err}");
     }
 
     fn company(cik: u64, name: &str, ticker: &str) -> Company {
@@ -1489,7 +1730,8 @@ mod tests {
         let sections = document.is_none().then(Vec::new);
         let document = document.map(str::to_owned);
         let tables = Vec::new();
-        Arc::new(Doc { document, total_chars: text.chars().count(), text: text.to_owned(), sections, tables })
+        let total_chars = text.chars().count();
+        Arc::new(Doc { document, total_chars, text: text.to_owned(), sections, tables, html: true })
     }
 
     /// A 10-K with Item 7 and Item 8, `n` tables of `rows` rows each, half of
@@ -1516,26 +1758,60 @@ mod tests {
             serde_json::from_value(s).unwrap()
         };
         let sections = vec![section("item_7", 0, item_8), section("item_8", item_8, text.len())];
-        Doc { document: None, total_chars: text.chars().count(), text, sections: Some(sections), tables }
+        Doc { document: None, total_chars: text.chars().count(), text, sections: Some(sections), tables, html: true }
     }
 
-    /// Rows shown on every page from `offset`, following next_offset and next_row.
-    fn all_pages(doc: &Doc, section: Option<&Section>, max: usize) -> (Vec<Vec<String>>, usize) {
-        let (mut rows, mut pages, mut offset, mut row) = (Vec::new(), 0, 0, 0);
+    /// A document parsed as load_doc parses one, as a 10-K when `ten_k`.
+    fn parsed(raw: &str, ten_k: bool) -> Doc {
+        parse_doc(raw, ten_k.then_some(FormKind::TenK), None)
+    }
+
+    fn at(offset: usize, row: usize, char: usize) -> TableCursor {
+        TableCursor { offset, row, char }
+    }
+
+    /// A table's index and its rows.
+    type Rows = (usize, Vec<Vec<String>>);
+
+    /// Every page from the start, following next_offset, next_row and
+    /// next_char: each table's rows with the parts of cut rows joined again,
+    /// and the number of pages. Checks that each page keeps within `max`.
+    fn all_pages(doc: &Doc, section: Option<&Section>, max: usize) -> (Vec<Rows>, usize) {
+        let (mut tables, mut pages, mut cursor) = (Vec::<Rows>::new(), 0, at(0, 0, 0));
         loop {
-            let page = table_page(doc, section, offset, row, max).unwrap();
+            let page = table_page(doc, section, cursor, max).unwrap();
             pages += 1;
-            // Each page stays within max_chars, give or take the commas between tables.
-            assert!(json_chars(&page.tables) <= max + page.tables.len() + 1, "{page:?}");
+            assert!(json_chars(&page.tables) <= max, "{} > {max}: {page:?}", json_chars(&page.tables));
             for t in &page.tables {
-                rows.extend(t.rows.iter().cloned());
+                let mut rows = t.rows.iter().map(|r| r.to_vec());
+                if t.first_row.is_some_and(|r| r > 0) || t.first_char.is_some() {
+                    let (index, so_far) = tables.last_mut().expect("a continued table");
+                    assert_eq!(*index, t.index);
+                    assert_eq!(so_far.len(), t.first_row.unwrap() + usize::from(t.first_char.is_some()));
+                    if t.first_char.is_some() {
+                        // The first cell of this part continues the last cell of the part before.
+                        let mut rest = rows.next().unwrap().into_iter();
+                        let cut = so_far.last_mut().unwrap();
+                        cut.last_mut().unwrap().push_str(&rest.next().unwrap());
+                        cut.extend(rest);
+                    }
+                    so_far.extend(rows);
+                } else {
+                    tables.push((t.index, rows.collect()));
+                }
             }
             match page.next_offset {
-                Some(next) => (offset, row) = (next, page.next_row.unwrap_or(0)),
+                Some(next) => cursor = at(next, page.next_row.unwrap_or(0), page.next_char.unwrap_or(0)),
                 None => break,
             }
+            assert!(pages < 100_000, "paging does not end");
         }
-        (rows, pages)
+        (tables, pages)
+    }
+
+    /// The rows of all tables that all_pages returned, one after another.
+    fn rows_of(tables: &[Rows]) -> Vec<Vec<String>> {
+        tables.iter().flat_map(|(_, rows)| rows.clone()).collect()
     }
 
     #[test]
@@ -1544,83 +1820,330 @@ mod tests {
         let every: Vec<Vec<String>> = doc.tables.iter().flat_map(|t| t.rows.clone()).collect();
         assert_eq!(every.len(), 50);
         assert_eq!(every[6], ["Row 1 of table 1", "$1,000"]);
-        let (rows, pages) = all_pages(&doc, None, 600);
-        assert_eq!(rows, every);
+        let (tables, pages) = all_pages(&doc, None, 600);
+        assert_eq!(rows_of(&tables), every);
         assert!(pages >= 4, "{pages}");
         // One page when everything fits.
-        assert_eq!(all_pages(&doc, None, 100_000), (every, 1));
+        let (tables, pages) = all_pages(&doc, None, 100_000);
+        assert_eq!((rows_of(&tables), pages), (every, 1));
     }
 
     /// A table longer than max_chars comes in pieces that join up.
     #[test]
     fn long_tables_are_split_by_rows() {
         let doc = table_doc(2, 100);
-        let page = table_page(&doc, None, 0, 0, 1000).unwrap();
+        let page = table_page(&doc, None, at(0, 0, 0), 1000).unwrap();
         let [t] = &page.tables[..] else { panic!("{page:?}") };
         assert_eq!((t.first_row, t.total_rows), (Some(0), Some(100)));
-        assert_eq!((page.next_offset, page.next_row), (Some(0), Some(t.rows.len())));
-        let next = table_page(&doc, None, 0, t.rows.len(), 1000).unwrap();
+        assert_eq!((page.next_offset, page.next_row, page.next_char), (Some(0), Some(t.rows.len()), None));
+        let next = table_page(&doc, None, at(0, t.rows.len(), 0), 1000).unwrap();
         assert_eq!(next.tables[0].rows[0][0], format!("Row {} of table 0", t.rows.len()));
         assert_eq!(next.tables[0].first_row, Some(t.rows.len()));
-        let (rows, _) = all_pages(&doc, None, 1000);
+        let (tables, _) = all_pages(&doc, None, 1000);
+        let rows = rows_of(&tables);
         assert_eq!(rows.len(), 200);
         assert_eq!(rows[150], ["Row 50 of table 1", "$50,000"]);
-        // Even a page too small for one row shows one.
-        assert_eq!(table_page(&doc, None, 0, 0, 10).unwrap().tables[0].rows.len(), 1);
+        for max in [MIN_MAX_CHARS, 250, 333] {
+            assert_eq!(rows_of(&all_pages(&doc, None, max).0), rows, "{max}");
+        }
+    }
+
+    /// A row longer than max_chars on its own is cut inside a cell, and the
+    /// parts join up again. Every page keeps within max_chars, also at the
+    /// hard limit of 100,000.
+    #[test]
+    fn long_rows_are_cut_inside_cells() {
+        // A layout table with one short line of cells keeps its long block rows.
+        let layout = |paragraphs: usize| {
+            let para = "<p>The Company recognizes revenue when control passes to the customer.</p>".repeat(paragraphs);
+            parsed(
+                &format!("<table><tr><td>Revenue</td><td>100</td></tr><tr><td>{para}</td><td>Note 2</td></tr></table>"),
+                false,
+            )
+        };
+        let (long, longest) = (layout(60), layout(1500));
+        assert!(json_chars(&longest.tables[0].rows[1]) > MAX_MAX_CHARS);
+        for (doc, max) in
+            [(&long, MIN_MAX_CHARS), (&long, 1000), (&longest, DEFAULT_MAX_CHARS), (&longest, MAX_MAX_CHARS)]
+        {
+            let (tables, pages) = all_pages(doc, None, max);
+            assert_eq!(tables, [(0, doc.tables[0].rows.clone())], "{max}");
+            assert!(pages > 1, "{max}");
+        }
+        let doc = long;
+        let page = table_page(&doc, None, at(0, 1, 0), 1000).unwrap();
+        assert_eq!((page.next_offset, page.next_row), (Some(0), Some(1)));
+        let cut = page.next_char.unwrap();
+        assert!(cut > 500 && json_chars(&page.tables) <= 1000, "{cut}");
+        let next = table_page(&doc, None, at(0, 1, cut), 1000).unwrap();
+        assert_eq!((next.tables[0].first_row, next.tables[0].first_char), (Some(1), Some(cut)));
+        assert_eq!(next.offset, 0);
+
+        // Cells with characters JSON escapes, characters of several bytes, and
+        // tabs and line breaks inside cells, cut at every possible budget.
+        let row: Vec<String> =
+            ["Résumé \"quoted\" \\ path", "a\tb\nc", "\u{1}\u{2} control", "€", "x", "y", "Total, all segments"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+        let len = row_chars(&row);
+        assert_eq!(row_piece(&row, 0, len), row);
+        for from in 0..len {
+            for budget in 0..=json_chars(&row) + 3 {
+                let to = cut_row(&row, from, budget);
+                assert!(to > from && to <= len, "{from} {budget} {to}");
+                let piece = row_piece(&row, from, to);
+                assert!(to == from + 1 || json_chars(&piece) <= budget, "{from} {budget} {piece:?}");
+                // The rest of the row joins this part to give the row back.
+                if to < len {
+                    let mut joined = row_piece(&row, 0, to);
+                    let mut rest = row_piece(&row, to, len).into_iter();
+                    joined.last_mut().unwrap().push_str(&rest.next().unwrap());
+                    joined.extend(rest);
+                    assert_eq!(joined, row, "{to}");
+                }
+            }
+        }
+        // A part that ends between two cells ends with an empty cell.
+        let first = row[0].chars().count();
+        assert_eq!(row_piece(&row, 0, first), [row[0].as_str(), ""]);
+        assert_eq!(row_piece(&row, first, first + 2), ["a\t"]);
+    }
+
+    /// The smallest page, at the smallest max_chars, holds one character of a
+    /// row of a table whose numbers are as long as they get.
+    #[test]
+    fn smallest_pages_fit() {
+        let piece = row_piece(&["\u{1}".to_owned(), "x".to_owned()], 0, 1);
+        let out = TableOut {
+            index: 99_999,
+            section: Some("part_2_item_1a"),
+            text_offset: 999_999_999,
+            text_before: None,
+            header_rows: vec![999_999],
+            first_row: Some(999_999),
+            total_rows: Some(999_999),
+            first_char: Some(999_999_999),
+            rows: vec![Cow::Owned(piece)],
+        };
+        let size = json_chars(&[out]);
+        assert!(size <= MIN_MAX_CHARS, "{size}");
+    }
+
+    /// Continuation pages list only the header rows they show, so a table of
+    /// header cells pages like any other.
+    #[test]
+    fn header_rows_of_the_rows_shown() {
+        let table = |cell: &str| {
+            let rows: String =
+                (0..400).map(|r| format!("<tr><{cell}>Line {r}</{cell}><{cell}>{r}</{cell}></tr>")).collect();
+            parsed(&format!("<table>{rows}</table>"), false)
+        };
+        let (th, td) = (table("th"), table("td"));
+        assert_eq!(th.tables[0].header_rows.len(), 400);
+        let (th_tables, th_pages) = all_pages(&th, None, 1000);
+        let (td_tables, td_pages) = all_pages(&td, None, 1000);
+        assert_eq!(th_tables, td_tables);
+        assert!(th_pages <= td_pages * 2, "{th_pages} pages with <th>, {td_pages} without");
+        let page = table_page(&th, None, at(0, 100, 0), 1000).unwrap();
+        let t = &page.tables[0];
+        let shown: Vec<usize> = (100..100 + t.rows.len()).collect();
+        assert_eq!(t.header_rows, shown);
     }
 
     #[test]
     fn tables_of_one_section() {
         let doc = table_doc(6, 2);
         let item_8 = &doc.sections.as_ref().unwrap()[1];
-        let page = table_page(&doc, Some(item_8), 0, 0, 100_000).unwrap();
+        let page = table_page(&doc, Some(item_8), at(0, 0, 0), 100_000).unwrap();
         assert_eq!(page.total_tables, 3);
         // Indexes count every table of the document.
         assert_eq!(page.tables.iter().map(|t| t.index).collect::<Vec<_>>(), [3, 4, 5]);
         assert!(page.tables.iter().all(|t| t.section == Some("item_8")));
-        let page = table_page(&doc, Some(item_8), 0, 0, 300).unwrap();
+        let page = table_page(&doc, Some(item_8), at(0, 0, 0), 300).unwrap();
         assert_eq!((page.tables[0].index, page.next_offset), (3, Some(4)));
-        let (rows, _) = all_pages(&doc, Some(item_8), 300);
+        let (tables, _) = all_pages(&doc, Some(item_8), 300);
+        let rows = rows_of(&tables);
         assert_eq!(rows.len(), 6);
         assert_eq!(rows[0][0], "Row 0 of table 3");
+    }
+
+    /// A 10-K with a cover table, one table in each of Items 7, 8 and 9, and
+    /// two tables after the last Item.
+    fn ten_k_with_tables() -> Doc {
+        let body = "<p>We make and sell things in many markets around the world, every year.</p>".repeat(30);
+        let html = format!(
+            "<table><tr><td>Cover</td><td>page</td></tr></table>\
+             <p>Item 7. Management's Discussion and Analysis</p>{body}\
+             <table><tr><td>Net sales</td><td>100</td></tr><tr><td>Cost</td><td>50</td></tr></table>{body}\
+             <p>Item 8. Financial Statements and Supplementary Data</p>{body}\
+             <table><tr><td>Total assets</td><td>500</td></tr><tr><td>Total liabilities</td><td>300</td></tr></table>\
+             {body}<p>Item 9. Changes in and Disagreements with Accountants</p>{body}\
+             <table><tr><td>Other</td><td>1</td></tr></table>{body}\
+             <p>SIGNATURES</p><p>Pursuant to the requirements of the Act, the registrant has signed.</p>\
+             <p>Consolidated Balance Sheets</p><table><tr><td>Cash</td><td>7</td></tr></table>\
+             <p>Consolidated Statements of Income</p><table><tr><td>Revenue</td><td>9</td></tr></table>"
+        );
+        let doc = parsed(&html, true);
+        let ids: Vec<&str> = doc.sections.iter().flatten().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["item_7", "item_8", "item_9"]);
+        assert_eq!(doc.tables.len(), 6);
+        doc
+    }
+
+    /// offset is an index among all tables of the document, also with a
+    /// section, and row only applies to the table at offset.
+    #[test]
+    fn offsets_count_every_table() {
+        let doc = ten_k_with_tables();
+        let sections = doc.sections.as_deref().unwrap();
+        let item_8 = &sections[1];
+        let page = table_page(&doc, Some(item_8), at(2, 1, 0), 20_000).unwrap();
+        assert_eq!(page.tables[0].rows[0].as_ref(), ["Total liabilities", "300"]);
+        // row with an offset that is not a table of the section is refused.
+        let err = table_page(&doc, Some(item_8), at(0, 1, 0), 20_000).unwrap_err();
+        assert!(err.contains("table 0 is not in item_8") && err.contains("indexes 2 to 2"), "{err}");
+        // An offset past the section's tables says so.
+        let page = table_page(&doc, Some(item_8), at(3, 0, 0), 20_000).unwrap();
+        assert!(page.tables.is_empty() && page.next_offset.is_none());
+        assert_eq!(
+            page.note.as_deref(),
+            Some("no tables of item_8 at or after index 3: its tables are at indexes 2 to 2")
+        );
+        let err = table_page(&doc, Some(item_8), at(7, 0, 0), 20_000).unwrap_err();
+        assert!(err.contains("has 6 tables (indexes 0 to 5)") && err.contains("also when a section"), "{err}");
+        let err = table_page(&doc, None, at(6, 1, 0), 20_000).unwrap_err();
+        assert!(err.contains("there is no table 6"), "{err}");
+        let err = table_page(&doc, None, at(1, 0, 12), 20_000).unwrap_err();
+        assert!(err.contains("char 12 is past the end of row 0 of table 1, which has 12"), "{err}");
+    }
+
+    /// Tables after the last Item are listed in the outline, and a section
+    /// without tables says where they are.
+    #[tokio::test]
+    async fn tables_outside_items_are_found() {
+        let doc = ten_k_with_tables();
+        let sections = doc.sections.as_deref().unwrap();
+        let runs = outside_runs(sections, &doc.tables);
+        let run = |after, before, tables, first_index| OutsideRun { after, before, tables, first_index };
+        assert_eq!(runs, [run(None, Some("item_7"), 1, 0), run(Some("item_9"), None, 2, 4)]);
+        // A table between two Items that do not touch is between them.
+        let mut gap = sections.to_vec();
+        gap[1].end = doc.tables[2].start;
+        let runs = outside_runs(&gap, &doc.tables);
+        assert_eq!(runs[1], run(Some("item_8"), Some("item_9"), 1, 2));
+
+        let mut no_8 = ten_k_with_tables();
+        no_8.tables.remove(2);
+        let server = pbf_server();
+        server.lock().put_doc(key(PBF, ""), Arc::new(no_8));
+        let out = json(server.read_tables(Parameters(tables_params(Some("item_8")))).await);
+        assert_eq!(out["total_tables"], 0);
+        let note = out["note"].as_str().unwrap();
+        assert!(note.contains("1 before item_7 from index 0; 2 after item_9 from index 3"), "{note}");
+        assert!(note.contains("without section and with offset"), "{note}");
+        let mut p = tables_params(None);
+        p.offset = Some(3);
+        let out = json(server.read_tables(Parameters(p)).await);
+        assert_eq!(out["tables"][0]["rows"][0][0], "Cash");
+        assert_eq!(out["tables"][0]["text_before"], "Consolidated Balance Sheets");
+        assert!(out["tables"][0].get("section").is_none(), "{out}");
+
+        let out = json(server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), None))).await);
+        let outside = serde_json::json!([
+            { "before": "item_7", "tables": 1, "first_index": 0 },
+            { "after": "item_9", "tables": 2, "first_index": 3 }
+        ]);
+        assert_eq!(out["tables_outside_items"], outside);
+        assert!(out["next"].as_str().unwrap().contains("from offset=first_index"), "{out}");
+    }
+
+    /// A 10-K without Item headings: read_tables points to its tables, not away from them.
+    #[tokio::test]
+    async fn read_tables_without_item_headings() {
+        let mut doc = table_doc(3, 2);
+        doc.sections = Some(Vec::new());
+        let server = pbf_server();
+        server.lock().put_doc(key(PBF, ""), Arc::new(doc));
+        let err = server.read_tables(Parameters(tables_params(Some("item_8")))).await.unwrap_err();
+        assert_eq!(err, "no Item headings were found in this filing; leave out section to read all 3 tables");
+        let out = json(server.read_tables(Parameters(tables_params(None))).await);
+        assert_eq!(out["total_tables"], 3);
+        let out = json(server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), None))).await);
+        assert!(out["next"].as_str().unwrap().contains("read_tables without section for its 3 tables"), "{out}");
+        assert!(out.get("tables_outside_items").is_none());
+        let p = ReadSectionParams {
+            company: "1566011".into(),
+            accession: Some(PBF.into()),
+            form: None,
+            section: "item_8".into(),
+            offset: None,
+            max_chars: None,
+        };
+        let err = server.read_section(Parameters(p)).await.unwrap_err();
+        assert_eq!(err, "no Item headings were found in this filing; use read_filing_text");
+    }
+
+    /// Plain-text filings keep their tables in the text, and the tools say so.
+    #[tokio::test]
+    async fn plain_text_documents_say_where_tables_are() {
+        let raw = "<DOCUMENT>\n<TYPE>10-K\n<TEXT>\nITEM 8. FINANCIAL STATEMENTS\n\n<TABLE>\n<CAPTION>\n\
+                   <S>                 <C>\nTotal assets        $ 1,234\n</TABLE>\n</TEXT>\n</DOCUMENT>\n";
+        let doc = parsed(raw, true);
+        assert!(!doc.html && doc.tables.is_empty());
+        assert!(doc.text.contains("Total assets"));
+        for section in [None, doc.sections.as_deref().and_then(|s| s.first())] {
+            let page = table_page(&doc, section, at(0, 0, 0), 20_000).unwrap();
+            assert_eq!(page.note.as_deref(), Some(PLAIN_TEXT_NOTE));
+        }
+        let server = pbf_server();
+        server.lock().put_doc(key(PBF, ""), Arc::new(doc));
+        let out = json(server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), None))).await);
+        assert!(out["next"].as_str().unwrap().contains("plain-text document"), "{out}");
+        // An HTML document says nothing of the kind.
+        assert!(parsed("<p>Item 8.</p><table><tr><td>A</td><td>1</td></tr></table>", true).html);
     }
 
     #[test]
     fn tables_carry_their_place_and_title() {
         let doc = table_doc(3, 2);
-        let page = table_page(&doc, None, 1, 0, 100_000).unwrap();
+        let page = table_page(&doc, None, at(1, 0, 0), 100_000).unwrap();
         let t = &page.tables[0];
         assert_eq!((t.index, t.text_before), (1, Some("Table 1 (in millions of €)")));
         // text_offset counts characters, as read_filing_text does.
-        let at: String = doc.text.chars().skip(t.text_offset).take(24).collect();
-        assert_eq!(at, "Row 0 of table 1\t$0,000\n");
+        let at_offset: String = doc.text.chars().skip(t.text_offset).take(24).collect();
+        assert_eq!(at_offset, "Row 0 of table 1\t$0,000\n");
         // A line that belongs to another table is not a title.
         let mut doc = table_doc(1, 2);
         let (text, tables) = parsec_edgar::html_to_text_and_tables(
             "<table><tr><td>A</td><td>1</td></tr></table><hr><table><tr><td>B</td><td>2</td></tr></table>",
         );
         (doc.text, doc.tables, doc.sections) = (text, tables, None);
-        assert_eq!(table_page(&doc, None, 1, 0, 100_000).unwrap().tables[0].text_before, None);
+        assert_eq!(table_page(&doc, None, at(1, 0, 0), 100_000).unwrap().tables[0].text_before, None);
     }
 
     #[test]
     fn table_page_errors_and_empty_documents() {
         let doc = table_doc(2, 3);
-        assert!(table_page(&doc, None, 3, 0, 20_000).unwrap_err().contains("past the last table"));
-        assert!(table_page(&doc, None, 1, 3, 20_000).unwrap_err().contains("past the last row"));
-        let page = table_page(&doc, None, 2, 0, 20_000).unwrap();
+        assert!(table_page(&doc, None, at(3, 0, 0), 20_000).unwrap_err().contains("past the last table"));
+        assert!(table_page(&doc, None, at(1, 3, 0), 20_000).unwrap_err().contains("past the last row"));
+        let page = table_page(&doc, None, at(2, 0, 0), 20_000).unwrap();
         assert!(page.tables.is_empty() && page.next_offset.is_none());
-        let none = Doc { document: None, text: "Text\n".into(), total_chars: 5, sections: None, tables: Vec::new() };
-        let page = table_page(&none, None, 0, 0, 20_000).unwrap();
-        assert_eq!((page.total_tables, page.note), (0, Some("no tables in this document")));
+        assert_eq!(page.note.as_deref(), Some("no tables at or after index 2: the last table is at index 1"));
+        let none = Doc {
+            document: None,
+            text: "Text\n".into(),
+            total_chars: 5,
+            sections: None,
+            tables: Vec::new(),
+            html: true,
+        };
+        let page = table_page(&none, None, at(0, 0, 0), 20_000).unwrap();
+        assert_eq!((page.total_tables, page.note.as_deref()), (0, Some("no tables in this document")));
     }
 
-    /// read_tables through the server, with the document already cached.
-    #[tokio::test]
-    async fn read_tables_tool() {
-        let server = pbf_server();
-        server.lock().put_doc(key(PBF, ""), Arc::new(table_doc(4, 2)));
-        let params = |section: Option<&str>| ReadTablesParams {
+    fn tables_params(section: Option<&str>) -> ReadTablesParams {
+        ReadTablesParams {
             company: "1566011".into(),
             accession: Some(PBF.into()),
             form: None,
@@ -1628,16 +2151,24 @@ mod tests {
             section: section.map(Into::into),
             offset: None,
             row: None,
+            char: None,
             max_chars: None,
-        };
-        let out = json(server.read_tables(Parameters(params(Some("8")))).await);
+        }
+    }
+
+    /// read_tables through the server, with the document already cached.
+    #[tokio::test]
+    async fn read_tables_tool() {
+        let server = pbf_server();
+        server.lock().put_doc(key(PBF, ""), Arc::new(table_doc(4, 2)));
+        let out = json(server.read_tables(Parameters(tables_params(Some("8")))).await);
         assert_eq!((out["section"].as_str(), out["total_tables"].as_u64()), (Some("item_8"), Some(2)));
         assert_eq!(out["tables"][0]["rows"][1], serde_json::json!(["Row 1 of table 2", "$1,000"]));
         assert_eq!(out["company"], "PBF Holding Co LLC");
         assert!(out["next_offset"].is_null());
-        let err = server.read_tables(Parameters(params(Some("item_9")))).await.unwrap_err();
+        let err = server.read_tables(Parameters(tables_params(Some("item_9")))).await.unwrap_err();
         assert!(err.contains("available: item_7, item_8"), "{err}");
-        let mut p = params(Some("item_7"));
+        let mut p = tables_params(Some("item_7"));
         p.document = Some("ex211.htm".into());
         let err = server.read_tables(Parameters(p)).await.unwrap_err();
         assert!(err.contains("exhibits have no Item sections"), "{err}");
@@ -1645,6 +2176,15 @@ mod tests {
         let out = json(server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), None))).await);
         assert_eq!(out["tables"], 4);
         assert_eq!(out["sections"][0]["tables"], 2);
+        // A row cut on one page continues on the next.
+        let mut p = tables_params(None);
+        (p.offset, p.row, p.char) = (Some(2), Some(1), Some(4));
+        let out = json(server.read_tables(Parameters(p)).await);
+        assert_eq!(out["tables"][0]["rows"][0], serde_json::json!(["1 of table 2", "$1,000"]));
+        assert_eq!(
+            (out["tables"][0]["first_row"].as_u64(), out["tables"][0]["first_char"].as_u64()),
+            (Some(1), Some(4))
+        );
     }
 
     fn key(acc: &str, document: &str) -> DocKey {
@@ -1756,6 +2296,7 @@ mod tests {
                             total_chars: 4,
                             sections: None,
                             tables: Vec::new(),
+                            html: true,
                         })
                     })
                     .await
@@ -1783,8 +2324,10 @@ mod tests {
         let server = offline_server();
         let err = server.shared_doc(key("acc", ""), || Err("HTTP 503".into())).await;
         assert_eq!(err.err().as_deref(), Some("HTTP 503"));
-        let empty =
-            || Ok(Doc { document: None, text: String::new(), total_chars: 0, sections: None, tables: Vec::new() });
+        let empty = || {
+            let text = String::new();
+            Ok(Doc { document: None, text, total_chars: 0, sections: None, tables: Vec::new(), html: true })
+        };
         assert!(server.shared_doc(key("acc", ""), empty).await.is_ok());
         assert!(server.lock().loading.is_empty());
     }
