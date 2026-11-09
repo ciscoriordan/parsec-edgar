@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use crate::company::Company;
+use crate::company::{DEFAULT_TICKERS_MAX_AGE, Tickers};
 use crate::encoding;
 use crate::error::{Error, Result};
 
@@ -18,6 +18,7 @@ pub struct ClientBuilder {
     cache_dir: Option<PathBuf>,
     max_retries: u32,
     timeout: Duration,
+    tickers_max_age: Duration,
 }
 
 impl ClientBuilder {
@@ -45,6 +46,15 @@ impl ClientBuilder {
         self
     }
 
+    /// How long the SEC ticker list behind [`Client::company`] and [`Client::companies`] is used
+    /// before it is downloaded again, so a long-lived client sees new and changed tickers.
+    /// Default one day. The old list stays in use until the new one has arrived;
+    /// `Duration::MAX` keeps the first list for the life of the client.
+    pub fn tickers_max_age(mut self, age: Duration) -> Self {
+        self.tickers_max_age = age;
+        self
+    }
+
     pub fn build(self) -> Result<Client> {
         let ua = self.user_agent.trim().to_owned();
         if ua.is_empty() || !ua.contains('@') {
@@ -67,7 +77,7 @@ impl ClientBuilder {
             limiter: RateLimiter::new(self.requests_per_second),
             cache_dir: self.cache_dir,
             max_retries: self.max_retries,
-            tickers: OnceLock::new(),
+            tickers: Tickers::new(self.tickers_max_age),
             requests: AtomicU64::new(0),
             #[cfg(test)]
             stubs: Mutex::default(),
@@ -85,7 +95,7 @@ pub struct Client {
     limiter: RateLimiter,
     cache_dir: Option<PathBuf>,
     max_retries: u32,
-    pub(crate) tickers: OnceLock<Vec<Company>>,
+    pub(crate) tickers: Tickers,
     requests: AtomicU64,
     /// Test responses served instead of the network, and the URLs fetched.
     #[cfg(test)]
@@ -109,6 +119,7 @@ impl Client {
             cache_dir: None,
             max_retries: 4,
             timeout: Duration::from_secs(120),
+            tickers_max_age: DEFAULT_TICKERS_MAX_AGE,
         }
     }
 

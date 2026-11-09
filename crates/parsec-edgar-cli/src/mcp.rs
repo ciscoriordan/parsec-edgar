@@ -367,7 +367,7 @@ impl EdgarServer {
                 return Ok(vec![m]);
             }
             let all = client.companies().map_err(explain)?;
-            Ok(search_companies(all, &query, MAX_COMPANY_MATCHES))
+            Ok(search_companies(&all, &query, MAX_COMPANY_MATCHES))
         })
         .await?;
         if matches.is_empty() {

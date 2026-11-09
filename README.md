@@ -59,7 +59,7 @@ The tool descriptions steer the model to call `get_filing_outline` first and the
 
 Many search hits are in exhibits rather than the primary document, for example the EX-99.1 press release attached to an 8-K. For those, `search_full_text` returns the exhibit's file name as `document`, and `read_filing_text` (or `get_filing_outline`) reads that exhibit when given the hit's accession and `document`. Only plain file names ending in `.htm`, `.html`, `.txt` or `.xml` are accepted.
 
-While it runs, the server keeps in memory the six most recently read documents (so paging through one parses it once), every filing it has looked up by accession number, and the latest filing of each form for 10 minutes. Calls that need the same document at the same time share one download. It loads the SEC ticker file once, so a ticker added or changed after the server started is found only by CIK until the server restarts.
+While it runs, the server keeps in memory the six most recently read documents (so paging through one parses it once), every filing it has looked up by accession number, and the latest filing of each form for 10 minutes. Calls that need the same document at the same time share one download. It downloads the SEC ticker file at the first company lookup and again once that copy is a day old, using the old copy until the new one has arrived, so a ticker added or changed while the server runs is found within about a day.
 
 ### Claude Code
 
@@ -161,6 +161,8 @@ for s in client.filing_sections(&filing)? {
 }
 let recent = client.filings("NVDA", &FilingQuery::forms(&["8-K"]).since("2026-01").limit(10))?;
 ```
+
+A client, in Rust or Python, downloads the SEC ticker file (`company_tickers_exchange.json`) at its first company lookup and again once that copy is a day old; `ClientBuilder::tickers_max_age` sets another age. Until the new copy has arrived, lookups use the old one: one caller downloads while the others carry on, and after a failed download the next try waits a minute, doubling up to an hour. `Client::companies()` returns the whole list.
 
 ## Bulk crawling
 
