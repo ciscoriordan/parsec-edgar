@@ -42,8 +42,10 @@ pub struct FilingIndex {
 pub struct IndexDocument {
     pub seq: Option<u32>,
     pub description: String,
-    /// File name in the filing folder. `None` for old filings whose documents
-    /// exist only inside the complete submission.
+    /// Path in the filing folder, as in the submissions API's `primaryDocument`:
+    /// a file name such as `aapl-20240928.htm`, or for a form the SEC renders
+    /// from XML, its rendering such as `xslF345X05/wk-form4_1759530830.xml`.
+    /// `None` for old filings whose documents exist only inside the complete submission.
     pub document: Option<String>,
     /// e.g. `10-K`, `EX-21.1`, `GRAPHIC`, `EX-101.SCH`.
     #[serde(rename = "type")]
@@ -192,7 +194,11 @@ pub fn parse_filing_index(html: &str) -> FilingIndex {
             out.submission_size = size;
             continue;
         }
-        let document = cells[2].select(&LINK).next().map(text_of).filter(|t| !t.is_empty());
+        let link = cells[2].select(&LINK).next();
+        let document = link
+            .and_then(|a| a.value().attr("href"))
+            .and_then(document_path)
+            .or_else(|| link.map(text_of).filter(|t| !t.is_empty()));
         out.documents.push(IndexDocument {
             seq: text_of(cells[0]).parse().ok(),
             description,
@@ -257,6 +263,26 @@ fn parse_filer(div: ElementRef) -> Option<Filer> {
         .map(text_of)
         .filter(|s| !s.is_empty());
     Some(Filer { role, profile })
+}
+
+/// A document's path inside its filing folder, from its link in the document
+/// table: `/Archives/edgar/data/{cik}/{accession}/{path}`, with `/ix?doc=` in
+/// front for inline XBRL. The link text is not used: for a form the SEC renders
+/// from XML (Forms 3, 4 and 5, D, 13F and others) it reads `wk-form4_1.html`,
+/// a file that does not exist, while the link goes to `xslF345X05/wk-form4_1.xml`.
+/// `None` when the link is only the folder, as for filings before about 2001.
+fn document_path(href: &str) -> Option<String> {
+    let href = href.trim();
+    let href = href.strip_prefix("https://www.sec.gov").unwrap_or(href);
+    let href = href.strip_prefix("/ix?doc=").unwrap_or(href);
+    let mut parts = href.strip_prefix("/Archives/edgar/data/")?.splitn(3, '/');
+    let _cik = parts.next()?;
+    let folder = parts.next()?;
+    if folder.len() != 18 || !folder.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let path = parts.next()?.split(['?', '#', '&']).next()?;
+    (!path.is_empty() && !path.ends_with('/')).then(|| path.to_owned())
 }
 
 /// Text of an element with whitespace runs collapsed.
@@ -424,6 +450,40 @@ mod tests {
 </table>
 </body></html>"##;
 
+    // A Form 4: the SEC renders the XML through an XSL style sheet. The first
+    // row's link text names a file that does not exist; its link is the rendering.
+    const FORM_4: &str = r##"<html><body>
+<div id="formName"><strong>Form 4</strong> - Statement of changes in beneficial ownership of securities</div>
+<div class="formGrouping">
+  <div class="infoHead">Filing Date</div><div class="info">2025-10-03</div>
+  <div class="infoHead">Accepted</div><div class="info">2025-10-03 18:33:53</div>
+</div>
+<div class="formGrouping"><div class="infoHead">Period of Report</div><div class="info">2025-10-01</div></div>
+<table class="tableFile" summary="Document Format Files">
+  <tr><td scope="row">1</td><td scope="row">FORM 4</td>
+    <td scope="row"><a href="/Archives/edgar/data/320193/000121415625000011/xslF345X05/wk-form4_1759530830.xml">wk-form4_1759530830.html</a></td>
+    <td scope="row">4</td><td scope="row">&nbsp;</td></tr>
+  <tr><td scope="row">1</td><td scope="row">FORM 4</td>
+    <td scope="row"><a href="/Archives/edgar/data/320193/000121415625000011/wk-form4_1759530830.xml">wk-form4_1759530830.xml</a></td>
+    <td scope="row">4</td><td scope="row">17539</td></tr>
+  <tr><td scope="row">&nbsp;</td><td scope="row">Complete submission text file</td>
+    <td scope="row"><a href="/Archives/edgar/data/320193/000121415625000011/0001214156-25-000011.txt">0001214156-25-000011.txt</a></td>
+    <td scope="row">&nbsp;</td><td scope="row">19105</td></tr>
+</table>
+<div class="filerDiv">
+  <div class="companyInfo">
+    <span class="companyName">Apple Inc. (<a href="#">Issuer</a>)
+ <acronym>CIK</acronym>: <a href="#">0000320193 (see all company filings)</a></span>
+  </div>
+</div>
+<div class="filerDiv">
+  <div class="companyInfo">
+    <span class="companyName">COOK TIMOTHY D (<a href="#">Reporting</a>)
+ <acronym>CIK</acronym>: <a href="#">0001214156 (see all company filings)</a></span>
+  </div>
+</div>
+</body></html>"##;
+
     fn entry(cik: u64, company: &str, form: &str, date: &str, acc: &str) -> IndexEntry {
         IndexEntry {
             cik,
@@ -512,6 +572,44 @@ mod tests {
     }
 
     #[test]
+    fn xsl_rendered_form_uses_link_target() {
+        let idx = parse_filing_index(FORM_4);
+        assert_eq!(idx.documents[0].document.as_deref(), Some("xslF345X05/wk-form4_1759530830.xml"));
+        assert_eq!(idx.documents[1].document.as_deref(), Some("wk-form4_1759530830.xml"));
+        // The full index lists the filing under both filers; either folder serves it.
+        let f = idx.to_filing(&entry(1214156, "COOK TIMOTHY D", "4", "2025-10-03", "0001214156-25-000011"));
+        assert_eq!(f.primary_document.as_deref(), Some("xslF345X05/wk-form4_1759530830.xml"));
+        assert_eq!(
+            f.primary_document_url.as_deref(),
+            Some(
+                "https://www.sec.gov/Archives/edgar/data/1214156/000121415625000011/xslF345X05/wk-form4_1759530830.xml"
+            )
+        );
+        assert_eq!(f.primary_doc_description.as_deref(), Some("FORM 4"));
+        assert_eq!(f.report_date.as_deref(), Some("2025-10-01"));
+        assert_eq!(f.acceptance_datetime.as_deref(), Some("2025-10-03T22:33:53.000Z"));
+        assert_eq!(f.company, "COOK TIMOTHY D");
+        assert_eq!(idx.filer(320193).unwrap().role.as_deref(), Some("Issuer"));
+    }
+
+    #[test]
+    fn document_paths_from_links() {
+        let p = document_path;
+        assert_eq!(
+            p("/ix?doc=/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm").as_deref(),
+            Some("aapl-20240928.htm")
+        );
+        assert_eq!(p("/Archives/edgar/data/320193/000032019324000123/a.htm").as_deref(), Some("a.htm"));
+        assert_eq!(
+            p("https://www.sec.gov/Archives/edgar/data/1/000121415625000011/xslFormDX01/primary_doc.xml").as_deref(),
+            Some("xslFormDX01/primary_doc.xml")
+        );
+        // Old filings link to the company folder only.
+        assert_eq!(p("/Archives/edgar/data/789019/"), None);
+        assert_eq!(p("/cgi-bin/browse-edgar?action=getcompany"), None);
+    }
+
+    #[test]
     fn primary_document_prefers_html_over_pdf_and_falls_back_to_seq_1() {
         let doc = |seq, name: &str, ty: &str| IndexDocument {
             seq: Some(seq),
@@ -537,6 +635,7 @@ mod tests {
             (320193, "AAPL", "10-K", "2024-11-01", "0000320193-24-000123"),
             (1045810, "NVDA", "8-K", "2025-02-26", "0001045810-25-000021"),
             (789019, "MSFT", "10-K", "1997-09-29", "0001017062-97-001764"),
+            (320193, "AAPL", "4", "2025-10-03", "0001214156-25-000011"),
         ];
         for (cik, ticker, form, date, acc) in cases {
             let (from_index, _) = client.resolve_index_entry(&entry(cik, ticker, form, date, acc)).unwrap();

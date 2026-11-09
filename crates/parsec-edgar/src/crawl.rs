@@ -161,9 +161,15 @@ impl Document {
         document_to_text(&self.decoded())
     }
 
-    /// File extension from the URL, e.g. `htm` or `txt`.
+    /// File extension from the URL, e.g. `htm` or `txt`. Documents in an `xsl...`
+    /// folder are the SEC's HTML rendering of an XML form (Forms 3, 4 and 5, D,
+    /// 13F and others), so they are `htm` although the URL ends in `.xml`.
     pub fn extension(&self) -> &str {
-        let name = self.url.rsplit('/').next().unwrap_or("");
+        let mut parts = self.url.rsplit('/');
+        let name = parts.next().unwrap_or("");
+        if parts.next().is_some_and(|dir| dir.starts_with("xsl")) {
+            return "htm";
+        }
         match name.rsplit_once('.') {
             Some((_, ext)) if !ext.is_empty() && ext.len() <= 5 => ext,
             _ => "txt",
@@ -296,6 +302,9 @@ mod tests {
         let d = |url: &str| Document { url: url.into(), bytes: vec![] };
         assert_eq!(d("https://www.sec.gov/Archives/edgar/data/1/2/a-20240928.htm").extension(), "htm");
         assert_eq!(d("https://www.sec.gov/Archives/edgar/data/1/2/0001-24-1.txt").extension(), "txt");
+        // The SEC serves XSL-rendered forms as HTML.
+        assert_eq!(d("https://www.sec.gov/Archives/edgar/data/1/2/xslF345X05/wk-form4_1.xml").extension(), "htm");
+        assert_eq!(d("https://www.sec.gov/Archives/edgar/data/1/2/wk-form4_1.xml").extension(), "xml");
         assert_eq!(d("https://www.sec.gov/Archives/edgar/data/1/2/noext").extension(), "txt");
     }
 }
