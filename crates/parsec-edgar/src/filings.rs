@@ -127,7 +127,8 @@ impl FilingQuery {
 }
 
 /// Check the date bounds of a filing list or a crawl: `YYYY`, `YYYY-MM` or
-/// `YYYY-MM-DD`, with the month and day in range. Surrounding spaces are ignored.
+/// `YYYY-MM-DD` in digits, with the month 01 to 12 and the day 01 to 31.
+/// Surrounding spaces are ignored.
 pub(crate) fn check_dates(since: &Option<String>, until: &Option<String>) -> Result<()> {
     for d in [since, until].into_iter().flatten() {
         parse_date(d)?;
@@ -512,6 +513,7 @@ mod tests {
         assert!(FilingQuery::new().until("24").validate().is_err());
         assert!(FilingQuery::new().until("2024-13").validate().is_err());
         assert!(FilingQuery::new().since("2024-01-32").validate().is_err());
+        assert!(FilingQuery::new().until("2024-+1").validate().is_err());
     }
 
     #[test]
@@ -705,7 +707,7 @@ mod tests {
             assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1]);
         }
         // Both reject the same dates, before any request.
-        for bad in ["2024-13", "2024-00", "2024-01-32", "24", "2024/01", "2024-1"] {
+        for bad in ["2024-13", "2024-00", "2024-01-32", "24", "2024/01", "2024-1", "2024-+1", "+999", "2024-01-+9"] {
             assert!(matches!(c.filings("1", &FilingQuery::new().since(bad)), Err(Error::Invalid(_))), "{bad}");
             assert!(matches!(c.filings("1", &FilingQuery::new().until(bad)), Err(Error::Invalid(_))), "{bad}");
             assert!(matches!(c.crawl_company("1", &CrawlQuery::new(&[]).since(bad)), Err(Error::Invalid(_))), "{bad}");

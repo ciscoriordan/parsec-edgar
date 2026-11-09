@@ -259,14 +259,17 @@ fn gunzip_if_needed(bytes: &[u8]) -> std::io::Result<Vec<u8>> {
 }
 
 /// `YYYY`, `YYYY-MM` or `YYYY-MM-DD` to (year, month, day); missing parts are 1.
+/// Each part is ASCII digits only, the month 01 to 12 and the day 01 to 31.
 pub(crate) fn parse_date(s: &str) -> Result<(u16, u32, u32)> {
     let bad = || Error::Invalid(format!("dates must be YYYY, YYYY-MM or YYYY-MM-DD, got {s:?}"));
+    // Rust's number parsing also takes a leading `+`, which would break the text comparisons of dates.
+    let digits = |p: &str, len: usize| p.len() == len && p.bytes().all(|b| b.is_ascii_digit());
     let mut parts = s.trim().split('-');
-    let y: u16 = parts.next().filter(|p| p.len() == 4).and_then(|p| p.parse().ok()).ok_or_else(bad)?;
+    let y: u16 = parts.next().filter(|p| digits(p, 4)).and_then(|p| p.parse().ok()).ok_or_else(bad)?;
     let mut num = |max: u32| -> Result<u32> {
         match parts.next() {
             None => Ok(1),
-            Some(p) if p.len() == 2 => p.parse().ok().filter(|v| (1..=max).contains(v)).ok_or_else(bad),
+            Some(p) if digits(p, 2) => p.parse().ok().filter(|v| (1..=max).contains(v)).ok_or_else(bad),
             Some(_) => Err(bad()),
         }
     };
@@ -455,5 +458,9 @@ bad line\n\
         assert!(parse_date("2024/02/29").is_err());
         assert!(parse_date("2024-13").is_err());
         assert!(parse_date("24").is_err());
+        // Every part is digits only: Rust's number parsing would also take a sign.
+        for bad in ["+999", "+2024", "2024-+1", "2024-01-+9", "2024--1", "2024-01--1"] {
+            assert!(parse_date(bad).is_err(), "{bad}");
+        }
     }
 }
