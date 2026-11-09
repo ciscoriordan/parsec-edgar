@@ -62,7 +62,7 @@ The tool descriptions steer the model to call `get_filing_outline` first and the
 
 Many search hits are in exhibits rather than the primary document, for example the EX-99.1 press release attached to an 8-K. For those, `search_full_text` returns the exhibit's file name as `document`, and `read_filing_text` (or `get_filing_outline`) reads that exhibit when given the hit's accession and `document`. Only plain file names ending in `.htm`, `.html`, `.txt` or `.xml` are accepted.
 
-While it runs, the server keeps in memory the six most recently read documents (so paging through one parses it once), every filing it has looked up by accession number, and the latest filing of each form for 10 minutes. Calls that need the same document at the same time share one download. It downloads the SEC ticker file at the first company lookup and again once that copy is a day old, using the old copy until the new one has arrived, so a ticker added or changed while the server runs is found within about a day.
+While it runs, the server keeps in memory the six most recently read documents (so paging through one parses it once), every filing it has looked up by accession number, and the latest filing of each form for 10 minutes. Calls that need the same document at the same time share one download. It downloads the SEC ticker file at the first company lookup. Once that copy is a day old (time the computer spends asleep counts), the next lookup starts a new download in the background, and lookups use the old copy until the new one has arrived, so a ticker added or changed while the server runs is found within about a day.
 
 ### Claude Code
 
@@ -154,6 +154,8 @@ Offsets (`start` and `end` of sections and tables) count bytes of the UTF-8 text
 
 Lookup failures raise `LookupError`, bad arguments raise `ValueError`, and network or HTTP failures raise `parsec_edgar.EdgarError`. Network calls release the GIL, so one client can be shared across threads; it stays within its rate limit.
 
+The SEC ticker list behind `company()` is downloaded at the first lookup. Once it is a day old, the next lookup starts a new download in the background, and lookups use the old list until the new one has arrived. `tickers_max_age` sets another age in seconds, for example `pe.Client("Example Corp admin@example.com", tickers_max_age=3600)`.
+
 ## Rust
 
 ```rust
@@ -179,7 +181,9 @@ for t in tables.iter().filter(|t| item_8.start <= t.start && t.start < item_8.en
 
 `Client::filing_tables(&filing)` returns the tables alone.
 
-A client, in Rust or Python, downloads the SEC ticker file (`company_tickers_exchange.json`) at its first company lookup and again once that copy is a day old; `ClientBuilder::tickers_max_age` sets another age. Until the new copy has arrived, lookups use the old one: one caller downloads while the others carry on, and after a failed download the next try waits a minute, doubling up to an hour. `Client::companies()` returns the whole list.
+A client downloads the SEC ticker file (`company_tickers_exchange.json`) at its first company lookup. Once that copy is a day old, counting time the computer spends asleep, the next lookup starts a new download on another thread, and lookups use the old copy until the new one has arrived. After a failed download the next try waits a minute from the failure, doubling up to an hour. `ClientBuilder::tickers_max_age` sets another age (in Python, the `tickers_max_age` keyword of `Client`, in seconds).
+
+`Client::companies()` returns the whole list as an `Arc<[Company]>`, which stays valid after a newer list replaces it. Up to version 0.1.1 it returned `&[Company]`: iterate the list with `.iter()`, and pass `&list` where a `&[Company]` is wanted.
 
 ## Bulk crawling
 

@@ -1,6 +1,8 @@
 //! Company profile: SIC code, state of incorporation, fiscal year end and so on.
 
-use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 
 use crate::client::Client;
 use crate::error::Result;
@@ -36,31 +38,76 @@ pub struct CompanyProfile {
     pub exchanges: Vec<String>,
 }
 
-/// The company fields of a submissions API response.
+/// The company fields of a submissions API response. Every filing lookup
+/// reads them, so a field of an unexpected type is read leniently instead of
+/// failing the lookup: a number becomes text, and any other value counts as missing.
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub(crate) struct SubmissionsProfile {
+    #[serde(deserialize_with = "text_or_empty")]
     pub(crate) name: String,
+    #[serde(deserialize_with = "text_or_none")]
     sic: Option<String>,
+    #[serde(deserialize_with = "text_or_none")]
     sic_description: Option<String>,
+    #[serde(deserialize_with = "text_or_none")]
     state_of_incorporation: Option<String>,
+    #[serde(deserialize_with = "text_or_none")]
     fiscal_year_end: Option<String>,
+    #[serde(deserialize_with = "text_or_none")]
     ein: Option<String>,
-    tickers: Vec<Option<String>>,
-    exchanges: Vec<Option<String>>,
+    #[serde(deserialize_with = "texts")]
+    tickers: Vec<String>,
+    #[serde(deserialize_with = "texts")]
+    exchanges: Vec<String>,
+    #[serde(deserialize_with = "object_or_none")]
     addresses: Option<Addresses>,
 }
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
 struct Addresses {
+    #[serde(deserialize_with = "object_or_none")]
     business: Option<Address>,
 }
 
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 struct Address {
+    #[serde(deserialize_with = "text_or_none")]
     state_or_country: Option<String>,
+}
+
+/// A JSON string as is, a number written out, anything else none.
+fn text(value: Value) -> Option<String> {
+    match value {
+        Value::String(s) => Some(s),
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
+/// A text field read leniently, see [`text`].
+pub(crate) fn text_or_none<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<String>, D::Error> {
+    Ok(text(Value::deserialize(d)?))
+}
+
+/// A text field read leniently, empty when it is not text.
+pub(crate) fn text_or_empty<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<String, D::Error> {
+    Ok(text(Value::deserialize(d)?).unwrap_or_default())
+}
+
+/// A list of text read leniently: items that are not text are left out, and a value that is not a list is empty.
+fn texts<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Vec<String>, D::Error> {
+    Ok(match Value::deserialize(d)? {
+        Value::Array(items) => items.into_iter().filter_map(text).collect(),
+        _ => Vec::new(),
+    })
+}
+
+/// A JSON object read as `T`, or none when the value does not fit.
+fn object_or_none<'de, D: Deserializer<'de>, T: DeserializeOwned>(d: D) -> std::result::Result<Option<T>, D::Error> {
+    Ok(serde_json::from_value(Value::deserialize(d)?).ok())
 }
 
 impl SubmissionsProfile {
@@ -75,8 +122,8 @@ impl SubmissionsProfile {
             state_location: some(self.addresses.and_then(|a| a.business).and_then(|b| b.state_or_country)),
             fiscal_year_end: some(self.fiscal_year_end),
             ein: some(self.ein),
-            tickers: self.tickers.into_iter().flatten().collect(),
-            exchanges: self.exchanges.into_iter().flatten().collect(),
+            tickers: self.tickers,
+            exchanges: self.exchanges,
         }
     }
 }
@@ -122,6 +169,21 @@ mod tests {
         assert_eq!(p.name, "Some Trust");
         assert_eq!(p.sic, None);
         assert_eq!(p.state_of_incorporation, None);
+        assert_eq!(p.state_location, None);
+    }
+
+    /// Numbers become text, and values of other unexpected types count as missing.
+    #[test]
+    fn reads_fields_of_unexpected_types() {
+        let json = r#"{"name":null,"sic":3571,"ein":942404110,"fiscalYearEnd":true,"stateOfIncorporation":{},
+            "tickers":["AAPL",null,{}],"exchanges":"Nasdaq","addresses":{"business":"CA"}}"#;
+        let p = serde_json::from_str::<SubmissionsProfile>(json).unwrap().into_profile(42);
+        assert_eq!(p.name, "");
+        assert_eq!((p.sic.as_deref(), p.ein.as_deref()), (Some("3571"), Some("942404110")));
+        assert_eq!((p.fiscal_year_end, p.state_of_incorporation, p.state_location), (None, None, None));
+        assert_eq!(p.tickers, ["AAPL"]);
+        assert!(p.exchanges.is_empty());
+        let p = serde_json::from_str::<SubmissionsProfile>(r#"{"addresses":[1]}"#).unwrap().into_profile(42);
         assert_eq!(p.state_location, None);
     }
 }

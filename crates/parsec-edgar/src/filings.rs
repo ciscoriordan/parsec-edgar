@@ -4,7 +4,8 @@ use crate::client::Client;
 use crate::company::parse_cik;
 use crate::error::{Error, Result};
 use crate::html::{Table, document_to_text, document_to_text_and_tables};
-use crate::profile::SubmissionsProfile;
+use crate::index::parse_date;
+use crate::profile::{SubmissionsProfile, text_or_empty, text_or_none};
 use crate::sections::{FormKind, Section, extract_sections};
 
 /// One EDGAR filing, as listed by the SEC submissions API.
@@ -66,7 +67,7 @@ impl Filing {
 /// `all_history` is set.
 #[derive(Debug, Clone, Default)]
 pub struct FilingQuery {
-    /// Exact form types to keep (case-insensitive), e.g. `10-K`, `10-K/A`. Empty keeps all.
+    /// Exact form types to keep (case-insensitive, surrounding spaces ignored), e.g. `10-K`, `10-K/A`. Empty keeps all.
     pub forms: Vec<String>,
     /// Earliest filing date, `YYYY`, `YYYY-MM` or `YYYY-MM-DD`, inclusive.
     pub since: Option<String>,
@@ -108,42 +109,57 @@ impl FilingQuery {
     }
 
     fn validate(&self) -> Result<()> {
-        for d in [&self.since, &self.until].into_iter().flatten() {
-            let ok = matches!(d.len(), 4 | 7 | 10)
-                && d.bytes().enumerate().all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() });
-            if !ok {
-                return Err(Error::Invalid(format!("dates must be YYYY, YYYY-MM or YYYY-MM-DD, got {d:?}")));
-            }
-        }
-        Ok(())
+        check_dates(&self.since, &self.until)
     }
 
     fn scope(&self) -> HistoryScope<'_> {
         HistoryScope {
-            since: self.since.as_deref(),
-            until: self.until.as_deref(),
+            since: trimmed(&self.since),
+            until: trimmed(&self.until),
             all_history: self.all_history,
             limit: self.limit,
         }
     }
 
     fn matches(&self, f: &Filing) -> bool {
-        if !self.forms.is_empty() && !self.forms.iter().any(|x| x.eq_ignore_ascii_case(&f.form)) {
-            return false;
-        }
-        if let Some(since) = &self.since
-            && f.filing_date.as_str() < since.as_str()
-        {
-            return false;
-        }
-        if let Some(until) = &self.until {
-            let prefix = f.filing_date.get(..until.len()).unwrap_or(&f.filing_date);
-            if prefix > until.as_str() {
-                return false;
-            }
-        }
-        true
+        form_and_date_match(&self.forms, &self.since, &self.until, &f.form, &f.filing_date)
     }
+}
+
+/// Check the date bounds of a filing list or a crawl: `YYYY`, `YYYY-MM` or
+/// `YYYY-MM-DD`, with the month and day in range. Surrounding spaces are ignored.
+pub(crate) fn check_dates(since: &Option<String>, until: &Option<String>) -> Result<()> {
+    for d in [since, until].into_iter().flatten() {
+        parse_date(d)?;
+    }
+    Ok(())
+}
+
+/// A date bound without surrounding spaces.
+pub(crate) fn trimmed(date: &Option<String>) -> Option<&str> {
+    date.as_deref().map(str::trim)
+}
+
+/// Whether a filing passes the form and date filters that filing lists and
+/// crawls share: its form is one of `forms` (case-insensitive, surrounding
+/// spaces ignored; an empty list keeps every form), and it was filed on or
+/// after `since` and on or before `until`. `until` is compared by prefix, so
+/// `2024-11` keeps all of November.
+pub(crate) fn form_and_date_match(
+    forms: &[String],
+    since: &Option<String>,
+    until: &Option<String>,
+    form: &str,
+    filing_date: &str,
+) -> bool {
+    let form = form.trim();
+    if !forms.is_empty() && !forms.iter().any(|f| f.trim().eq_ignore_ascii_case(form)) {
+        return false;
+    }
+    if trimmed(since).is_some_and(|s| filing_date < s) {
+        return false;
+    }
+    trimmed(until).is_none_or(|u| filing_date.get(..u.len()).unwrap_or(filing_date) <= u)
 }
 
 /// A submissions API response: the company's profile, and its filings. The
@@ -164,14 +180,16 @@ pub(crate) struct SubmissionFilings {
     pub files: Vec<HistoryPage>,
 }
 
-/// One history page: its file name and the filing dates it covers.
+/// One history page: its file name and the filing dates it covers. A page
+/// listed without a name cannot be read, which is an error only when it is needed.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct HistoryPage {
+    #[serde(default, deserialize_with = "text_or_empty")]
     pub name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "text_or_none")]
     pub filing_from: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "text_or_none")]
     pub filing_to: Option<String>,
 }
 
@@ -275,6 +293,9 @@ impl Client {
     }
 
     fn history_page(&self, page: &HistoryPage) -> Result<Columns> {
+        if page.name.trim().is_empty() {
+            return Err(Error::Invalid("the submissions API lists a page of older filings without a file name".into()));
+        }
         self.get_json(&format!("https://data.sec.gov/submissions/{}", page.name))
     }
 
@@ -486,8 +507,11 @@ mod tests {
     #[test]
     fn date_validation() {
         assert!(FilingQuery::new().since("2024-01-01").validate().is_ok());
+        assert!(FilingQuery::new().since(" 2024-01 ").validate().is_ok());
         assert!(FilingQuery::new().since("2024/01/01").validate().is_err());
         assert!(FilingQuery::new().until("24").validate().is_err());
+        assert!(FilingQuery::new().until("2024-13").validate().is_err());
+        assert!(FilingQuery::new().since("2024-01-32").validate().is_err());
     }
 
     #[test]
@@ -670,6 +694,58 @@ mod tests {
         let query = FilingQuery::forms(&["10-K"]).since("2019-01-01").until("2020-12-31");
         assert_eq!(c.filings("1", &query).unwrap(), crawled);
         assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1]);
+
+        // Both ignore case and surrounding spaces in form names and dates.
+        for form in [" 10-K", "10-k ", "\t10-K\n"] {
+            let crawl = CrawlQuery::new(&[form]).since(" 2019").until("2020 ");
+            assert_eq!(c.crawl_company("1", &crawl).unwrap(), crawled, "{form:?}");
+            assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1]);
+            let query = FilingQuery::forms(&[form]).since(" 2019").until("2020 ");
+            assert_eq!(c.filings("1", &query).unwrap(), crawled, "{form:?}");
+            assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1]);
+        }
+        // Both reject the same dates, before any request.
+        for bad in ["2024-13", "2024-00", "2024-01-32", "24", "2024/01", "2024-1"] {
+            assert!(matches!(c.filings("1", &FilingQuery::new().since(bad)), Err(Error::Invalid(_))), "{bad}");
+            assert!(matches!(c.filings("1", &FilingQuery::new().until(bad)), Err(Error::Invalid(_))), "{bad}");
+            assert!(matches!(c.crawl_company("1", &CrawlQuery::new(&[]).since(bad)), Err(Error::Invalid(_))), "{bad}");
+            assert!(matches!(c.crawl_company("1", &CrawlQuery::new(&[]).until(bad)), Err(Error::Invalid(_))), "{bad}");
+        }
+        assert!(c.take_fetched().is_empty());
+    }
+
+    /// A company field of an unexpected type does not stop filing lookups: a
+    /// number becomes text and other values count as missing.
+    #[test]
+    fn odd_profile_fields_do_not_break_filing_lookups() {
+        let c = Client::builder("a@b.c").build().unwrap();
+        let recent = columns(&[("0000000001-25-000001", "10-K", "2025-02-01")]);
+        // An older page listed without a file name.
+        let files = r#"[{"filingFrom": "2010-01-01", "filingTo": "2014-12-31"}]"#;
+        let profile = r#""name": "Test Co", "ein": 942404110, "sic": 3571, "fiscalYearEnd": {"month": 9},
+            "stateOfIncorporation": ["DE"], "tickers": "TST", "exchanges": [null, "Nasdaq"], "addresses": "none""#;
+        c.stub(SUBMISSIONS, format!(r#"{{{profile}, "filings": {{"recent": {recent}, "files": {files}}}}}"#));
+        let tickers =
+            r#"{"fields": ["cik", "name", "ticker", "exchange"], "data": [[2, "Other Inc.", "OTH", "NYSE"]]}"#;
+        c.stub("https://www.sec.gov/files/company_tickers_exchange.json", tickers);
+
+        assert_eq!(short_accessions(&c.filings("1", &FilingQuery::new()).unwrap()), ["25-000001"]);
+        assert_eq!(c.latest("1", "10-K").unwrap().company, "Test Co");
+        assert_eq!(c.filing("1", "0000000001-25-000001").unwrap().form, "10-K");
+        let company = c.company("1").unwrap();
+        assert_eq!(
+            (company.name.as_str(), company.ticker, company.exchange.as_deref()),
+            ("Test Co", None, Some("Nasdaq"))
+        );
+        let (filings, profile) = c.crawl_company_with_profile("1", &CrawlQuery::new(&["10-K"]).since("2020")).unwrap();
+        assert_eq!(short_accessions(&filings), ["25-000001"]);
+        assert_eq!((profile.ein.as_deref(), profile.sic.as_deref()), (Some("942404110"), Some("3571")));
+        assert_eq!(
+            (profile.fiscal_year_end, profile.state_of_incorporation, profile.state_location),
+            (None, None, None)
+        );
+        // The page without a name is an error only when it is needed.
+        assert!(matches!(c.filings("1", &FilingQuery::new().since("2012")), Err(Error::Invalid(_))));
     }
 
     #[test]

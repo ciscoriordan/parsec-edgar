@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::client::Client;
 use crate::encoding;
 use crate::error::{Error, Result};
-use crate::filings::{Filing, HistoryScope};
+use crate::filings::{Filing, HistoryScope, check_dates, form_and_date_match, trimmed};
 use crate::html::document_to_text;
 use crate::index::{FIRST_YEAR, IndexEntry, Quarter, parse_date, today};
 use crate::profile::CompanyProfile;
@@ -22,7 +22,7 @@ use crate::profile::CompanyProfile;
 /// Which filings a crawl covers.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CrawlQuery {
-    /// Exact form types to keep (case-insensitive), e.g. `10-K`, `8-K/A`. Empty keeps all.
+    /// Exact form types to keep (case-insensitive, surrounding spaces ignored), e.g. `10-K`, `8-K/A`. Empty keeps all.
     pub forms: Vec<String>,
     /// Quarters to cover. When empty, the quarters from `since` to `until` (or today).
     pub quarters: Vec<Quarter>,
@@ -46,8 +46,9 @@ impl CrawlQuery {
         let first = from.max(FIRST_YEAR);
         if first > to {
             let (lo, hi) = (format!("{from:04}"), format!("{to:04}"));
-            self.since = Some(self.since.map_or(lo.clone(), |s| s.max(lo)));
-            self.until = Some(match self.until {
+            let (since, until) = (trimmed(&self.since).map(str::to_owned), trimmed(&self.until).map(str::to_owned));
+            self.since = Some(since.map_or(lo.clone(), |s| s.max(lo)));
+            self.until = Some(match until {
                 Some(u) if hi.get(..u.len()).unwrap_or(&hi) > u.as_str() => u,
                 _ => hi,
             });
@@ -82,9 +83,7 @@ impl CrawlQuery {
     /// The quarters whose full index the crawl reads, oldest first. Quarters
     /// after the current one are left out, since they have no index yet.
     pub fn quarters_to_read(&self) -> Result<Vec<Quarter>> {
-        for d in [&self.since, &self.until].into_iter().flatten() {
-            parse_date(d)?;
-        }
+        check_dates(&self.since, &self.until)?;
         // Nothing to read when the crawl ends before EDGAR starts.
         if let Some(u) = &self.until
             && parse_date(u)?.0 < FIRST_YEAR
@@ -110,11 +109,9 @@ impl CrawlQuery {
     /// Filing date bounds for a company crawl: `since` and `until`, narrowed
     /// to the span of the quarters when there are any.
     fn date_bounds(&self) -> Result<(Option<String>, Option<String>)> {
-        for d in [&self.since, &self.until].into_iter().flatten() {
-            parse_date(d)?;
-        }
-        let mut since = self.since.clone();
-        let mut until = self.until.clone();
+        check_dates(&self.since, &self.until)?;
+        let mut since = trimmed(&self.since).map(str::to_owned);
+        let mut until = trimmed(&self.until).map(str::to_owned);
         if let (Some(first), Some(last)) = (self.quarters.iter().min(), self.quarters.iter().max()) {
             let lo = first.first_day();
             let hi = last.last_day();
@@ -129,25 +126,16 @@ impl CrawlQuery {
     }
 
     fn overlaps(&self, q: &Quarter) -> bool {
-        let after_since = self.since.as_deref().is_none_or(|s| q.last_day().as_str() >= s);
-        let before_until = self.until.as_deref().is_none_or(|u| q.first_day().get(..u.len()).unwrap_or("") <= u);
+        let after_since = trimmed(&self.since).is_none_or(|s| q.last_day().as_str() >= s);
+        let before_until = trimmed(&self.until).is_none_or(|u| q.first_day().get(..u.len()).unwrap_or("") <= u);
         after_since && before_until
     }
 
-    /// Whether a filing of this form and date is in the crawl.
+    /// Whether a filing of this form and date is in the crawl. Forms and dates
+    /// match as in [`Client::filings`], and the filing date must also fall in one of the quarters, if any.
     pub fn matches(&self, form: &str, filing_date: &str) -> bool {
-        if !self.forms.is_empty() && !self.forms.iter().any(|f| f.trim().eq_ignore_ascii_case(form.trim())) {
-            return false;
-        }
-        if self.since.as_deref().is_some_and(|s| filing_date < s) {
-            return false;
-        }
-        if let Some(u) = &self.until
-            && filing_date.get(..u.len()).unwrap_or(filing_date) > u.as_str()
-        {
-            return false;
-        }
-        self.quarters.is_empty() || Quarter::of_date(filing_date).is_ok_and(|q| self.quarters.contains(&q))
+        form_and_date_match(&self.forms, &self.since, &self.until, form, filing_date)
+            && (self.quarters.is_empty() || Quarter::of_date(filing_date).is_ok_and(|q| self.quarters.contains(&q)))
     }
 
     /// Keep the index rows in the crawl, one per accession number. A filing with

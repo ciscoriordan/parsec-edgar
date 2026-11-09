@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::company::{DEFAULT_TICKERS_MAX_AGE, Tickers};
@@ -48,7 +48,8 @@ impl ClientBuilder {
 
     /// How long the SEC ticker list behind [`Client::company`] and [`Client::companies`] is used
     /// before it is downloaded again, so a long-lived client sees new and changed tickers.
-    /// Default one day. The old list stays in use until the new one has arrived;
+    /// Default one day, counting time the machine is asleep. The new list is downloaded on
+    /// another thread, and lookups use the old one until it has arrived;
     /// `Duration::MAX` keeps the first list for the life of the client.
     pub fn tickers_max_age(mut self, age: Duration) -> Self {
         self.tickers_max_age = age;
@@ -74,13 +75,17 @@ impl ClientBuilder {
         Ok(Client {
             agent,
             user_agent: ua,
-            limiter: RateLimiter::new(self.requests_per_second),
+            limiter: Arc::new(RateLimiter::new(self.requests_per_second)),
             cache_dir: self.cache_dir,
             max_retries: self.max_retries,
-            tickers: Tickers::new(self.tickers_max_age),
-            requests: AtomicU64::new(0),
+            // A minute more than the slowest fetch, for the wait in the rate limiter.
+            tickers: Arc::new(Tickers::new(
+                self.tickers_max_age,
+                longest_fetch(self.timeout, self.max_retries).saturating_add(Duration::from_secs(60)),
+            )),
+            requests: Arc::default(),
             #[cfg(test)]
-            stubs: Mutex::default(),
+            stubs: Arc::default(),
         })
     }
 }
@@ -92,19 +97,19 @@ impl ClientBuilder {
 pub struct Client {
     agent: ureq::Agent,
     user_agent: String,
-    limiter: RateLimiter,
+    limiter: Arc<RateLimiter>,
     cache_dir: Option<PathBuf>,
     max_retries: u32,
-    pub(crate) tickers: Tickers,
-    requests: AtomicU64,
+    pub(crate) tickers: Arc<Tickers>,
+    requests: Arc<AtomicU64>,
     /// Test responses served instead of the network, and the URLs fetched.
     #[cfg(test)]
-    stubs: Mutex<Option<Stubs>>,
+    stubs: Arc<Mutex<Option<Stubs>>>,
 }
 
 #[cfg(test)]
 #[derive(Default)]
-struct Stubs {
+pub(crate) struct Stubs {
     bodies: std::collections::HashMap<String, Vec<u8>>,
     fetched: Vec<String>,
 }
@@ -125,6 +130,22 @@ impl Client {
 
     pub fn user_agent(&self) -> &str {
         &self.user_agent
+    }
+
+    /// A second handle on this client for another thread. It shares the rate
+    /// limiter, the request count and the ticker list.
+    pub(crate) fn share(&self) -> Client {
+        Client {
+            agent: self.agent.clone(),
+            user_agent: self.user_agent.clone(),
+            limiter: self.limiter.clone(),
+            cache_dir: self.cache_dir.clone(),
+            max_retries: self.max_retries,
+            tickers: self.tickers.clone(),
+            requests: self.requests.clone(),
+            #[cfg(test)]
+            stubs: self.stubs.clone(),
+        }
     }
 
     /// GET a URL and return the raw body. Archive documents (`/Archives/`) are
@@ -200,8 +221,7 @@ impl Client {
             if attempt >= self.max_retries {
                 return Err(retryable);
             }
-            // 1s, 2s, 4s, 8s... The SEC asks clients to back off when throttled.
-            std::thread::sleep(Duration::from_secs(1 << attempt.min(6)));
+            std::thread::sleep(retry_sleep(attempt));
             attempt += 1;
         }
     }
@@ -227,6 +247,24 @@ impl Client {
     pub(crate) fn take_fetched(&self) -> Vec<String> {
         self.stubs.lock().unwrap().as_mut().map(|s| std::mem::take(&mut s.fetched)).unwrap_or_default()
     }
+
+    /// Hold every fetch until the guard is dropped, as a slow server would.
+    #[cfg(test)]
+    pub(crate) fn hold_fetches(&self) -> std::sync::MutexGuard<'_, Option<Stubs>> {
+        self.stubs.lock().unwrap()
+    }
+}
+
+/// Sleep before retry number `attempt + 1`: 1 s, 2 s, 4 s ... 64 s. The SEC asks clients to back off when throttled.
+fn retry_sleep(attempt: u32) -> Duration {
+    Duration::from_secs(1 << attempt.min(6))
+}
+
+/// The longest one fetch can take: every attempt timing out, plus the sleeps between attempts.
+fn longest_fetch(timeout: Duration, max_retries: u32) -> Duration {
+    let sleeps: Duration = (0..max_retries.min(7)).map(retry_sleep).sum();
+    let more_sleeps = retry_sleep(6).saturating_mul(max_retries.saturating_sub(7));
+    timeout.saturating_mul(max_retries.saturating_add(1)).saturating_add(sleeps).saturating_add(more_sleeps)
 }
 
 /// Write through a temp file and rename it into place, so readers never see a
@@ -345,6 +383,16 @@ mod tests {
             if p.is_dir() { out.extend(walk(&p)) } else { out.push(p) }
         }
         out
+    }
+
+    #[test]
+    fn longest_fetch_adds_timeouts_and_sleeps() {
+        // The defaults: five attempts of up to 120 s, and sleeps of 1, 2, 4 and 8 s between them.
+        assert_eq!(longest_fetch(Duration::from_secs(120), 4), Duration::from_secs(615));
+        assert_eq!(longest_fetch(Duration::from_secs(10), 0), Duration::from_secs(10));
+        // Sleeps stop doubling at 64 s.
+        assert_eq!(longest_fetch(Duration::ZERO, 9), Duration::from_secs(127 + 2 * 64));
+        assert_eq!(longest_fetch(Duration::MAX, u32::MAX), Duration::MAX);
     }
 
     #[test]
