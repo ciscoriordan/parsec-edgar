@@ -273,6 +273,14 @@ fn heading_tail_ok(tail: &str) -> bool {
     }
 }
 
+/// `Item 3. - Quantitative ...`, `ITEM 1 -- FINANCIAL STATEMENTS`: dashes
+/// right after the separator that the heading pattern takes are a second
+/// separator, and the title starts after them. Done here rather than in the
+/// heading regex, like `split_letter`.
+fn after_dashes(tail: &str) -> &str {
+    tail.trim_start_matches(['-', '–', '—'])
+}
+
 fn title_key(tail: &str) -> String {
     tail.chars().filter(|c| c.is_alphabetic()).flat_map(char::to_lowercase).take(30).collect()
 }
@@ -302,7 +310,7 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     };
     let mut cands: Vec<Candidate> = re
         .captures_iter(text)
-        .filter(|c| heading_tail_ok(&c[2]))
+        .filter(|c| heading_tail_ok(after_dashes(&c[2])))
         .map(|c| {
             let m = c.get(0).expect("group 0 always matches");
             let heading: String = m.as_str().trim().chars().take(300).collect();
@@ -1128,5 +1136,50 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn dashes_after_the_separator_belong_to_it() {
+        // "Item 3. - Quantitative ..." prints a period and a dash, "ITEM 6 --
+        // EXHIBITS" two hyphens: the title starts after the dashes.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\n\
+             Item 2 - Management's Discussion and Analysis\n{body}\n\
+             Item 3. - Quantitative and Qualitative Disclosures about Market Risk\n{body}\n\
+             Item 4. – Controls and Procedures\n{body}\n\
+             PART II\nItem 1: — Legal Proceedings\n{body}\nITEM 6 -- EXHIBITS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            ["part_1_item_1", "part_1_item_2", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"]
+        );
+        assert_eq!(s[2].heading, "Item 3. - Quantitative and Qualitative Disclosures about Market Risk");
+        assert!(s[1].text.ends_with(body.trim()));
+        let text = "Item 2.02. - Results of Operations and Financial Condition.\nOn May 2, the Company...\n\
+                    Item 9.01 -- Financial Statements and Exhibits.\n(d) Exhibits\nSIGNATURE\n";
+        let s = extract_sections(text, FormKind::EightK);
+        assert_eq!(ids(&s), ["item_2.02", "item_9.01"]);
+    }
+
+    #[test]
+    fn text_after_dashes_must_still_look_like_a_title() {
+        // A cross-reference or a bare sub-item after a second separator is
+        // not a heading, as after a single one.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\n{body}\nItem 1A. - see the risks described in Item 7 of this report.\n{body}\n\
+             Item 2. Properties\n{body}\nItem 14. Principal Accountant Fees and Services\n{body}\n\
+             Item 15. -- (a)(1)\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_14"]);
+        assert!(s[0].text.contains("\nItem 1A. - see the risks"));
+        let text = "Item 2.02 Results of Operations and Financial Condition.\nOn May 2, the Company...\n\
+                    Item 7.01 -- furnished with Item 2.02 above.\nMore text.\n\
+                    Item 9.01 Financial Statements and Exhibits.\n(d) Exhibits\nSIGNATURE\n";
+        let s = extract_sections(text, FormKind::EightK);
+        assert_eq!(ids(&s), ["item_2.02", "item_9.01"]);
     }
 }
