@@ -155,7 +155,8 @@ fn html_to_text_and_tables<'py>(py: Python<'py>, html: &str) -> PyResult<(String
     Ok((text, pythonize(py, &tables)?))
 }
 
-/// Split filing text into Item sections. `form` is "10-K", "10-Q" or "8-K" (variants accepted).
+/// Split filing text into Item sections. `form` is "10-K", "10-Q", "8-K", "10-KSB" or "10-QSB"
+/// (variants and amendments accepted, also without the hyphen, as in "10KSB").
 #[pyfunction]
 fn extract_sections<'py>(py: Python<'py>, text: &str, form: &str) -> PyResult<Bound<'py, PyAny>> {
     let kind = pe::FormKind::from_form(form)

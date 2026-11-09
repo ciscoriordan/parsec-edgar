@@ -278,11 +278,11 @@ pub fn item_id(kind: FormKind, s: &str) -> Res<String> {
     }
     let bad = || format!("bad item {s:?} for {kind:?}");
     match kind {
-        FormKind::TenK => {
+        FormKind::TenK | FormKind::TenKsb => {
             let ok = s.len() <= 3 && s.chars().next().is_some_and(|c| c.is_ascii_digit());
             if ok { Ok(format!("item_{s}")) } else { Err(bad()) }
         }
-        FormKind::TenQ => {
+        FormKind::TenQ | FormKind::TenQsb => {
             let (part, item) = if let Some(r) = s.strip_prefix("ii") {
                 (2, r)
             } else if let Some(r) = s.strip_prefix('i') {
@@ -299,6 +299,7 @@ pub fn item_id(kind: FormKind, s: &str) -> Res<String> {
                 Err(bad())
             }
         }
+        _ => Err(bad()),
     }
 }
 
@@ -455,5 +456,7 @@ mod tests {
         assert_eq!(item_id(FormKind::TenQ, "II1A").unwrap(), "part_2_item_1a");
         assert_eq!(item_id(FormKind::TenQ, "I2").unwrap(), "part_1_item_2");
         assert_eq!(item_id(FormKind::EightK, "2.02").unwrap(), "item_2.02");
+        assert_eq!(item_id(FormKind::TenKsb, "8A").unwrap(), "item_8a");
+        assert_eq!(item_id(FormKind::TenQsb, "I3").unwrap(), "part_1_item_3");
     }
 }

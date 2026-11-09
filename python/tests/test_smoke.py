@@ -23,6 +23,21 @@ def test_extract_sections():
     assert sections[1]["text"].startswith("Item 1A. Risk Factors\nWe make")
 
 
+def test_extract_sections_of_a_10ksb():
+    # Form 10-KSB numbers its Items differently from Form 10-K: Item 7 is the
+    # financial statements, and Item 8A controls and procedures.
+    text = (
+        f"Item 6. Management's Discussion and Analysis or Plan of Operation\n{BODY}\n"
+        f"Item 7. Financial Statements\n{BODY}\nItem 8A. Controls and Procedures\n{BODY}\n"
+    )
+    sections = pe.extract_sections(text, "10KSB")
+    assert [(s["id"], s["title"]) for s in sections] == [
+        ("item_6", "Management's Discussion and Analysis or Plan of Operation"),
+        ("item_7", "Financial Statements"),
+        ("item_8a", "Controls and Procedures"),
+    ]
+
+
 def test_html_to_text():
     html = "<table><tr><td>Net sales</td><td>$</td><td>391,035</td></tr></table><p>Second <b>line</b>.</p>"
     assert pe.html_to_text(html) == "Net sales\t$391,035\nSecond line.\n"

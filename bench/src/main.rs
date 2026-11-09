@@ -427,7 +427,9 @@ fn group_of(label: &LabelFile) -> String {
         }
         Some(FormKind::TenQ) => "10-Q".into(),
         Some(FormKind::EightK) => "8-K".into(),
-        None => label.form.clone(),
+        Some(FormKind::TenKsb) => "10-KSB".into(),
+        Some(FormKind::TenQsb) => "10-QSB".into(),
+        _ => label.form.clone(),
     }
 }
 
@@ -736,7 +738,7 @@ fn report(results: &[FilingResult], name: &str, misses: bool, timing: bool) {
         println!("{}", a.row(g, timing));
     }
     let mut ten_k = Agg::default();
-    results.iter().filter(|r| r.group.starts_with("10-K")).for_each(|r| ten_k.add(r));
+    results.iter().filter(|r| r.group.starts_with("10-K ")).for_each(|r| ten_k.add(r));
     println!("{}", ten_k.row("10-K all eras", timing));
     let mut all = Agg::default();
     results.iter().for_each(|r| all.add(r));
