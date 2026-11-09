@@ -7,6 +7,7 @@ Fast SEC EDGAR client and filing parser written in Rust, for Python. It also ins
 - Look up companies by ticker or CIK
 - List a company's filings with form and date filters, including full history back to 1994
 - Convert filing HTML (or old plain-text submissions) to clean text, with table rows kept on one line
+- Return the tables as rows of cells too, with their offsets in that text
 - Split 10-K, 10-Q and 8-K filings into Item sections (Item 1A Risk Factors, Item 7 MD&A, 8-K Item 2.02, and so on)
 - Search the full text of EDGAR, and bulk-download filings by form and date
 - Stays within the SEC fair-access limit (8 requests per second by default, 10 at most) and caches archive documents on disk
@@ -37,10 +38,14 @@ latest = client.latest("AAPL", "10-K")      # a filing dict
 text = client.text(latest)                  # clean text
 for s in client.sections(latest):
     print(s["id"], s["title"], len(s["text"]))
+tables = client.tables(latest)              # [{'start': ..., 'end': ..., 'header_rows': [], 'rows': [[...], ...]}, ...]
 
 pe.html_to_text(html)                       # parse documents you already have
 pe.extract_sections(text, "10-K")
+text, tables = pe.html_to_text_and_tables(html)
 ```
+
+A table is a list of rows, each a list of cells that read exactly as in the text: `$` and `)` or `%` cells are merged into their numbers ("$391,035", "(1,234)"), and empty cells are left out. `header_rows` lists the rows the filing marks as headers with `<thead>` or `<th>`, which most filings do not. `start` and `end` give the table's place in the text, the same text that `extract_sections` splits, so a table belongs to the section whose `start` and `end` hold its `start`. Offsets of sections and tables count bytes of the UTF-8 text: slice `text.encode()[t["start"]:t["end"]].decode()` when the text is not plain ASCII. Plain-text filings have no tables.
 
 Lookup failures raise `LookupError`, bad arguments raise `ValueError`, and network or HTTP failures raise `parsec_edgar.EdgarError`. Network calls release the GIL, so one client can be shared across threads; it stays within its rate limit.
 
@@ -50,6 +55,7 @@ Lookup failures raise `LookupError`, bad arguments raise `ValueError`, and netwo
 parsec-edgar company AAPL
 parsec-edgar filings AAPL --form 10-K --limit 5
 parsec-edgar sections AAPL --form 10-K --item 1A --item 7     # JSON
+parsec-edgar tables AAPL --form 10-K --item 8                 # Item 8's tables as rows of cells, JSON
 parsec-edgar crawl --form 8-K --since 2026-11-05 --until 2026-11-06 --out 8k
 ```
 

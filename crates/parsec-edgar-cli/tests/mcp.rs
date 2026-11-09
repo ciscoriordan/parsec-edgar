@@ -19,8 +19,15 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-const TOOLS: [&str; 6] =
-    ["find_company", "get_filing_outline", "list_filings", "read_filing_text", "read_section", "search_full_text"];
+const TOOLS: [&str; 7] = [
+    "find_company",
+    "get_filing_outline",
+    "list_filings",
+    "read_filing_text",
+    "read_section",
+    "read_tables",
+    "search_full_text",
+];
 
 fn initialize_params() -> Value {
     json!({
@@ -181,6 +188,8 @@ fn stdio_protocol_offline() {
     let (is_error, msg) = s.call("search_full_text", json!({ "query": " " }));
     assert!(is_error && msg.contains("needs a query"), "{msg}");
     let (is_error, msg) = s.call("get_filing_outline", json!({ "company": "" }));
+    assert!(is_error && msg.contains("company is empty"), "{msg}");
+    let (is_error, msg) = s.call("read_tables", json!({ "company": " ", "section": "item_8" }));
     assert!(is_error && msg.contains("company is empty"), "{msg}");
     let (is_error, msg) = s.call(
         "read_filing_text",
@@ -362,6 +371,19 @@ fn stdio_end_to_end() {
     let both = s.ok("read_section", json!({ "company": "AAPL", "section": "item_1a", "max_chars": 20000 }));
     let joined = format!("{}{}", page_body(&first), page_body(&second));
     assert!(page_body(&both).starts_with(&joined));
+
+    // read_tables: the financial statements in Item 8, as rows of cells.
+    let item_8_tables = sections.iter().find(|x| x["id"] == "item_8").unwrap()["tables"].as_u64().unwrap();
+    assert!(item_8_tables > 5, "Item 8 has only {item_8_tables} tables");
+    let tables: Value = serde_json::from_str(
+        &s.ok("read_tables", json!({ "company": "AAPL", "section": "item_8", "max_chars": 5000 })),
+    )
+    .unwrap();
+    assert_eq!(tables["total_tables"], item_8_tables);
+    let shown = tables["tables"].as_array().unwrap();
+    assert!(!shown.is_empty() && shown.iter().all(|t| t["section"] == "item_8"));
+    assert!(tables["next_offset"].as_u64().unwrap() > shown[0]["index"].as_u64().unwrap());
+    assert!(shown.iter().any(|t| t["rows"].to_string().contains("Total net sales")), "{tables}");
 
     // read_filing_text on a proxy statement, which has no Item sections.
     let proxies: Value =

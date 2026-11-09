@@ -5,6 +5,7 @@ Fast SEC EDGAR client and filing parser written in Rust, with Python bindings an
 - Look up companies by ticker or CIK
 - List a company's filings with form and date filters, including full history back to 1994
 - Convert filing HTML (or old plain-text submissions) to clean text, with table rows kept on one line and `$` signs merged into their numbers
+- Return the tables as rows of cells too, with their offsets in that text
 - Split 10-K, 10-Q and 8-K filings into Item sections (Item 1A Risk Factors, Item 7 MD&A, 8-K Item 2.02, and so on)
 - Stays within the SEC fair-access limit (8 requests per second by default, 10 at most) and caches archive documents on disk
 
@@ -38,6 +39,7 @@ parsec-edgar text AAPL --form 10-K                                 # clean text 
 parsec-edgar sections AAPL --form 10-K --item 1A --item 7          # JSON
 parsec-edgar sections MSFT --form 10-Q --no-text                   # ids, titles and offsets only
 parsec-edgar sections AAPL --accession 0000320193-26-000026
+parsec-edgar tables AAPL --form 10-K --item 8                      # Item 8's tables as rows of cells, JSON
 ```
 
 Archive documents (filings, their index pages and finished quarters of the full index) are cached in `~/.cache/parsec-edgar` (override with `--cache-dir` or `PARSEC_EDGAR_CACHE`, disable with `--no-cache`). Filing lists, the ticker file and full-text search results are not cached on disk, so each command fetches them fresh. The MCP server keeps some of them in memory while it runs (see below).
@@ -50,12 +52,13 @@ Archive documents (filings, their index pages and finished quarters of the full 
 |---|---|
 | `find_company` | Up to 10 filers matching a ticker, a CIK or part of a company name |
 | `list_filings` | Compact rows (accession, form, filing date, period, 8-K Items), filtered by form and filing date |
-| `get_filing_outline` | Filing metadata, total length, and the Item sections' ids, titles and character counts, without the text |
+| `get_filing_outline` | Filing metadata, total length, number of tables, and the Item sections' ids, titles, character counts and table counts, without the text |
 | `read_section` | One Item section as clean text, `max_chars` characters at a time (default 20,000), with `next_offset` while more remains |
 | `read_filing_text` | The whole primary document the same way, for forms without Item sections (S-1, DEF 14A, 20-F, ...), or one exhibit named by `document` |
+| `read_tables` | The [tables](#tables) of a filing, of one Item section or of one exhibit as rows of cells, each with its section, its character offset and the short line just above it (often its title or units), `max_chars` characters of JSON at a time |
 | `search_full_text` | SEC full-text search hits since 2001: company, CIK, form, filing date, accession and document URL, plus the exhibit type and file name (`document`) when the match is in an exhibit |
 
-The tool descriptions steer the model to call `get_filing_outline` first and then read only the sections it needs. For Apple's 2026 10-K the outline is about 2,200 characters, while the full text is 230,000 and Risk Factors alone is 86,000. Offsets count characters, and a page ends at a paragraph, line or word boundary when there is one near the limit. Failures (unknown ticker or CIK, missing section, bad date) come back as tool errors that name the next step, for example the list of section ids that do exist.
+The tool descriptions steer the model to call `get_filing_outline` first and then read only the sections it needs. For Apple's 2026 10-K the outline is about 2,200 characters, while the full text is 230,000 and Risk Factors alone is 86,000. Offsets count characters, and a page ends at a paragraph, line or word boundary when there is one near the limit. `read_tables` pages by whole tables: `next_offset` is the index of the next table, and a table longer than `max_chars` is split between rows, with `next_row` saying where to continue. Failures (unknown ticker or CIK, missing section, bad date) come back as tool errors that name the next step, for example the list of section ids that do exist.
 
 Many search hits are in exhibits rather than the primary document, for example the EX-99.1 press release attached to an 8-K. For those, `search_full_text` returns the exhibit's file name as `document`, and `read_filing_text` (or `get_filing_outline`) reads that exhibit when given the hit's accession and `document`. Only plain file names ending in `.htm`, `.html`, `.txt` or `.xml` are accepted.
 
@@ -140,10 +143,14 @@ latest = client.latest("AAPL", "10-K")      # a filing dict
 text = client.text(latest)                  # clean text
 for s in client.sections(latest):
     print(s["id"], s["title"], len(s["text"]))
+tables = client.tables(latest)              # [{'start': ..., 'end': ..., 'header_rows': [], 'rows': [[...], ...]}, ...]
 
 pe.html_to_text(html)                       # parse documents you already have
 pe.extract_sections(text, "10-K")
+text, tables = pe.html_to_text_and_tables(html)
 ```
+
+Offsets (`start` and `end` of sections and tables) count bytes of the UTF-8 text, so slice `text.encode()[t["start"]:t["end"]].decode()` when the text is not plain ASCII.
 
 Lookup failures raise `LookupError`, bad arguments raise `ValueError`, and network or HTTP failures raise `parsec_edgar.EdgarError`. Network calls release the GIL, so one client can be shared across threads; it stays within its rate limit.
 
@@ -160,7 +167,17 @@ for s in client.filing_sections(&filing)? {
     println!("{} {} ({} bytes)", s.id, s.title, s.text.len());
 }
 let recent = client.filings("NVDA", &FilingQuery::forms(&["8-K"]).since("2026-01").limit(10))?;
+
+// Text, tables and sections from one download and one parse.
+let (text, tables) = parsec_edgar::document_to_text_and_tables(&client.primary_document(&filing)?);
+let sections = parsec_edgar::extract_sections(&text, parsec_edgar::FormKind::TenK);
+let item_8 = sections.iter().find(|s| s.id == "item_8").unwrap();
+for t in tables.iter().filter(|t| item_8.start <= t.start && t.start < item_8.end) {
+    println!("{} rows, first {:?}", t.rows.len(), t.rows[0]);
+}
 ```
+
+`Client::filing_tables(&filing)` returns the tables alone.
 
 ## Bulk crawling
 
@@ -264,6 +281,26 @@ let (filings, profile) = client.crawl_company_with_profile("AAPL", &tenks)?;  //
 - Filings from before about 2001 have no separate primary document, so the crawl reads the complete submission file and its first document.
 - No equivalents yet for edgar-crawler's `remove_tables` and `include_signature` options, and no Python binding for crawling.
 
+## Tables
+
+`html_to_text_and_tables` (and `document_to_text_and_tables` for any EDGAR document) returns the same text as `html_to_text`, byte for byte, plus each table as rows of cells. From Apple's 2026 10-K:
+
+```json
+{"start": 191504, "end": 191760, "header_rows": [],
+ "rows": [["Number of\nRSUs\n(in thousands)", "Weighted-Average\nGrant-Date\nFair Value"],
+          ["Balance as of September 27, 2025", "151,574", "$189.75"],
+          ["RSUs granted", "75,538", "$260.81"], ...]}
+```
+
+- `start` and `end` are byte offsets in the text, as for sections, so a table belongs to the section whose `start..end` holds its `start`. The `tables` command adds that section's id to each table, and `--item` keeps only the tables of the given sections.
+- Cells read exactly as in the text: `$` and `)` or `%` cells are merged into their numbers, and empty cells are left out. A row is one line of tab-separated cells in the text, unless a cell has several lines (the RSU header above) or the row is over 1,000 characters; then the text has its cells one after another, and the cells keep their line breaks.
+- `header_rows` lists the rows inside `<thead>` and the rows whose cells are all `<th>`. Most filings use neither, so the list is usually empty; no other guess is made about headers.
+- Lines removed from the text as page numbers or running headers are removed from the tables too, and a table left with no rows is dropped.
+- Layout tables, whose rows are all long blocks of text (some filings wrap whole pages in a table), are not returned, while the tables inside them are. A table in a cell of another table is returned on its own, inside the outer table's offsets, except a one-row table that became a single cell of the outer row.
+- Plain-text filings (most filings before 2001) have no tables.
+
+Over the 129 benchmark filings that is about 19,600 tables, and converting with tables takes about 2% longer than `html_to_text`, whose own speed is unchanged.
+
 ## Section ids
 
 | Form | Ids |
@@ -286,7 +323,7 @@ Accuracy is measured against 129 hand-labeled filings from 1997 to 2026 (`bench/
 - Item numbers the form does not define are not mapped to an Item: when Item 5 is printed only as "Item 5A" and "Item 5B" (McDonald's 2003), Item 5 is missing from the output.
 - A heading with two separators, such as "Item 3. - Quantitative and Qualitative Disclosures" (Samsara Luggage 2023 10-Q), is not recognized, and its text goes to the Item before it.
 - Running page headers and footers are removed when they carry a page number and repeat on five or more pages; short ones such as "2021 Form 10-K 100" stay.
-- Tables are rendered as tab-separated lines, not yet as structured data.
+- Table cells are not aligned to columns: empty cells are left out and a cell spanning several columns is one cell, so a row can have fewer cells than the rows around it, and a header row usually has no cell above the row labels.
 
 ## Layout
 

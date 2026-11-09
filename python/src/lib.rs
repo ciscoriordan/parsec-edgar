@@ -114,12 +114,31 @@ impl Client {
         let sections = py.detach(|| self.inner.filing_sections(&f)).map_err(err)?;
         Ok(pythonize(py, &sections)?)
     }
+
+    /// Tables of a filing dict's primary document, as a list of dicts with "start" and "end"
+    /// (byte offsets in the UTF-8 encoding of text(filing), like section offsets),
+    /// "header_rows" and "rows" (lists of cells).
+    fn tables<'py>(&self, py: Python<'py>, filing: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let f: pe::Filing = depythonize(filing)?;
+        let tables = py.detach(|| self.inner.filing_tables(&f)).map_err(err)?;
+        Ok(pythonize(py, &tables)?)
+    }
 }
 
 /// Convert filing HTML (or a plain-text or full SGML submission) to clean text.
 #[pyfunction]
 fn html_to_text(py: Python<'_>, html: &str) -> String {
     py.detach(|| pe::document_to_text(html))
+}
+
+/// Convert filing HTML (or a plain-text or full SGML submission) to clean text, as
+/// html_to_text does, and return (text, tables). Each table is a dict with "start" and
+/// "end" (byte offsets in text.encode()), "header_rows" and "rows" (lists of cells).
+/// Plain-text filings have no tables.
+#[pyfunction]
+fn html_to_text_and_tables<'py>(py: Python<'py>, html: &str) -> PyResult<(String, Bound<'py, PyAny>)> {
+    let (text, tables) = py.detach(|| pe::document_to_text_and_tables(html));
+    Ok((text, pythonize(py, &tables)?))
 }
 
 /// Split filing text into Item sections. `form` is "10-K", "10-Q" or "8-K" (variants accepted).
@@ -143,6 +162,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Client>()?;
     m.add_function(wrap_pyfunction!(run_cli, m)?)?;
     m.add_function(wrap_pyfunction!(html_to_text, m)?)?;
+    m.add_function(wrap_pyfunction!(html_to_text_and_tables, m)?)?;
     m.add_function(wrap_pyfunction!(extract_sections, m)?)?;
     m.add("EdgarError", m.py().get_type::<EdgarError>())?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
