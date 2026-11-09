@@ -4,17 +4,32 @@ build-backend = "maturin"
 
 [project]
 name = "parsec-edgar"
-description = "Fast SEC EDGAR client and filing parser written in Rust: companies, filings, clean text and 10-K/10-Q/8-K Item sections"
+description = "Fast SEC EDGAR client and filing parser written in Rust: companies, filings, clean text, 10-K/10-Q/8-K Item sections, and an MCP server"
+readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-keywords = ["sec", "edgar", "10-k", "filings", "finance"]
+keywords = ["sec", "edgar", "10-k", "filings", "finance", "mcp"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
     "Programming Language :: Rust",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Intended Audience :: Developers",
     "Intended Audience :: Financial and Insurance Industry",
     "Topic :: Office/Business :: Financial",
+    "Topic :: Office/Business :: Financial :: Investment",
 ]
 dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/ciscoriordan/parsec-edgar"
+Issues = "https://github.com/ciscoriordan/parsec-edgar/issues"
+
+[project.scripts]
+parsec-edgar = "parsec_edgar.__main__:main"
 
 [tool.maturin]
 python-source = "pysrc"

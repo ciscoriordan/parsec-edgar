@@ -918,6 +918,7 @@ name = "parsec-edgar-python"
 version = "0.1.0"
 dependencies = [
  "parsec-edgar",
+ "parsec-edgar-cli",
  "pyo3",
  "pythonize",
 ]

@@ -131,9 +131,17 @@ fn extract_sections<'py>(py: Python<'py>, text: &str, form: &str) -> PyResult<Bo
     Ok(pythonize(py, &sections)?)
 }
 
+/// Run the `parsec-edgar` command line with these arguments (the first is the
+/// program name) and return its exit code. Used by the `parsec-edgar` command.
+#[pyfunction]
+fn run_cli(py: Python<'_>, argv: Vec<std::ffi::OsString>) -> u8 {
+    py.detach(|| parsec_edgar_cli::run_from(argv))
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Client>()?;
+    m.add_function(wrap_pyfunction!(run_cli, m)?)?;
     m.add_function(wrap_pyfunction!(html_to_text, m)?)?;
     m.add_function(wrap_pyfunction!(extract_sections, m)?)?;
     m.add("EdgarError", m.py().get_type::<EdgarError>())?;
