@@ -12,8 +12,10 @@
 //! are dropped, and so is a bare page header ("Item 7") just above its
 //! titled heading. In a 10-Q a `PART I` or `PART II` line just above a heading
 //! fixes its part, and without one a title that only one part uses for that
-//! Item number does. The last Item ends at the signatures or where a
-//! separately paginated attached document (an annual report) begins.
+//! Item number does. A 10-Q line that starts with a Part I title and runs on
+//! as a sentence is a wrapped cross-reference, not a heading. The last Item
+//! ends at the signatures or where a separately paginated attached document
+//! (an annual report) begins.
 //!
 //! Lettered headings of Items the form does not define stay out of the chain.
 //! When the chain has no Item of their number, the first one printed where
@@ -194,10 +196,11 @@ fn keys_for(kind: FormKind) -> &'static [Key] {
     }
 }
 
-/// `Item 1A. Risk Factors`, `PART II - ITEM 1A RISK FACTORS`, `Item 4(T).`, `Items 1 and 2.`, `Item 9 A.`
+/// `Item 1A. Risk Factors`, `PART II - ITEM 1A RISK FACTORS`, `PART I -- ITEM 2`, `Item 4(T).`, `Items 1 and 2.`,
+/// `Item 9 A.`
 static PERIODIC_HEADING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*[,.:\-–—]?[ \t]*)?(?i:items?)[ \t]*(\d{1,2}[A-Ca-c]?)(?:[ \t]*\([Tt]\))?[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
+        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[\-–—]+)?[ \t]*)?(?i:items?)[ \t]*(\d{1,2}[A-Ca-c]?)(?:[ \t]*\([Tt]\))?[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
     )
     .unwrap()
 });
@@ -284,6 +287,8 @@ struct Candidate {
     /// 10-Q part whose standard title for this Item number matches the
     /// heading's title, when only one part's does ("Item 1. Legal Proceedings").
     title_part: Option<&'static str>,
+    /// The body heading that a dropped table-of-contents entry names.
+    listed: bool,
     /// The title names executive officers.
     officers: bool,
     /// Distance to the next heading of a different Item.
@@ -370,7 +375,7 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     let mut cands: Vec<Candidate> = re
         .captures_iter(text)
         .filter(|c| heading_tail_ok(after_dashes(&c[2])))
-        .map(|c| {
+        .filter_map(|c| {
             let m = c.get(0).expect("group 0 always matches");
             let heading: String = m.as_str().trim().chars().take(300).collect();
             let (number, tail) = (c.get(1).expect("Item number"), c.get(2).expect("tail"));
@@ -386,11 +391,28 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
             let title = title_key(title_text);
             let officers = OFFICERS.is_match(title_text);
             let (part, title_part) = if kind == FormKind::TenQ {
-                (part_above(text, m.start(), &label), part_by_title(&label, &title))
+                (part_above(text, m.start(), &label), part_by_title(&label, title_text))
             } else {
                 (None, None)
             };
-            Candidate { pos: m.start(), label, heading, bare, title, part, title_part, officers, gap: 0, score: 0.0 }
+            // A hard-wrapped cross-reference that starts with a Part I title is
+            // not a heading, and must not cut the Item it sits in short.
+            if title_part == Some("I") && !bare && runs_on_as_sentence(&label, tail) {
+                return None;
+            }
+            Some(Candidate {
+                pos: m.start(),
+                label,
+                heading,
+                bare,
+                title,
+                part,
+                title_part,
+                listed: false,
+                officers,
+                gap: 0,
+                score: 0.0,
+            })
         })
         .collect();
     set_gaps(&mut cands, text.len());
@@ -429,14 +451,62 @@ fn next_line_title(text: &str, end: usize) -> &str {
     if is_item_line(line) { "" } else { line }
 }
 
-/// The 10-Q part whose standard title for Item `label` matches `title`,
-/// when exactly one part's does.
+/// Words that qualify the financial statements in a 10-Q Part I Item 1 title:
+/// "Condensed Consolidated Financial Statements (Unaudited)".
+const QUALIFIERS: &[&str] = &["unaudited", "interim", "condensed", "consolidated"];
+
+/// Lowercase words that a 10-Q Part I heading can hold besides the words of
+/// its standard title and the qualifiers: joining words, the notes, and the
+/// period the statements cover. Separated by spaces.
+const TITLE_WORDS: &str = "a about an and as at by for from in of on or the to with \
+                           notes related thereto continued three six nine months quarter period ended";
+
+/// The title without its leading qualifiers: "Unaudited Condensed
+/// Consolidated Financial Statements" reads "Financial Statements".
+fn without_qualifiers(title: &str) -> &str {
+    let mut t = title;
+    loop {
+        let rest = &t[t.find(char::is_alphabetic).unwrap_or(t.len())..];
+        let end = rest.find(|c: char| !c.is_alphabetic()).unwrap_or(rest.len());
+        if end == 0 || !QUALIFIERS.iter().any(|q| q.eq_ignore_ascii_case(&rest[..end])) {
+            return t;
+        }
+        t = &rest[end..];
+    }
+}
+
+/// The 10-Q part whose standard title for Item `label` matches the title
+/// text, when exactly one part's does. Leading qualifiers do not count.
 fn part_by_title(label: &str, title: &str) -> Option<&'static str> {
-    let mut parts = TEN_Q.iter().filter(|k| k.item == label && same_title(title, &title_key(k.title))).map(|k| k.part);
+    let title = title_key(without_qualifiers(title));
+    let mut parts = TEN_Q.iter().filter(|k| k.item == label && same_title(&title, &title_key(k.title))).map(|k| k.part);
     match (parts.next(), parts.next()) {
         (Some(part), None) => part,
         _ => None,
     }
+}
+
+/// Whether a title that starts with the 10-Q Part I title of Item `label`
+/// runs on as a sentence, as a hard-wrapped cross-reference does ("Item 1.
+/// Financial Statements, of this report is hereby updated as follows:"): up
+/// to the first period, colon, semicolon, bracket, dash or tab, some word
+/// starts with a lowercase letter and is not a word of that title, a
+/// qualifier or one of `TITLE_WORDS`. Headings do not: "Item 1. Financial
+/// statements (unaudited)", "Item 3. Quantitative and Qualitative Disclosures
+/// About Market Risk. Not applicable."
+fn runs_on_as_sentence(label: &str, title: &str) -> bool {
+    let words = |s: &'static str| s.split(|c: char| !c.is_alphabetic());
+    let known = |w: &str| {
+        TEN_Q
+            .iter()
+            .filter(|k| k.part == Some("I") && k.item == label)
+            .flat_map(|k| words(k.title))
+            .chain(QUALIFIERS.iter().copied())
+            .chain(TITLE_WORDS.split(' '))
+            .any(|s| s.eq_ignore_ascii_case(w))
+    };
+    let end = title.find(['.', ':', ';', '(', '[', '-', '–', '—', '\t']).unwrap_or(title.len());
+    title[..end].split(|c: char| !c.is_alphabetic()).any(|w| w.starts_with(char::is_lowercase) && !known(w))
 }
 
 /// The Item number of a bare heading line such as "Item 7".
@@ -475,9 +545,11 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// body heading as Part II. Entries just before a dropped contents entry
 /// belong to the same contents block and go too (an Item listed in the
 /// contents whose body has no heading). Body headings stay: an entry goes only
-/// when the candidate before it is a contents entry too or it is the first
-/// candidate in the text, and never when it is the later copy of a heading
-/// printed twice. Short entries just after a dropped listing entry go with it.
+/// when the candidate before it is a contents entry too or it comes before the
+/// first body heading that a contents entry names, and never when it is the
+/// later copy of a heading printed twice. Short entries just after a dropped
+/// listing entry go with it. The body headings of dropped contents entries are
+/// marked `listed`.
 fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
     const SAME_BLOCK: usize = 2000;
     let n = cands.len();
@@ -508,10 +580,15 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
             }
         }
     }
+    // A body heading is never a contents entry or reached by the spread below
+    // (it is the later copy of a pair), so this is where the body starts.
+    let body_start = (0..n).find(|&i| body[i] && !contents[i]).map(|i| cands[i].pos);
     // Spread to the other entries of a contents block: mark the runs of close
     // candidates that lead up to a contents entry, then keep those that follow
-    // a contents entry or come first in the text. A short body Item just
-    // before a second contents list follows a body heading, so it stays.
+    // a contents entry or come before the body. A short body Item just before
+    // a second contents list follows a body heading, so it stays. So does an
+    // Item line before the contents (a 10-Q/A's explanatory note), which must
+    // not keep the first contents entry after it.
     let mut leads = contents.clone();
     for i in (0..n.saturating_sub(1)).rev() {
         if leads[i + 1] && !paired[i] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
@@ -519,13 +596,13 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
         }
     }
     for i in 0..n {
-        if leads[i] && (i == 0 || contents[i - 1]) {
+        if leads[i] && (body_start.is_some_and(|b| cands[i].pos < b) || (i > 0 && contents[i - 1])) {
             contents[i] = true;
         }
     }
     let mut after = vec![false; n];
     if !later_copies.is_empty() {
-        let body_start = (0..n).find(|&i| body[i] && !contents[i]).map_or(0, |i| cands[i].pos);
+        let body_start = body_start.unwrap_or(0);
         let sigs = signature_lines(text);
         for (a, b) in later_copies {
             let from = body_start.max(cands[a].pos + 1);
@@ -538,7 +615,12 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
             after[i] = true;
         }
     }
-    cands.into_iter().enumerate().filter(|&(i, _)| !contents[i] && !after[i]).map(|(_, c)| c).collect()
+    cands
+        .into_iter()
+        .enumerate()
+        .filter(|&(i, _)| !contents[i] && !after[i])
+        .map(|(i, c)| Candidate { listed: body[i], ..c })
+        .collect()
 }
 
 /// Drop a bare running page header ("Item 7") that comes just before the
@@ -639,19 +721,23 @@ fn block_start(text: &str, start: usize, end: usize) -> Option<usize> {
 /// statements (Part I Item 1) after MD&A. The ordered chain cannot hold such a
 /// heading, so it is added afterwards when its part is known, its Item is
 /// still unused, it starts a real stretch of text rather than a contents
-/// entry, and it comes before the signatures. A `PART` line gives the part,
-/// and so does a title that only Part I uses for that Item number. A Part II
-/// title does not: Part II Items 1A (Risk Factors) and 4 (Mine Safety
-/// Disclosures) share number and title with 10-K Items that 10-Qs cite.
+/// entry, and it comes before the signatures. It must also come after the
+/// chain's first heading or after the first body heading that a contents
+/// entry names: when the chain keeps Item 1 printed after Item 2, Item 2
+/// comes before the chain. A `PART` line gives the part, and so does a title
+/// that only Part I uses for that Item number. A Part II title does not: Part
+/// II Items 1A (Risk Factors) and 4 (Mine Safety Disclosures) share number and
+/// title with 10-K Items that 10-Qs cite.
 fn add_out_of_order(text: &str, cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize)>) {
     const MIN_GAP: usize = 1000;
     let first = cands[picks[0].0].pos;
+    let from = cands.iter().find(|c| c.listed).map_or(first, |c| c.pos.min(first));
     let last = picks.iter().map(|&(c, _)| cands[c].pos).max().unwrap_or(first);
     let limit = signatures_after(text, last).unwrap_or(text.len());
     let mut extra: Vec<(usize, usize)> = Vec::new();
     for (ci, c) in cands.iter().enumerate() {
         let Some(part) = c.part.or(c.title_part.filter(|&p| p == "I")) else { continue };
-        if c.gap < MIN_GAP || c.pos <= first || c.pos >= limit || picks.iter().any(|&(p, _)| p == ci) {
+        if c.gap < MIN_GAP || c.pos < from || c.pos >= limit || picks.iter().any(|&(p, _)| p == ci) {
             continue;
         }
         let Some(ki) = keys.iter().position(|k| k.item == c.label && k.part == Some(part)) else { continue };
@@ -1283,6 +1369,30 @@ mod tests {
     }
 
     #[test]
+    fn item_line_before_the_contents_does_not_keep_contents_entries() {
+        // A 10-Q/A's explanatory note names Item 4 well before the contents,
+        // whose rows for Part I Items 1 and 2 have no heading in the body.
+        // Those rows come before the body, so they are still dropped.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "FORM 10-Q/A\nEXPLANATORY NOTE\nThis amendment restates the following items:\n\
+             Item 4 Controls and Procedures (as amended)\n{body}\n\
+             Part I - Financial Information\nItem 1 Consolidated Financial Statements\t60\n\
+             Item 2 Management's Discussion and Analysis\t3\n\
+             Item 3 Quantitative and Qualitative Disclosures About Market Risk\t58\n\
+             Item 4 Controls and Procedures\t58\nPart II - Other Information\n\
+             Item 1 Legal Proceedings\t90\nItem 6 Exhibits\t92\n\
+             Financial Highlights\n{body}{body}\n\
+             Item 3 Quantitative and Qualitative Disclosures About Market Risk\nSee Market Risk Management.\n\
+             Item 4 Controls and Procedures\n{body}\nPart II Other Information\n\
+             Item 1 Legal Proceedings\n{body}\nItem 6 Exhibits\n{body}\nSIGNATURE\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert!(s[0].text.starts_with("Item 3 Quantitative and Qualitative Disclosures About Market Risk\nSee"));
+    }
+
+    #[test]
     fn part_line_search_stops_at_a_part_prefixed_item_line() {
         // "PART II - Item 6. Exhibits" is a contents row for another Item, not
         // the PART line of the body's first heading.
@@ -1464,6 +1574,134 @@ mod tests {
         assert!(s[1].text.contains("\nItem 1A. Risk Factors of our Annual Report"));
     }
 
+    /// Capital One's 10-Q layout: a contents list in form order, one PART I
+    /// line, Item 2 (MD&A), Item 1 (the statements) with heading `item_1`,
+    /// then Items 3 and 4 and Part II. `mdna` and `statements` set the lengths
+    /// of Items 2 and 1.
+    fn item_2_before_item_1(item_1: &str, mdna: usize, statements: usize) -> String {
+        let body = BODY.repeat(30);
+        format!(
+            "PART I\nItem 1.\tFinancial Statements and Notes\t73\n\
+             Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\t4\n\
+             Item 3.\tQuantitative and Qualitative Disclosures about Market Risk\t142\n\
+             Item 4.\tControls and Procedures\t142\nPART II\nItem 1.\tLegal Proceedings\t143\n\
+             Item 6.\tExhibits\t143\n\
+             PART I—FINANCIAL INFORMATION\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             {}\n{item_1}\n{}\n\
+             Item 3. Quantitative and Qualitative Disclosures about Market Risk\nSee Item 2.\n\
+             Item 4. Controls and Procedures\n{body}\n\
+             PART II—OTHER INFORMATION\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n",
+            body.repeat(mdna),
+            body.repeat(statements),
+        )
+    }
+
+    const ITEM_2_BEFORE_ITEM_1: [&str; 6] =
+        ["part_1_item_2", "part_1_item_1", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"];
+
+    #[test]
+    fn ten_q_item_2_before_item_1_is_kept_whichever_is_longer() {
+        // The chain holds only one of the two and keeps the longer. When that
+        // is Item 1, Item 2 comes before the chain's first heading, but it is
+        // the first body heading that the contents names.
+        for (mdna, statements) in [(4, 3), (3, 4)] {
+            let text = item_2_before_item_1("Item 1. Financial Statements and Notes", mdna, statements);
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ITEM_2_BEFORE_ITEM_1, "MD&A {mdna}, statements {statements}");
+            assert_eq!(s[0].end, s[1].start);
+        }
+    }
+
+    #[test]
+    fn qualified_financial_statements_titles_name_part_one() {
+        // Item 1 printed after MD&A with no PART line of its own, under a
+        // title that qualifies the financial statements.
+        for title in [
+            "Consolidated Financial Statements",
+            "Condensed Consolidated Financial Statements (Unaudited)",
+            "Unaudited Consolidated Condensed Financial Statements",
+            "INTERIM FINANCIAL STATEMENTS",
+        ] {
+            assert_eq!(part_by_title("1", title), Some("I"), "{title}");
+            let text = item_2_before_item_1(&format!("Item 1. {title}"), 4, 3);
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ITEM_2_BEFORE_ITEM_1, "{title}");
+            assert_eq!(s[1].heading, format!("Item 1. {title}"));
+        }
+        assert_eq!(part_by_title("1", "Consolidated Legal Proceedings"), Some("II"));
+        assert_eq!(part_by_title("1", "Consolidated"), None);
+        assert_eq!(part_by_title("2", "Consolidated Financial Statements"), None);
+    }
+
+    #[test]
+    fn wrapped_cross_reference_to_part_one_is_not_added_out_of_order() {
+        // A plain-text 10-Q with no Item 1 heading. Part II Item 1 cites Part
+        // I Item 1 in a sentence that wraps so that a line starts with it.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I. FINANCIAL INFORMATION\nCONSOLIDATED BALANCE SHEETS\n{body}{body}{body}\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             {body}{body}\nPART II. OTHER INFORMATION\nItem 1. Legal Proceedings\n\
+             The information in Note 5 to the Consolidated Financial Statements in Part I,\n\
+             Item 1. Financial Statements, of this report is hereby updated as follows:\n{body}\n\
+             Item 6. Exhibits and Reports on Form 8-K\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+        assert!(s[1].text.contains("\nItem 1. Financial Statements, of this report is hereby updated"));
+    }
+
+    #[test]
+    fn wrapped_cross_reference_does_not_take_its_item() {
+        // A 10-Q with no Item 1 heading, whose MD&A cites Item 1 in a wrapped
+        // sentence: the line would fit the Item order and outscore Item 2.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I. FINANCIAL INFORMATION\nCONSOLIDATED BALANCE SHEETS\n{body}{body}{body}\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             {body}\nThe effect of adoption is described in Note 4 to the financial statements in Part I,\n\
+             Item 1. Financial Statements, of this report. The adoption did not have a material\n\
+             effect on results of operations.\n{body}{body}\n\
+             Item 3. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+             PART II. OTHER INFORMATION\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_2", "part_1_item_3", "part_2_item_1", "part_2_item_6"]);
+        assert!(s[0].text.contains("\nItem 1. Financial Statements, of this report."));
+        // Part I has no Item headings, and Part II Item 1 cites Part I Item 2.
+        let text = format!(
+            "PART I. FINANCIAL INFORMATION\nCONSOLIDATED STATEMENT OF INCOME\n{body}{body}\n\
+             MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\nPART II. OTHER INFORMATION\n\
+             Item 1. Legal Proceedings\nThe discussion of the litigation in Part I,\n\
+             Item 2. Management's Discussion and Analysis, of this report is hereby updated:\n{body}\n\
+             Item 4. Submission of Matters to a Vote of Security Holders\n{body}\n\
+             Item 6. Exhibits and Reports on Form 8-K\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_4", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn part_one_headings_with_other_lowercase_words_stay() {
+        // Sentence case, notes in brackets, a wrapped title, a run-in sentence
+        // after a period and the period covered do not make a heading read as
+        // a cross-reference.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Condensed consolidated financial statements (unaudited)\n{body}\n\
+             Item 2. Management's discussion and analysis of financial condition and\nresults of operations\n{body}\n\
+             Item 3. Quantitative and Qualitative Disclosures About Market Risk. Not applicable.\n\
+             Item 4. Controls and procedures\n{body}\nPART II\nItem 1. Legal Proceedings\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_3", "part_1_item_4", "part_2_item_1"]);
+        assert!(!runs_on_as_sentence("1", "Financial Statements and Notes Thereto"));
+        assert!(!runs_on_as_sentence("1", "Financial statements for the three months ended March 31, 2020"));
+        assert!(runs_on_as_sentence("1", "Financial Statements, Note 5, of this report is hereby updated as"));
+        assert!(runs_on_as_sentence("2", "Management's Discussion and Analysis, under \"Litigation,\" in Part I"));
+    }
+
     #[test]
     fn dashes_after_the_separator_belong_to_it() {
         // "Item 3. - Quantitative ..." prints a period and a dash, "ITEM 6 --
@@ -1507,6 +1745,22 @@ mod tests {
                     Item 9.01 Financial Statements and Exhibits.\n(d) Exhibits\nSIGNATURE\n";
         let s = extract_sections(text, FormKind::EightK);
         assert_eq!(ids(&s), ["item_2.02", "item_9.01"]);
+    }
+
+    #[test]
+    fn dashes_between_part_and_item_are_one_separator() {
+        // "PART I -- ITEM 2": two hyphens between the PART prefix and ITEM,
+        // with the title on the same line or the next.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I -- ITEM 1. FINANCIAL STATEMENTS\n{body}\nPART I -- ITEM 2\nMANAGEMENT'S DISCUSSION AND ANALYSIS OF\n\
+             FINANCIAL CONDITION AND RESULTS OF OPERATIONS\n{body}\nPART II -- ITEM 1 -- LEGAL PROCEEDINGS\n{body}\n\
+             PART II—ITEM 6—EXHIBITS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(s[1].heading, "PART I -- ITEM 2");
+        assert!(s[0].text.ends_with(body.trim()));
     }
 
     #[test]
