@@ -1,0 +1,156 @@
+{
+  "accession": "0000018230-17-000041",
+  "cik": 18230,
+  "company": "CATERPILLAR INC",
+  "form": "10-K",
+  "filing_date": "2017-02-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823017000041/cat_10-kx12312016.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Item 1C is Executive Officers of the Registrant here (before 1C became Cybersecurity); it is labeled by its printed number.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness.",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRisk Factors.",
+      "occurrence": 0,
+      "next": "The statements in this section describe "
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.\tUnresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_1c",
+      "text": "Item 1C.\tExecutive Officers of the Registrant.",
+      "occurrence": 0,
+      "next": "Name and age"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties.",
+      "occurrence": 0,
+      "next": "General Information"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings.",
+      "occurrence": 0,
+      "next": "Certain legal proceedings in which we ar",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tMine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Common Stock (NYSE: CAT)"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Financial Data.",
+      "occurrence": 0,
+      "next": "Five-year Financial Summary"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "This Management’s Discussion and Analysi"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "Information required by Item 7A appears ",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "MANAGEMENT’S REPORT ON"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "Not Applicable."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tControls and Procedures.",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information.",
+      "occurrence": 0,
+      "next": "Not Applicable."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "Identification of Directors and Business"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation.",
+      "occurrence": 0,
+      "next": "Information required by this Item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "Information required by this Item relati"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "Information required by this Item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPrincipal Accountant Fees and Services.",
+      "occurrence": 0,
+      "next": "Information required by this Item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "Exhibits:"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. Form 10-K Summary.",
+      "occurrence": 0,
+      "next": "None."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

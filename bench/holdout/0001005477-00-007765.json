@@ -1,0 +1,48 @@
+{
+  "accession": "0001005477-00-007765",
+  "cik": 51143,
+  "company": "INTERNATIONAL BUSINESS MACHINES CORP",
+  "form": "10-Q",
+  "filing_date": "2000-11-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/51143/000100547700007765/0001005477-00-007765.txt",
+  "agent": "agent 0001005477",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Part II has only Item 6, printed as 'ITEM 6 (a). Exhibits' and 'ITEM 6 (b). Reports on Form 8-K'.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1. Consolidated Financial Statements",
+      "occurrence": 1,
+      "next": "INTERNATIONAL BUSINESS MACHINES CORPORAT"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2.",
+      "occurrence": 0,
+      "next": "MANAGEMENT'S DISCUSSION AND ANALYSIS"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6 (a). Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit Number"
+    }
+  ],
+  "absent": [
+    "part_1_item_3",
+    "part_1_item_4",
+    "part_2_item_1",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

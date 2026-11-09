@@ -1,0 +1,149 @@
+{
+  "accession": "0001157523-10-001218",
+  "cik": 37996,
+  "company": "FORD MOTOR CO",
+  "form": "10-K",
+  "filing_date": "2010-02-25",
+  "url": "https://www.sec.gov/Archives/edgar/data/37996/000115752310001218/a6182308.htm",
+  "agent": "agent 0001157523",
+  "tags": [],
+  "labeled": true,
+  "notes": "Every page repeats its Item heading with '(continued)'. Item 4A (executive officers) is not a standard Item, so Item 4 ends at its heading. Financial statements follow the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. Business",
+      "occurrence": 0,
+      "next": "Ford Motor Company (referred to herein a"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "We have listed below (not necessarily in"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None to report."
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. Properties",
+      "occurrence": 0,
+      "next": "Our principal properties include manufac"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "Various legal actions, governmental inve"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "Not required.",
+      "end": {
+        "text": "ITEM 4A. Executive Officers of Ford",
+        "occurrence": 0,
+        "next": "Our executive officers and their positio"
+      }
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. Market for Ford's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Our Common Stock is listed on the New Yo"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "The following table sets forth selected "
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "OVERVIEW"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "OVERVIEW"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "Our Financial Statements, the accompanyi",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "EVALUATION OF DISCLOSURE CONTROLS AND PR"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. Other Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. Directors, Executive Officers of Ford and Corporate Governance",
+      "occurrence": 0,
+      "next": "The information required by Item 10 rega"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "The information required by Item 11 is i",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information required by Item 12 is i",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. Certain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "The information required by Item 13 is i",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. Principal Accounting Fees and Services",
+      "occurrence": 0,
+      "next": "The information required by Item 14 is i",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. Exhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a) 1. Financial Statements – Ford Motor"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "accession": "0000078003-22-000101",
+  "cik": 78003,
+  "company": "PFIZER INC",
+  "form": "10-Q",
+  "filing_date": "2022-11-09",
+  "url": "https://www.sec.gov/Archives/edgar/data/78003/000007800322000101/pfe-20221002.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1. FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "PFIZER INC. AND SUBSIDIARY COMPANIES"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF",
+      "occurrence": 0,
+      "next": "OPERATIONS"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Information required by this item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "As of the end of the period covered by t"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "Certain legal proceedings in which we ar"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "ITEM 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "We refer to the Overview of Our Performa"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "ITEM 2. UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS",
+      "occurrence": 0,
+      "next": "The following summarizes purchases of ou"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6. EXHIBITS",
+      "occurrence": 0,
+      "next": "Exhibit 31.1\t-\tCertification by the Chie"
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

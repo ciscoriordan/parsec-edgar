@@ -1,0 +1,43 @@
+{
+  "accession": "0001193125-24-248743",
+  "cik": 12927,
+  "company": "BOEING CO",
+  "form": "8-K",
+  "filing_date": "2024-10-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/12927/000119312524248743/d750441d8k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "Item 1.01.\tEntry into a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "On October 28, 2024, The Boeing Company "
+    },
+    {
+      "id": "item_3.03",
+      "text": "Item 3.03.\tMaterial Modification to Rights of Security Holders.",
+      "occurrence": 0,
+      "next": "On October 31, 2024, the Company filed t"
+    },
+    {
+      "id": "item_5.03",
+      "text": "Item 5.03.\tAmendments to Articles of Incorporation or Bylaws; Change in Fiscal Year.",
+      "occurrence": 0,
+      "next": "The information set forth under Item 3.0",
+      "incorporated": true
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01.\tFinancial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

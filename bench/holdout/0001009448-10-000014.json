@@ -1,0 +1,129 @@
+{
+  "accession": "0001009448-10-000014",
+  "cik": 766792,
+  "company": "CVD EQUIPMENT CORP",
+  "form": "10-K",
+  "filing_date": "2010-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/766792/000100944810000014/cvdform10k123109.htm",
+  "agent": "agent 0001009448",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Smaller reporting company: no Items 1A, 1B or 7A. Item 9A is printed as 9A(T). Financial statements follow the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Description of Business.",
+      "occurrence": 0,
+      "next": "The use of the words “we,” “us” or “our”"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Description of Property.",
+      "occurrence": 0,
+      "next": "We maintain our headquarters at 1860 Smi"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "On September 18, 2007 a settlement was r"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. (Removed and Reserved)",
+      "occurrence": 0,
+      "next": "PART II"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "The following table sets forth, for the "
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data.",
+      "occurrence": 0,
+      "next": "Note applicable"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "You should read the following discussion"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements.",
+      "occurrence": 0,
+      "next": "The consolidated financial statements an",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A(T). Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures. We m"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information.",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers, Promoters, Control Persons and Corporate Governance; Compliance with Section 16(a) of the Exchange Act.",
+      "occurrence": 0,
+      "next": "BACKGROUND AND EXPERIENCE OF DIRECTORS"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation.",
+      "occurrence": 0,
+      "next": "Summary Compensation Table"
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "The following table sets forth, as of Ma"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "Related Person Transactions"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services.",
+      "occurrence": 0,
+      "next": "The following presents fees for professi"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits.",
+      "occurrence": 0,
+      "next": "3.1\tCertificate of Incorporation dated O"
+    }
+  ],
+  "absent": [
+    "item_1a",
+    "item_1b",
+    "item_7a"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with Section 13 or 15(d) o"
+  }
+}

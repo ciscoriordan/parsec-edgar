@@ -1,0 +1,30 @@
+{
+  "accession": "0000037996-19-000086",
+  "cik": 37996,
+  "company": "FORD MOTOR CO",
+  "form": "8-K",
+  "filing_date": "2019-12-11",
+  "url": "https://www.sec.gov/Archives/edgar/data/37996/000003799619000086/a8-klegalopiniondated1.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01. Other Events.",
+      "occurrence": 0,
+      "next": "On December 11, 2019, Ford Motor Company"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01. Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "EXHIBITS"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

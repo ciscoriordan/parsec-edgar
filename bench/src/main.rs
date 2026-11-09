@@ -160,11 +160,20 @@ fn run(cli: Cli) -> Res<()> {
         Command::Add { company, accession, tags, agent } => {
             let client = client(&cli)?;
             let f = client.filing(company, accession).map_err(|e| e.to_string())?;
-            let url = f.primary_document_url.clone().unwrap_or_else(|| f.full_submission_url());
             let path = cli.labels.join(format!("{}.json", f.accession_number));
             if path.exists() {
                 return Err(format!("{} exists", path.display()));
             }
+            // Fetch now so later runs read the cache. Some old filings list a
+            // primary document that is not served; the full submission is.
+            let fetched = f.primary_document_url.clone().map(|u| (client.get_text(&u), u));
+            let (raw, url) = match fetched {
+                Some((Ok(raw), u)) => (raw, u),
+                _ => {
+                    let u = f.full_submission_url();
+                    (client.get_text(&u).map_err(|e| e.to_string())?, u)
+                }
+            };
             let label = LabelFile {
                 accession: f.accession_number.clone(),
                 cik: f.cik,
@@ -177,8 +186,6 @@ fn run(cli: Cli) -> Res<()> {
                 ..LabelFile::default()
             };
             labels::save(&path, &label)?;
-            // Fetch now so later runs read the cache.
-            let raw = client.get_text(&label.url).map_err(|e| e.to_string())?;
             println!("{} {} {} {} ({} bytes)", path.display(), label.company, label.form, label.filing_date, raw.len());
         }
         Command::Items { accession } => {

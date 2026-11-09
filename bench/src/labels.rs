@@ -182,10 +182,10 @@ impl Doc {
             None => true,
             Some(n) => i + 1 < self.lines() && normalize(self.line(i + 1)).starts_with(n.as_str()),
         };
-        if let Some(&i) = cands.get(r.occurrence) {
-            if next_ok(i) {
-                return Ok(i);
-            }
+        if let Some(&i) = cands.get(r.occurrence)
+            && next_ok(i)
+        {
+            return Ok(i);
         }
         let good: Vec<usize> = cands.iter().copied().filter(|&i| next_ok(i)).collect();
         match (good.len(), cands.get(r.occurrence)) {

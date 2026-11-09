@@ -1,0 +1,75 @@
+{
+  "accession": "0000070858-19-000057",
+  "cik": 70858,
+  "company": "BANK OF AMERICA CORP /DE/",
+  "form": "10-Q",
+  "filing_date": "2019-10-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/70858/000007085819000057/bac-930201910xq.htm",
+  "agent": "self",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "Items are out of form order: MD&A (Item 2), Items 3 and 4 come before the financial statements (Item 1).",
+  "items": [
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 1,
+      "next": "Bank of America Corporation (the “Corpor"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "See Market Risk Management on page 41 in",
+      "incorporated": true
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "Bank of America Corporation and Subsidia"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "See Litigation and Regulatory Matters in"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "There are no material changes from the r"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "The table below presents share repurchas"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit No.\tDescription\tNotes"
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "Signature",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

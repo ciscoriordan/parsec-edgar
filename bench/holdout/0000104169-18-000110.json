@@ -1,0 +1,76 @@
+{
+  "accession": "0000104169-18-000110",
+  "cik": 104169,
+  "company": "Walmart Inc.",
+  "form": "10-Q",
+  "filing_date": "2018-11-30",
+  "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416918000110/wmtform10-qx10312018.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1.\tFinancial Statements",
+      "occurrence": 1,
+      "next": "Walmart Inc."
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "Market risks relating to our operations "
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "We maintain disclosure controls and proc"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "I. SUPPLEMENTAL INFORMATION: We discuss "
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "In addition to the other information set"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "From time to time, the Company repurchas"
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information",
+      "occurrence": 0,
+      "next": "Cautionary Statement Regarding Forward-L"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "The following documents are filed as an "
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}
