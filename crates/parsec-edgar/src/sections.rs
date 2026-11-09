@@ -563,9 +563,12 @@ fn signatures_after(text: &str, from: usize) -> Option<usize> {
 
 /// Some 10-Qs print Items out of form order: banks often put the financial
 /// statements (Part I Item 1) after MD&A. The ordered chain cannot hold such a
-/// heading, so it is added afterwards when a `PART` line marks it, its Item is
+/// heading, so it is added afterwards when its part is known, its Item is
 /// still unused, it starts a real stretch of text rather than a contents
-/// entry, and it comes before the signatures.
+/// entry, and it comes before the signatures. A `PART` line gives the part,
+/// and so does a title that only Part I uses for that Item number. A Part II
+/// title does not: Part II Items 1A (Risk Factors) and 4 (Mine Safety
+/// Disclosures) share number and title with 10-K Items that 10-Qs cite.
 fn add_out_of_order(text: &str, cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize)>) {
     const MIN_GAP: usize = 1000;
     let first = cands[picks[0].0].pos;
@@ -573,15 +576,11 @@ fn add_out_of_order(text: &str, cands: &[Candidate], keys: &[Key], picks: &mut V
     let limit = signatures_after(text, last).unwrap_or(text.len());
     let mut extra: Vec<(usize, usize)> = Vec::new();
     for (ci, c) in cands.iter().enumerate() {
-        if c.part.is_none()
-            || c.gap < MIN_GAP
-            || c.pos <= first
-            || c.pos >= limit
-            || picks.iter().any(|&(p, _)| p == ci)
-        {
+        let Some(part) = c.part.or(c.title_part.filter(|&p| p == "I")) else { continue };
+        if c.gap < MIN_GAP || c.pos <= first || c.pos >= limit || picks.iter().any(|&(p, _)| p == ci) {
             continue;
         }
-        let Some(ki) = keys.iter().position(|k| k.item == c.label && k.part == c.part) else { continue };
+        let Some(ki) = keys.iter().position(|k| k.item == c.label && k.part == Some(part)) else { continue };
         if picks.iter().chain(&extra).any(|&(_, k)| k == ki) {
             continue;
         }
@@ -1225,6 +1224,118 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn ten_q_item_out_of_order_found_by_its_title() {
+        // MD&A comes first under the only PART I line, and Item 1 follows it
+        // with no PART line of its own. Its title names Part I.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1.\tFinancial Statements and Notes\t73\n\
+             Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\t4\n\
+             Item 3.\tQuantitative and Qualitative Disclosures about Market Risk\t142\n\
+             Item 4.\tControls and Procedures\t142\nPART II\nItem 1.\tLegal Proceedings\t143\n\
+             Item 6.\tExhibits\t143\n\
+             PART I—FINANCIAL INFORMATION\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             {body}{body}{body}\nGlossary and Acronyms\n{body}\n\
+             Item 1. Financial Statements and Notes\n{body}{body}\n\
+             Item 3. Quantitative and Qualitative Disclosures about Market Risk\nSee Item 2.\n\
+             Item 4. Controls and Procedures\n{body}\n\
+             PART II—OTHER INFORMATION\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            ["part_1_item_2", "part_1_item_1", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"]
+        );
+        assert_eq!(s[1].heading, "Item 1. Financial Statements and Notes");
+        assert!(s[0].text.ends_with(body.trim()));
+        // The statements after Item 4, with the title on the next line.
+        let text = format!(
+            "PART I\nItem 2. Management's Discussion and Analysis\n{body}{body}\n\
+             Item 3. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+             Item 4. Controls and Procedures\n{body}\nITEM 1.\nFINANCIAL STATEMENTS\n{body}{body}\n\
+             PART II\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            ["part_1_item_2", "part_1_item_3", "part_1_item_4", "part_1_item_1", "part_2_item_1", "part_2_item_6"]
+        );
+        assert!(s[2].text.ends_with(body.trim()));
+    }
+
+    #[test]
+    fn titles_add_no_out_of_order_item_to_a_ten_q_in_order() {
+        // Items in form order with a contents list, a running header that
+        // repeats Item 1's heading and a cross-reference line that reads like
+        // it. Every Item is already in the chain, so nothing is added.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Financial Statements\t3\nItem 2. Management's Discussion and Analysis\t20\n\
+             Item 4. Controls and Procedures\t30\nItem 1. Legal Proceedings\t31\nItem 6. Exhibits\t32\n\
+             Item 1. Financial Statements\n{body}{body}\nItem 1. Financial Statements (continued)\n{body}\n\
+             Item 2. Management's Discussion and Analysis\n{body}\n\
+             Item 1. Financial Statements, Note 4, describes our debt.\n{body}\n\
+             Item 4. Controls and Procedures\n{body}\nItem 1. Legal Proceedings\n{body}\n\
+             Item 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert!(s[1].text.contains("\nItem 1. Financial Statements, Note 4, describes our debt.\n"));
+    }
+
+    #[test]
+    fn titles_add_no_contents_entry_or_short_cross_reference_out_of_order() {
+        // The financial statements have no Item 1 heading. A cross-reference
+        // line that reads "Item 1. Financial Statements" and an index of Items
+        // before the signatures start only a few characters of text.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nConsolidated Financial Statements\n{body}{body}\n\
+             Item 2. Management's Discussion and Analysis\n{body}\n\
+             Item 3. Quantitative and Qualitative Disclosures About Market Risk\n\
+             See Market Risk in Item 2 and\nItem 1. Financial Statements, Note 7.\n\
+             Item 4. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\n{body}\n\
+             Item 6. Exhibits\n{body}\nForm 10-Q Cross-Reference Index\n\
+             Item 1. Financial Statements\t3-40\nItem 2. Management's Discussion and Analysis\t41-60\n\
+             Item 3. Quantitative and Qualitative Disclosures About Market Risk\t61\n\
+             Item 4. Controls and Procedures\t61\nSIGNATURES\nPursuant to...\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_2", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert!(s[1].text.ends_with("Item 1. Financial Statements, Note 7."));
+        // The contents list Item 4, which has no heading in the body, and a
+        // long introduction follows the list: its entry starts a long stretch
+        // of text, but before the first body heading.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\t3\nItem 2. Management's Discussion and Analysis\t20\n\
+             Item 4. Controls and Procedures\t36\nForward-Looking Statements\n{body}\n\
+             Item 1. Financial Statements\n{body}{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn titles_of_part_two_items_add_nothing_out_of_order() {
+        // The 10-Q has no Item 1A heading. A line in MD&A starts with the
+        // annual report's "Item 1A. Risk Factors", the same number and title
+        // as Part II Item 1A; without a PART line it is not added.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}{body}\n\
+             Item 2. Management's Discussion and Analysis\n{body}\n\
+             Item 1A. Risk Factors of our Annual Report on Form 10-K describes the risks we face.\n{body}\n\
+             Item 4. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\n{body}\n\
+             Item 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert!(s[1].text.contains("\nItem 1A. Risk Factors of our Annual Report"));
     }
 
     #[test]
