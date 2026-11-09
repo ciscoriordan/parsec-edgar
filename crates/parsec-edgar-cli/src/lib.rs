@@ -385,8 +385,10 @@ mod tests {
         assert_eq!(find_section(&[], "1").unwrap_err(), "no Item sections were found in this filing");
     }
 
-    /// `--item` takes the ids the MCP tools take, so a 10-Q Item number or
-    /// "Item 2" finds its section, and an id that matches none is an error.
+    /// `--item` takes the ids the MCP tools take, so a 10-Q Item number that
+    /// only one part has finds its section. Most 10-Qs have an Item 2 in both
+    /// parts, so "2" alone is an error that names both, as is an id that
+    /// matches none.
     #[test]
     fn ten_q_items_by_number() {
         let body = "<p>We make and sell things in many markets around the world, every quarter.</p>".repeat(30);
@@ -396,21 +398,28 @@ mod tests {
              <p>Item 2. Management's Discussion and Analysis</p>{body}\
              <table><tr><td>Net sales</td><td>100</td></tr></table>{body}\
              <p>PART II. OTHER INFORMATION</p><p>Item 1A. Risk Factors</p>{body}\
+             <p>Item 2. Unregistered Sales of Equity Securities and Use of Proceeds</p>{body}\
              <p>Item 6. Exhibits</p>{body}"
         );
         let (text, tables) = parsec_edgar::html_to_text_and_tables(&html);
         let sections = extract_sections(&text, FormKind::TenQ);
         let ids: Vec<&str> = sections.iter().map(|s| s.id.as_str()).collect();
-        assert_eq!(ids, ["part_1_item_1", "part_1_item_2", "part_2_item_1a", "part_2_item_6"]);
-        for item in ["2", "Item 2", "Part I, Item 2", "part_1_item_2"] {
+        assert_eq!(ids, ["part_1_item_1", "part_1_item_2", "part_2_item_1a", "part_2_item_2", "part_2_item_6"]);
+        for item in ["Part I, Item 2", "part_1_item_2", "Part 1 Item 2"] {
             let wanted = wanted_ids(&sections, &[item.into()]).unwrap();
             assert_eq!(wanted, ["part_1_item_2"], "{item}");
             let found = tables_in_sections(&tables, &sections, &wanted);
             assert_eq!(found.len(), 1, "{item}");
             assert_eq!(found[0].table.rows[0][0], "Net sales");
         }
-        assert_eq!(wanted_ids(&sections, &["1a".into()]).unwrap(), ["part_2_item_1a"]);
-        let err = wanted_ids(&sections, &["2".into(), "Item 3".into()]).unwrap_err().to_string();
+        for item in ["1A", "Item 1A", "item_1a"] {
+            assert_eq!(wanted_ids(&sections, &[item.into()]).unwrap(), ["part_2_item_1a"], "{item}");
+        }
+        for item in ["2", "Item 2"] {
+            let err = wanted_ids(&sections, &[item.into()]).unwrap_err().to_string();
+            assert!(err.contains("ambiguous; use one of part_1_item_2, part_2_item_2"), "{err}");
+        }
+        let err = wanted_ids(&sections, &["1A".into(), "Item 3".into()]).unwrap_err().to_string();
         assert!(err.contains("no section \"Item 3\"") && err.contains("available: part_1_item_1"), "{err}");
     }
 }
