@@ -173,9 +173,11 @@ Output in the `--out` directory:
 
 - `{cik}_{form}_{filing date}_{accession}.json` for each filing, or one line per filing in `filings.jsonl` with `--jsonl`
 - `raw/{same name}.htm` (or `.txt`), the primary document as served, with `--raw`
-- `failures.jsonl`, one line per filing that failed, with the URL and the error
+- `failures.jsonl`, one line per filing that failed in the latest run, with the URL and the error (a run that fails before downloading anything leaves the previous list in place)
 
-Running the same command again resumes the crawl: filings that already have output are skipped, and failed ones are tried again. Progress and a final summary (ok, failed, skipped, filings per minute, requests per filing) go to stderr, and the exit status is 1 when anything failed. The SEC answers 403 to clients that go over its rate limit, so on a 403 every worker pauses for a minute, and five in a row stop the crawl so it can be resumed later.
+Running the same command again resumes the crawl: filings that already have output are skipped, and failed ones are tried again. A killed run, a full disk or a power failure cannot leave a partial record that counts as done: an incomplete JSON file is crawled again, and `filings.jsonl` is cut back to its last complete line. Progress and a final summary (ok, failed, skipped, filings per minute, requests per filing) go to stderr, and the exit status is 1 when anything failed. A panic while parsing one filing is recorded as that filing's failure, and the crawl goes on.
+
+The SEC answers 403 to clients that go over its rate limit. On the first 403, every worker pauses for a minute and the filing is tried again; the other workers' 403s from the same moment count as the same event. If 403s come back after two such pauses with no successful download in between, the crawl stops so it can be resumed later.
 
 Each record has these fields:
 
@@ -191,30 +193,30 @@ Each record has these fields:
 | `state_location` | `state_location` | State or country code of the business address |
 | `fiscal_year_end` | `fiscal_year_end` | `MMDD` |
 | `index_url` | `filing_html_index` | The filing's `-index.htm` page |
-| `primary_document`, `primary_document_url` | `htm_filing_link` | |
+| `primary_document`, `primary_document_url` | `htm_filing_link` | As in the submissions API; for a form the SEC renders from XML (Forms 3, 4 and 5, D, 13F and others), the HTML rendering, e.g. `xslF345X05/wk-form4_1759530830.xml` |
 | `full_submission_url` | `complete_text_filing_link` | |
 | `raw_file` | `filename` | With `--raw` |
 | `sections` | `item_1`, `item_1A`, ... | Section text keyed by [section id](#section-ids), in filing order |
 | `section_list` | | `id`, `part`, `item`, `title`, `heading`, `start`, `end` and `chars` of each section |
-| `text` | | The whole text, for forms without Item sections |
+| `text` | | The whole text, for forms without Item sections, and for 10-K, 10-Q and 8-K filings in which no Item section was found (a 10-K/A that only amends the cover page, for example) |
 
 ### How filings are found
 
-Without `--company`, the crawl reads the EDGAR full index, which lists every filing of every company, one file per quarter. It reads `master.gz`: it is pipe-delimited, while `form.idx` and `company.idx` use fixed-width columns that long company names can break, and at about 3 MB it is the smallest download (`master.idx` is 24 MB, `form.idx` 42 MB). A filing with several filers has one row per filer and is crawled once. Finished quarters are cached; the current quarter is downloaded again on each run, since the SEC adds the previous business day's filings every night.
+Without `--company`, the crawl reads the EDGAR full index, which lists every filing of every company, one file per quarter. It reads `master.gz`: it is pipe-delimited, while `form.idx` and `company.idx` use fixed-width columns that long company names can break, and at about 3 MB it is the smallest download (`master.idx` is 24 MB, `form.idx` 42 MB). A filing with several filers has one row per filer and is crawled once. Finished quarters are cached; the current quarter is downloaded again on each run, since the SEC adds the previous business day's filings every night. A new quarter's index appears only after its first business day; until then the crawl reports it as not published yet and finds nothing in it.
 
-The index gives only the path of each filing's complete submission file (all documents in one SGML file, often 10 MB or more for a 10-K). The crawl therefore reads each filing's `-index.htm` page (10 to 40 KB), which gives the primary document (the row whose type equals the form), the report period, acceptance time, 8-K items, and the filer's SIC code, state of incorporation, business address and fiscal year end as of the filing date. That is two requests per filing. The other option, the submissions API once per company, saves nothing when most filings come from different companies, as in a day of 8-Ks or a year of 10-Ks, and it costs a 100 KB to 1 MB file per company plus extra pages for filings older than the latest thousand.
+The index gives only the path of each filing's complete submission file (all documents in one SGML file, often 10 MB or more for a 10-K). The crawl therefore reads each filing's `-index.htm` page (10 to 40 KB), which gives the primary document (the row whose type equals the form, taken from its link), the report period, acceptance time, 8-K items, and the filer's SIC code, state of incorporation, business address and fiscal year end as of the filing date. That is two requests per filing. The other option, the submissions API once per company, saves nothing when most filings come from different companies, as in a day of 8-Ks or a year of 10-Ks, and it costs a 100 KB to 1 MB file per company plus extra pages for filings older than the latest thousand.
 
-With `--company` or `--companies-file`, filings come from the submissions API (`filings()`): one request per company, plus older pages when the date range reaches back, then one request per filing for its document. The company profile (SIC code, state of incorporation and so on, current values) costs one more request per company and is fetched once per crawl.
+With `--company` or `--companies-file`, filings come from the submissions API: one request per company, which also gives the company profile (SIC code, state of incorporation and so on, current values). Older pages are read when the date range reaches back past the latest thousand filings, and all of them when there is no lower bound (no `--since` or `--year`). Then each filing takes one request for its document.
 
-Measured in November 2026 at `--rps 3`, with 8 threads:
+Measured in November 2026 at `--rps 3`, with 8 threads, each crawl starting from an empty cache directory:
 
 | Crawl | Filings | Time | Filings per minute | Requests per filing | Failed |
 |---|---|---|---|---|---|
-| Every 8-K filed on 2026-11-05 and 2026-11-06 (full index) | 1,009 | 11.0 min | 91.6 | 1.96 | 0 |
-| The first 200 10-Ks of 2025 in index order (full index) | 200 | 2.2 min | 90.1 | 2.00 | 0 |
-| 10-Ks of 2016 to 2025 for 7 companies (`--company`) | 60 | 45 s | 170 | 1.00, plus 70 to find them | 0 |
+| Every 8-K filed on 2026-11-05 and 2026-11-06 (full index) | 1,009 | 11.2 min | 90.0 | 2.00, plus 1 for the index | 0 |
+| The first 200 10-Ks of 2025 in index order (full index) | 200 | 2.3 min | 89.8 | 2.00, plus 4 for the index | 0 |
+| 10-Ks of 2016 to 2025 for 7 companies (`--company`) | 60 | 44 s | 173 | 1.00, plus 70 to find them | 0 |
 
-Both full-index crawls ran at the request limit (3 per second is 90 filings a minute at 2 requests each). Parsing is far from the limit: with every document already cached, the same 200 10-Ks (788 MB of HTML) were parsed in 1.8 seconds. Running the 10-K crawl again skipped all 200 with no requests. In the company crawl, 58 of the 70 discovery requests were JPMorgan's older submissions pages: it files about 26,000 documents a year, so its recent block covers only one year. For heavy filers over many years, the full index is cheaper.
+Both full-index crawls ran at the request limit (3 per second is 90 filings a minute at 2 requests each). Parsing is far from the limit: with every document already cached, the same 200 10-Ks (788 MB of HTML) were parsed and written in under 2 seconds. Running the 10-K crawl again skipped all 200 with no requests; the company crawl's rerun skipped all 60 but repeated the 70 requests that find them, since submissions files are not cached. In the company crawl, 58 of the 70 discovery requests were JPMorgan's older submissions pages: it files about 26,000 documents a year, so its recent block covers only one year. For heavy filers over many years, the full index is cheaper.
 
 A full year of 10-Ks, at the default 8 requests per second: 2025 has 6,431 10-K filings (7,139 with 10-K/A), so about 12,900 requests and 27 minutes. The 200-filing sample averaged 3.9 MB per primary document, so that year is about 25 GB, which needs about 16 MB/s (125 Mbit/s) of bandwidth to keep up; on a slower connection the download time sets the pace.
 
@@ -232,15 +234,17 @@ for entry in client.crawl_index(&query)? {
     let profile = index.filer(filing.cik).map(|f| &f.profile);  // SIC code, state, fiscal year end
     let sections = client.filing_sections(&filing)?;
 }
-let tenks = client.crawl_company("AAPL", &CrawlQuery::new(&["10-K"]).years(2015, 2025))?;
-let profile = client.company_profile(320193)?;
+let tenks = CrawlQuery::new(&["10-K"]).years(2015, 2025);
+let (filings, profile) = client.crawl_company_with_profile("AAPL", &tenks)?;  // one submissions request
 ```
 
-`Client::full_index(quarter)` returns one quarter's index rows, `parse_master_index` and `parse_filing_index` parse files you already have, and `Client::requests_sent()` counts the HTTP requests a client has made.
+`Client::crawl_company` returns the filings alone and `Client::company_profile(cik)` the profile alone. `Client::full_index(quarter)` returns one quarter's index rows (none while a new quarter's index is not published yet), `parse_master_index` and `parse_filing_index` parse files you already have, and `Client::requests_sent()` counts the HTTP requests a client has made.
 
 ### Crawl limitations
 
 - The SEC updates the current quarter's index once a night, so a filing shows up in a full-index crawl the next business day.
+- A finished quarter's index is cached for good (from a few days after the quarter ends), so later corrections the SEC makes to it are not picked up. To read one again, delete `Archives/edgar/full-index/YYYY/QTRn/master.gz` from the cache directory, or crawl with `--no-cache`.
+- Every document a crawl downloads also stays in the cache (`~/.cache/parsec-edgar` unless `--cache-dir` or `PARSEC_EDGAR_CACHE` says otherwise), which for a full year of 10-Ks is about 25 GB on top of the output. Point `--cache-dir` at a disk with room, or use `--no-cache` when nothing will be crawled twice.
 - With `--company`, the profile fields are the company's current values; a full-index crawl gives the values printed on each filing.
 - A ticker means the company that holds it today. After a reorganization into a new holding company, the old filings stay under the old CIK: in 2026 `XOM` moved to ExxonMobil Holdings Corp (CIK 2115436), so Exxon Mobil's earlier 10-Ks need `--company 34088`.
 - Filings from before about 2001 have no separate primary document, so the crawl reads the complete submission file and its first document.

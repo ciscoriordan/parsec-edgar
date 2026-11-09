@@ -36,10 +36,11 @@ pub struct CompanyProfile {
     pub exchanges: Vec<String>,
 }
 
+/// The company fields of a submissions API response.
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
-struct SubmissionsProfile {
-    name: String,
+pub(crate) struct SubmissionsProfile {
+    pub(crate) name: String,
     sic: Option<String>,
     sic_description: Option<String>,
     state_of_incorporation: Option<String>,
@@ -63,7 +64,7 @@ struct Address {
 }
 
 impl SubmissionsProfile {
-    fn into_profile(self, cik: u64) -> CompanyProfile {
+    pub(crate) fn into_profile(self, cik: u64) -> CompanyProfile {
         let some = |s: Option<String>| s.map(|v| v.trim().to_owned()).filter(|v| !v.is_empty());
         CompanyProfile {
             cik,
@@ -82,6 +83,8 @@ impl SubmissionsProfile {
 
 impl Client {
     /// Current profile of a company from the submissions API. One request.
+    /// [`Client::crawl_company_with_profile`] returns it along with the filings
+    /// from the same request.
     pub fn company_profile(&self, cik: u64) -> Result<CompanyProfile> {
         let raw: SubmissionsProfile = self.get_json(&format!("https://data.sec.gov/submissions/CIK{cik:010}.json"))?;
         Ok(raw.into_profile(cik))
