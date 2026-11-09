@@ -1,0 +1,119 @@
+{
+  "accession": "0000277924-04-000003",
+  "cik": 277924,
+  "company": "CREDO PETROLEUM CORP",
+  "form": "10KSB",
+  "filing_date": "2004-01-29",
+  "url": "https://www.sec.gov/Archives/edgar/data/277924/000027792404000003/cpc-10k_2003.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "Form 10-KSB. Item 7 holds the financial statements. Item 8A (Controls and Procedures) follows Item 8; there is no Item 8B.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.  BUSINESS",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.  PROPERTIES",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.  LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The company is not a party to any materi"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of s"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.  MARKET FOR THE COMPANY'S COMMON STOCK AND RELATED",
+      "occurrence": 0,
+      "next": "STOCKHOLDER MATTERS"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.  MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL",
+      "occurrence": 0,
+      "next": "CONDITION AND RESULTS OF OPERATIONS"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.  FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "Index to Consolidated Financial Statemen"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8.   CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON",
+      "occurrence": 0,
+      "next": "ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "incorporated": true
+    },
+    {
+      "id": "item_8a",
+      "text": "ITEM 8A.   CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Within 90 days prior to the filing date "
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.    DIRECTORS AND EXECUTIVE OFFICERS",
+      "occurrence": 0,
+      "next": "Incorporated by reference to the company",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.   EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "Incorporated by reference to the company",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.   SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND",
+      "occurrence": 0,
+      "next": "MANAGEMENT",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.   CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "Incorporated by reference to the company",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.   EXHIBITS AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a)        Exhibits"
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14.   PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "Incorporated by reference to the company",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with Section 13 or 15(d) o"
+  }
+}

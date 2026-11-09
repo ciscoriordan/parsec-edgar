@@ -1,0 +1,119 @@
+{
+  "accession": "0001010412-08-000090",
+  "cik": 6732,
+  "company": "LIPIDVIRO TECH INC",
+  "form": "10KSB",
+  "filing_date": "2008-03-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/6732/000101041208000090/k07.htm",
+  "agent": "agent 0001010412",
+  "tags": [
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "Form 10-KSB. Item 7 holds the financial statements. Items 8A and 8B are printed 'Item 8(A)T.' and 'Item 8(B).'",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Description of Business",
+      "occurrence": 1,
+      "next": "Business Development"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Description of Property",
+      "occurrence": 1,
+      "next": "We own no real estate and do not lease o"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 1,
+      "next": "In February 2007, Friedrich and Dimmock,"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders",
+      "occurrence": 1,
+      "next": "No matter was submitted to a vote of our"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Common Equity and Related Stockholder Matters and Small Business Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Management’s Discussion and Analysis or Plan of Operation",
+      "occurrence": 1,
+      "next": "Plan of Operation"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Financial Statements.",
+      "occurrence": 1,
+      "next": "LIPIDVIRO TECH, INC. AND SUBSIDIARY"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None; Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_8a",
+      "text": "Item 8(A)T. Controls and Procedures.",
+      "occurrence": 1,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_8b",
+      "text": "Item 8(B). Other Information.",
+      "occurrence": 1,
+      "next": "On January 3, 2008, for consideration of"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Directors, Executive Officers, Promoters and Control Persons; Compliance with Section 16(a) of the Exchange Act",
+      "occurrence": 0,
+      "next": "Identification of Directors and Executiv"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Executive Compensation",
+      "occurrence": 1,
+      "next": "The following table sets forth the aggre"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Security Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 1,
+      "next": "Security Ownership of Certain Beneficial"
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Certain Relationships and Related Transactions",
+      "occurrence": 1,
+      "next": "Transactions with Related Persons"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Exhibits",
+      "occurrence": 1,
+      "next": "Exhibits"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accounting Fees and Services",
+      "occurrence": 1,
+      "next": "The Following is a summary of the fees b"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 1,
+    "next": "In accordance with Section 13 or 15(d) o"
+  }
+}

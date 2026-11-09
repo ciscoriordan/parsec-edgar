@@ -1,0 +1,103 @@
+{
+  "accession": "0001125282-01-001150",
+  "cik": 1109879,
+  "company": "VERTICALBUYER INC",
+  "form": "10KSB",
+  "filing_date": "2001-03-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/1109879/000112528201001150/0001125282-01-001150-0001.txt",
+  "agent": "agent 0001125282",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "Form 10-KSB. The financial statements follow the signatures and the exhibit index, and are in no Item.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. DESCRIPTION OF BUSINESS",
+      "occurrence": 0,
+      "next": "----------------------------------------"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. DESCRIPTION OF PROPERTY",
+      "occurrence": 0,
+      "next": "----------------------------------------"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "----------------------------------------"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITYHOLDERS",
+      "occurrence": 0,
+      "next": "----------------------------------------"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR COMMON EQUITY",
+      "occurrence": 0,
+      "next": "AND RELATED STOCKHOLDER MATTERS"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS",
+      "occurrence": 0,
+      "next": "OF FINANCIAL CONDITION AND RESULTS OF OP"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "----------------------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS",
+      "occurrence": 0,
+      "next": "ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. DIRECTORS, EXECUTIVE OFFICERS, PROMOTERS AND CONTROL",
+      "occurrence": 0,
+      "next": "PERSONS; COMPLIANCE WITH SECTION 16(a) O"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "----------------------------------------"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. SECURITY OWNERSHIP OF CERTAIN",
+      "occurrence": 0,
+      "next": "BENEFICIAL OWNERS AND MANAGEMENT"
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "----------------------------------------"
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. EXHIBITS, AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "----------------------------------------"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

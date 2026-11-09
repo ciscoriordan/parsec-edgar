@@ -53,7 +53,7 @@ The report has one row per group: 10-K by era of the filing date, 10-Q, 8-K, all
 
 | Directory | Filings | Labeled Items | Role |
 |---|--:|--:|---|
-| `bench/labels` | 65 | 905 | Development set. The extractor was tuned on it. |
+| `bench/labels` | 69 | 962 | Development set. The extractor was tuned on it. |
 | `bench/holdout` | 20 | 276 | Labeled after the first round of changes and scored with them frozen (F1 0.955, span 0.875). Its misses were then fixed, so it is no longer held out. |
 | `bench/blind` | 19 | 180 | Labeled and committed before any scoring, then scored once with the extractor frozen (F1 0.989, span 0.997). Its two misses were then fixed, so it is no longer blind either. |
 | `bench/fresh` | 25 | 349 | Labeled and committed after changes 1 to 8 below, then scored once (F1 0.994, span 0.935; version 0.1.1 scores the same). Its misses were fixed after version 0.1.1, so it is no longer untouched either. |
