@@ -4,8 +4,12 @@ description = "Command-line client for SEC EDGAR: companies, filings, clean text
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-# rmcp, used by the MCP server, needs Rust 1.88.
-rust-version = "1.88"
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["sec", "edgar", "mcp", "cli", "finance"]
+categories = ["command-line-utilities", "finance"]
+rust-version.workspace = true
 
 [[bin]]
 name = "parsec-edgar"

@@ -5,8 +5,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
 keywords = ["sec", "edgar", "finance", "10-k", "filings"]
-categories = ["parser-implementations", "api-bindings"]
+categories = ["parser-implementations", "api-bindings", "finance"]
 
 [lib]
 name = "parsec_edgar"

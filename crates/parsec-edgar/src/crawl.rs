@@ -87,10 +87,10 @@ impl CrawlQuery {
             parse_date(d)?;
         }
         // Nothing to read when the crawl ends before EDGAR starts.
-        if let Some(u) = &self.until {
-            if parse_date(u)?.0 < FIRST_YEAR {
-                return Ok(Vec::new());
-            }
+        if let Some(u) = &self.until
+            && parse_date(u)?.0 < FIRST_YEAR
+        {
+            return Ok(Vec::new());
         }
         let current = Quarter::current();
         let mut qs = if self.quarters.is_empty() {
@@ -143,10 +143,10 @@ impl CrawlQuery {
         if self.since.as_deref().is_some_and(|s| filing_date < s) {
             return false;
         }
-        if let Some(u) = &self.until {
-            if filing_date.get(..u.len()).unwrap_or(filing_date) > u.as_str() {
-                return false;
-            }
+        if let Some(u) = &self.until
+            && filing_date.get(..u.len()).unwrap_or(filing_date) > u.as_str()
+        {
+            return false;
         }
         self.quarters.is_empty() || Quarter::of_date(filing_date).is_ok_and(|q| self.quarters.contains(&q))
     }
@@ -364,10 +364,10 @@ fn pages_to_read<'a>(
     until: Option<&str>,
 ) -> Vec<&'a HistoryPage> {
     // Filings of the oldest recent day can continue on a page, so a `since` on that day reads it.
-    if let (Some(s), Some(oldest)) = (since, oldest_recent) {
-        if s > oldest {
-            return Vec::new();
-        }
+    if let (Some(s), Some(oldest)) = (since, oldest_recent)
+        && s > oldest
+    {
+        return Vec::new();
     }
     pages
         .iter()

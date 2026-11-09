@@ -6,4 +6,6 @@ members = ["crates/parsec-edgar", "crates/parsec-edgar-cli", "python", "bench"]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-rust-version = "1.85"
+rust-version = "1.88"
+repository = "https://github.com/ciscoriordan/parsec-edgar"
+homepage = "https://github.com/ciscoriordan/parsec-edgar"

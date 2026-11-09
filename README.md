@@ -8,7 +8,17 @@ Fast SEC EDGAR client and filing parser written in Rust, with Python bindings an
 - Split 10-K, 10-Q and 8-K filings into Item sections (Item 1A Risk Factors, Item 7 MD&A, 8-K Item 2.02, and so on)
 - Stays within the SEC fair-access limit (8 requests per second by default, 10 at most) and caches archive documents on disk
 
-Status: early development (0.1.0). Not yet published to crates.io or PyPI.
+Status: early development (0.1.0).
+
+## Install
+
+```sh
+pip install parsec-edgar          # Python library, plus the parsec-edgar command and MCP server
+cargo install parsec-edgar-cli    # the parsec-edgar command, built from source (Rust 1.88 or newer)
+cargo add parsec-edgar            # the Rust library
+```
+
+Python wheels are built for Linux (x86-64 and ARM64), macOS (Intel and Apple silicon) and Windows (x86-64), for Python 3.10 and newer. Each [GitHub release](https://github.com/ciscoriordan/parsec-edgar/releases) also has standalone `parsec-edgar` binaries for the same platforms.
 
 ## The SEC User-Agent requirement
 
@@ -21,8 +31,6 @@ export PARSEC_EDGAR_USER_AGENT="Example Corp admin@example.com"
 ## Command line
 
 ```sh
-cargo install --path crates/parsec-edgar-cli
-
 parsec-edgar company AAPL
 parsec-edgar filings AAPL --form 10-K --limit 5
 parsec-edgar filings MSFT --form 10-K --since 1994 --until 2002   # reaches into older history pages
@@ -36,7 +44,7 @@ Archive documents (filings, their index pages and finished quarters of the full 
 
 ## MCP server
 
-`parsec-edgar mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude and other LLM clients can look up companies, list filings, search the full text of EDGAR and read filings one section at a time. It is part of the command-line tool (`cargo install --path crates/parsec-edgar-cli`, which needs Rust 1.88 or newer for the rmcp library) and uses the same User-Agent, cache directory and rate settings.
+`parsec-edgar mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude and other LLM clients can look up companies, list filings, search the full text of EDGAR and read filings one section at a time. It is part of the command-line tool and uses the same User-Agent, cache directory and rate settings. With [uv](https://docs.astral.sh/uv/), `uvx parsec-edgar mcp` runs it with nothing installed first; otherwise install the command as described above. The server is listed in the [MCP registry](https://registry.modelcontextprotocol.io) as `io.github.ciscoriordan/parsec-edgar`.
 
 | Tool | Returns |
 |---|---|
@@ -56,24 +64,28 @@ While it runs, the server keeps in memory the six most recently read documents (
 ### Claude Code
 
 ```sh
-claude mcp add parsec-edgar -s user -e PARSEC_EDGAR_USER_AGENT="Example Corp admin@example.com" -- parsec-edgar mcp
+claude mcp add parsec-edgar -s user -e PARSEC_EDGAR_USER_AGENT="Example Corp admin@example.com" -- uvx parsec-edgar mcp
 ```
+
+With the command installed, end the line with `-- parsec-edgar mcp` instead.
 
 ### Claude Desktop
 
-Add the server to `claude_desktop_config.json` (on macOS in `~/Library/Application Support/Claude/`, on Windows in `%APPDATA%\Claude\`) and restart Claude Desktop. Claude Desktop does not read your shell's `PATH`, so give the full path that `which parsec-edgar` prints:
+Add the server to `claude_desktop_config.json` (on macOS in `~/Library/Application Support/Claude/`, on Windows in `%APPDATA%\Claude\`) and restart Claude Desktop:
 
 ```json
 {
   "mcpServers": {
     "parsec-edgar": {
-      "command": "/Users/you/.cargo/bin/parsec-edgar",
-      "args": ["mcp"],
+      "command": "uvx",
+      "args": ["parsec-edgar", "mcp"],
       "env": { "PARSEC_EDGAR_USER_AGENT": "Example Corp admin@example.com" }
     }
   }
 }
 ```
+
+Claude Desktop does not read your shell's `PATH`. If it cannot start the server, give the full path that `which uvx` prints as `command`, or use an installed command: the full path from `which parsec-edgar` as `command`, with `"args": ["mcp"]`.
 
 ### Other MCP clients
 
@@ -117,10 +129,6 @@ Words must all appear, `"double quotes"` match a phrase, `OR` matches either ter
 The search returns no text snippets. To read a hit, fetch `hit.document_url` and convert it with `document_to_text`, or use the MCP tools above. `hit.document` is the file that matched, which is often an exhibit (`hit.document_type` such as `EX-99.1`) rather than the filing's primary document.
 
 ## Python
-
-```sh
-cd python && maturin develop --release
-```
 
 ```python
 import parsec_edgar as pe
@@ -288,6 +296,8 @@ Accuracy is measured against 129 hand-labeled filings from 1997 to 2026 (`bench/
 | `crates/parsec-edgar-cli` | `parsec-edgar` command-line tool |
 | `python` | Python bindings (PyO3, built with maturin) |
 | `bench` | Section-splitting accuracy and speed benchmark, with hand labels |
+| `server.json` | The MCP registry entry |
+| `.github/workflows` | Continuous integration and the release workflow |
 
 ## Development
 
@@ -295,8 +305,15 @@ Accuracy is measured against 129 hand-labeled filings from 1997 to 2026 (`bench/
 cargo test                       # unit tests, no network
 cargo fmt && cargo clippy --workspace --all-targets   # style (rustfmt.toml) and lints
 cd python && maturin develop     # build the Python extension into the active virtualenv
+python -m pytest python/tests    # Python package and command, no network
 cargo run --release -p parsec-edgar-bench -- score   # section accuracy on the labeled filings (downloads them once)
 ```
+
+GitHub Actions runs the tests on Linux, macOS and Windows, checks the minimum Rust version (1.88), and builds and tests the Python package.
+
+### Releasing
+
+Set the new version in `Cargo.toml` (`workspace.package.version`) and in both places in `server.json`, commit, then push a tag such as `v0.2.0`. The release workflow builds the wheels and binaries, then publishes to PyPI, crates.io, a GitHub release and the MCP registry. Running the workflow by hand from the Actions tab builds and tests everything without publishing.
 
 ## License
 

@@ -120,10 +120,10 @@ impl FilingQuery {
         if !self.forms.is_empty() && !self.forms.iter().any(|x| x.eq_ignore_ascii_case(&f.form)) {
             return false;
         }
-        if let Some(since) = &self.since {
-            if f.filing_date.as_str() < since.as_str() {
-                return false;
-            }
+        if let Some(since) = &self.since
+            && f.filing_date.as_str() < since.as_str()
+        {
+            return false;
         }
         if let Some(until) = &self.until {
             let prefix = f.filing_date.get(..until.len()).unwrap_or(&f.filing_date);
@@ -249,23 +249,24 @@ impl Client {
         if (query.all_history || reaches_back) && !enough {
             for page in &sub.filings.files {
                 // Each page covers a date range: skip pages entirely outside the query.
-                if let (Some(since), Some(to)) = (&query.since, &page.filing_to) {
-                    if to.as_str() < since.as_str() {
-                        continue;
-                    }
+                if let (Some(since), Some(to)) = (&query.since, &page.filing_to)
+                    && to.as_str() < since.as_str()
+                {
+                    continue;
                 }
-                if let (Some(until), Some(from)) = (&query.until, &page.filing_from) {
-                    if from.get(..until.len()).unwrap_or(from) > until.as_str() {
-                        continue;
-                    }
+                if let (Some(until), Some(from)) = (&query.until, &page.filing_from)
+                    && from.get(..until.len()).unwrap_or(from) > until.as_str()
+                {
+                    continue;
                 }
                 // With a limit, a page older than the limit-th newest match cannot change the result.
-                if let (Some(n), Some(to)) = (query.limit, &page.filing_to) {
-                    if n > 0 && out.len() >= n {
-                        sort_newest_first(&mut out);
-                        if to.as_str() < out[n - 1].filing_date.as_str() {
-                            continue;
-                        }
+                if let (Some(n), Some(to)) = (query.limit, &page.filing_to)
+                    && n > 0
+                    && out.len() >= n
+                {
+                    sort_newest_first(&mut out);
+                    if to.as_str() < out[n - 1].filing_date.as_str() {
+                        continue;
                     }
                 }
                 let cols = self.history_page(page)?;

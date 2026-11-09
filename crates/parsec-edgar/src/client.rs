@@ -120,10 +120,10 @@ impl Client {
     /// immutable, so they are served from and written to the cache when enabled.
     pub fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
         let cache_path = self.cache_path(url);
-        if let Some(path) = &cache_path {
-            if let Ok(bytes) = std::fs::read(path) {
-                return Ok(bytes);
-            }
+        if let Some(path) = &cache_path
+            && let Ok(bytes) = std::fs::read(path)
+        {
+            return Ok(bytes);
         }
         let bytes = self.fetch(url)?;
         if let Some(path) = &cache_path {

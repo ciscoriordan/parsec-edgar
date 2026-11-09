@@ -1,0 +1,228 @@
+# Pushing a tag such as v0.1.0 builds everything and publishes it: Python
+# wheels to PyPI, the crates to crates.io, command-line binaries to a GitHub
+# release, and the MCP server to the MCP registry. Running the workflow by
+# hand builds everything without publishing anything.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  versions:
+    name: Check versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: .github/scripts/check-versions.sh
+
+  wheels:
+    name: Wheel (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { name: linux-x86_64, runner: ubuntu-latest, target: x86_64, manylinux: auto, test: true }
+          - { name: linux-aarch64, runner: ubuntu-24.04-arm, target: aarch64, manylinux: auto, test: true }
+          - { name: musllinux-x86_64, runner: ubuntu-latest, target: x86_64, manylinux: musllinux_1_2, test: false }
+          - { name: macos-arm64, runner: macos-latest, target: aarch64, manylinux: "", test: true }
+          - { name: macos-x86_64, runner: macos-latest, target: x86_64, manylinux: "", test: false }
+          - { name: windows-x64, runner: windows-latest, target: x64, manylinux: "", test: true }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux }}
+          args: --release --locked --out dist -m python/Cargo.toml
+      - name: Test the wheel
+        if: matrix.platform.test
+        shell: bash
+        run: |
+          python -m pip install pytest
+          python -m pip install --no-index --find-links dist parsec-edgar
+          python -m pytest python/tests -q
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-${{ matrix.platform.name }}
+          path: dist
+
+  sdist:
+    name: Source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist -m python/Cargo.toml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-sdist
+          path: dist
+
+  binaries:
+    name: Binary (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-latest, target: x86_64-unknown-linux-musl, test: true }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, test: true }
+          - { runner: macos-latest, target: aarch64-apple-darwin, test: true }
+          - { runner: macos-latest, target: x86_64-apple-darwin, test: false }
+          - { runner: windows-latest, target: x86_64-pc-windows-msvc, test: true }
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install the musl C toolchain
+        if: contains(matrix.target, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          # ring compiles C code; build it with musl-gcc for a static binary.
+          echo "CC_${TARGET//-/_}=musl-gcc" >> "$GITHUB_ENV"
+      - run: cargo build --release --locked -p parsec-edgar-cli --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe=parsec-edgar
+          [[ "$TARGET" == *windows* ]] && exe=parsec-edgar.exe
+          if [[ "${{ matrix.test }}" == true ]]; then
+            "target/$TARGET/release/$exe" --version
+          fi
+          name="parsec-edgar-${GITHUB_REF_NAME}-${TARGET}"
+          mkdir -p "$name" dist
+          cp "target/$TARGET/release/$exe" README.md LICENSE "$name/"
+          if [[ "$TARGET" == *windows* ]]; then
+            archive="$name.zip"
+            7z a "dist/$archive" "$name" > /dev/null
+          else
+            archive="$name.tar.gz"
+            tar czf "dist/$archive" "$name"
+          fi
+          cd dist
+          if command -v sha256sum > /dev/null; then
+            sha256sum "$archive" > "$archive.sha256"
+          else
+            shasum -a 256 "$archive" > "$archive.sha256"
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binary-${{ matrix.target }}
+          path: dist
+
+  publish-pypi:
+    name: Publish to PyPI
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [versions, wheels, sdist, binaries]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/parsec-edgar
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: python-*
+          merge-multiple: true
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-crates:
+    name: Publish to crates.io
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [versions, wheels, sdist, binaries]
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      # The first release needs an API token. Later ones can use trusted
+      # publishing instead, once it is set up on crates.io and the secret is removed.
+      HAS_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Get a token through trusted publishing
+        id: auth
+        if: env.HAS_TOKEN != 'true'
+        uses: rust-lang/crates-io-auth-action@v1
+      - run: cargo publish --workspace --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+
+  github-release:
+    name: GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [versions, wheels, sdist, binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: binary-*
+          merge-multiple: true
+          path: dist
+      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes dist/*
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  mcp-registry:
+    name: Publish to the MCP registry
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - name: Download and verify mcp-publisher
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+      - name: Wait for the release on PyPI
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for _ in $(seq 30); do
+            curl --fail --silent --output /dev/null "https://pypi.org/pypi/parsec-edgar/$version/json" && exit 0
+            sleep 10
+          done
+          echo "parsec-edgar $version is not on PyPI after 5 minutes" >&2
+          exit 1
+      - run: ./mcp-publisher login github-oidc
+      - run: ./mcp-publisher publish

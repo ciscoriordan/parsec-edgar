@@ -1,0 +1,39 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.ciscoriordan/parsec-edgar",
+  "title": "parsec-edgar: SEC EDGAR filings",
+  "description": "Search SEC EDGAR, list company filings, and read 10-K, 10-Q and 8-K filings one Item at a time",
+  "repository": {
+    "url": "https://github.com/ciscoriordan/parsec-edgar",
+    "source": "github",
+    "id": "1450932022"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "parsec-edgar",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "PARSEC_EDGAR_USER_AGENT",
+          "description": "Your name and contact email, which the SEC requires with every request",
+          "placeholder": "Example Corp admin@example.com",
+          "isRequired": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

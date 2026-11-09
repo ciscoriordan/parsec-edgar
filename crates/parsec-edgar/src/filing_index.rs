@@ -226,11 +226,11 @@ fn parse_filer(div: ElementRef) -> Option<Filer> {
     let cik: u64 = caps[1].parse().ok()?;
     let mut name = name_text[..caps.get(0).map_or(0, |m| m.start())].trim().to_owned();
     let mut role = None;
-    if name.ends_with(')') {
-        if let Some(open) = name.rfind('(') {
-            role = Some(name[open + 1..name.len() - 1].trim().to_owned());
-            name = name[..open].trim().to_owned();
-        }
+    if name.ends_with(')')
+        && let Some(open) = name.rfind('(')
+    {
+        role = Some(name[open + 1..name.len() - 1].trim().to_owned());
+        name = name[..open].trim().to_owned();
     }
     let mut profile = CompanyProfile { cik, name, ..CompanyProfile::default() };
 
