@@ -32,10 +32,15 @@ pub struct CompanyProfile {
     /// IRS employer identification number.
     #[serde(default)]
     pub ein: Option<String>,
+    /// Tickers of the company's listed securities, e.g. `["AAPL"]`.
     #[serde(default)]
     pub tickers: Vec<String>,
+    /// The exchange of each ticker, in the same order as `tickers`, e.g.
+    /// `[Some("Nasdaq")]`; `None` where the SEC gives none. Up to version 0.1.1
+    /// this was a `Vec<String>` that left out missing exchanges, so it could
+    /// fall out of step with `tickers`.
     #[serde(default)]
-    pub exchanges: Vec<String>,
+    pub exchanges: Vec<Option<String>>,
 }
 
 /// The company fields of a submissions API response. Every filing lookup
@@ -57,9 +62,9 @@ pub(crate) struct SubmissionsProfile {
     #[serde(deserialize_with = "text_or_none")]
     ein: Option<String>,
     #[serde(deserialize_with = "texts")]
-    tickers: Vec<String>,
+    tickers: Vec<Option<String>>,
     #[serde(deserialize_with = "texts")]
-    exchanges: Vec<String>,
+    exchanges: Vec<Option<String>>,
     #[serde(deserialize_with = "object_or_none")]
     addresses: Option<Addresses>,
 }
@@ -97,10 +102,11 @@ pub(crate) fn text_or_empty<'de, D: Deserializer<'de>>(d: D) -> std::result::Res
     Ok(text(Value::deserialize(d)?).unwrap_or_default())
 }
 
-/// A list of text read leniently: items that are not text are left out, and a value that is not a list is empty.
-fn texts<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Vec<String>, D::Error> {
+/// A list of text read leniently, item by item (see [`text`]), so that the
+/// positions stay; a value that is not a list is empty.
+fn texts<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Vec<Option<String>>, D::Error> {
     Ok(match Value::deserialize(d)? {
-        Value::Array(items) => items.into_iter().filter_map(text).collect(),
+        Value::Array(items) => items.into_iter().map(text).collect(),
         _ => Vec::new(),
     })
 }
@@ -113,6 +119,17 @@ fn object_or_none<'de, D: Deserializer<'de>, T: DeserializeOwned>(d: D) -> std::
 impl SubmissionsProfile {
     pub(crate) fn into_profile(self, cik: u64) -> CompanyProfile {
         let some = |s: Option<String>| s.map(|v| v.trim().to_owned()).filter(|v| !v.is_empty());
+        // The SEC lists each ticker's exchange at the same position. A position
+        // without a ticker is left out of both lists.
+        let mut exchanges = self.exchanges.into_iter();
+        let (tickers, exchanges) = self
+            .tickers
+            .into_iter()
+            .filter_map(|ticker| {
+                let exchange = exchanges.next().flatten();
+                Some((some(ticker)?, some(exchange)))
+            })
+            .unzip();
         CompanyProfile {
             cik,
             name: self.name,
@@ -122,8 +139,8 @@ impl SubmissionsProfile {
             state_location: some(self.addresses.and_then(|a| a.business).and_then(|b| b.state_or_country)),
             fiscal_year_end: some(self.fiscal_year_end),
             ein: some(self.ein),
-            tickers: self.tickers,
-            exchanges: self.exchanges,
+            tickers,
+            exchanges,
         }
     }
 }
@@ -159,6 +176,7 @@ mod tests {
         assert_eq!(p.state_location.as_deref(), Some("CA"));
         assert_eq!(p.fiscal_year_end.as_deref(), Some("0926"));
         assert_eq!(p.tickers, ["AAPL"]);
+        assert_eq!(p.exchanges, [Some("Nasdaq".to_owned())]);
     }
 
     #[test]
@@ -182,8 +200,29 @@ mod tests {
         assert_eq!((p.sic.as_deref(), p.ein.as_deref()), (Some("3571"), Some("942404110")));
         assert_eq!((p.fiscal_year_end, p.state_of_incorporation, p.state_location), (None, None, None));
         assert_eq!(p.tickers, ["AAPL"]);
-        assert!(p.exchanges.is_empty());
+        assert_eq!(p.exchanges, [None]);
         let p = serde_json::from_str::<SubmissionsProfile>(r#"{"addresses":[1]}"#).unwrap().into_profile(42);
         assert_eq!(p.state_location, None);
+    }
+
+    /// The SEC gives tickers and exchanges as lists in step, and they stay in
+    /// step whatever is missing from either.
+    #[test]
+    fn tickers_and_exchanges_stay_in_step() {
+        let check = |tickers: &str, exchanges: &str, expected: &[(&str, Option<&str>)]| {
+            let json = format!(r#"{{"tickers": {tickers}, "exchanges": {exchanges}}}"#);
+            let p = serde_json::from_str::<SubmissionsProfile>(&json).unwrap().into_profile(1);
+            assert_eq!(p.tickers.len(), p.exchanges.len(), "{json}");
+            let got: Vec<(&str, Option<&str>)> =
+                p.tickers.iter().map(String::as_str).zip(p.exchanges.iter().map(Option::as_deref)).collect();
+            assert_eq!(got, expected, "{json}");
+        };
+        check(r#"["AAA", "AAAW"]"#, r#"[null, "Nasdaq"]"#, &[("AAA", None), ("AAAW", Some("Nasdaq"))]);
+        check(r#"[null, "AAAW"]"#, r#"["NYSE", "Nasdaq"]"#, &[("AAAW", Some("Nasdaq"))]);
+        check(r#"[" AAA ", "", 7]"#, r#"[" NYSE ", "Nasdaq", ""]"#, &[("AAA", Some("NYSE")), ("7", None)]);
+        check(r#"["AAA", "BBB"]"#, r#"["NYSE"]"#, &[("AAA", Some("NYSE")), ("BBB", None)]);
+        check(r#"["AAA"]"#, r#"["NYSE", "Nasdaq"]"#, &[("AAA", Some("NYSE"))]);
+        check(r#""AAA""#, r#"["NYSE"]"#, &[]);
+        check(r#"["AAA"]"#, r#"{}"#, &[("AAA", None)]);
     }
 }

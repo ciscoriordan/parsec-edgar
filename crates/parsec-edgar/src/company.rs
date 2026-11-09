@@ -263,12 +263,13 @@ impl Client {
                 return Ok(c.clone());
             }
             // Filers without a listed ticker are missing from the ticker file.
+            // Take the first ticker of the submissions API, with its own exchange.
             let profile = self.submissions(cik)?.profile.into_profile(cik);
             return Ok(Company {
                 cik,
                 name: profile.name,
                 ticker: profile.tickers.into_iter().next(),
-                exchange: profile.exchanges.into_iter().next(),
+                exchange: profile.exchanges.into_iter().next().flatten(),
             });
         }
         let ticker = normalize_ticker(q);

@@ -735,10 +735,7 @@ mod tests {
         assert_eq!(c.latest("1", "10-K").unwrap().company, "Test Co");
         assert_eq!(c.filing("1", "0000000001-25-000001").unwrap().form, "10-K");
         let company = c.company("1").unwrap();
-        assert_eq!(
-            (company.name.as_str(), company.ticker, company.exchange.as_deref()),
-            ("Test Co", None, Some("Nasdaq"))
-        );
+        assert_eq!((company.name.as_str(), company.ticker, company.exchange), ("Test Co", None, None));
         let (filings, profile) = c.crawl_company_with_profile("1", &CrawlQuery::new(&["10-K"]).since("2020")).unwrap();
         assert_eq!(short_accessions(&filings), ["25-000001"]);
         assert_eq!((profile.ein.as_deref(), profile.sic.as_deref()), (Some("942404110"), Some("3571")));
@@ -748,6 +745,20 @@ mod tests {
         );
         // The page without a name is an error only when it is needed.
         assert!(matches!(c.filings("1", &FilingQuery::new().since("2012")), Err(Error::Invalid(_))));
+    }
+
+    /// A company missing from the ticker file takes its first ticker from the
+    /// submissions API, with that ticker's own exchange.
+    #[test]
+    fn company_without_a_listed_ticker_takes_its_first_ticker_and_its_exchange() {
+        let c = Client::builder("a@b.c").build().unwrap();
+        let tickers =
+            r#"{"fields": ["cik", "name", "ticker", "exchange"], "data": [[2, "Other Inc.", "OTH", "NYSE"]]}"#;
+        c.stub("https://www.sec.gov/files/company_tickers_exchange.json", tickers);
+        let profile = r#""name": "Test Co", "tickers": ["AAA", "AAAW"], "exchanges": [null, "Nasdaq"]"#;
+        c.stub(SUBMISSIONS, format!("{{{profile}}}"));
+        let company = c.company("1").unwrap();
+        assert_eq!((company.ticker.as_deref(), company.exchange.as_deref()), (Some("AAA"), None));
     }
 
     #[test]
