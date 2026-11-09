@@ -300,9 +300,17 @@ pub fn item_id(kind: FormKind, s: &str) -> Res<String> {
     }
 }
 
+/// Write a label file through a temporary file and a rename, so an
+/// interrupted write never leaves a broken file.
 pub fn save(path: &Path, label: &LabelFile) -> Res<()> {
     let s = serde_json::to_string_pretty(label).map_err(|e| e.to_string())?;
-    std::fs::write(path, s + "\n").map_err(|e| format!("{}: {e}", path.display()))
+    let tmp = path.with_extension(format!("json.tmp{}", std::process::id()));
+    let err = |e: std::io::Error| format!("{}: {e}", path.display());
+    std::fs::write(&tmp, s + "\n").map_err(err)?;
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        err(e)
+    })
 }
 
 fn load(path: &Path) -> Res<LabelFile> {

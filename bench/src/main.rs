@@ -174,10 +174,13 @@ fn run(cli: Cli) -> Res<()> {
                 return Err(format!("{} exists", path.display()));
             }
             // Fetch now so later runs read the cache. Some old filings list a
-            // primary document that is not served; the full submission is.
+            // primary document that is not served (404); the full submission is.
+            // Any other failure is an error, so a passing outage cannot change
+            // which document a filing is scored on.
             let fetched = f.primary_document_url.clone().map(|u| (client.get_text(&u), u));
             let (raw, url) = match fetched {
                 Some((Ok(raw), u)) => (raw, u),
+                Some((Err(e), _)) if !not_served(&e) => return Err(e.to_string()),
                 _ => {
                     let u = f.full_submission_url();
                     (client.get_text(&u).map_err(|e| e.to_string())?, u)
@@ -248,9 +251,9 @@ fn run(cli: Cli) -> Res<()> {
                 label.notes = n.clone();
             }
             label.labeled = true;
-            labels::save(&path, &label)?;
-            // Check the labels resolve back to the same lines.
+            // Save only labels that resolve back to lines of the filing.
             let truth = labels::resolve(&doc, &label)?;
+            labels::save(&path, &label)?;
             for t in &truth.items {
                 println!("{:<16} {:>6} {}", t.id, t.line, trunc(doc.line(t.line), 90));
             }
@@ -304,6 +307,11 @@ fn run(cli: Cli) -> Res<()> {
         }
     }
     Ok(())
+}
+
+/// Whether a failed fetch means the document is not served at all.
+fn not_served(e: &parsec_edgar::Error) -> bool {
+    matches!(e, parsec_edgar::Error::Status { status: 404, .. })
 }
 
 fn parse_line(s: &str) -> Res<usize> {
@@ -394,8 +402,16 @@ struct FilingResult {
 }
 
 impl FilingResult {
+    /// A filing that could not be scored (fetch failure, labels that do not
+    /// resolve) scores 0, so an error can never raise the totals.
     fn span_accuracy(&self) -> f64 {
-        if self.span_union == 0 { 1.0 } else { self.span_correct as f64 / self.span_union as f64 }
+        if self.error.is_some() {
+            0.0
+        } else if self.span_union == 0 {
+            1.0
+        } else {
+            self.span_correct as f64 / self.span_union as f64
+        }
     }
 }
 
@@ -544,6 +560,8 @@ fn same_body(doc: &Doc, t: &labels::TrueItem, text: &str) -> bool {
     !text.is_empty() && body.starts_with(&text) && body.len() - text.len() <= 40
 }
 
+/// A filing's result before scoring. Its labeled Items count as missed
+/// until scoring finds them, so a filing that errors still counts.
 fn base_result(label: &LabelFile) -> FilingResult {
     FilingResult {
         accession: label.accession.clone(),
@@ -552,6 +570,7 @@ fn base_result(label: &LabelFile) -> FilingResult {
         filing_date: label.filing_date.clone(),
         group: group_of(label),
         tags: label.tags.clone(),
+        labeled: label.items.len(),
         ..FilingResult::default()
     }
 }
@@ -561,7 +580,9 @@ fn score_one(doc: &Doc, label: &LabelFile, preds: &[Pred], r: &mut FilingResult)
     let truth = match labels::resolve(doc, label) {
         Ok(t) => t,
         Err(e) => {
+            // Every labeled Item counts as missed and every prediction as wrong.
             r.error = Some(format!("labels do not resolve: {e}"));
+            r.predicted = preds.len();
             return;
         }
     };
@@ -707,23 +728,24 @@ fn report(results: &[FilingResult], name: &str, misses: bool, timing: bool) {
         rule += "----------:|----------:|---------:|";
     }
     println!("{header}\n{rule}");
-    let ok: Vec<&FilingResult> = results.iter().filter(|r| r.error.is_none()).collect();
+    // Filings with errors stay in every row: their labeled Items count as
+    // missed and their span as 0.
     for g in &groups {
         let mut a = Agg::default();
-        ok.iter().filter(|r| &r.group == g).for_each(|r| a.add(r));
+        results.iter().filter(|r| &r.group == g).for_each(|r| a.add(r));
         println!("{}", a.row(g, timing));
     }
     let mut ten_k = Agg::default();
-    ok.iter().filter(|r| r.group.starts_with("10-K")).for_each(|r| ten_k.add(r));
+    results.iter().filter(|r| r.group.starts_with("10-K")).for_each(|r| ten_k.add(r));
     println!("{}", ten_k.row("10-K all eras", timing));
     let mut all = Agg::default();
-    ok.iter().for_each(|r| all.add(r));
+    results.iter().for_each(|r| all.add(r));
     println!("{}", all.row("All", timing));
     if !tags.is_empty() {
         println!("\nBy tag (a filing can have several):\n\n{header}\n{rule}");
         for t in &tags {
             let mut a = Agg::default();
-            ok.iter().filter(|r| r.tags.contains(t)).for_each(|r| a.add(r));
+            results.iter().filter(|r| r.tags.contains(t)).for_each(|r| a.add(r));
             println!("{}", a.row(t, timing));
         }
     }
@@ -734,14 +756,14 @@ fn report(results: &[FilingResult], name: &str, misses: bool, timing: bool) {
 
     let errors: Vec<&FilingResult> = results.iter().filter(|r| r.error.is_some()).collect();
     if !errors.is_empty() {
-        println!("\nErrors:");
+        println!("\nErrors (scored as all Items missed, span 0):");
         for r in errors {
             println!("  {} {} {}: {}", r.accession, r.company, r.form, r.error.as_deref().unwrap_or(""));
         }
     }
     if misses {
         println!("\nPer-filing misses:");
-        for r in &ok {
+        for r in results.iter().filter(|r| r.error.is_none()) {
             let bad: Vec<&ItemResult> = r
                 .items
                 .iter()
@@ -779,5 +801,39 @@ fn report(results: &[FilingResult], name: &str, misses: bool, timing: bool) {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn errored_filings_count_as_missed() {
+        let label = LabelFile {
+            items: vec![ItemLabel::default(), ItemLabel::default()],
+            filing_date: "2024-01-01".into(),
+            form: "10-Q".into(),
+            ..LabelFile::default()
+        };
+        let good = FilingResult { labeled: 2, predicted: 2, hits: 2, span_correct: 10, span_union: 10, ..base_result(&label) };
+        let bad = FilingResult { error: Some("labels do not resolve".into()), ..base_result(&label) };
+        assert_eq!(bad.labeled, 2);
+        assert_eq!(bad.span_accuracy(), 0.0);
+        let mut a = Agg::default();
+        a.add(&good);
+        a.add(&bad);
+        assert_eq!((a.filings, a.labeled, a.predicted, a.hits), (2, 4, 2, 2));
+        assert_eq!(a.span_sum, 1.0);
+    }
+
+    #[test]
+    fn only_a_missing_document_falls_back_to_the_full_submission() {
+        let status = |status| parsec_edgar::Error::Status { status, url: String::new() };
+        assert!(not_served(&status(404)));
+        assert!(!not_served(&status(403)));
+        assert!(!not_served(&status(429)));
+        assert!(!not_served(&status(503)));
+        assert!(!not_served(&parsec_edgar::Error::Network { url: String::new(), message: "timeout".into() }));
     }
 }
