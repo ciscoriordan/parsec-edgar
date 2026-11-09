@@ -220,13 +220,20 @@ impl Client {
         self.get_json(&format!("https://data.sec.gov/submissions/CIK{cik:010}.json"))
     }
 
+    fn history_page(&self, page: &FileRef) -> Result<Columns> {
+        self.get_json(&format!("https://data.sec.gov/submissions/{}", page.name))
+    }
+
+    fn cik_of(&self, company: &str) -> Result<u64> {
+        match parse_cik(company.trim()) {
+            Some(cik) => Ok(cik),
+            None => Ok(self.company(company)?.cik),
+        }
+    }
+
     /// Filings of a company (ticker or CIK), newest first.
     pub fn filings(&self, company: &str, query: &FilingQuery) -> Result<Vec<Filing>> {
-        let cik = match parse_cik(company.trim()) {
-            Some(cik) => cik,
-            None => self.company(company)?.cik,
-        };
-        self.filings_for_cik(cik, query)
+        self.filings_for_cik(self.cik_of(company)?, query)
     }
 
     /// Filings of a company by CIK, newest first.
@@ -252,11 +259,20 @@ impl Client {
                         continue;
                     }
                 }
-                let cols: Columns = self.get_json(&format!("https://data.sec.gov/submissions/{}", page.name))?;
+                // With a limit, a page older than the limit-th newest match cannot change the result.
+                if let (Some(n), Some(to)) = (query.limit, &page.filing_to) {
+                    if n > 0 && out.len() >= n {
+                        sort_newest_first(&mut out);
+                        if to.as_str() < out[n - 1].filing_date.as_str() {
+                            continue;
+                        }
+                    }
+                }
+                let cols = self.history_page(page)?;
                 out.extend(cols.to_filings(cik, &sub.name).into_iter().filter(|f| query.matches(f)));
             }
         }
-        out.sort_by(|a, b| b.filing_date.cmp(&a.filing_date).then_with(|| b.accession_number.cmp(&a.accession_number)));
+        sort_newest_first(&mut out);
         if let Some(n) = query.limit {
             out.truncate(n);
         }
@@ -264,25 +280,33 @@ impl Client {
     }
 
     /// Find one filing by company and accession number (dashed or 18 digits).
+    /// Reads the submissions file once, then only as many history pages as needed,
+    /// starting with those that cover the year in the accession number.
     pub fn filing(&self, company: &str, accession: &str) -> Result<Filing> {
         let acc = normalize_accession(accession)
             .ok_or_else(|| Error::Invalid(format!("not an accession number: {accession:?}")))?;
-        let find = |q: &FilingQuery| -> Result<Option<Filing>> {
-            Ok(self.filings(company, q)?.into_iter().find(|f| f.accession_number == acc))
-        };
-        if let Some(f) = find(&FilingQuery::new())? {
+        let cik = self.cik_of(company)?;
+        let sub = self.submissions(cik)?;
+        let find = |cols: &Columns| cols.to_filings(cik, &sub.name).into_iter().find(|f| f.accession_number == acc);
+        if let Some(f) = find(&sub.filings.recent) {
             return Ok(f);
         }
-        find(&FilingQuery::new().all_history(true))?.ok_or(Error::FilingNotFound(acc))
+        let year = accession_year(&acc);
+        let (likely, others): (Vec<&FileRef>, Vec<&FileRef>) =
+            sub.filings.files.iter().partition(|p| page_covers_years(p, year, year + 1));
+        for page in likely.into_iter().chain(others) {
+            if let Some(f) = find(&self.history_page(page)?) {
+                return Ok(f);
+            }
+        }
+        Err(Error::FilingNotFound(acc))
     }
 
     /// The most recent filing of a form type.
     pub fn latest(&self, company: &str, form: &str) -> Result<Filing> {
-        let q = FilingQuery::forms(&[form]).limit(1);
-        if let Some(f) = self.filings(company, &q)?.into_iter().next() {
-            return Ok(f);
-        }
-        self.filings(company, &q.all_history(true))?
+        // History pages are read only when the recent block has none.
+        let q = FilingQuery::forms(&[form]).limit(1).all_history(true);
+        self.filings(company, &q)?
             .into_iter()
             .next()
             .ok_or_else(|| Error::FilingNotFound(format!("no {form} filings for {company}")))
@@ -310,6 +334,26 @@ impl Client {
         })?;
         Ok(extract_sections(&self.filing_text(filing)?, kind))
     }
+}
+
+fn sort_newest_first(filings: &mut [Filing]) {
+    filings
+        .sort_by(|a, b| b.filing_date.cmp(&a.filing_date).then_with(|| b.accession_number.cmp(&a.accession_number)));
+}
+
+/// The year in a dashed accession number: `0000320193-24-000123` -> 2024.
+fn accession_year(acc: &str) -> u32 {
+    let yy: u32 = acc.get(11..13).and_then(|y| y.parse().ok()).unwrap_or(0);
+    if yy >= 80 { 1900 + yy } else { 2000 + yy }
+}
+
+/// Whether a history page's date range overlaps the years `first..=last`.
+/// A page without a range might hold anything.
+fn page_covers_years(page: &FileRef, first: u32, last: u32) -> bool {
+    let (Some(from), Some(to)) = (&page.filing_from, &page.filing_to) else {
+        return true;
+    };
+    to.as_str() >= format!("{first:04}").as_str() && from.as_str() <= format!("{last:04}-12-31").as_str()
 }
 
 /// `0000320193-24-000123` or `000032019324000123` to the dashed form.
@@ -395,5 +439,87 @@ mod tests {
         assert_eq!(f.items, vec!["2.02", "9.01"]);
         assert!(f.is_xbrl && !f.is_inline_xbrl);
         assert_eq!(f.size, Some(12345));
+    }
+
+    const SUBMISSIONS: &str = "https://data.sec.gov/submissions/CIK0000000001.json";
+    const PAGE_1: &str = "https://data.sec.gov/submissions/CIK0000000001-submissions-001.json";
+    const PAGE_2: &str = "https://data.sec.gov/submissions/CIK0000000001-submissions-002.json";
+
+    fn columns(rows: &[(&str, &str, &str)]) -> String {
+        serde_json::json!({
+            "accessionNumber": rows.iter().map(|r| r.0).collect::<Vec<_>>(),
+            "form": rows.iter().map(|r| r.1).collect::<Vec<_>>(),
+            "filingDate": rows.iter().map(|r| r.2).collect::<Vec<_>>(),
+        })
+        .to_string()
+    }
+
+    /// A filer whose recent block has 8-Ks and one 10-Q, with 10-Ks only in
+    /// two older history pages (2015-2020 and 2010-2014).
+    fn stubbed_client() -> Client {
+        let c = Client::builder("a@b.c").build().unwrap();
+        let recent = columns(&[
+            ("0000000001-25-000003", "8-K", "2025-06-01"),
+            ("0000000001-25-000002", "10-Q", "2025-05-01"),
+            ("0000000001-25-000001", "8-K", "2025-02-01"),
+        ]);
+        let files = r#"[
+            {"name": "CIK0000000001-submissions-001.json", "filingFrom": "2015-01-01", "filingTo": "2020-12-31"},
+            {"name": "CIK0000000001-submissions-002.json", "filingFrom": "2010-01-01", "filingTo": "2014-12-31"}]"#;
+        c.stub(SUBMISSIONS, format!(r#"{{"name": "Test Co", "filings": {{"recent": {recent}, "files": {files}}}}}"#));
+        let page1 = columns(&[
+            ("0000000001-20-000002", "10-K", "2020-03-01"),
+            ("0000000001-19-000001", "10-K", "2019-03-01"),
+            ("0000000001-16-000001", "10-K", "2016-03-01"),
+        ]);
+        c.stub(PAGE_1, page1);
+        let page2 = columns(&[
+            ("0000000001-13-000001", "10-K", "2013-03-01"),
+            // Accession numbers from late December can be filed in January.
+            ("0000000001-11-000009", "8-K", "2012-01-03"),
+        ]);
+        c.stub(PAGE_2, page2);
+        c
+    }
+
+    #[test]
+    fn latest_reads_submissions_once() {
+        let c = stubbed_client();
+        assert_eq!(c.latest("1", "10-Q").unwrap().accession_number, "0000000001-25-000002");
+        assert_eq!(c.take_fetched(), [SUBMISSIONS]);
+        // Not in the recent block: the newest history page has one, so the older one is not read.
+        assert_eq!(c.latest("1", "10-K").unwrap().accession_number, "0000000001-20-000002");
+        assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1]);
+        assert!(matches!(c.latest("1", "S-1"), Err(Error::FilingNotFound(_))));
+        assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1, PAGE_2]);
+    }
+
+    #[test]
+    fn filing_reads_submissions_once() {
+        let c = stubbed_client();
+        assert_eq!(c.filing("1", "0000000001-25-000002").unwrap().form, "10-Q");
+        assert_eq!(c.take_fetched(), [SUBMISSIONS]);
+        // The page covering the accession number's year is read first.
+        assert_eq!(c.filing("1", "000000000113000001").unwrap().filing_date, "2013-03-01");
+        assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_2]);
+        assert_eq!(c.filing("1", "0000000001-11-000009").unwrap().filing_date, "2012-01-03");
+        assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_2]);
+        assert_eq!(c.filing("1", "0000000001-19-000001").unwrap().filing_date, "2019-03-01");
+        assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1]);
+        assert!(matches!(c.filing("1", "0000000001-05-000001"), Err(Error::FilingNotFound(_))));
+        assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1, PAGE_2]);
+    }
+
+    #[test]
+    fn history_stops_at_limit() {
+        let c = stubbed_client();
+        let q = FilingQuery::forms(&["10-K"]).limit(2).all_history(true);
+        let got: Vec<String> = c.filings("1", &q).unwrap().into_iter().map(|f| f.filing_date).collect();
+        assert_eq!(got, ["2020-03-01", "2019-03-01"]);
+        assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1]);
+        // Without a limit every page is read.
+        let q = FilingQuery::forms(&["10-K"]).all_history(true);
+        assert_eq!(c.filings("1", &q).unwrap().len(), 4);
+        assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1, PAGE_2]);
     }
 }
