@@ -39,9 +39,22 @@ impl CrawlQuery {
     }
 
     /// Add every quarter of the years `from` to `to`, inclusive. Years before
-    /// 1993, when EDGAR starts, have no filings and are left out.
+    /// 1993, when EDGAR starts, have no filings and are left out. A span with
+    /// no EDGAR year in it (all before 1993, or `to` before `from`) narrows
+    /// `since` and `until` to the span instead, so the crawl finds nothing
+    /// rather than reading every date.
     pub fn years(mut self, from: u16, to: u16) -> Self {
-        for year in from.max(FIRST_YEAR)..=to {
+        let first = from.max(FIRST_YEAR);
+        if first > to {
+            let (lo, hi) = (format!("{from:04}"), format!("{to:04}"));
+            self.since = Some(self.since.map_or(lo.clone(), |s| s.max(lo)));
+            self.until = Some(match self.until {
+                Some(u) if hi.get(..u.len()).unwrap_or(&hi) > u.as_str() => u,
+                _ => hi,
+            });
+            return self;
+        }
+        for year in first..=to {
             self.quarters.extend((1..=4).filter_map(|quarter| Quarter::new(year, quarter).ok()));
         }
         self
@@ -72,6 +85,12 @@ impl CrawlQuery {
     pub fn quarters_to_read(&self) -> Result<Vec<Quarter>> {
         for d in [&self.since, &self.until].into_iter().flatten() {
             parse_date(d)?;
+        }
+        // Nothing to read when the crawl ends before EDGAR starts.
+        if let Some(u) = &self.until {
+            if parse_date(u)?.0 < FIRST_YEAR {
+                return Ok(Vec::new());
+            }
         }
         let current = Quarter::current();
         let mut qs = if self.quarters.is_empty() {
@@ -461,6 +480,28 @@ mod tests {
             (s("2015-06-01"), s("2016-03"))
         );
         assert!(CrawlQuery::new(&["10-K"]).until("2015/01").date_bounds().is_err());
+    }
+
+    #[test]
+    fn years_with_no_edgar_filings_match_nothing() {
+        // Every year before EDGAR starts: no quarters, but bounds that exclude
+        // every filing instead of no bounds at all.
+        let q = CrawlQuery::new(&["10-K"]).years(1990, 1992);
+        assert!(q.quarters.is_empty());
+        assert!(q.has_range());
+        assert!(!q.matches("10-K", "1994-12-13"));
+        assert!(!q.matches("10-K", "2026-11-03"));
+        assert!(q.quarters_to_read().unwrap().is_empty());
+        let (since, until) = q.date_bounds().unwrap();
+        assert_eq!((since.as_deref(), until.as_deref()), (Some("1990"), Some("1992")));
+        // A span that ends before it starts.
+        let q = CrawlQuery::new(&["10-K"]).years(2020, 2019);
+        assert!(!q.matches("10-K", "2019-06-01") && !q.matches("10-K", "2020-06-01"));
+        assert!(q.quarters_to_read().unwrap().is_empty());
+        // A span that starts before EDGAR keeps its EDGAR years.
+        let q = CrawlQuery::new(&["10-K"]).years(1991, 1993);
+        assert_eq!(q.quarters.len(), 4);
+        assert!(q.since.is_none() && q.until.is_none());
     }
 
     #[test]
