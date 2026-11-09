@@ -1,0 +1,31 @@
+{
+  "accession": "0000060667-22-000162",
+  "cik": 60667,
+  "company": "LOWES COMPANIES INC",
+  "form": "8-K",
+  "filing_date": "2022-11-03",
+  "url": "https://www.sec.gov/Archives/edgar/data/60667/000006066722000162/low-20221103.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Press release furnished under Item 7.01 as Exhibit 99.1.",
+  "items": [
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01 Regulation FD Disclosure.",
+      "occurrence": 0,
+      "next": "On November 3, 2022, the Company issued "
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01 Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

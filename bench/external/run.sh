@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Score edgar-crawler and edgartools on the benchmark's label sets.
 #
-#   PARSEC_EDGAR_USER_AGENT="Name email@example.com" bench/external/run.sh [dev] [holdout] [blind]
+#   PARSEC_EDGAR_USER_AGENT="Name email@example.com" bench/external/run.sh [dev] [holdout] [blind] [fresh]
 #
 # Needs git, Python 3.11 for edgar-crawler (it pins numpy 1.24 and pandas 1.5,
 # which have no wheels for later Pythons) and Python 3.10 or later for
@@ -9,6 +9,7 @@
 # environments, exported filings and results stay in this directory and are
 # ignored by git. Filings come through the benchmark's cache at --rps 3.
 set -euo pipefail
+: "${PARSEC_EDGAR_USER_AGENT:?set PARSEC_EDGAR_USER_AGENT to your name and contact email}"
 
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
@@ -40,7 +41,7 @@ fi
 for set in "${sets[@]}"; do
   case "$set" in
     dev) labels="$root/bench/labels" ;;
-    holdout | blind) labels="$root/bench/$set" ;;
+    holdout | blind | fresh) labels="$root/bench/$set" ;;
     *) echo "unknown label set: $set" >&2; exit 2 ;;
   esac
   raw="$here/raw/$set"

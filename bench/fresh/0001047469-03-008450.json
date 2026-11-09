@@ -1,0 +1,120 @@
+{
+  "accession": "0001047469-03-008450",
+  "cik": 63908,
+  "company": "MCDONALDS CORP",
+  "form": "10-K",
+  "filing_date": "2003-03-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/63908/000104746903008450/a2105107z10-k.htm",
+  "agent": "Toppan Merrill",
+  "tags": [],
+  "labeled": true,
+  "notes": "2003 numbering: Item 14 is Controls and Procedures, Item 15 is exhibits. Item 5 is printed as 'Item 5A' (market for common equity) and 'Item 5B' (equity compensation plans); both are Item 5 content, so Item 5 starts at 5A and runs through 5B. A list of the Item headings follows the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. BUSINESS",
+      "occurrence": 0,
+      "next": "McDonald's Corporation, the registrant, "
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "The Company identifies and develops site"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The Company has pending a number of laws"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. SUBMISSION OF MATTERS TO A VOTE OF SHAREHOLDERS",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5A. MARKET FOR REGISTRANT'S COMMON EQUITY AND RELATED SHAREHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The Company's common stock trades under "
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "11-YEAR SUMMARY"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "NATURE OF BUSINESS"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Quantitative and qualitative disclosures",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "INDEX TO CONSOLIDATED FINANCIAL STATEMEN"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "Information regarding directors is incor",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "Incorporated herein by reference from th",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED SHAREHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "Incorporated herein by reference from th",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "Incorporated herein by reference from th",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. CONTROL AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Within the 90-day period prior to the fi"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a)"
+    }
+  ],
+  "end": {
+    "text": "Signatures",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

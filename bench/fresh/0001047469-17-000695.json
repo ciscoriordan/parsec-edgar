@@ -1,0 +1,151 @@
+{
+  "accession": "0001047469-17-000695",
+  "cik": 86312,
+  "company": "TRAVELERS COMPANIES, INC.",
+  "form": "10-K",
+  "filing_date": "2017-02-16",
+  "url": "https://www.sec.gov/Archives/edgar/data/86312/000104746917000695/a2230860z10-k.htm",
+  "agent": "Toppan Merrill",
+  "tags": [
+    "insurer"
+  ],
+  "labeled": true,
+  "notes": "The first line of the document repeats the Item 8 heading before the cover page; the body heading is the second one. Financial statement schedules follow the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. BUSINESS",
+      "occurrence": 0,
+      "next": "The Travelers Companies, Inc. (together "
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "You should carefully consider the follow"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. UNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "NONE."
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "The Company leases its principal executi"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The information required with respect to",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "NONE."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. MARKET FOR REGISTRANT'S COMMON EQUITY, RELATED SHAREHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "The Company's common stock is traded on "
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "At and for the year ended December 31,"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following is a discussion and analys"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "MARKET RISK"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 1,
+      "next": "INDEX TO CONSOLIDATED FINANCIAL STATEMEN"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "Not Applicable."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "The Company maintains disclosure control"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "Executive Ownership and Sales. All of th"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "Executive Officers of the Company"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The following sections of the Company's ",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED SHAREHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The \"Share Ownership Information\" sectio"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The \"Item 1—Election of Directors—Nomine",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The \"Item 2—Ratification of Independent ",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "Documents filed as a part of the report:"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. FORM 10-K SUMMARY",
+      "occurrence": 0,
+      "next": "None."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

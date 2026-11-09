@@ -11,8 +11,9 @@
 //! Before that, contents entries whose Item and title reappear in the body
 //! are dropped, and so is a bare page header ("Item 7") just above its
 //! titled heading. In a 10-Q a `PART I` or `PART II` line just above a heading
-//! fixes its part. The last Item ends at the signatures or where a separately
-//! paginated attached document (an annual report) begins.
+//! fixes its part, and without one a title that only one part uses for that
+//! Item number does. The last Item ends at the signatures or where a
+//! separately paginated attached document (an annual report) begins.
 
 use std::sync::LazyLock;
 
@@ -154,6 +155,14 @@ const EIGHT_K: &[Key] = &[
     k("9.01", "Financial Statements and Exhibits"),
 ];
 
+fn keys_for(kind: FormKind) -> &'static [Key] {
+    match kind {
+        FormKind::TenK => TEN_K,
+        FormKind::TenQ => TEN_Q,
+        FormKind::EightK => EIGHT_K,
+    }
+}
+
 /// `Item 1A. Risk Factors`, `PART II - ITEM 1A RISK FACTORS`, `Item 4(T).`, `Items 1 and 2.`, `Item 9 A.`
 static PERIODIC_HEADING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -225,6 +234,9 @@ struct Candidate {
     /// 10-Q part fixed by a `PART I` or `PART II` line just above the heading
     /// or at its start.
     part: Option<&'static str>,
+    /// 10-Q part whose standard title for this Item number matches the
+    /// heading's title, when only one part's does ("Item 1. Legal Proceedings").
+    title_part: Option<&'static str>,
     /// Distance to the next heading of a different Item.
     gap: usize,
     score: f64,
@@ -252,11 +264,17 @@ fn title_key(tail: &str) -> String {
     tail.chars().filter(|c| c.is_alphabetic()).flat_map(char::to_lowercase).take(30).collect()
 }
 
-/// `Item 9 A. Controls`: a letter set apart from the number belongs to it.
-/// Done here rather than in the heading regex, which stays fast that way.
-fn split_letter<'a>(label: &str, tail: &'a str) -> (String, &'a str) {
+/// `Item 9 A. Controls`: a letter set apart from the number by spaces only
+/// belongs to it (in `ITEM 1. A. GENERAL` it starts the title). Done here
+/// rather than in the heading regex, which stays fast that way.
+fn split_letter<'a>(label: &str, between: &str, tail: &'a str) -> (String, &'a str) {
     let b = tail.as_bytes();
-    if label.bytes().all(|d| d.is_ascii_digit()) && b.len() >= 2 && matches!(b[0], b'A'..=b'C') && matches!(b[1], b'.' | b':') {
+    if label.bytes().all(|d| d.is_ascii_digit())
+        && between.trim().is_empty()
+        && b.len() >= 2
+        && matches!(b[0], b'A'..=b'C')
+        && matches!(b[1], b'.' | b':')
+    {
         (format!("{label}{}", b[0] as char), tail[2..].trim_start())
     } else {
         (label.to_owned(), tail)
@@ -274,16 +292,25 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
         .map(|c| {
             let m = c.get(0).expect("group 0 always matches");
             let heading: String = m.as_str().trim().chars().take(300).collect();
-            let label = c[1].to_ascii_uppercase();
-            let (label, tail) = if kind == FormKind::EightK { (label, &c[2]) } else { split_letter(&label, &c[2]) };
+            let (number, tail) = (c.get(1).expect("Item number"), c.get(2).expect("tail"));
+            let label = number.as_str().to_ascii_uppercase();
+            let (label, tail) = if kind == FormKind::EightK {
+                (label, tail.as_str())
+            } else {
+                split_letter(&label, &text[number.end()..tail.start()], tail.as_str())
+            };
             let bare = !tail.chars().any(char::is_alphabetic);
             let title = if bare { title_key(next_line_title(text, m.end())) } else { title_key(tail) };
-            let part = if kind == FormKind::TenQ { part_above(text, m.start()) } else { None };
-            Candidate { pos: m.start(), label, heading, bare, title, part, gap: 0, score: 0.0 }
+            let (part, title_part) = if kind == FormKind::TenQ {
+                (part_above(text, m.start(), &label), part_by_title(&label, &title))
+            } else {
+                (None, None)
+            };
+            Candidate { pos: m.start(), label, heading, bare, title, part, title_part, gap: 0, score: 0.0 }
         })
         .collect();
     set_gaps(&mut cands, text.len());
-    let mut cands = drop_running_headers(drop_contents_entries(cands, text));
+    let mut cands = drop_running_headers(drop_contents_entries(cands, text), keys_for(kind));
     // Score by the gap to the next heading of a different Item, so repeated
     // running headers of one Item do not split its score.
     set_gaps(&mut cands, text.len());
@@ -300,19 +327,52 @@ fn set_gaps(cands: &mut [Candidate], text_len: usize) {
     }
 }
 
+fn is_item_line(line: &str) -> bool {
+    line.trim_start().get(..4).is_some_and(|w| w.eq_ignore_ascii_case("item"))
+}
+
+/// Whether two title keys name the same heading: one starts the other, and
+/// both have at least 5 letters.
+fn same_title(a: &str, b: &str) -> bool {
+    a.chars().count() >= 5 && b.chars().count() >= 5 && (a.starts_with(b) || b.starts_with(a))
+}
+
 /// The line after a bare heading ("Item 1." then "Financial Statements"),
 /// unless it is another Item.
 fn next_line_title(text: &str, end: usize) -> &str {
     let rest = text[end..].trim_start_matches(['\n', '\r']);
     let line = rest.split('\n').next().unwrap_or("").trim();
-    if line.get(..4).is_some_and(|w| w.eq_ignore_ascii_case("item")) { "" } else { line }
+    if is_item_line(line) { "" } else { line }
+}
+
+/// The 10-Q part whose standard title for Item `label` matches `title`,
+/// when exactly one part's does.
+fn part_by_title(label: &str, title: &str) -> Option<&'static str> {
+    let mut parts = TEN_Q.iter().filter(|k| k.item == label && same_title(title, &title_key(k.title))).map(|k| k.part);
+    match (parts.next(), parts.next()) {
+        (Some(part), None) => part,
+        _ => None,
+    }
+}
+
+/// The Item number of a bare heading line such as "Item 7".
+fn bare_item_label(line: &str) -> Option<String> {
+    let c = PERIODIC_HEADING.captures(line)?;
+    (!c[2].chars().any(char::is_alphabetic)).then(|| c[1].to_ascii_uppercase())
 }
 
 /// Part named at the start of the heading line or on one of the two lines
 /// above it (a running header such as the company name can sit between).
-fn part_above(text: &str, start: usize) -> Option<&'static str> {
+/// The search stops at the line of another Item, whose PART line it would
+/// be; a bare running header of this Item ("PART I", "Item 2", then
+/// "ITEM 2. MANAGEMENT'S ...") does not stop it.
+fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
     let line_end = text[start..].find('\n').map_or(text.len(), |i| start + i);
-    let above = text[..start].trim_end_matches(['\n', '\r']).rsplit('\n').take(2);
+    let above = text[..start]
+        .trim_end_matches(['\n', '\r'])
+        .rsplit('\n')
+        .take(2)
+        .take_while(|l| !is_item_line(l) || bare_item_label(l).as_deref() == Some(label));
     std::iter::once(&text[start..line_end])
         .chain(above)
         .find_map(|l| PART_MARK.captures(l))
@@ -324,20 +384,22 @@ fn part_above(text: &str, start: usize) -> Option<&'static str> {
 ///
 /// Two candidates are the same heading when they share Item and title and
 /// other Items come between them. The earlier copy is a contents entry when
-/// it starts the shorter stretch of text; the later copy is a listing when
-/// the signatures come between them. In a 10-Q this matters most: a contents
-/// entry for Part I Item 2 could otherwise be taken as Part I and the body
-/// heading as Part II. Entries just before a dropped contents entry belong to
-/// the same contents block and go too (an Item listed in the contents whose
-/// body has no heading); short entries just after a dropped listing entry go
-/// with it.
+/// it starts the shorter stretch of text; the later copy is a listing when a
+/// signatures heading comes between them, at or after the first body heading
+/// (contents often list "Signatures" too). In a 10-Q this matters most: a
+/// contents entry for Part I Item 2 could otherwise be taken as Part I and the
+/// body heading as Part II. Entries just before a dropped contents entry
+/// belong to the same contents block and go too (an Item listed in the
+/// contents whose body has no heading), unless they are body headings
+/// themselves; short entries just after a dropped listing entry go with it.
 fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
     const SAME_BLOCK: usize = 2000;
     let n = cands.len();
-    let mut signatures: Option<Vec<usize>> = None;
-    // A contents entry before the body, and a listing after it.
+    // A contents entry, the body heading it was matched with, and pairs whose
+    // later copy is no longer than the earlier one.
     let mut contents = vec![false; n];
-    let mut after = vec![false; n];
+    let mut body = vec![false; n];
+    let mut later_copies: Vec<(usize, usize)> = Vec::new();
     for a in 0..n {
         if cands[a].title.chars().count() < 5 {
             continue;
@@ -346,23 +408,29 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
         for b in a + 1..n {
             if cands[b].label != cands[a].label {
                 other_between = true;
-            } else if other_between
-                && (cands[a].title.starts_with(&cands[b].title) || cands[b].title.starts_with(&cands[a].title))
-                && cands[b].title.chars().count() >= 5
-            {
+            } else if other_between && same_title(&cands[a].title, &cands[b].title) {
                 if cands[b].gap > cands[a].gap {
                     contents[a] = true;
+                    body[b] = true;
                 } else {
-                    let sigs = signatures.get_or_insert_with(|| signature_lines(text));
-                    after[b] = sigs.iter().any(|&p| p > cands[a].pos && p < cands[b].pos);
+                    later_copies.push((a, b));
                 }
                 break;
             }
         }
     }
     for i in (0..n.saturating_sub(1)).rev() {
-        if contents[i + 1] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
+        if contents[i + 1] && !body[i] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
             contents[i] = true;
+        }
+    }
+    let mut after = vec![false; n];
+    if !later_copies.is_empty() {
+        let body_start = (0..n).find(|&i| body[i] && !contents[i]).map_or(0, |i| cands[i].pos);
+        let sigs = signature_lines(text);
+        for (a, b) in later_copies {
+            let from = body_start.max(cands[a].pos + 1);
+            after[b] = sigs.iter().any(|&p| p >= from && p < cands[b].pos);
         }
     }
     // Only short entries: a body heading can follow a second contents table.
@@ -376,15 +444,18 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
 
 /// Drop a bare running page header ("Item 7") that comes just before the
 /// titled heading of the same Item ("ITEM 7. MANAGEMENT'S DISCUSSION ...").
-fn drop_running_headers(cands: Vec<Candidate>) -> Vec<Candidate> {
+/// A bare heading whose next line is that title ("ITEM 1." then "BUSINESS"),
+/// or the Item's standard title, is a real heading and stays.
+fn drop_running_headers(cands: Vec<Candidate>, keys: &[Key]) -> Vec<Candidate> {
     const NEAR: usize = 5000;
     let keep: Vec<bool> = (0..cands.len())
         .map(|i| {
+            let c = &cands[i];
             let Some(next) = cands.get(i + 1) else { return true };
-            !(cands[i].bare
-                && !next.bare
-                && next.label == cands[i].label
-                && next.pos - cands[i].pos <= NEAR)
+            let header = c.bare && !next.bare && next.label == c.label && next.pos - c.pos <= NEAR;
+            !header
+                || same_title(&c.title, &next.title)
+                || keys.iter().any(|k| k.item == c.label && same_title(&c.title, &title_key(k.title)))
         })
         .collect();
     cands.into_iter().zip(keep).filter(|(_, k)| *k).map(|(c, _)| c).collect()
@@ -444,16 +515,33 @@ fn attached_document(text: &str, from: usize, to: usize) -> Option<usize> {
     None
 }
 
+/// Where the signatures start after `from`: a signatures heading, or the
+/// signature block's opening sentence when there is no heading.
+fn signatures_after(text: &str, from: usize) -> Option<usize> {
+    signature_lines(&text[from..])
+        .first()
+        .map(|&p| from + p)
+        .or_else(|| SIGNATURE_BLOCK.find_at(text, from).map(|m| m.start()))
+}
+
 /// Some 10-Qs print Items out of form order: banks often put the financial
 /// statements (Part I Item 1) after MD&A. The ordered chain cannot hold such a
 /// heading, so it is added afterwards when a `PART` line marks it, its Item is
-/// still unused, and it starts a real stretch of text rather than a contents entry.
-fn add_out_of_order(cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize)>) {
+/// still unused, it starts a real stretch of text rather than a contents
+/// entry, and it comes before the signatures.
+fn add_out_of_order(text: &str, cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize)>) {
     const MIN_GAP: usize = 1000;
     let first = cands[picks[0].0].pos;
+    let last = picks.iter().map(|&(c, _)| cands[c].pos).max().unwrap_or(first);
+    let limit = signatures_after(text, last).unwrap_or(text.len());
     let mut extra: Vec<(usize, usize)> = Vec::new();
     for (ci, c) in cands.iter().enumerate() {
-        if c.part.is_none() || c.gap < MIN_GAP || c.pos <= first || picks.iter().any(|&(p, _)| p == ci) {
+        if c.part.is_none()
+            || c.gap < MIN_GAP
+            || c.pos <= first
+            || c.pos >= limit
+            || picks.iter().any(|&(p, _)| p == ci)
+        {
             continue;
         }
         let Some(ki) = keys.iter().position(|k| k.item == c.label && k.part == c.part) else { continue };
@@ -474,11 +562,7 @@ fn better(a_total: f64, a_key: usize, b_total: f64, b_key: usize) -> std::cmp::O
 
 /// Split filing text (from [`crate::html_to_text`]) into Item sections, in document order.
 pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
-    let keys = match kind {
-        FormKind::TenK => TEN_K,
-        FormKind::TenQ => TEN_Q,
-        FormKind::EightK => EIGHT_K,
-    };
+    let keys = keys_for(kind);
     let cands = candidates(text, kind);
 
     // Best chain where both candidate position and Item order increase.
@@ -490,7 +574,9 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     }
     let mut states: Vec<State> = Vec::new();
     for (ci, cand) in cands.iter().enumerate() {
-        let fits = |key: &Key| key.item == cand.label && (cand.part.is_none() || key.part == cand.part);
+        // A PART line fixes the part; otherwise a title that names one part does.
+        let part = cand.part.or(cand.title_part);
+        let fits = |key: &Key| key.item == cand.label && (part.is_none() || key.part == part);
         for (ki, _) in keys.iter().enumerate().filter(|(_, key)| fits(key)) {
             let best = states
                 .iter()
@@ -519,16 +605,12 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     // (candidate, key) pairs in document order.
     let mut picks: Vec<(usize, usize)> = chain.iter().map(|&s| (states[s].cand, states[s].key)).collect();
     if kind == FormKind::TenQ {
-        add_out_of_order(&cands, keys, &mut picks);
+        add_out_of_order(text, &cands, keys, &mut picks);
     }
 
     let starts: Vec<usize> = picks.iter().map(|&(c, _)| cands[c].pos).collect();
     let last_start = *starts.last().expect("chain is non-empty");
-    let doc_end = signature_lines(&text[last_start..])
-        .first()
-        .map(|&p| last_start + p)
-        .or_else(|| SIGNATURE_BLOCK.find_at(text, last_start).map(|m| m.start()))
-        .unwrap_or(text.len());
+    let doc_end = signatures_after(text, last_start).unwrap_or(text.len());
     let doc_end = attached_document(text, last_start, doc_end).unwrap_or(doc_end);
     // Titled headings of Items the form does not define ("Item 4A. Executive
     // Officers") end the section before them.
@@ -733,6 +815,130 @@ mod tests {
     }
 
     #[test]
+    fn signatures_line_in_contents_keeps_empty_reserved_item() {
+        // The contents list "Signatures" too. The body's "Item 6. [Reserved]"
+        // is no longer than its contents entry, and must not be taken for a
+        // list printed after the signatures.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 5. Market for Registrant's Common Equity\nItem 6. [Reserved]\n\
+             Item 7. Management's Discussion and Analysis\nSignatures\n\
+             Item 5. Market for Registrant's Common Equity\n{body}\nItem 6. [Reserved]\n\
+             Item 7. Management's Discussion and Analysis\n{body}\nSIGNATURES\nPursuant to...\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5", "item_6", "item_7"]);
+        assert_eq!(s[1].text, "Item 6. [Reserved]");
+    }
+
+    #[test]
+    fn signatures_line_in_contents_keeps_last_item() {
+        // Contents that end with Item 16 and Signatures, then a note longer
+        // than the body's Item 16.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\nItem 15. Exhibits and Financial Statement Schedules\nItem 16. Form 10-K Summary\n\
+             Signatures\nForward-Looking Statements\n{body}{body}\nItem 1. Business\n{body}\n\
+             Item 15. Exhibits and Financial Statement Schedules\n{body}\nItem 16. Form 10-K Summary\nNone.\n\
+             SIGNATURES\nPursuant to...\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_15", "item_16"]);
+        assert_eq!(s[2].text, "Item 16. Form 10-K Summary\nNone.");
+    }
+
+    #[test]
+    fn short_item_before_second_contents_list_is_kept() {
+        // A Part II contents list after a short Item: the entries before a
+        // dropped contents entry go with it, but not a body heading.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\t3\nItem 3. Legal Proceedings\t15\nItem 4. Mine Safety Disclosures\t16\n\
+             Item 5. Market for Registrant's Common Equity\t20\nItem 7. Management's Discussion\t22\n\
+             Item 1. Business\n{body}\nItem 3. Legal Proceedings\n{body}\n\
+             Item 4. Mine Safety Disclosures\nNot applicable.\n\
+             PART II\nItem 5. Market for Registrant's Common Equity\t20\nItem 7. Management's Discussion\t22\n\
+             Item 5. Market for Registrant's Common Equity\n{body}\nItem 7. Management's Discussion\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_3", "item_4", "item_5", "item_7"]);
+        assert!(s[2].text.starts_with("Item 4. Mine Safety Disclosures\nNot applicable.\nPART II\n"));
+        assert!(s[3].text.starts_with("Item 5. Market for Registrant's Common Equity\nLorem"));
+    }
+
+    #[test]
+    fn bare_heading_with_title_below_is_not_a_running_header() {
+        // "ITEM 1." with its title on the next line is the real heading, and
+        // the titled line on the next page is the running header.
+        let page = BODY.repeat(40);
+        let text = format!(
+            "ITEM 1.\nBUSINESS\n{page}\nItem 1. Business (continued)\n{page}\nITEM 1A.\nRISK FACTORS\n{page}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a"]);
+        assert!(s[0].text.starts_with("ITEM 1.\nBUSINESS\nLorem"));
+    }
+
+    #[test]
+    fn part_line_above_an_item_line_is_not_read_across_it() {
+        // The contents end with "PART II" and Item 6, and the body starts
+        // with no PART I line. The PART II line belongs to the contents entry.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\t3\nItem 2. Management's Discussion and Analysis\t12\n\
+             PART II\nItem 6. Exhibits\t20\n\
+             Item 1. Financial Statements\n{body}{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn part_line_above_a_running_header_of_the_same_item_counts() {
+        // Every page starts "PART II" and "Item 2"; the first page also has
+        // the titled heading, which belongs to Part II.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART II. OTHER INFORMATION\nItem 2\nITEM 2. UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS\n\
+             {body}\nPART II\nItem 2\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_2_item_2", "part_2_item_6"]);
+        assert!(s[0].heading.starts_with("ITEM 2. UNREGISTERED"));
+    }
+
+    #[test]
+    fn bare_heading_with_its_standard_title_is_kept() {
+        // Part I Item 4 is printed bare with its title below, and Part II
+        // leaves out Items 1 to 3, so the next heading is Part II Item 4.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             Item 4.\nControls and Procedures\n{body}\nPART II\nItem 4. Mine Safety Disclosures\nNot applicable.\n\
+             Item 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_4", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn out_of_order_items_after_the_signatures_are_ignored() {
+        // An exhibit after the signatures prints "PART I" and an Item that the
+        // 10-Q itself left out.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             Item 4. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\n{body}\n\
+             Item 6. Exhibits\n31.1 Certification\nSIGNATURES\nPursuant to...\n\
+             Exhibit 99.1\nPART I\nItem 3. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(s[4].text, "Item 6. Exhibits\n31.1 Certification");
+    }
+
+    #[test]
     fn attached_annual_report_ends_last_item() {
         let mut contents = String::new();
         for (i, page) in (26..120).step_by(9).enumerate() {
@@ -746,5 +952,122 @@ mod tests {
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_14", "item_15"]);
         assert_eq!(s[1].text, "Item 15. Exhibits\n31.1\tCertification");
+    }
+
+    // Layouts close to those each special rule was written for, where the
+    // rule must not fire.
+
+    #[test]
+    fn attached_document_needs_a_long_paginated_contents() {
+        let long = BODY.repeat(1000);
+        let last_item = |text: &str| extract_sections(text, FormKind::TenK).pop().expect("one section").text;
+        // Fewer than 8 page-numbered entries.
+        let short = "Report of Independent Accountants\t45\nBalance Sheets\t46\nStatements of Income\t47\nNotes\t80\n";
+        let text = format!("Item 15. Exhibits\n{short}{long}\nSIGNATURES\n");
+        assert!(last_item(&text).ends_with(long.trim()));
+        // Entries spanning fewer than 30 pages.
+        let mut close = String::new();
+        for page in 45..55 {
+            close += &format!("Schedule {page} of the report\t{page}\n");
+        }
+        let text = format!("Item 15. Exhibits\n{close}{long}\nSIGNATURES\n");
+        assert!(last_item(&text).ends_with(long.trim()));
+        // A long contents list followed by less than four times the Item's own text.
+        let mut wide = String::new();
+        for page in (40..120).step_by(8) {
+            wide += &format!("Schedule {page} of the report\t{page}\n");
+        }
+        let after = BODY.repeat(700);
+        let text = format!("Item 15. Exhibits\n{long}\n{wide}{after}\nSIGNATURES\n");
+        assert!(last_item(&text).ends_with(after.trim()));
+    }
+
+    #[test]
+    fn signature_sentence_needs_duly_caused() {
+        let text = "Item 8.01 Other Events.\nPursuant to the requirements of the Securities Exchange Act of 1934, we \
+                    file reports with the SEC.\nMore text.\n";
+        let s = extract_sections(text, FormKind::EightK);
+        assert!(s[0].text.ends_with("More text."));
+    }
+
+    #[test]
+    fn titled_sub_items_are_headings_and_bare_ones_are_not() {
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\n{body}\nItem 15. Exhibits\n{body}\nItem 15(a)(1)\n{body}\n\
+             Item 16. Form 10-K Summary\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_15", "item_16"]);
+        assert!(s[1].text.contains("\nItem 15(a)(1)\n"));
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nPART II\nITEM 6 (a). Exhibits\n{body}\nSIGNATURE\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn letter_after_a_period_is_not_part_of_the_item_number() {
+        // "Item 9 A." is Item 9A, but in "ITEM 1. A. GENERAL" the letter starts the title.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 1. A. GENERAL DEVELOPMENT OF BUSINESS\n{body}\nItem 9 A. Controls and Procedures\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_9a"]);
+    }
+
+    #[test]
+    fn references_to_undefined_items_do_not_end_an_item() {
+        // Only a titled heading of an Item the form lacks ("Item 4A. Executive
+        // Officers") ends the Item before it; references to one do not.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 4. Mine Safety Disclosures\nNot applicable.\nItem 4A of Part I lists our executive officers.\n\
+             Item 401 of Regulation S-K requires this list.\nItem 5. Market for Registrant's Common Equity\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_4", "item_5"]);
+        assert!(s[0].text.ends_with("requires this list."));
+    }
+
+    #[test]
+    fn unmarked_ten_q_items_take_their_part_from_order_or_title() {
+        // No PART lines. After Part II Item 1, Item 2 is in Part II.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             Item 1. Legal Proceedings\n{body}\nItem 2. Unregistered Sales of Equity Securities\n{body}\n\
+             Item 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_2", "part_2_item_6"]);
+        // With nothing before it, the title decides, not the tie-break.
+        let text = format!(
+            "Item 1. Legal Proceedings\n{body}\nItem 1A. Risk Factors\n{body}\n\
+             Item 4. Mine Safety Disclosures\nNot applicable.\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_1a", "part_2_item_4", "part_2_item_6"]);
+        // An unmarked heading whose title names neither part keeps the tie-break.
+        let text = format!("Item 2. Results\n{body}\nItem 6. Exhibits\n{body}\n");
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_2", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn short_part_marked_lines_are_not_added_out_of_order() {
+        // A PART I line and an Item that the 10-Q left out, with only a few
+        // words after them: a cross-reference, not the Item.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\n\
+             PART I\nItem 3. Quantitative and Qualitative Disclosures About Market Risk\nSee Item 2.\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
     }
 }

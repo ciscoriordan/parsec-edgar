@@ -1,0 +1,27 @@
+{
+  "accession": "0001213900-25-072572",
+  "cik": 1706524,
+  "company": "Flash Sports & Media Holdings, Inc.",
+  "form": "8-K",
+  "filing_date": "2025-08-06",
+  "url": "https://www.sec.gov/Archives/edgar/data/1706524/000121390025072572/ea0251898-8k_urban.htm",
+  "agent": "EdgarAgents",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "One-Item 8-K with no exhibits. Filed by urban-gro, Inc.; EDGAR now lists the filer under its later name.",
+  "items": [
+    {
+      "id": "item_2.04",
+      "text": "Item 2.04\tTriggering Events That Accelerate or Increase a Direct Financial Obligation or an Obligation under an Off-Balance Sheet Arrangement.",
+      "occurrence": 0,
+      "next": "As previously disclosed, on December 13,"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

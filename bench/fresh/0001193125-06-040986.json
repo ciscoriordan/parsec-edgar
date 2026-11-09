@@ -1,0 +1,151 @@
+{
+  "accession": "0001193125-06-040986",
+  "cik": 936468,
+  "company": "LOCKHEED MARTIN CORP",
+  "form": "10-K",
+  "filing_date": "2006-02-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/936468/000119312506040986/d10k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "notes": "'ITEM 4(a). EXECUTIVE OFFICERS OF THE REGISTRANT' is not a standard Item, so Item 4 ends at its heading, as with Item 4A elsewhere.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.\tBUSINESS",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A.\tRISK FACTORS",
+      "occurrence": 0,
+      "next": "An investment in our common stock or deb"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B.\tUNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.\tPROPERTIES",
+      "occurrence": 0,
+      "next": "At December 31, 2005, we operated in 473"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.\tLEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "We are a party to or have property subje"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.\tSUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of s",
+      "end": {
+        "text": "ITEM 4(a). EXECUTIVE OFFICERS OF THE REGISTRANT",
+        "occurrence": 0,
+        "next": "Our executive officers are listed below,"
+      }
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.\tMARKET FOR THE REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "At January 31, 2006, we had 42,669 holde"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.\tSELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "Consolidated Financial Data - Five Year "
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.\tMANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "Financial Section Roadmap"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A.\tQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "See Management’s Discussion and Analysis",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8.\tFINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Management’s Report on the Financial Sta"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.\tCHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A.\tCONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "See Management’s Discussion and Analysis",
+      "incorporated": true
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B.\tOTHER INFORMATION",
+      "occurrence": 0,
+      "next": "We believe that all information that was"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.\tDIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "The information concerning directors req",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.\tEXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this Item 11",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.\tSECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "The information required by this Item 12",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.\tCERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "The information required by Item 404 of ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14.\tPRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15.\tEXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "(a) (1) List of Financial Statements fil"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

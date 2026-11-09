@@ -1,0 +1,31 @@
+{
+  "accession": "0000930413-16-008607",
+  "cik": 773840,
+  "company": "HONEYWELL INTERNATIONAL INC",
+  "form": "8-K",
+  "filing_date": "2016-10-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/773840/000093041316008607/c86381_8k.htm",
+  "agent": "agent 0000930413",
+  "tags": [],
+  "labeled": true,
+  "notes": "Debt offering 8-K. Item 2.03 refers to the indenture and notes filed as exhibits.",
+  "items": [
+    {
+      "id": "item_2.03",
+      "text": "Item 2.03 Creation of a Direct Financial Obligation or an Obligation Under an Off-balance Sheet Arrangement of a Registrant.",
+      "occurrence": 0,
+      "next": "On October 31, 2016, Honeywell Internati"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01 Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "A copy of the opinion of the Deputy Gene"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

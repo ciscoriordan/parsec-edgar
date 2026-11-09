@@ -1,0 +1,113 @@
+{
+  "accession": "0000003753-98-000003",
+  "cik": 3753,
+  "company": "ALLEN ORGAN CO",
+  "form": "10-K",
+  "filing_date": "1998-03-26",
+  "url": "https://www.sec.gov/Archives/edgar/data/3753/000000375398000003/0000003753-98-000003.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Pre-2003 numbering: Item 14 is exhibits. The financial statements are printed after Item 9's text, before Part III, and belong to no Item; Item 8 points to Item 14's index.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.    Business",
+      "occurrence": 0,
+      "next": "General developments of business."
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.    Properties",
+      "occurrence": 0,
+      "next": "The following sets forth the location, a"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.     Legal Proceedings",
+      "occurrence": 0,
+      "next": "There  is  no litigation requiring discl"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.    Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No  matters  were  submitted to a vote o"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.    Market  for the Registrant's Common Stock and Related  Security",
+      "occurrence": 0,
+      "next": "Holder Matters"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.   Selected Financial Data",
+      "occurrence": 0,
+      "next": "Years Ended December 31,"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.   Management's Discussion and Analysis of Financial Condition and",
+      "occurrence": 0,
+      "next": "Results of Operations"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements",
+      "occurrence": 0,
+      "next": "See Item 14 for index.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and",
+      "occurrence": 0,
+      "next": "Financial Disclosure",
+      "end": {
+        "text": "KPMG Peat Marwick LLP",
+        "occurrence": 0,
+        "next": "4905 Tilghman Street"
+      }
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.    Directors and Executive Officers of the Registrant.",
+      "occurrence": 0,
+      "next": "(a)            Identification of Directo"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.    Executive Compensation.",
+      "occurrence": 0,
+      "next": "Deleted paragraphs and/or columns are no"
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.     Security Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 0,
+      "next": "(a)   Voting securities of the registran"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.    Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "See  Note  9  to Financial Statements, c",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.    Exhibits, Financial Statement Schedules and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a)  (1)  Financial Statements"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 1,
+    "next": "Pursuant  to  the  requirements of Secti"
+  }
+}

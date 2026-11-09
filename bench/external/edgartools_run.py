@@ -6,12 +6,15 @@ RAW_DIR is the output of `parsec-edgar-bench export --full-submission`. Each
 filing is read from its complete SGML submission with Filing.from_sgml_text,
 which is what edgartools downloads for a filing, and its Items come from the
 report object's public API (`report.items`, then `report[item]`). Network
-access is blocked, so nothing reaches the SEC. OUT_DIR gets one
+access is blocked, so nothing reaches the SEC. The SEC identity still comes
+from PARSEC_EDGAR_USER_AGENT (or EDGAR_IDENTITY), so a run with the block
+removed names a real contact. OUT_DIR gets one
 `<accession>.json` per filing mapping our section ids to text, plus
 `timing.json` with the seconds each filing took.
 """
 
 import json
+import os
 import re
 import statistics
 import socket
@@ -33,7 +36,10 @@ import stamina  # noqa: E402
 from edgar import Filing, set_identity  # noqa: E402
 from edgar.company_reports import CurrentReport, TenK, TenQ  # noqa: E402
 
-set_identity("Parsec bench@example.com")
+identity = os.environ.get("PARSEC_EDGAR_USER_AGENT") or os.environ.get("EDGAR_IDENTITY")
+if not identity:
+    sys.exit("set PARSEC_EDGAR_USER_AGENT (or EDGAR_IDENTITY) to your name and contact email")
+set_identity(identity)
 # A blocked request fails at once instead of being retried. edgartools makes
 # one only for a filing without an HTML document, where it looks for one on
 # the filing's index page; with the network on it finds none and returns no

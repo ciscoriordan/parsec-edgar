@@ -1,0 +1,116 @@
+{
+  "accession": "0000743530-98-000019",
+  "cik": 732417,
+  "company": "HILLS BANCORPORATION",
+  "form": "10-K",
+  "filing_date": "1998-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/732417/000074353098000019/0000743530-98-000019.txt",
+  "agent": "agent 0000743530",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "Pre-2003 numbering: Item 14 is exhibits. Most Items repeat a PART line above their heading.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.   Business",
+      "occurrence": 0,
+      "next": "Hills Bancorporation (the \"Company\") is "
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.   Properties",
+      "occurrence": 0,
+      "next": "The  Company's  office  and the main  ba"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.   Legal Proceedings",
+      "occurrence": 0,
+      "next": "There are no material pending legal proc"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.   Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No matters  were  submitted  to a vote o"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.   Market for the Registrant's Common Stock and Related Security Holder",
+      "occurrence": 0,
+      "next": "Matters"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.   Selected Financial Data",
+      "occurrence": 0,
+      "next": "CONSOLIDATED FIVE-YEAR STATISTICAL SUMMA"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.   Management's Discussion and Analysis of Financial Condition",
+      "occurrence": 0,
+      "next": "and Results of Operations"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.   Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Market Risk Exposures"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.   Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The financial  statements  are included "
+    },
+    {
+      "id": "item_9",
+      "text": "Item  9.  Changes  In and  Disagreements  With  Accountants  on  Accounting  and",
+      "occurrence": 0,
+      "next": "Financial Disclosure"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.   Directors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "Information   concerning  directors  is "
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.   Executive Compensation",
+      "occurrence": 0,
+      "next": "Information  required  by  this  item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.   Security Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 0,
+      "next": "Information  required  by  this  item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.   Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "Information  required  by  this  item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.   Exhibits, Financial Statements, Schedules, and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "Form 10-K"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the  requirements of Section"
+  }
+}
