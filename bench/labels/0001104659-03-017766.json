@@ -1,0 +1,60 @@
+{
+  "accession": "0001104659-03-017766",
+  "cik": 320193,
+  "company": "Apple Inc.",
+  "form": "10-Q",
+  "filing_date": "2003-08-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/320193/000110465903017766/a03-2128_110q.htm",
+  "agent": "Toppan Merrill",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "APPLE COMPUTER, INC."
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "This section and other parts of this For"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "The Company’s market risk profile has no"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Based on an evaluation under the supervi"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "The Company is subject to various legal "
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "The annual meeting of shareholders was h"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a) Index to Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

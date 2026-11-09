@@ -1,0 +1,119 @@
+{
+  "accession": "0001017062-97-001764",
+  "cik": 789019,
+  "company": "MICROSOFT CORP",
+  "form": "10-K",
+  "filing_date": "1997-09-29",
+  "url": "https://www.sec.gov/Archives/edgar/data/789019/000101706297001764/0001017062-97-001764.txt",
+  "agent": "agent 0001017062",
+  "tags": [
+    "plain-text",
+    "exhibit-13"
+  ],
+  "labeled": true,
+  "notes": "Pre-2003 numbering: Item 14 is exhibits. Items 5-8 incorporate the annual report (Exhibit 13).",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.   Business",
+      "occurrence": 0,
+      "next": "GENERAL"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.  Properties",
+      "occurrence": 0,
+      "next": "The Company's corporate offices consist "
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.  Legal Proceedings",
+      "occurrence": 0,
+      "next": "The information set forth in Notes to Fi",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.  Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of s"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.  Market for Registrant's Common Stock and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information set forth on page 42 of ",
+      "incorporated": true
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.  Selected Financial Data",
+      "occurrence": 0,
+      "next": "The information set forth on page 1 of t",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.  Management's Discussion and Analysis of Results of Operations and",
+      "occurrence": 0,
+      "next": "Financial Condition",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.  Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The following financial statements for t",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.  Changes in and Disagreements with Accountants on Accounting and",
+      "occurrence": 0,
+      "next": "Financial Disclosures"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.  Directors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "Information with respect to Directors ma"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.  Executive Compensation",
+      "occurrence": 0,
+      "next": "The information in the Proxy Statement s",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.  Security Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 0,
+      "next": "The information set forth under the capt",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.  Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "The information set forth in Notes to Fi",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.  Exhibits, Financial Statement Schedules and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a)  Financial Statements and Schedules"
+    }
+  ],
+  "absent": [
+    "item_1a",
+    "item_1b",
+    "item_15"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

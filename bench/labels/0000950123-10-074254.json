@@ -1,0 +1,79 @@
+{
+  "accession": "0000950123-10-074254",
+  "cik": 19617,
+  "company": "JPMORGAN CHASE & CO",
+  "form": "10-Q",
+  "filing_date": "2010-08-06",
+  "url": "https://www.sec.gov/Archives/edgar/data/19617/000095012310074254/y80915e10vq.htm",
+  "agent": "Bowne",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "MD&A (from 'CONSOLIDATED FINANCIAL HIGHLIGHTS') and the financial statements have no Item headings in the body; only the table of contents names Items 1 and 2.",
+  "items": [
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3 Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "For a discussion of the quantitative and"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4 Controls and Procedures",
+      "occurrence": 0,
+      "next": "As of the end of the period covered by t"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1 Legal Proceedings",
+      "occurrence": 0,
+      "next": "The following information updates and re"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A Risk Factors",
+      "occurrence": 0,
+      "next": "For a discussion of certain risk factors"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2 Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "During the second quarter of 2010, there"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3 Defaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4 Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5 Other Information",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6 Exhibits",
+      "occurrence": 0,
+      "next": "31.1—Certification"
+    }
+  ],
+  "absent": [
+    "part_1_item_1",
+    "part_1_item_2"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

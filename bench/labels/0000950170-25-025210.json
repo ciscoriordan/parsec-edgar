@@ -1,0 +1,131 @@
+{
+  "accession": "0000950170-25-025210",
+  "cik": 1067983,
+  "company": "BERKSHIRE HATHAWAY INC",
+  "form": "10-K",
+  "filing_date": "2025-02-24",
+  "url": "https://www.sec.gov/Archives/edgar/data/1067983/000095017025025210/brka-20241231.htm",
+  "agent": "DFIN",
+  "tags": [
+    "insurer"
+  ],
+  "labeled": true,
+  "notes": "Part III is one paragraph incorporating the proxy statement, with no Item headings.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business Description",
+      "occurrence": 0,
+      "next": "Berkshire Hathaway Inc. (“Berkshire,” “C"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "Berkshire and its subsidiaries (referred"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_1c",
+      "text": "Item 1C. Cybersecurity",
+      "occurrence": 0,
+      "next": "Berkshire recognizes that maintaining pr"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Description of Properties",
+      "occurrence": 0,
+      "next": "The properties used by Berkshire’s busin"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "Berkshire and its subsidiaries are parti"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Information regarding the Company’s mine"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Security Holder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. [Reserved]",
+      "occurrence": 0,
+      "next": "K-32"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Results of Operations"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "See “Market Risk Disclosures” contained ",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "REPORT OF INDEPENDENT REGISTERED PUBLIC "
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "At the end of the period covered by this"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "Berkshire has not adopted a Rule 10b5-1 "
+    },
+    {
+      "id": "item_9c",
+      "text": "Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspection",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a) 1. Financial Statements"
+    }
+  ],
+  "absent": [
+    "item_10",
+    "item_11",
+    "item_12",
+    "item_13",
+    "item_14"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

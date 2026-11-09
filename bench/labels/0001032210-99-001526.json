@@ -1,0 +1,52 @@
+{
+  "accession": "0001032210-99-001526",
+  "cik": 789019,
+  "company": "MICROSOFT CORP",
+  "form": "10-Q",
+  "filing_date": "1999-11-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/789019/000103221099001526/0001032210-99-001526.txt",
+  "agent": "agent 0001032210",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "'Items 3, 4, and 5 are not applicable and have been omitted.' follows Item 6.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1.  Financial Statements",
+      "occurrence": 0,
+      "next": "MICROSOFT CORPORATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2.  Management's Discussion and Analysis of Financial Condition and",
+      "occurrence": 0,
+      "next": "Results of Operations"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.  Legal Proceedings",
+      "occurrence": 0,
+      "next": "See notes to financial statements.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.  Changes in Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "During the first quarter of fiscal 2000,"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.  Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(A)  Exhibits"
+    }
+  ],
+  "end": {
+    "text": "Signature",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

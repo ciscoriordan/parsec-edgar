@@ -1,0 +1,36 @@
+{
+  "accession": "0001193125-24-011295",
+  "cik": 789019,
+  "company": "MICROSOFT CORP",
+  "form": "8-K",
+  "filing_date": "2024-01-19",
+  "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312524011295/d708866d8k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1.05",
+      "text": "Item 1.05. Material Cybersecurity Incidents",
+      "occurrence": 0,
+      "next": "On January 12, 2024, Microsoft (the “Com"
+    },
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01. Regulation FD Disclosure",
+      "occurrence": 0,
+      "next": "On January 19, 2024, the Company posted "
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01. Financial Statements and Exhibits",
+      "occurrence": 0,
+      "next": "(d) Exhibits:"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

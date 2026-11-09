@@ -1,0 +1,125 @@
+{
+  "accession": "0000950168-03-001155",
+  "cik": 1065280,
+  "company": "NETFLIX INC",
+  "form": "10-K",
+  "filing_date": "2003-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/1065280/000095016803001155/d10k.htm",
+  "agent": "Bowne",
+  "tags": [],
+  "labeled": true,
+  "notes": "2003 numbering: Item 14 is Controls and Procedures, Item 15 is exhibits. Financial statements (F-pages) follow Item 15 and are not part of any Item span.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness",
+      "occurrence": 0,
+      "next": "We are the largest online entertainment "
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties",
+      "occurrence": 0,
+      "next": "Our executive offices are located in Los"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "From time to time, we are subject to leg"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tSubmission of Matters to a Vote of Securities Holders",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for the Registrant’s Common Equity and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "Our common stock has traded on the Nasda"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Financial Data",
+      "occurrence": 0,
+      "next": "The following selected financial data sh"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "The following discussion of our financia"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "The primary objective of our investment "
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "See Financial Statements beginning on pa",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "Information regarding our directors and ",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "(a) Evaluation of disclosure controls an"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits, Financial Statement Schedules, and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a)\tThe following documents are filed as",
+      "end": {
+        "text": "NETFLIX, INC.",
+        "occurrence": 1,
+        "next": "INDEX TO FINANCIAL STATEMENTS"
+      }
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

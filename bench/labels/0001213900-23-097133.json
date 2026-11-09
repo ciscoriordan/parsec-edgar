@@ -1,0 +1,52 @@
+{
+  "accession": "0001213900-23-097133",
+  "cik": 65596,
+  "company": "SIEBERT FINANCIAL CORP",
+  "form": "8-K",
+  "filing_date": "2023-12-20",
+  "url": "https://www.sec.gov/Archives/edgar/data/65596/000121390023097133/ea190353-8k_siebertfin.htm",
+  "agent": "EdgarAgents",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "Item 1.01 Entry into a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "Settlement Agreement"
+    },
+    {
+      "id": "item_1.02",
+      "text": "Item 1.02 Termination of a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "The information set forth in Item 1.01 r",
+      "incorporated": true
+    },
+    {
+      "id": "item_3.03",
+      "text": "Item 3.03 Material Modification to Rights of Security Holders.",
+      "occurrence": 0,
+      "next": "The information set forth in Item 1.01 r",
+      "incorporated": true
+    },
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01 Other Events.",
+      "occurrence": 0,
+      "next": "On December 19, 2023, the Company publis"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01 Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits. The following exhibits are"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

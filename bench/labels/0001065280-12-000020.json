@@ -1,0 +1,58 @@
+{
+  "accession": "0001065280-12-000020",
+  "cik": 1065280,
+  "company": "NETFLIX INC",
+  "form": "10-Q",
+  "filing_date": "2012-10-30",
+  "url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528012000020/nflx-093012x10qxdoc.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "The financial statements follow the table of contents with no Item 1 heading.",
+  "items": [
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Forward-Looking Statements"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3.\tQuantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "For financial market risks related to ch"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "The information set forth under Note 8 i"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "There have been no material changes from"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.\tExhibits",
+      "occurrence": 0,
+      "next": "(a) Exhibits:"
+    }
+  ],
+  "absent": [
+    "part_1_item_1"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

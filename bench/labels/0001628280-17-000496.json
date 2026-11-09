@@ -1,0 +1,156 @@
+{
+  "accession": "0001628280-17-000496",
+  "cik": 1065280,
+  "company": "NETFLIX INC",
+  "form": "10-K",
+  "filing_date": "2017-01-27",
+  "url": "https://www.sec.gov/Archives/edgar/data/1065280/000162828017000496/nflx201610k.htm",
+  "agent": "Workiva",
+  "tags": [],
+  "labeled": true,
+  "notes": "Financial statements follow Item 16 and are not part of any Item span; Item 8 points to them.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness",
+      "occurrence": 0,
+      "next": "ABOUT US"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "If any of the following risks actually o"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.\tUnresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties",
+      "occurrence": 0,
+      "next": "Our corporate headquarters are located i"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "Information with respect to this item ma",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tMine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Financial Data",
+      "occurrence": 0,
+      "next": "The following selected consolidated fina"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Overview and Results of Operations"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "We are exposed to market risks related t"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The consolidated financial statements an"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "(a)\tEvaluation of Disclosure Controls an"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "Information regarding our directors and ",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "Information required by this item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "Information required by this item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "Information required by this item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPrincipal Accounting Fees and Services",
+      "occurrence": 0,
+      "next": "Information with respect to principal in",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits, Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)\tThe following documents are filed as"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16.\tForm 10-K Summary",
+      "occurrence": 0,
+      "next": "None.",
+      "end": {
+        "text": "NETFLIX, INC.",
+        "occurrence": 2,
+        "next": "INDEX TO FINANCIAL STATEMENTS"
+      }
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

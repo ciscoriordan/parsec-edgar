@@ -1,0 +1,36 @@
+{
+  "accession": "0001193125-08-201369",
+  "cik": 789019,
+  "company": "MICROSOFT CORP",
+  "form": "8-K",
+  "filing_date": "2008-09-25",
+  "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312508201369/d8k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_5.02",
+      "text": "Item 5.02\tCompensatory Arrangements of Certain Officers",
+      "occurrence": 0,
+      "next": "The Compensation Committee of the Micros"
+    },
+    {
+      "id": "item_5.03",
+      "text": "Item 5.03\tAmendments to Bylaws",
+      "occurrence": 0,
+      "next": "Effective September 19, 2008, the Board "
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01\tFinancial Statements and Exhibits",
+      "occurrence": 0,
+      "next": "(d)\tThe following items are filed as exh"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

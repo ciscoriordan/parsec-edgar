@@ -1,0 +1,72 @@
+{
+  "accession": "0001652044-23-000094",
+  "cik": 1652044,
+  "company": "Alphabet Inc.",
+  "form": "10-Q",
+  "filing_date": "2023-10-25",
+  "url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204423000094/goog-20230930.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1.FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "Alphabet Inc."
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2.MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "Please read the following discussion and"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3.QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "For quantitative and qualitative disclos"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4.CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1.LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "For a description of our material pendin"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "ITEM 1A.RISK FACTORS",
+      "occurrence": 0,
+      "next": "Our operations and financial results are"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "ITEM 2.UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS",
+      "occurrence": 0,
+      "next": "Issuer Purchases of Equity Securities"
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "ITEM 5.OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "10b5-1 Trading Plans"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6.EXHIBITS",
+      "occurrence": 0,
+      "next": "Exhibit"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "accession": "0001193125-14-084697",
+  "cik": 320193,
+  "company": "Apple Inc.",
+  "form": "8-K",
+  "filing_date": "2014-03-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/320193/000119312514084697/d684095d8k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_5.02",
+      "text": "Item 5.02\tDeparture of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers.",
+      "occurrence": 0,
+      "next": "(b),(c)"
+    },
+    {
+      "id": "item_5.03",
+      "text": "Item 5.03\tAmendments to Articles of Incorporation or Bylaws; Change in Fiscal Year.",
+      "occurrence": 0,
+      "next": "At the Annual Meeting the shareholders o"
+    },
+    {
+      "id": "item_5.07",
+      "text": "Item 5.07\tSubmission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "At the Annual Meeting, the shareholders "
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01.\tFinancial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d)\tExhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

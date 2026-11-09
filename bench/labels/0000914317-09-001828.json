@@ -1,0 +1,96 @@
+{
+  "accession": "0000914317-09-001828",
+  "cik": 33533,
+  "company": "ESPEY MFG & ELECTRONICS CORP",
+  "form": "10-K",
+  "filing_date": "2009-09-08",
+  "url": "https://www.sec.gov/Archives/edgar/data/33533/000091431709001828/form10k-102453_esp.txt",
+  "agent": "agent 0000914317",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Part III is one paragraph incorporating the proxy statement, quoting the Item titles mid-sentence.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.  Business",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.  Property",
+      "occurrence": 0,
+      "next": "The  Company's  entire  operation,   inc"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.  Legal Proceedings",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.  Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.  Market  for the  Registrant's  Common  Equity and  Related  Stockholder",
+      "occurrence": 0,
+      "next": "Matters and Issuer Purchases of Equity S"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.  Management's Discussion and Analysis of Financial Condition and Results",
+      "occurrence": 0,
+      "next": "of Operations"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.  Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "REPORT OF INDEPENDENT REGISTERED PUBLIC "
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.  Changes  in  and  Disagreements  With  Accountants  on  Accounting  and",
+      "occurrence": 0,
+      "next": "Financial Disclosure"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A(T). Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other information",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedules Signatures",
+      "occurrence": 0,
+      "next": "3.1      Certificate  of  incorporation "
+    }
+  ],
+  "absent": [
+    "item_6",
+    "item_10",
+    "item_11",
+    "item_12",
+    "item_13",
+    "item_14"
+  ],
+  "end": {
+    "text": "S I G N A T U R E S",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

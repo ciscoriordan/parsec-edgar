@@ -1,0 +1,103 @@
+{
+  "accession": "0000033533-98-000017",
+  "cik": 33533,
+  "company": "ESPEY MFG & ELECTRONICS CORP",
+  "form": "10-K",
+  "filing_date": "1998-09-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/33533/000003353398000017/0000033533-98-000017.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "No Item 9 heading. Signatures are printed as S I G N A T U R E S.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.        Business.",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.        Properties.",
+      "occurrence": 0,
+      "next": "The Company's principal manufacturing an"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.        Legal Proceedings.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.        Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.        Market for the Registrant's Common Equity and Related Stockholder",
+      "occurrence": 0,
+      "next": "Matters."
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.        Selected Financial Data.",
+      "occurrence": 0,
+      "next": "ESPEY MFG. & ELECTRONICS CORP."
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.   Management's Discussion and Analysis of Financial",
+      "occurrence": 0,
+      "next": "Condition and Results of Operations."
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.        Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "INDEX TO FINANCIAL STATEMENTS"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.  Directors and Executive Officers of the Registrant.",
+      "occurrence": 0,
+      "next": "Identification of Directors"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.  Executive Compensation.",
+      "occurrence": 0,
+      "next": "Executive Compensation Table"
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.  Security Ownership of Certain Beneficial Owners",
+      "occurrence": 0,
+      "next": "and Management."
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.  Certain Relationships and Related Transactions.",
+      "occurrence": 0,
+      "next": "For the fiscal year ended June 30, 1998,"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.  Exhibits, Financial Statement Schedules, and Reports on Form 8-K.",
+      "occurrence": 0,
+      "next": "(a) 1.   Financial Statements"
+    }
+  ],
+  "absent": [
+    "item_9"
+  ],
+  "end": {
+    "text": "S I G N A T U R E S",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}
