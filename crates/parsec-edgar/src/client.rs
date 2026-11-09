@@ -111,6 +111,8 @@ pub struct Client {
 #[derive(Default)]
 pub(crate) struct Stubs {
     bodies: std::collections::HashMap<String, Vec<u8>>,
+    /// URLs whose fetch panics.
+    panics: std::collections::HashSet<String>,
     fetched: Vec<String>,
 }
 
@@ -188,10 +190,8 @@ impl Client {
 
     fn fetch(&self, url: &str) -> Result<Vec<u8>> {
         #[cfg(test)]
-        if let Some(stubs) = self.stubs.lock().unwrap().as_mut() {
-            self.requests.fetch_add(1, Ordering::Relaxed);
-            stubs.fetched.push(url.to_owned());
-            return stubs.bodies.get(url).cloned().ok_or_else(|| Error::Status { status: 404, url: url.to_owned() });
+        if let Some(stubbed) = self.fetch_stub(url) {
+            return stubbed;
         }
         let mut attempt = 0;
         loop {
@@ -235,11 +235,35 @@ impl Client {
         Some(dir.join("Archives").join(rest))
     }
 
+    /// The stubbed response for `url`, or None when no stubs are set.
+    #[cfg(test)]
+    fn fetch_stub(&self, url: &str) -> Option<Result<Vec<u8>>> {
+        let mut guard = self.stubs.lock().unwrap();
+        let stubs = guard.as_mut()?;
+        self.requests.fetch_add(1, Ordering::Relaxed);
+        stubs.fetched.push(url.to_owned());
+        if stubs.panics.contains(url) {
+            // Unlocked first, so that the panic leaves the stubs usable.
+            drop(guard);
+            panic!("stubbed panic fetching {url}");
+        }
+        Some(stubs.bodies.get(url).cloned().ok_or_else(|| Error::Status { status: 404, url: url.to_owned() }))
+    }
+
     /// Serve `body` for `url` instead of the network. Once any stub is set,
     /// unknown URLs get a 404 and nothing goes to the network.
     #[cfg(test)]
     pub(crate) fn stub(&self, url: &str, body: impl Into<Vec<u8>>) {
-        self.stubs.lock().unwrap().get_or_insert_with(Stubs::default).bodies.insert(url.to_owned(), body.into());
+        let mut stubs = self.stubs.lock().unwrap();
+        let stubs = stubs.get_or_insert_with(Stubs::default);
+        stubs.panics.remove(url);
+        stubs.bodies.insert(url.to_owned(), body.into());
+    }
+
+    /// Make every fetch of `url` panic, as a fault in the HTTP stack would, until it is stubbed again.
+    #[cfg(test)]
+    pub(crate) fn stub_panic(&self, url: &str) {
+        self.stubs.lock().unwrap().get_or_insert_with(Stubs::default).panics.insert(url.to_owned());
     }
 
     /// URLs fetched from the stubs so far, in order, then cleared.

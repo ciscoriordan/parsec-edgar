@@ -35,6 +35,7 @@ struct TickerFile {
 /// A client's ticker list. Once it is `max_age` old, a lookup starts a new
 /// download on another thread and keeps using the old list until it has arrived.
 pub(crate) struct Tickers {
+    /// `Duration::MAX` keeps the first list.
     max_age: Duration,
     /// How long a caller with no list waits for a download under way before it downloads the list itself.
     wait_limit: Duration,
@@ -57,9 +58,10 @@ struct TickerState {
     attempts: u64,
     /// Why the last download failed, while there is no list to fall back on.
     error: Option<Error>,
-    /// Failed refreshes in a row, and the earliest time for the next one.
+    /// Failed refreshes in a row, and when the last one ended. The next one
+    /// waits [`retry_wait`] from then.
     failures: u32,
-    retry_at: Option<Instant>,
+    failed_at: Option<Moment>,
 }
 
 /// A time read from both clocks. `Instant` never goes back, but on macOS and
@@ -112,6 +114,16 @@ impl Tickers {
         now
     }
 
+    /// Whether a list downloaded at `loaded` is due for a refresh at `now`.
+    fn stale(&self, loaded: &Moment, now: Moment) -> bool {
+        self.max_age != Duration::MAX && loaded.age(now) >= self.max_age
+    }
+
+    /// Whether the last refresh failed less than [`retry_wait`] ago, so that no new one starts yet.
+    fn backing_off(&self, state: &TickerState, now: Moment) -> bool {
+        state.failed_at.is_some_and(|at| at.age(now) < retry_wait(state.failures))
+    }
+
     /// Whether the download `claim` can still end: it runs in this process and
     /// started less than `wait_limit` ago. A child process forked during a
     /// download inherits the claim, but not the thread doing the download.
@@ -143,12 +155,12 @@ impl Tickers {
                 state.list = Some((list.clone(), now));
                 state.error = None;
                 state.failures = 0;
-                state.retry_at = None;
+                state.failed_at = None;
                 Ok(list)
             }
             (Err(_), Some(old)) => {
                 state.failures = state.failures.saturating_add(1);
-                state.retry_at = Some(now.instant + retry_wait(state.failures));
+                state.failed_at = Some(now);
                 Ok(old)
             }
             (Err(e), None) => {
@@ -162,6 +174,36 @@ impl Tickers {
     }
 }
 
+/// A download of the list that this thread does. If the thread panics before
+/// the download ends, dropping it records the download as failed, so callers
+/// waiting for the first list stop waiting and the next refresh backs off.
+struct Download<'a> {
+    tickers: &'a Tickers,
+    claim: Claim,
+    ended: bool,
+}
+
+impl<'a> Download<'a> {
+    fn new(tickers: &'a Tickers, claim: Claim) -> Self {
+        Self { tickers, claim, ended: false }
+    }
+
+    /// Record how the download ended, see [`Tickers::finish`].
+    fn finish(mut self, downloaded: Result<Vec<Company>>) -> Result<Arc<[Company]>> {
+        self.ended = true;
+        self.tickers.finish(self.claim, downloaded)
+    }
+}
+
+impl Drop for Download<'_> {
+    fn drop(&mut self) {
+        if !self.ended {
+            let message = "the download panicked".to_owned();
+            let _ = self.tickers.finish(self.claim, Err(Error::Network { url: TICKERS_URL.into(), message }));
+        }
+    }
+}
+
 impl Client {
     /// All companies with a listed ticker, from the SEC's `company_tickers_exchange.json`.
     /// A company with several share classes appears once per ticker.
@@ -170,9 +212,12 @@ impl Client {
     /// [`tickers_max_age`](crate::ClientBuilder::tickers_max_age) (one day by default,
     /// counting time the machine is asleep), the next call starts a download on another
     /// thread and returns the old list, as do all calls until the new list has arrived.
+    /// When the wall clock is set back to a time before the download, the list's age is
+    /// unknown, and the list is downloaded again. A `tickers_max_age` of `Duration::MAX`
+    /// keeps the first list in every case.
     /// After a failed download the next try waits one minute from the failure, doubling
-    /// with each failure in a row up to an hour. An error is returned only while there
-    /// is no list yet.
+    /// with each failure in a row up to an hour, again counting time asleep. An error is
+    /// returned only while there is no list yet.
     ///
     /// The list is shared: iterate it with `.iter()`, and pass `&list` where a
     /// `&[Company]` is wanted. A list returned earlier stays valid after a new one
@@ -185,8 +230,8 @@ impl Client {
             let now = tickers.now();
             if let Some((list, loaded)) = &state.list {
                 let list = list.clone();
-                let stale = loaded.age(now) >= tickers.max_age;
-                let backing_off = state.retry_at.is_some_and(|at| now.instant < at);
+                let stale = tickers.stale(loaded, now);
+                let backing_off = tickers.backing_off(&state, now);
                 let downloading = state.download.is_some_and(|c| tickers.live(&c, now.instant));
                 if stale && !backing_off && !downloading {
                     let claim = tickers.claim(&mut state, now.instant);
@@ -210,16 +255,17 @@ impl Client {
                 _ => break tickers.claim(&mut state, now.instant),
             }
         };
+        let download = Download::new(tickers, claim);
         drop(state);
-        tickers.finish(claim, self.download_companies())
+        download.finish(self.download_companies())
     }
 
     /// Download the list again on another thread, for [`Client::companies`].
     fn refresh_in_background(&self, claim: Claim) {
         let client = self.share();
         let spawned = std::thread::Builder::new().name("parsec-edgar-tickers".into()).spawn(move || {
-            let downloaded = client.download_companies();
-            let _ = client.tickers.finish(claim, downloaded);
+            let download = Download::new(&client.tickers, claim);
+            let _ = download.finish(client.download_companies());
         });
         // Without a thread the refresh fails, and the next try waits as after any failure.
         if let Err(e) = spawned {
@@ -345,11 +391,14 @@ impl Tickers {
         self.clock.lock().unwrap().set_back += by;
     }
 
-    /// Wait until no download is under way.
+    /// Wait until no download is under way, for at most ten seconds.
     fn wait_idle(&self) {
+        let deadline = Instant::now() + Duration::from_secs(10);
         let mut state = self.state();
         while state.download.is_some() {
-            state = self.ended.wait(state).unwrap();
+            let left = deadline.saturating_duration_since(Instant::now());
+            assert!(!left.is_zero(), "a download is still under way after ten seconds");
+            state = self.ended.wait_timeout(state, left).unwrap().0;
         }
     }
 }
@@ -526,6 +575,108 @@ mod tests {
         assert_eq!(c.take_fetched(), [TICKERS_URL]);
         lookup(&c);
         assert!(c.take_fetched().is_empty());
+    }
+
+    /// The wait after a failed refresh counts time asleep too, as the list's age does.
+    #[test]
+    fn retry_wait_counts_time_asleep() {
+        let c = client(&["AAA"]);
+        lookup(&c);
+        c.take_fetched();
+        c.stub(TICKERS_URL, "<html>Service Unavailable</html>");
+        c.tickers.advance(DAY);
+        lookup(&c);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+        c.tickers.sleep(MINUTE / 2);
+        lookup(&c);
+        assert!(c.take_fetched().is_empty(), "a new try within a minute of the failure");
+        c.tickers.sleep(MINUTE / 2);
+        lookup(&c);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+
+        // Failures in a row wait up to an hour, and ten hours asleep end that wait too.
+        for _ in 0..7 {
+            c.tickers.advance(HOUR);
+            lookup(&c);
+        }
+        assert_eq!(c.take_fetched().len(), 7);
+        c.tickers.advance(59 * MINUTE);
+        lookup(&c);
+        assert!(c.take_fetched().is_empty(), "a new try within an hour of the last failure");
+        c.stub(TICKERS_URL, ticker_file(&["AAA", "NEW"]));
+        c.tickers.sleep(10 * HOUR);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+        assert_eq!(listed(&lookup(&c)), ["AAA", "NEW"]);
+    }
+
+    /// `Duration::MAX` keeps the first list, even after the wall clock is set back.
+    #[test]
+    fn max_age_max_keeps_the_first_list() {
+        let c = Client::builder("Example Corp admin@example.com").tickers_max_age(Duration::MAX).build().unwrap();
+        c.stub(TICKERS_URL, ticker_file(&["AAA"]));
+        lookup(&c);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+        c.stub(TICKERS_URL, ticker_file(&["AAA", "NEW"]));
+        c.tickers.advance(10 * MINUTE);
+        c.tickers.set_back(HOUR);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
+        c.tickers.advance(365 * DAY);
+        c.tickers.sleep(365 * DAY);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
+        assert!(c.take_fetched().is_empty());
+    }
+
+    /// `companies()` run on another thread, with a panic caught as the thread's result.
+    fn spawn_companies(c: &Client) -> std::sync::mpsc::Receiver<std::thread::Result<Result<Arc<[Company]>>>> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let other = c.share();
+        std::thread::spawn(move || {
+            tx.send(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| other.companies())))
+        });
+        rx
+    }
+
+    /// A download that panics ends as a failed one: a caller waiting for the
+    /// first list stops waiting at once, and the refresh after it backs off.
+    #[test]
+    fn download_that_panics_ends_as_a_failure() {
+        let c = client(&["AAA"]);
+        c.stub_panic(TICKERS_URL);
+        let held = c.hold_fetches();
+        let first = spawn_companies(&c);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while c.tickers.state().download.is_none() {
+            assert!(Instant::now() < deadline, "the first lookup started no download");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let second = spawn_companies(&c);
+        // Time for the second caller to start waiting for the first download.
+        std::thread::sleep(Duration::from_millis(100));
+        drop(held);
+        let first = first.recv_timeout(Duration::from_secs(10)).expect("the first lookup did not return");
+        assert!(first.is_err(), "the first download did not panic");
+        // The second caller gets the failure, or downloads the list itself if it came late.
+        let second = second.recv_timeout(Duration::from_secs(10)).expect("waited for a download that panicked");
+        assert!(matches!(second, Ok(Err(Error::Network { .. })) | Err(_)), "{second:?}");
+        assert!(c.tickers.state().download.is_none());
+        c.stub(TICKERS_URL, ticker_file(&["AAA"]));
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
+        c.take_fetched();
+
+        // A refresh that panics leaves the old list in use, and the next try waits a minute.
+        c.stub_panic(TICKERS_URL);
+        c.tickers.advance(DAY);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
+        c.tickers.advance(MINUTE / 2);
+        lookup(&c);
+        assert!(c.take_fetched().is_empty(), "a new try within a minute of the panic");
+        c.stub(TICKERS_URL, ticker_file(&["AAA", "NEW"]));
+        c.tickers.advance(MINUTE / 2);
+        assert_eq!(listed(&lookup(&c)), ["AAA"]);
+        assert_eq!(listed(&lookup(&c)), ["AAA", "NEW"]);
+        assert_eq!(c.take_fetched(), [TICKERS_URL]);
     }
 
     /// A child process forked during the first download inherits the parent's
