@@ -1,7 +1,7 @@
 //! MCP server: `parsec-edgar mcp` over stdio, or Streamable HTTP with `--http ADDR`.
 //!
-//! Tools return compact JSON and page long text, so an agent can read an
-//! outline first and then only the sections it needs.
+//! Tools return compact JSON and page long text and lists of tables, so an
+//! agent can read an outline first and then only the sections it needs.
 
 use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, SocketAddr};
@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use parsec_edgar::{
     Client, Company, Error, FULL_TEXT_MAX_RESULTS, FULL_TEXT_PAGE_SIZE, Filing, FilingQuery, FormKind, FullTextHit,
-    FullTextQuery, FullTextResults, Section, document_to_text, extract_sections,
+    FullTextQuery, FullTextResults, Section, Table, document_to_text_and_tables, extract_sections,
 };
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
@@ -33,13 +33,15 @@ const MAX_COMPANY_MATCHES: usize = 10;
 const DOC_CACHE_SIZE: usize = 6;
 /// How long "latest 10-K of X" stays resolved to one filing.
 const LATEST_TTL: Duration = Duration::from_secs(600);
+/// Longest line shown as the text just above a table.
+const MAX_TEXT_BEFORE: usize = 200;
 
 const INSTRUCTIONS: &str = "Tools for SEC EDGAR filings (10-K, 10-Q, 8-K, proxy statements and more). \
 Typical flow: find_company (or use a ticker directly), then list_filings or search_full_text to pick a filing, \
 then get_filing_outline to see its Item sections and their sizes, then read_section for only the parts you need. \
 Text comes in pages of max_chars characters (default 20,000, about 5,000 tokens); follow next_offset only when \
 you need more. Use read_filing_text for forms without Item sections, and with a search hit's document for \
-exhibits.";
+exhibits. Use read_tables for a filing's tables (financial statements and others) as rows of cells.";
 
 /// Options of `parsec-edgar mcp`.
 #[derive(clap::Args)]
@@ -189,6 +191,8 @@ struct Doc {
     total_chars: usize,
     /// `None` for forms without Item sections, and for attachments.
     sections: Option<Vec<Section>>,
+    /// Tables, with byte offsets into `text`.
+    tables: Vec<Table>,
 }
 
 /// Accession number, and the file name of an attachment or "" for the primary document.
@@ -291,6 +295,28 @@ struct ReadTextParams {
     document: Option<String>,
     /// Character offset to start at (default 0). Use next_offset from the previous page.
     offset: Option<usize>,
+    /// Maximum characters to return (default 20000, at most 100000).
+    max_chars: Option<usize>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct ReadTablesParams {
+    /// Ticker or CIK of the filer.
+    company: String,
+    /// Accession number from list_filings or search_full_text, e.g. 0000320193-26-000026.
+    accession: Option<String>,
+    /// Without an accession, use the latest filing of this form (default 10-K).
+    form: Option<String>,
+    /// File name of an exhibit or other attachment of the filing, such as the ex99-1.htm press release of an
+    /// 8-K, from a search_full_text hit's `document`. Needs the accession. Omit for the primary document.
+    document: Option<String>,
+    /// Only tables in this section: an id from get_filing_outline, e.g. item_8, item_7, part_1_item_1.
+    /// Omit for every table of the document.
+    section: Option<String>,
+    /// Index of the first table to return (default 0). Use next_offset from the previous page.
+    offset: Option<usize>,
+    /// Rows to skip in that first table (default 0). Use next_row from the previous page when it is set.
+    row: Option<usize>,
     /// Maximum characters to return (default 20000, at most 100000).
     max_chars: Option<usize>,
 }
@@ -405,11 +431,12 @@ impl EdgarServer {
     }
 
     #[tool(
-        description = "Outline of one filing without its text: filing metadata, the total character count and, \
-            for 10-K, 10-Q and 8-K (and amendments), the Item sections with ids, titles and character counts. \
-            Call this first, then read only the sections you need with read_section. Identify the filing by \
-            company plus accession, or company plus form for the latest filing of that form (default 10-K). \
-            For an exhibit hit from search_full_text, also pass its document.",
+        description = "Outline of one filing without its text: filing metadata, the total character count, the \
+            number of tables and, for 10-K, 10-Q and 8-K (and amendments), the Item sections with ids, titles, \
+            character counts and table counts. Call this first, then read only the sections you need with \
+            read_section, or their tables with read_tables. Identify the filing by company plus accession, or \
+            company plus form for the latest filing of that form (default 10-K). For an exhibit hit from \
+            search_full_text, also pass its document.",
         annotations(title = "Filing outline", read_only_hint = true, open_world_hint = true)
     )]
     async fn get_filing_outline(&self, Parameters(p): Parameters<FilingParams>) -> Result<String, String> {
@@ -430,9 +457,23 @@ impl EdgarServer {
             ),
         };
         let sections = doc.sections.as_ref().map(|sections| {
-            sections.iter().map(|s| SectionRow { id: &s.id, title: &s.title, chars: s.text.chars().count() }).collect()
+            sections
+                .iter()
+                .map(|s| SectionRow {
+                    id: &s.id,
+                    title: &s.title,
+                    chars: s.text.chars().count(),
+                    tables: doc.tables.iter().filter(|t| holds(s, t)).count(),
+                })
+                .collect()
         });
-        Ok(to_json(&Outline { filing: FilingMeta::new(&filing, &doc), total_chars: doc.total_chars, next, sections }))
+        Ok(to_json(&Outline {
+            filing: FilingMeta::new(&filing, &doc),
+            total_chars: doc.total_chars,
+            tables: doc.tables.len(),
+            next,
+            sections,
+        }))
     }
 
     #[tool(
@@ -466,6 +507,45 @@ impl EdgarServer {
             self.doc(&p.company, p.accession.as_deref(), p.form.as_deref(), p.document.as_deref()).await?;
         let page = paginate(&doc.text, p.offset.unwrap_or(0), max_chars(p.max_chars))?;
         Ok(page_response(FilingMeta::new(&filing, &doc), None, &page, "read_filing_text"))
+    }
+
+    #[tool(
+        description = "Read the tables of a filing's primary document, or of one exhibit given as document, as \
+            JSON rows of cells: financial statements, schedules and any other table, with `$`, `)` and `%` joined \
+            to their numbers as in the text, and empty cells left out. Pass section (an id from \
+            get_filing_outline, such as item_8 for a 10-K's financial statements) for only the tables of that \
+            Item. Each table has its index, its section, text_before (the line just above it, often a title or \
+            units such as \"(in millions)\", when that line is short and not part of another table), \
+            text_offset (its character position for read_filing_text), header_rows when the filing marks them, \
+            and rows. Returns up to max_chars characters of tables; when more remain, call again with \
+            offset=next_offset, and row=next_row when it is set (a table longer than max_chars is split).",
+        annotations(title = "Read tables", read_only_hint = true, open_world_hint = true)
+    )]
+    async fn read_tables(&self, Parameters(p): Parameters<ReadTablesParams>) -> Result<String, String> {
+        let (filing, doc) =
+            self.doc(&p.company, p.accession.as_deref(), p.form.as_deref(), p.document.as_deref()).await?;
+        let section = match p.section.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            None => None,
+            Some(wanted) => match &doc.sections {
+                Some(sections) => Some(find_section(sections, wanted)?),
+                None if doc.document.is_some() => {
+                    return Err("exhibits have no Item sections; leave out section to read all their tables".into());
+                }
+                None => {
+                    return Err(format!(
+                        "{} filings have no Item sections; leave out section to read all tables",
+                        filing.form
+                    ));
+                }
+            },
+        };
+        let page = table_page(&doc, section, p.offset.unwrap_or(0), p.row.unwrap_or(0), max_chars(p.max_chars))?;
+        Ok(to_json(&TablePageResponse {
+            filing: FilingMeta::new(&filing, &doc),
+            section: section.map(|s| s.id.as_str()),
+            title: section.map(|s| s.title.as_str()),
+            page,
+        }))
     }
 
     #[tool(
@@ -616,9 +696,9 @@ impl EdgarServer {
 /// Download and parse the primary document of a filing, or the attachment named `attachment`.
 fn load_doc(client: &Client, filing: &Filing, attachment: Option<String>) -> Result<Doc, String> {
     let Some(name) = attachment else {
-        let text = client.filing_text(filing).map_err(explain)?;
+        let (text, tables) = document_to_text_and_tables(&client.primary_document(filing).map_err(explain)?);
         let sections = FormKind::from_form(&filing.form).map(|kind| extract_sections(&text, kind));
-        return Ok(Doc { document: None, total_chars: text.chars().count(), text, sections });
+        return Ok(Doc { document: None, total_chars: text.chars().count(), text, sections, tables });
     };
     let raw = client.get_text(&format!("{}/{name}", filing.folder_url())).map_err(|e| match e {
         Error::Status { status: 404, .. } => format!(
@@ -628,8 +708,8 @@ fn load_doc(client: &Client, filing: &Filing, attachment: Option<String>) -> Res
         ),
         e => explain(e),
     })?;
-    let text = document_to_text(&raw);
-    Ok(Doc { document: Some(name), total_chars: text.chars().count(), text, sections: None })
+    let (text, tables) = document_to_text_and_tables(&raw);
+    Ok(Doc { document: Some(name), total_chars: text.chars().count(), text, sections: None, tables })
 }
 
 /// A document is a file name from a search hit, such as `ex99-1.htm`: no paths,
@@ -934,6 +1014,7 @@ struct Outline<'a> {
     #[serde(flatten)]
     filing: FilingMeta<'a>,
     total_chars: usize,
+    tables: usize,
     next: String,
     /// Absent for forms without Item sections.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -945,6 +1026,153 @@ struct SectionRow<'a> {
     id: &'a str,
     title: &'a str,
     chars: usize,
+    tables: usize,
+}
+
+#[derive(Serialize)]
+struct TablePageResponse<'a> {
+    #[serde(flatten)]
+    filing: FilingMeta<'a>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    section: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    title: Option<&'a str>,
+    #[serde(flatten)]
+    page: TablePage<'a>,
+}
+
+/// One page of a document's tables.
+#[derive(Debug, Serialize)]
+struct TablePage<'a> {
+    /// Tables in the document, or in the section asked for.
+    total_tables: usize,
+    offset: usize,
+    /// Index of the table to continue at. Null on the last page.
+    next_offset: Option<usize>,
+    /// Set when the table at next_offset was split: the row to continue at.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    next_row: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    note: Option<&'static str>,
+    tables: Vec<TableOut<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+struct TableOut<'a> {
+    /// Position among all tables of the document.
+    index: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    section: Option<&'a str>,
+    /// Character offset of the table in the document text, as read_filing_text counts.
+    text_offset: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text_before: Option<&'a str>,
+    /// Indexes of header rows in the whole table.
+    #[serde(skip_serializing_if = "<[usize]>::is_empty")]
+    header_rows: &'a [usize],
+    /// Set when only part of the table is shown: the index of its first row shown...
+    #[serde(skip_serializing_if = "Option::is_none")]
+    first_row: Option<usize>,
+    /// ...and its number of rows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_rows: Option<usize>,
+    rows: &'a [Vec<String>],
+}
+
+/// Whether a section holds a table: a table belongs to the section its start is in.
+fn holds(section: &Section, table: &Table) -> bool {
+    section.start <= table.start && table.start < section.end
+}
+
+/// The tables of `doc` (those in `section` when given) from index `offset`,
+/// skipping `row` rows of the first one, up to `max` characters of JSON. A
+/// table that does not fit waits for the next page, unless it is the first
+/// one, which is then split after as many rows as fit (at least one).
+fn table_page<'a>(
+    doc: &'a Doc,
+    section: Option<&'a Section>,
+    offset: usize,
+    row: usize,
+    max: usize,
+) -> Result<TablePage<'a>, String> {
+    let total = doc.tables.len();
+    if offset > total {
+        return Err(format!("offset {offset} is past the last table (the document has {total})"));
+    }
+    let selected: Vec<usize> = (0..total).filter(|&i| section.is_none_or(|s| holds(s, &doc.tables[i]))).collect();
+    let mut page = TablePage {
+        total_tables: selected.len(),
+        offset,
+        next_offset: None,
+        next_row: None,
+        note: None,
+        tables: Vec::new(),
+    };
+    if selected.is_empty() {
+        page.note = Some(if section.is_some() { "no tables in this section" } else { "no tables in this document" });
+        return Ok(page);
+    }
+    let (mut used, mut chars, mut char_at) = (0, 0, 0);
+    for &i in selected.iter().filter(|&&i| i >= offset) {
+        let t = &doc.tables[i];
+        let first = if page.tables.is_empty() { row } else { 0 };
+        if first > 0 && first >= t.rows.len() {
+            return Err(format!("row {first} is past the last row of table {i}, which has {}", t.rows.len()));
+        }
+        chars += doc.text[char_at..t.start].chars().count();
+        char_at = t.start;
+        let mut out = TableOut {
+            index: i,
+            section: doc.sections.as_deref().and_then(|s| s.iter().find(|s| holds(s, t))).map(|s| s.id.as_str()),
+            text_offset: chars,
+            text_before: text_before(doc, t),
+            header_rows: &t.header_rows,
+            first_row: (first > 0).then_some(first),
+            total_rows: (first > 0).then_some(t.rows.len()),
+            rows: &[],
+        };
+        let rows = &t.rows[first..];
+        // Each row adds its JSON and a comma.
+        let row_sizes: Vec<usize> = rows.iter().map(|r| json_chars(r) + 1).collect();
+        let whole = json_chars(&out) + row_sizes.iter().sum::<usize>();
+        if used + whole <= max {
+            out.rows = rows;
+            page.tables.push(out);
+            used += whole;
+            continue;
+        }
+        if !page.tables.is_empty() {
+            page.next_offset = Some(i);
+            break;
+        }
+        out.first_row = Some(first);
+        out.total_rows = Some(t.rows.len());
+        let mut fit = json_chars(&out) + row_sizes[0];
+        let mut take = 1;
+        while take < rows.len() && fit + row_sizes[take] <= max {
+            fit += row_sizes[take];
+            take += 1;
+        }
+        out.rows = &rows[..take];
+        page.tables.push(out);
+        used = fit;
+        if take < rows.len() {
+            page.next_offset = Some(i);
+            page.next_row = Some(first + take);
+            break;
+        }
+    }
+    Ok(page)
+}
+
+/// The line just above a table, when it is short and not part of another
+/// table: often the table's title or its units.
+fn text_before<'a>(doc: &'a Doc, table: &Table) -> Option<&'a str> {
+    let above = doc.text[..table.start].strip_suffix('\n')?;
+    let line_start = above.rfind('\n').map_or(0, |i| i + 1);
+    let line = &above[line_start..];
+    let in_table = doc.tables.iter().any(|t| t.start <= line_start && line_start < t.end);
+    (!line.is_empty() && !in_table && line.chars().count() <= MAX_TEXT_BEFORE).then_some(line)
 }
 
 #[derive(Serialize)]
@@ -1075,6 +1303,10 @@ fn page_response(filing: FilingMeta<'_>, section: Option<&Section>, page: &Page<
 
 fn to_json<T: Serialize + ?Sized>(v: &T) -> String {
     serde_json::to_string(v).expect("values serialize")
+}
+
+fn json_chars<T: Serialize + ?Sized>(v: &T) -> usize {
+    to_json(v).chars().count()
 }
 
 #[cfg(test)]
@@ -1256,7 +1488,163 @@ mod tests {
     fn doc(text: &str, document: Option<&str>) -> Arc<Doc> {
         let sections = document.is_none().then(Vec::new);
         let document = document.map(str::to_owned);
-        Arc::new(Doc { document, total_chars: text.chars().count(), text: text.to_owned(), sections })
+        let tables = Vec::new();
+        Arc::new(Doc { document, total_chars: text.chars().count(), text: text.to_owned(), sections, tables })
+    }
+
+    /// A 10-K with Item 7 and Item 8, `n` tables of `rows` rows each, half of
+    /// them in each Item, and a title line above each table.
+    fn table_doc(n: usize, rows: usize) -> Doc {
+        let mut html = String::from("<p>Item 7. Management’s Discussion</p>");
+        for i in 0..n {
+            if i == n / 2 {
+                html += "<p>Item 8. Financial Statements</p>";
+            }
+            html += &format!("<p>Table {i} (in millions of €)</p><table>");
+            for r in 0..rows {
+                html += &format!("<tr><td>Row {r} of table {i}</td><td>$</td><td>{r},000</td></tr>");
+            }
+            html += "</table>";
+        }
+        let (text, tables) = parsec_edgar::html_to_text_and_tables(&html);
+        let item_8 = text.find("Item 8.").unwrap();
+        let section = |id: &str, start: usize, end: usize| -> Section {
+            let s = serde_json::json!({
+                "id": id, "item": "", "title": id, "heading": "", "start": start, "end": end,
+                "text": text[start..end].trim()
+            });
+            serde_json::from_value(s).unwrap()
+        };
+        let sections = vec![section("item_7", 0, item_8), section("item_8", item_8, text.len())];
+        Doc { document: None, total_chars: text.chars().count(), text, sections: Some(sections), tables }
+    }
+
+    /// Rows shown on every page from `offset`, following next_offset and next_row.
+    fn all_pages(doc: &Doc, section: Option<&Section>, max: usize) -> (Vec<Vec<String>>, usize) {
+        let (mut rows, mut pages, mut offset, mut row) = (Vec::new(), 0, 0, 0);
+        loop {
+            let page = table_page(doc, section, offset, row, max).unwrap();
+            pages += 1;
+            // Each page stays within max_chars, give or take the commas between tables.
+            assert!(json_chars(&page.tables) <= max + page.tables.len() + 1, "{page:?}");
+            for t in &page.tables {
+                rows.extend(t.rows.iter().cloned());
+            }
+            match page.next_offset {
+                Some(next) => (offset, row) = (next, page.next_row.unwrap_or(0)),
+                None => break,
+            }
+        }
+        (rows, pages)
+    }
+
+    #[test]
+    fn table_pages_cover_every_row_once() {
+        let doc = table_doc(10, 5);
+        let every: Vec<Vec<String>> = doc.tables.iter().flat_map(|t| t.rows.clone()).collect();
+        assert_eq!(every.len(), 50);
+        assert_eq!(every[6], ["Row 1 of table 1", "$1,000"]);
+        let (rows, pages) = all_pages(&doc, None, 600);
+        assert_eq!(rows, every);
+        assert!(pages >= 4, "{pages}");
+        // One page when everything fits.
+        assert_eq!(all_pages(&doc, None, 100_000), (every, 1));
+    }
+
+    /// A table longer than max_chars comes in pieces that join up.
+    #[test]
+    fn long_tables_are_split_by_rows() {
+        let doc = table_doc(2, 100);
+        let page = table_page(&doc, None, 0, 0, 1000).unwrap();
+        let [t] = &page.tables[..] else { panic!("{page:?}") };
+        assert_eq!((t.first_row, t.total_rows), (Some(0), Some(100)));
+        assert_eq!((page.next_offset, page.next_row), (Some(0), Some(t.rows.len())));
+        let next = table_page(&doc, None, 0, t.rows.len(), 1000).unwrap();
+        assert_eq!(next.tables[0].rows[0][0], format!("Row {} of table 0", t.rows.len()));
+        assert_eq!(next.tables[0].first_row, Some(t.rows.len()));
+        let (rows, _) = all_pages(&doc, None, 1000);
+        assert_eq!(rows.len(), 200);
+        assert_eq!(rows[150], ["Row 50 of table 1", "$50,000"]);
+        // Even a page too small for one row shows one.
+        assert_eq!(table_page(&doc, None, 0, 0, 10).unwrap().tables[0].rows.len(), 1);
+    }
+
+    #[test]
+    fn tables_of_one_section() {
+        let doc = table_doc(6, 2);
+        let item_8 = &doc.sections.as_ref().unwrap()[1];
+        let page = table_page(&doc, Some(item_8), 0, 0, 100_000).unwrap();
+        assert_eq!(page.total_tables, 3);
+        // Indexes count every table of the document.
+        assert_eq!(page.tables.iter().map(|t| t.index).collect::<Vec<_>>(), [3, 4, 5]);
+        assert!(page.tables.iter().all(|t| t.section == Some("item_8")));
+        let page = table_page(&doc, Some(item_8), 0, 0, 300).unwrap();
+        assert_eq!((page.tables[0].index, page.next_offset), (3, Some(4)));
+        let (rows, _) = all_pages(&doc, Some(item_8), 300);
+        assert_eq!(rows.len(), 6);
+        assert_eq!(rows[0][0], "Row 0 of table 3");
+    }
+
+    #[test]
+    fn tables_carry_their_place_and_title() {
+        let doc = table_doc(3, 2);
+        let page = table_page(&doc, None, 1, 0, 100_000).unwrap();
+        let t = &page.tables[0];
+        assert_eq!((t.index, t.text_before), (1, Some("Table 1 (in millions of €)")));
+        // text_offset counts characters, as read_filing_text does.
+        let at: String = doc.text.chars().skip(t.text_offset).take(24).collect();
+        assert_eq!(at, "Row 0 of table 1\t$0,000\n");
+        // A line that belongs to another table is not a title.
+        let mut doc = table_doc(1, 2);
+        let (text, tables) = parsec_edgar::html_to_text_and_tables(
+            "<table><tr><td>A</td><td>1</td></tr></table><hr><table><tr><td>B</td><td>2</td></tr></table>",
+        );
+        (doc.text, doc.tables, doc.sections) = (text, tables, None);
+        assert_eq!(table_page(&doc, None, 1, 0, 100_000).unwrap().tables[0].text_before, None);
+    }
+
+    #[test]
+    fn table_page_errors_and_empty_documents() {
+        let doc = table_doc(2, 3);
+        assert!(table_page(&doc, None, 3, 0, 20_000).unwrap_err().contains("past the last table"));
+        assert!(table_page(&doc, None, 1, 3, 20_000).unwrap_err().contains("past the last row"));
+        let page = table_page(&doc, None, 2, 0, 20_000).unwrap();
+        assert!(page.tables.is_empty() && page.next_offset.is_none());
+        let none = Doc { document: None, text: "Text\n".into(), total_chars: 5, sections: None, tables: Vec::new() };
+        let page = table_page(&none, None, 0, 0, 20_000).unwrap();
+        assert_eq!((page.total_tables, page.note), (0, Some("no tables in this document")));
+    }
+
+    /// read_tables through the server, with the document already cached.
+    #[tokio::test]
+    async fn read_tables_tool() {
+        let server = pbf_server();
+        server.lock().put_doc(key(PBF, ""), Arc::new(table_doc(4, 2)));
+        let params = |section: Option<&str>| ReadTablesParams {
+            company: "1566011".into(),
+            accession: Some(PBF.into()),
+            form: None,
+            document: None,
+            section: section.map(Into::into),
+            offset: None,
+            row: None,
+            max_chars: None,
+        };
+        let out = json(server.read_tables(Parameters(params(Some("8")))).await);
+        assert_eq!((out["section"].as_str(), out["total_tables"].as_u64()), (Some("item_8"), Some(2)));
+        assert_eq!(out["tables"][0]["rows"][1], serde_json::json!(["Row 1 of table 2", "$1,000"]));
+        assert_eq!(out["company"], "PBF Holding Co LLC");
+        assert!(out["next_offset"].is_null());
+        let err = server.read_tables(Parameters(params(Some("item_9")))).await.unwrap_err();
+        assert!(err.contains("available: item_7, item_8"), "{err}");
+        let mut p = params(Some("item_7"));
+        p.document = Some("ex211.htm".into());
+        let err = server.read_tables(Parameters(p)).await.unwrap_err();
+        assert!(err.contains("exhibits have no Item sections"), "{err}");
+        // The outline counts tables in all and per section.
+        let out = json(server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), None))).await);
+        assert_eq!(out["tables"], 4);
+        assert_eq!(out["sections"][0]["tables"], 2);
     }
 
     fn key(acc: &str, document: &str) -> DocKey {
@@ -1362,7 +1750,13 @@ mod tests {
                     .shared_doc(key("acc", ""), move || {
                         loads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         std::thread::sleep(Duration::from_millis(200));
-                        Ok(Doc { document: None, text: "text".into(), total_chars: 4, sections: None })
+                        Ok(Doc {
+                            document: None,
+                            text: "text".into(),
+                            total_chars: 4,
+                            sections: None,
+                            tables: Vec::new(),
+                        })
                     })
                     .await
             })
@@ -1389,7 +1783,8 @@ mod tests {
         let server = offline_server();
         let err = server.shared_doc(key("acc", ""), || Err("HTTP 503".into())).await;
         assert_eq!(err.err().as_deref(), Some("HTTP 503"));
-        let empty = || Ok(Doc { document: None, text: String::new(), total_chars: 0, sections: None });
+        let empty =
+            || Ok(Doc { document: None, text: String::new(), total_chars: 0, sections: None, tables: Vec::new() });
         assert!(server.shared_doc(key("acc", ""), empty).await.is_ok());
         assert!(server.lock().loading.is_empty());
     }
@@ -1555,6 +1950,7 @@ mod tests {
                 "list_filings",
                 "read_filing_text",
                 "read_section",
+                "read_tables",
                 "search_full_text"
             ]
         );

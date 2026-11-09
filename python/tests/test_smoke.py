@@ -28,6 +28,21 @@ def test_html_to_text():
     assert pe.html_to_text(html) == "Net sales\t$391,035\nSecond line.\n"
 
 
+def test_html_to_text_and_tables():
+    html = (
+        "<p>Résultats</p><table><tr><th></th><th>2024</th></tr>"
+        "<tr><td>Net sales</td><td>$</td><td>391,035</td></tr></table><p>After the table.</p>"
+    )
+    text, tables = pe.html_to_text_and_tables(html)
+    assert text == pe.html_to_text(html)
+    [t] = tables
+    assert t["rows"] == [["2024"], ["Net sales", "$391,035"]]
+    assert t["header_rows"] == [0]
+    # Offsets count bytes of the UTF-8 text, like section offsets.
+    assert text.encode()[t["start"] : t["end"]].decode() == "2024\nNet sales\t$391,035\n"
+    assert pe.html_to_text_and_tables("A plain-text filing.\n") == ("A plain-text filing.\n", [])
+
+
 def test_client_needs_a_contact_email():
     with pytest.raises(ValueError):
         pe.Client("Example Corp")
@@ -43,7 +58,8 @@ def test_command_line():
     out = run(exe, "--version")
     assert out.returncode == 0
     assert out.stdout.strip() == f"parsec-edgar {pe.__version__}"
-    assert "sections" in run(exe, "--help").stdout
+    help_text = run(exe, "--help").stdout
+    assert "sections" in help_text and "tables" in help_text
     assert run(exe, "--no-such-option").returncode == 2
 
 

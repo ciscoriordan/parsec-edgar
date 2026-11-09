@@ -9,9 +9,11 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
-use parsec_edgar::{Client, Error, Filing, FilingQuery};
+use parsec_edgar::{
+    Client, Error, Filing, FilingQuery, FormKind, Section, Table, document_to_text_and_tables, extract_sections,
+};
 
-/// Fast SEC EDGAR client: companies, filings, clean text and Item sections as JSON.
+/// Fast SEC EDGAR client: companies, filings, clean text, and Item sections and tables as JSON.
 #[derive(Parser)]
 #[command(name = "parsec-edgar", version)]
 struct Cli {
@@ -79,6 +81,19 @@ enum Command {
         /// Leave out section text (ids, titles, headings and offsets only).
         #[arg(long)]
         no_text: bool,
+    },
+
+    /// Tables of a filing's primary document as JSON.
+    ///
+    /// Each table has its rows of cells, its byte offsets in the clean text (as
+    /// printed by `text`), and the id of the Item section it is in.
+    Tables {
+        company: String,
+        #[command(flatten)]
+        which: Which,
+        /// Only tables in these sections, e.g. 8, item_7, part_1_item_1. Repeat for several.
+        #[arg(long = "item")]
+        items: Vec<String>,
     },
 
     /// Bulk download filings by form and date (all companies, or a list) into JSON files.
@@ -156,6 +171,23 @@ fn run(cli: Cli) -> Result<(), Error> {
             }
             print_json(&serde_json::json!({ "filing": filing, "sections": sections }))?;
         }
+        Command::Tables { company, which, items } => {
+            let filing = pick(&client, &company, &which)?;
+            let (text, tables) = document_to_text_and_tables(&client.primary_document(&filing)?);
+            let sections = match FormKind::from_form(&filing.form) {
+                Some(kind) => extract_sections(&text, kind),
+                None if items.is_empty() => Vec::new(),
+                None => {
+                    return Err(Error::Invalid(format!(
+                        "--item needs a 10-K, 10-Q or 8-K filing, which have Item sections, not {}",
+                        filing.form
+                    )));
+                }
+            };
+            let wanted: Vec<String> = items.iter().map(|i| normalize_section_id(i)).collect();
+            let tables = tables_in_sections(&tables, &sections, &wanted);
+            print_json(&serde_json::json!({ "filing": filing, "tables": tables }))?;
+        }
         Command::Crawl(args) => crawl::run(&client, args)?,
         Command::Mcp(args) => mcp::serve(client, args)?,
     }
@@ -167,6 +199,27 @@ fn pick(client: &Client, company: &str, which: &Which) -> Result<Filing, Error> 
         Some(acc) => client.filing(company, acc),
         None => client.latest(company, which.form.as_deref().unwrap_or("10-K")),
     }
+}
+
+/// A table with the id of the Item section that holds its start.
+#[derive(serde::Serialize)]
+struct TableIn<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    section: Option<&'a str>,
+    #[serde(flatten)]
+    table: &'a Table,
+}
+
+/// Each table with its section, keeping only tables in the `wanted` section ids when any are given.
+fn tables_in_sections<'a>(tables: &'a [Table], sections: &'a [Section], wanted: &[String]) -> Vec<TableIn<'a>> {
+    tables
+        .iter()
+        .map(|table| {
+            let section = sections.iter().find(|s| s.start <= table.start && table.start < s.end);
+            TableIn { section: section.map(|s| s.id.as_str()), table }
+        })
+        .filter(|t| wanted.is_empty() || t.section.is_some_and(|id| wanted.iter().any(|w| w == id)))
+        .collect()
 }
 
 /// `1A` -> `item_1a`; ids that already start with `item_` or `part_` pass through.
@@ -199,5 +252,37 @@ fn write_stdout(text: &str) -> Result<(), Error> {
     match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
         Err(e) if e.kind() != std::io::ErrorKind::BrokenPipe => Err(e.into()),
         _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tables_get_their_sections() {
+        let body = "<p>We make and sell things in many markets around the world, every year.</p>".repeat(30);
+        let html = format!(
+            "<table><tr><td>Cover</td><td>page</td></tr></table>\
+             <p>Item 7. Management's Discussion and Analysis</p>{body}\
+             <table><tr><td>Net sales</td><td>100</td></tr></table>{body}\
+             <p>Item 8. Financial Statements and Supplementary Data</p>{body}\
+             <table><tr><td>Total assets</td><td>500</td></tr></table>{body}"
+        );
+        let (text, tables) = parsec_edgar::html_to_text_and_tables(&html);
+        let sections = extract_sections(&text, FormKind::TenK);
+        let json = |wanted: &[&str]| {
+            let wanted: Vec<String> = wanted.iter().map(|w| normalize_section_id(w)).collect();
+            serde_json::to_value(tables_in_sections(&tables, &sections, &wanted)).unwrap()
+        };
+        let all = json(&[]);
+        assert_eq!(all[0].get("section"), None);
+        assert_eq!(all[1]["section"], "item_7");
+        assert_eq!(all[2]["section"], "item_8");
+        assert_eq!(all[2]["rows"], serde_json::json!([["Total assets", "500"]]));
+        assert_eq!(all[2]["start"], tables[2].start);
+        let item_8 = json(&["8"]);
+        assert_eq!(item_8.as_array().unwrap().len(), 1);
+        assert_eq!(item_8[0]["rows"][0][0], "Total assets");
     }
 }

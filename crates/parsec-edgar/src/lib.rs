@@ -3,6 +3,7 @@
 //! - [`Client`]: rate-limited, cached access to sec.gov and data.sec.gov
 //! - [`Company`] lookup by ticker or CIK, and [`Filing`] lists from the submissions API
 //! - [`html_to_text`]: filing HTML to clean plain text
+//! - [`html_to_text_and_tables`]: the same text, plus its [`Table`]s as rows of cells with their offsets in it
 //! - [`extract_sections`]: 10-K, 10-Q and 8-K Item sections
 //!
 //! ```no_run
@@ -39,7 +40,7 @@ pub use efts::{
 pub use error::{Error, Result};
 pub use filing_index::{Filer, FilingIndex, IndexDocument, parse_filing_index};
 pub use filings::{Filing, FilingQuery};
-pub use html::{document_to_text, html_to_text};
+pub use html::{Table, document_to_text, document_to_text_and_tables, html_to_text, html_to_text_and_tables};
 pub use index::{IndexEntry, Quarter, parse_master_index};
 pub use profile::CompanyProfile;
 pub use sections::{FormKind, Section, extract_sections};

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::client::Client;
 use crate::company::parse_cik;
 use crate::error::{Error, Result};
-use crate::html::document_to_text;
+use crate::html::{Table, document_to_text, document_to_text_and_tables};
 use crate::profile::SubmissionsProfile;
 use crate::sections::{FormKind, Section, extract_sections};
 
@@ -393,6 +393,14 @@ impl Client {
         })?;
         Ok(extract_sections(&self.filing_text(filing)?, kind))
     }
+
+    /// Tables of a filing's primary document, with offsets into the text that
+    /// [`Client::filing_text`] returns, the same text [`Client::filing_sections`]
+    /// splits. To get the text and the tables from one parse, pass
+    /// [`Client::primary_document`] to [`document_to_text_and_tables`].
+    pub fn filing_tables(&self, filing: &Filing) -> Result<Vec<Table>> {
+        Ok(document_to_text_and_tables(&self.primary_document(filing)?).1)
+    }
 }
 
 /// Sort newest first, keeping one row per filing when one is listed twice.
@@ -571,6 +579,20 @@ mod tests {
         assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1]);
         assert!(matches!(c.filing("1", "0000000001-05-000001"), Err(Error::FilingNotFound(_))));
         assert_eq!(c.take_fetched(), [SUBMISSIONS, PAGE_1, PAGE_2]);
+    }
+
+    #[test]
+    fn filing_tables_point_into_filing_text() {
+        let c = Client::builder("a@b.c").build().unwrap();
+        let f = filing("10-K", "2024-11-01");
+        let html = "<p>Item 8. Financial Statements</p><p>12</p>\
+                    <table><tr><td>Net sales</td><td>$</td><td>391,035</td></tr></table>";
+        c.stub(f.primary_document_url.as_deref().unwrap(), html);
+        let text = c.filing_text(&f).unwrap();
+        let tables = c.filing_tables(&f).unwrap();
+        assert_eq!(tables.len(), 1);
+        assert_eq!(&text[tables[0].start..tables[0].end], "Net sales\t$391,035\n");
+        assert_eq!(tables[0].rows, [["Net sales", "$391,035"]]);
     }
 
     #[test]
