@@ -24,9 +24,14 @@ const CHUNK: usize = 16;
 /// comparison steps over.
 const SLACK: usize = 120;
 
-/// A line that only names a Part ("PART II", "Part II - Other Information").
-static PART_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^part\s+(?:i{1,3}|iv|[1-4])\b").unwrap());
-static ITEM_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^item\s*\d").unwrap());
+/// A line that only names a Part ("PART II", "Part II - Other Information",
+/// "Parts I and II").
+static PART_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^parts?\s+(?:i{1,3}|iv|[1-4])\b").unwrap());
+static ITEM_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^items?(?:\b|\d)").unwrap());
+static PAGE_NUMBER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^(?:page\s+)?(?:\d{1,4}|[ivxlc]{1,7})$").unwrap());
+/// A line our text has this many times is a running page header.
+const REPEATED: usize = 3;
 /// How many leading lines of a section can be skipped, and how long they can be.
 const SKIP_LINES: usize = 4;
 const SKIP_LEN: usize = 80;
@@ -44,8 +49,16 @@ fn norm_chars(s: &str) -> impl Iterator<Item = (usize, char)> + '_ {
     s.char_indices().filter(|(_, c)| c.is_ascii_alphanumeric()).map(|(i, c)| (i, c.to_ascii_lowercase()))
 }
 
-fn normalize(s: &str) -> String {
+/// Lowercase ASCII letters and digits only.
+pub fn normalize(s: &str) -> String {
     norm_chars(s).map(|(_, c)| c).collect()
+}
+
+/// Whether a section's text begins with its Item heading (after any Part line).
+pub fn starts_with_item(section: &str) -> bool {
+    static START: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)^\W*(?:part\s+[ivx1-4]+\W+(?:[a-z ]{0,40}\W+)?)?items?\W*\d").unwrap());
+    START.is_match(section.trim_start())
 }
 
 impl Aligner {
@@ -69,9 +82,9 @@ impl Aligner {
     /// The section without leading Part lines and page headers. Some tools put
     /// a Part line in the first Item of the Part, or start an Item at the page
     /// header above its heading; our labels start at the Item heading. A page
-    /// header is a short line that our text drops, so a section that starts
-    /// with one has opening characters found nowhere in our text. Item
-    /// headings are never skipped.
+    /// header is a page number, a short line our text repeats, or a short line
+    /// our text drops, so that the section's opening is found nowhere in our
+    /// text. Item headings are never skipped.
     fn strip_leading_lines<'a>(&self, section: &'a str) -> &'a str {
         let mut rest = section.trim_start();
         for _ in 0..SKIP_LINES {
@@ -81,7 +94,8 @@ impl Aligner {
                 break;
             }
             let part = PART_LINE.is_match(first) && !first.to_ascii_lowercase().contains("item");
-            if !part {
+            let header = PAGE_NUMBER.is_match(first) || self.line_count(&normalize(first), REPEATED) >= REPEATED;
+            if !part && !header {
                 let head: String = norm_chars(rest).map(|(_, c)| c).take(HEAD).collect();
                 if head.is_empty() || self.norm.contains(&head) {
                     break;
@@ -92,6 +106,24 @@ impl Aligner {
         rest
     }
 
+    /// How many lines of our text are exactly this normalized text, counting
+    /// up to `cap`.
+    fn line_count(&self, l: &str, cap: usize) -> usize {
+        let mut count = 0;
+        let mut from = 0;
+        while count < cap
+            && !l.is_empty()
+            && let Some(p) = self.norm[from..].find(l)
+        {
+            let o = from + p;
+            from = o + 1;
+            if (o == 0 || self.line[o - 1] != self.line[o]) && self.whole_line(o, l) {
+                count += 1;
+            }
+        }
+        count
+    }
+
     /// Byte span of a section's text, or None when its start cannot be found.
     pub fn place(&self, section: &str) -> Option<(usize, usize)> {
         let section = self.strip_leading_lines(section);
@@ -100,7 +132,10 @@ impl Aligner {
             return None;
         }
         let first_line = section.lines().map(normalize).find(|l| !l.is_empty()).unwrap_or_default();
-        let start = self.start_at_line(&n, &first_line).or_else(|| self.start_by_window(&n))?;
+        let start = self
+            .start_at(&n, &first_line, true)
+            .or_else(|| self.start_by_window(&n))
+            .or_else(|| self.start_at(&n, &first_line, false))?;
         // End: the last window found after the start.
         let mut end = None;
         for back in [0, 20, 60, 150, 400, 1000] {
@@ -120,17 +155,20 @@ impl Aligner {
         Some((byte_start, byte_end.max(byte_start)))
     }
 
-    /// The line start where the section's opening characters appear and the
-    /// following text agrees best; on a tie, the later one (the body comes
-    /// after the table of contents).
-    fn start_at_line(&self, n: &str, first_line: &str) -> Option<usize> {
-        let head = &n[..n.len().min(HEAD)];
+    /// The place where the section's opening characters appear and the
+    /// following text agrees best, at a line start or (for a heading cut
+    /// short) anywhere; on a tie, the later one (the body comes after the
+    /// table of contents).
+    fn start_at(&self, n: &str, first_line: &str, line_start: bool) -> Option<usize> {
+        // Within the first line when it is short, so that a page footer after
+        // a one-line Item ("Item 6. [Reserved]") does not hide it.
+        let head = &n[..n.len().min(HEAD).min(first_line.len().max(8))];
         let mut best: Option<(usize, usize)> = None;
         let mut from = 0;
         while let Some(p) = self.norm[from..].find(head) {
             let o = from + p;
             from = o + 1;
-            if o > 0 && self.line[o - 1] == self.line[o] {
+            if line_start && o > 0 && self.line[o - 1] == self.line[o] {
                 continue;
             }
             let score = 2 * usize::from(self.whole_line(o, first_line)) + self.agreement(n, o);
@@ -163,9 +201,11 @@ impl Aligner {
         hits
     }
 
-    /// Fallback when no line starts with the section's opening characters:
-    /// the first window found, trying later windows when the tool's heading
-    /// differs from the filing's.
+    /// Fallback when no line starts with the section's opening characters
+    /// (a tool that cuts a heading short): the first window found, trying
+    /// later windows when the tool's opening differs from the filing's. A
+    /// later window's start is the last place just before it that has the
+    /// section's opening characters, else an estimate.
     fn start_by_window(&self, n: &str) -> Option<usize> {
         for skip in [0, 20, 60, 150, 400, 1000] {
             if skip >= n.len() {
@@ -176,7 +216,10 @@ impl Aligner {
                 break;
             }
             if let Some(p) = self.norm.find(w) {
-                return Some(p.saturating_sub(skip));
+                let head = &n[..n.len().min(HEAD).min(skip)];
+                let lo = p.saturating_sub(skip + 2 * SLACK);
+                let near = (head.len() >= 8).then(|| self.norm[lo..p].rfind(head)).flatten();
+                return Some(near.map_or(p.saturating_sub(skip), |q| lo + q));
             }
         }
         None
@@ -203,6 +246,18 @@ mod tests {
         let a = Aligner::new(text);
         let (s, _) = a.place("Item 6. [Reserved]").unwrap();
         assert!(text[s..].starts_with("Item 6. [Reserved]\nItem 7. Discussion\nSales"));
+        // With the page footer our text drops.
+        let (s, _) = a.place("Item 6. [Reserved]\nAcme Inc. | 2026 Form 10-K | 23").unwrap();
+        assert!(text[s..].starts_with("Item 6. [Reserved]\nItem 7. Discussion\nSales"));
+    }
+
+    #[test]
+    fn item_heading_at_start() {
+        assert!(starts_with_item("  ITEM 1A. RISK FACTORS\nText"));
+        assert!(starts_with_item("PART II - OTHER INFORMATION\nItem 1. Legal Proceedings"));
+        assert!(starts_with_item("Items 1 and 2. Business and Properties"));
+        assert!(!starts_with_item("There have been no changes. See Item 7A."));
+        assert!(!starts_with_item("None."));
     }
 
     #[test]
@@ -219,6 +274,12 @@ mod tests {
         let (s, _) = a.place("ontrols and\nProcedures.\nOur controls work well").unwrap();
         let line_start = text[..s].rfind('\n').map_or(0, |i| i + 1);
         assert!(text[line_start..].starts_with("Item 9A."));
+        // A page number, and a running header our text keeps.
+        let text = "Acme Inc.\nItem 8. Statements\nNumbers.\nAcme Inc.\nItem 9. Changes\nNone.\nAcme Inc.\n\
+                    Item 9A. Controls and Procedures.\nOur controls work well enough.\n";
+        let a = Aligner::new(text);
+        let (s, _) = a.place("12\nAcme Inc.\nItem 9A. Controls and Procedures.\nOur controls work").unwrap();
+        assert!(text[s..].starts_with("Item 9A."));
     }
 
     #[test]

@@ -486,13 +486,35 @@ fn score_external(client: &Client, files: &[(PathBuf, LabelFile)], dir: &Path) -
             }
         };
         let aligner = align::Aligner::new(&doc.text);
+        let truth: HashMap<String, labels::TrueItem> = labels::resolve(&doc, label)
+            .map(|t| t.items.into_iter().map(|i| (i.id.clone(), i)).collect())
+            .unwrap_or_default();
         let mut preds = Vec::new();
         let mut unplaced = Vec::new();
         for (id, text) in &sections {
+            let t = truth.get(id);
             match aligner.place(text) {
-                Some((start, end)) => preds.push(Pred { id: id.clone(), start: doc.line_start_of(start), end }),
+                Some((start, end)) => {
+                    let mut start = doc.line_start_of(start);
+                    // A tool that leaves the heading out of the Item's text
+                    // starts it on the line after the heading.
+                    if let Some(t) = t
+                        && !align::starts_with_item(text)
+                        && heading_just_above(&doc, t, doc.line_of(start))
+                    {
+                        start = t.pos;
+                    }
+                    preds.push(Pred { id: id.clone(), start, end });
+                }
                 None if text.trim().is_empty() => {}
-                None => unplaced.push(id.clone()),
+                // Too short to find in the filing ("None."): the labeled
+                // Item's body, when the two are the same text.
+                None => match t {
+                    Some(t) if same_body(&doc, t, text) => {
+                        preds.push(Pred { id: id.clone(), start: t.pos, end: t.end })
+                    }
+                    _ => unplaced.push(id.clone()),
+                },
             }
         }
         preds.sort_by_key(|p| p.start);
@@ -505,6 +527,21 @@ fn score_external(client: &Client, files: &[(PathBuf, LabelFile)], dir: &Path) -
         out.push(r);
     }
     out
+}
+
+/// Whether the labeled heading is just above `line`, with at most one short
+/// line (a title) between them.
+fn heading_just_above(doc: &Doc, t: &labels::TrueItem, line: usize) -> bool {
+    line > t.line && line - t.line <= 2 && (t.line + 1..line).all(|l| doc.line(l).chars().count() <= 100)
+}
+
+/// Whether a tool's text is the labeled Item without its heading line, give
+/// or take a short tail such as a following PART line.
+fn same_body(doc: &Doc, t: &labels::TrueItem, text: &str) -> bool {
+    let body_start = doc.text[t.pos..t.end].find('\n').map_or(t.end, |i| t.pos + i);
+    let body = align::normalize(&doc.text[body_start..t.end]);
+    let text = align::normalize(text);
+    !text.is_empty() && body.starts_with(&text) && body.len() - text.len() <= 40
 }
 
 fn base_result(label: &LabelFile) -> FilingResult {
