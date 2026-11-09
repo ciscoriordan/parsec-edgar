@@ -412,8 +412,10 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// contents entry for Part I Item 2 could otherwise be taken as Part I and the
 /// body heading as Part II. Entries just before a dropped contents entry
 /// belong to the same contents block and go too (an Item listed in the
-/// contents whose body has no heading), unless they are body headings
-/// themselves; short entries just after a dropped listing entry go with it.
+/// contents whose body has no heading). Body headings stay: an entry goes only
+/// when the candidate before it is a contents entry too or it is the first
+/// candidate in the text, and never when it is the later copy of a heading
+/// printed twice. Short entries just after a dropped listing entry go with it.
 fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
     const SAME_BLOCK: usize = 2000;
     let n = cands.len();
@@ -444,8 +446,18 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str) -> Vec<Candidate> {
             }
         }
     }
+    // Spread to the other entries of a contents block: mark the runs of close
+    // candidates that lead up to a contents entry, then keep those that follow
+    // a contents entry or come first in the text. A short body Item just
+    // before a second contents list follows a body heading, so it stays.
+    let mut leads = contents.clone();
     for i in (0..n.saturating_sub(1)).rev() {
-        if contents[i + 1] && !paired[i] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
+        if leads[i + 1] && !paired[i] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
+            leads[i] = true;
+        }
+    }
+    for i in 0..n {
+        if leads[i] && (i == 0 || contents[i - 1]) {
             contents[i] = true;
         }
     }
@@ -1066,6 +1078,83 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_1", "item_5", "item_6", "item_7", "item_8"]);
+    }
+
+    #[test]
+    fn short_body_item_missing_from_the_first_contents_is_kept() {
+        // The first contents list leaves out Item 6, so its body heading
+        // appears only once. It follows a body heading, not a contents entry,
+        // so it does not join the second contents list.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\t3\nItem 5. Market for Registrant's Common Equity\t20\n\
+             Item 7. Management's Discussion and Analysis\t22\n\
+             Item 1. Business\n{body}\nItem 5. Market for Registrant's Common Equity\n{body}\n\
+             Item 6. [Reserved]\n\
+             Item 7. Management's Discussion and Analysis\t22\nItem 8. Financial Statements\t40\n\
+             Item 7. Management's Discussion and Analysis\n{body}\nItem 8. Financial Statements\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_5", "item_6", "item_7", "item_8"]);
+        assert!(!s[1].text.contains("Item 6"));
+        assert!(s[2].text.starts_with("Item 6. [Reserved]\nItem 7. Management's Discussion and Analysis\t22\n"));
+        assert!(s[3].text.starts_with("Item 7. Management's Discussion and Analysis\nLorem"));
+    }
+
+    #[test]
+    fn short_body_items_after_a_short_body_item_are_kept() {
+        // Neither contents list has Items 5 and 6, and both body Items are
+        // short. A run of such headings before the second list stays.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\t3\nItem 7. Management's Discussion and Analysis\t22\n\
+             Item 8. Financial Statements\t40\n\
+             Item 1. Business\n{body}\nItem 5. Market for Registrant's Common Equity\nNone.\n\
+             Item 6. [Reserved]\n\
+             Item 7. Management's Discussion and Analysis\t22\nItem 8. Financial Statements\t40\n\
+             Item 7. Management's Discussion and Analysis\n{body}\nItem 8. Financial Statements\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_5", "item_6", "item_7", "item_8"]);
+        assert_eq!(s[1].text, "Item 5. Market for Registrant's Common Equity\nNone.");
+    }
+
+    #[test]
+    fn contents_entries_without_body_headings_at_the_start_are_dropped() {
+        // Part I Items 1 and 2 are listed in the contents but have no heading
+        // in the body. They come first and lead up to dropped contents
+        // entries, so they are contents entries too.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Part I - Financial Information\nItem 1 Consolidated Financial Statements\t60\n\
+             Item 2 Management's Discussion and Analysis\t3\n\
+             Item 3 Quantitative and Qualitative Disclosures About Market Risk\t58\n\
+             Item 4 Controls and Procedures\t58\nPart II - Other Information\n\
+             Item 1 Legal Proceedings\t90\nItem 6 Exhibits\t92\n\
+             Financial Highlights\n{body}{body}\n\
+             Item 3 Quantitative and Qualitative Disclosures About Market Risk\nSee Market Risk Management.\n\
+             Item 4 Controls and Procedures\n{body}\nPart II Other Information\n\
+             Item 1 Legal Proceedings\n{body}\nItem 6 Exhibits\n{body}\nSIGNATURE\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert!(s[0].text.starts_with("Item 3 Quantitative and Qualitative Disclosures About Market Risk\nSee"));
+    }
+
+    #[test]
+    fn contents_entries_between_dropped_entries_are_dropped() {
+        // Items 1A and 1B are listed in the contents but have no heading in
+        // the body. They sit between two dropped contents entries; kept, they
+        // would outscore the short Item 1.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 1. Business\t3\nItem 1A. Risk Factors\t4\nItem 1B. Unresolved Staff Comments\t9\n\
+             Item 2. Properties\t10\n\
+             Item 1. Business\nSee the annual report.\nItem 2. Properties\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2"]);
+        assert_eq!(s[0].text, "Item 1. Business\nSee the annual report.");
     }
 
     #[test]
