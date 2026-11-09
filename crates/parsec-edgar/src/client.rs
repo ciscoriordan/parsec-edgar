@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -70,6 +71,7 @@ impl ClientBuilder {
             cache_dir: self.cache_dir,
             max_retries: self.max_retries,
             tickers: OnceLock::new(),
+            requests: AtomicU64::new(0),
         })
     }
 }
@@ -85,6 +87,7 @@ pub struct Client {
     cache_dir: Option<PathBuf>,
     max_retries: u32,
     pub(crate) tickers: OnceLock<Vec<Company>>,
+    requests: AtomicU64,
 }
 
 impl Client {
@@ -120,6 +123,17 @@ impl Client {
         Ok(bytes)
     }
 
+    /// GET a URL without reading or writing the cache, for archive files that
+    /// change, such as the current quarter's full index.
+    pub fn get_bytes_fresh(&self, url: &str) -> Result<Vec<u8>> {
+        self.fetch(url)
+    }
+
+    /// HTTP requests sent so far, retries included (cache hits are not requests).
+    pub fn requests_sent(&self) -> u64 {
+        self.requests.load(Ordering::Relaxed)
+    }
+
     /// GET a URL and decode it as text (UTF-8, falling back to Windows-1252).
     pub fn get_text(&self, url: &str) -> Result<String> {
         Ok(encoding::decode(&self.get_bytes(url)?))
@@ -135,6 +149,7 @@ impl Client {
         let mut attempt = 0;
         loop {
             self.limiter.acquire();
+            self.requests.fetch_add(1, Ordering::Relaxed);
             let outcome = self
                 .agent
                 .get(url)
