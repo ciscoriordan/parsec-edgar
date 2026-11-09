@@ -1,0 +1,289 @@
+{
+ "took": 487,
+ "timed_out": false,
+ "_shards": {
+  "total": 50,
+  "successful": 50,
+  "skipped": 0,
+  "failed": 0
+ },
+ "hits": {
+  "total": {
+   "value": 10000,
+   "relation": "gte"
+  },
+  "max_score": 18.508846,
+  "hits": [
+   {
+    "_index": "edgar_file",
+    "_id": "0000320193-26-000026:aapl-20260926.htm",
+    "_score": 18.508846,
+    "_source": {
+     "ciks": [
+      "0000320193"
+     ],
+     "period_ending": "2026-09-26",
+     "file_num": [
+      "001-36743"
+     ],
+     "display_names": [
+      "Apple Inc.  (AAPL)  (CIK 0000320193)"
+     ],
+     "xsl": null,
+     "sequence": 1,
+     "root_forms": [
+      "10-K"
+     ],
+     "file_date": "2026-11-03",
+     "biz_states": [
+      "CA"
+     ],
+     "sics": [
+      "3571"
+     ],
+     "form": "10-K",
+     "adsh": "0000320193-26-000026",
+     "film_num": [
+      "261514222"
+     ],
+     "biz_locations": [
+      "Cupertino, CA"
+     ],
+     "file_type": "10-K",
+     "ma_i_individual": null,
+     "file_description": "10-K",
+     "inc_states": [
+      "CA"
+     ],
+     "items": []
+    }
+   },
+   {
+    "_index": "edgar_file",
+    "_id": "0001437749-25-012093:ex_802014.htm",
+    "_score": 11.884271,
+    "_source": {
+     "ciks": [
+      "0000946486"
+     ],
+     "period_ending": "2024-12-31",
+     "file_num": [
+      "001-39290"
+     ],
+     "display_names": [
+      "WINDTREE THERAPEUTICS INC /DE/  (WINT, WINTW)  (CIK 0000946486)"
+     ],
+     "xsl": null,
+     "sequence": "8",
+     "root_forms": [
+      "10-K"
+     ],
+     "file_date": "2025-04-15",
+     "biz_states": [
+      "PA"
+     ],
+     "sics": [
+      "2836"
+     ],
+     "form": "10-K",
+     "adsh": "0001437749-25-012093",
+     "film_num": [
+      "25840592"
+     ],
+     "biz_locations": [
+      "Warrington, PA"
+     ],
+     "file_type": "EX-10.76",
+     "file_description": "EXHIBIT 10.76",
+     "inc_states": [
+      "DE"
+     ],
+     "items": []
+    }
+   },
+   {
+    "_index": "edgar_file",
+    "_id": "0001640334-25-001300:acro_10k.htm",
+    "_score": 13.916437,
+    "_source": {
+     "ciks": [
+      "0001622996"
+     ],
+     "period_ending": "2024-12-31",
+     "file_num": [
+      "000-55643"
+     ],
+     "display_names": [
+      "ACRO BIOMEDICAL CO., LTD.  (CIK 0001622996)"
+     ],
+     "xsl": null,
+     "sequence": 1,
+     "root_forms": [
+      "10-K"
+     ],
+     "file_date": "2025-07-24",
+     "biz_states": [
+      "IN"
+     ],
+     "sics": [
+      "7900"
+     ],
+     "form": "10-K",
+     "adsh": "0001640334-25-001300",
+     "film_num": [
+      "251147917"
+     ],
+     "biz_locations": [
+      "Fishers, IN"
+     ],
+     "file_type": "10-K",
+     "file_description": "FORM 10-K",
+     "inc_states": [
+      "NV"
+     ],
+     "items": []
+    }
+   },
+   {
+    "_index": "edgar_file",
+    "_id": "0001566011-25-000004:pbfh-20241231.htm",
+    "_score": 3.1608305,
+    "_source": {
+     "ciks": [
+      "0001566011",
+      "0001566097"
+     ],
+     "period_ending": "2024-12-31",
+     "file_num": [
+      "333-186007",
+      "333-186007-07"
+     ],
+     "display_names": [
+      "PBF Holding Co LLC  (CIK 0001566011)",
+      "PBF Finance Corp  (CIK 0001566097)"
+     ],
+     "xsl": null,
+     "sequence": 1,
+     "root_forms": [
+      "10-K"
+     ],
+     "file_date": "2025-02-25",
+     "biz_states": [
+      "NJ"
+     ],
+     "sics": [
+      "2911",
+      "2911"
+     ],
+     "form": "10-K",
+     "adsh": "0001566011-25-000004",
+     "film_num": [
+      "25662748",
+      "25662749"
+     ],
+     "biz_locations": [
+      "Parsippany, NJ",
+      "Parsippany, NJ"
+     ],
+     "file_type": "10-K",
+     "file_description": "10-K",
+     "inc_states": [
+      "DE",
+      "DE"
+     ],
+     "items": []
+    }
+   },
+   {
+    "_index": "edgar_file",
+    "_id": "0000921895-09-002860:ex991to13da506297074_120409.htm",
+    "_score": 16.223633,
+    "_source": {
+     "ciks": [
+      "0001058811",
+      "0001475770"
+     ],
+     "period_ending": null,
+     "file_num": [
+      "005-57607"
+     ],
+     "display_names": [
+      "IMMERSION CORP  (IMMR)  (CIK 0001058811)",
+      "Ramius LLC  (CIK 0001475770)"
+     ],
+     "xsl": null,
+     "sequence": 2,
+     "root_forms": [
+      "SC 13D"
+     ],
+     "file_date": "2009-12-04",
+     "biz_states": [
+      "CA",
+      "NY"
+     ],
+     "sics": [
+      "3577"
+     ],
+     "form": "SC 13D/A",
+     "adsh": "0000921895-09-002860",
+     "film_num": [
+      "091224405"
+     ],
+     "biz_locations": [
+      "San Jose, CA",
+      "New York, NY"
+     ],
+     "file_type": "EX-99.1",
+     "file_description": "PRESS RELEASE DATED DECEMBER 2, 2009",
+     "inc_states": [
+      "DE",
+      "DE"
+     ],
+     "items": []
+    }
+   },
+   {
+    "_index": "edgar_file",
+    "_id": "0000905148-09-001792:primary_doc.xml",
+    "_score": 16.50329,
+    "_source": {
+     "ciks": [
+      "0001462774"
+     ],
+     "period_ending": null,
+     "file_num": [
+      "084-06356"
+     ],
+     "display_names": [
+      "Altegris Portfolio Management, Inc.  (CIK 0001462774)"
+     ],
+     "xsl": "xslFTA1X01",
+     "schema_version": "X0302",
+     "sequence": 1,
+     "root_forms": [
+      "TA-1"
+     ],
+     "file_date": "2009-04-29",
+     "biz_states": [
+      "CO"
+     ],
+     "sics": [],
+     "form": "TA-1",
+     "adsh": "0000905148-09-001792",
+     "film_num": [
+      "09804253"
+     ],
+     "biz_locations": [
+      "Evergreen, CO"
+     ],
+     "file_type": "TA-1",
+     "file_description": null,
+     "inc_states": [
+      "AR"
+     ],
+     "items": []
+    }
+   }
+  ]
+ }
+}

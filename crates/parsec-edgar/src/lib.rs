@@ -19,6 +19,7 @@
 
 mod client;
 mod company;
+mod efts;
 mod encoding;
 mod error;
 mod filings;
@@ -27,6 +28,7 @@ mod sections;
 
 pub use client::{Client, ClientBuilder};
 pub use company::Company;
+pub use efts::{FULL_TEXT_MAX_RESULTS, FULL_TEXT_PAGE_SIZE, FullTextFiler, FullTextHit, FullTextQuery, FullTextResults};
 pub use error::{Error, Result};
 pub use filings::{Filing, FilingQuery};
 pub use html::{document_to_text, html_to_text};
