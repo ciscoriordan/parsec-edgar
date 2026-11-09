@@ -392,35 +392,69 @@ fn enclosing_table(tr: NodeRef<Node>) -> Option<NodeId> {
 }
 
 /// Financial tables put `$` and closing `)` or `%` in cells of their own: the
-/// runs of `cells` that each make one cell, in order. Only cells for which
-/// `joins` holds are merged; a header "Quarter Ended" over "June 30,"
-/// followed by a "%" column is not a number.
+/// runs of `cells` that each make one cell, in order. A `$` or `(` cell joins
+/// the cell after it when that cell starts like a number, with a digit, a
+/// dash or a "."; a `%` cell joins a run that ends like a number, with a
+/// digit or a dash; and a `)` cell joins such a run or one that leaves a "("
+/// open, such as "AA (3rd of 21". So "$" and "N/A", or a header "Amount"
+/// and the "%" column after it, stay apart. Only cells for which `joins`
+/// holds are merged; a header "Year Ended" over "June 30, 2025" followed by
+/// a "%" column is not a number.
 fn merge_cells(cells: &[&str], joins: impl Fn(usize) -> bool) -> Vec<Range<usize>> {
     let mut merged: Vec<Range<usize>> = Vec::with_capacity(cells.len());
     // Start of the `$` or `(` cells waiting for their number.
     let mut prefix = None;
+    // The last run leaves a "(" open, and it ends like a number.
+    let (mut paren, mut number) = (false, false);
     for (i, &c) in cells.iter().enumerate() {
         let joins_this = joins(i);
+        let closes = match c {
+            ")" | ")%" | "%)" => paren || number,
+            "%" => number,
+            _ => false,
+        };
         if joins_this && matches!(c, "$" | "€" | "£" | "¥" | "(" | "$(" | "($") {
             prefix.get_or_insert(i);
-        } else if joins_this
-            && matches!(c, ")" | "%" | ")%" | "%)")
-            && prefix.is_none()
-            && merged.last().is_some_and(|m| joins(m.end - 1))
-        {
-            merged.last_mut().expect("checked non-empty").end = i + 1;
+        } else if joins_this && closes && prefix.is_none() {
+            merged.last_mut().expect("a run to close").end = i + 1;
+            paren &= c == "%";
         } else {
-            if let Some(start) = prefix.filter(|_| !joins_this) {
-                merged.push(start..i);
-                prefix = None;
-            }
-            merged.push(prefix.take().unwrap_or(i)..i + 1);
+            let start = match prefix.take() {
+                Some(start) if joins_this && starts_like_number(c) => start,
+                Some(start) => {
+                    merged.push(start..i);
+                    i
+                }
+                None => i,
+            };
+            merged.push(start..i + 1);
+            let open: isize = cells[start..=i]
+                .iter()
+                .map(|s| s.matches('(').count() as isize - s.matches(')').count() as isize)
+                .sum();
+            paren = joins_this && open > 0;
+            number = joins_this && ends_like_number(c);
         }
     }
     if let Some(start) = prefix {
         merged.push(start..cells.len());
     }
     merged
+}
+
+const DASHES: [char; 7] = ['-', '‐', '‑', '‒', '–', '—', '−'];
+
+/// After any currency signs, "(" and spaces, the cell starts with a digit, a
+/// dash or a ".", as in "1,234", "(2.5" or "—".
+fn starts_like_number(cell: &str) -> bool {
+    let rest = cell.trim_start_matches(|c: char| matches!(c, '$' | '€' | '£' | '¥' | '(') || c.is_whitespace());
+    rest.starts_with(|c: char| c.is_ascii_digit() || c == '.' || DASHES.contains(&c))
+}
+
+/// Before any closing ")" and "%", the cell ends with a digit or a dash.
+fn ends_like_number(cell: &str) -> bool {
+    let rest = cell.trim_end_matches(|c: char| matches!(c, ')' | '%') || c.is_whitespace());
+    rest.ends_with(|c: char| c.is_ascii_digit() || DASHES.contains(&c))
 }
 
 /// Trim lines and drop empty lines, bare page numbers, "Table of Contents"
@@ -1014,6 +1048,43 @@ mod tests {
         assert_eq!(rows(inner), [["A", "$1"], ["B", "2"]]);
         assert_eq!(&text[inner.start..inner.end], "A\t$1\nB\t2\n");
         assert_eq!(rows(last), [["C", "3"]]);
+    }
+
+    /// `$` joins a cell that starts like a number, and `)` or `%` one that
+    /// ends like a number (or, for `)`, leaves a "(" open), so header cells
+    /// beside a "%" column keep their places, in rows printed as a line and
+    /// in rows printed cell by cell.
+    #[test]
+    fn currency_and_percent_cells_merge_only_into_numbers() {
+        let html = "<table><tr><td>Amount</td><td>%</td><td>Amount</td><td>%</td></tr>\
+                    <tr><td>Insurance</td><td>$</td><td>1,234</td><td>12.5</td><td>%</td>\
+                    <td>$</td><td>(56</td><td>)</td><td>(0.4</td><td>)%</td></tr>\
+                    <tr><td>Other</td><td>$</td><td>N/A</td><td>+20</td><td>%</td>\
+                    <td>AA (3rd of 21</td><td>)</td><td>$</td><td>—</td><td>Total</td><td>%</td></tr></table>\
+                    <table><tr><td>(in millions)</td><td>Quarter ended Sept. 30,</td><td>%</td>\
+                    <td>Nine months<br>ended Sept. 30,</td><td>%</td></tr>\
+                    <tr><td>Revenue</td><td>12</td><td>5</td></tr></table>";
+        let (text, tables) = tables_of(html);
+        let [t, header] = &tables[..] else { panic!("{tables:?}") };
+        assert_eq!(
+            rows(t),
+            [
+                vec!["Amount", "%", "Amount", "%"],
+                vec!["Insurance", "$1,234", "12.5%", "$(56)", "(0.4)%"],
+                vec!["Other", "$", "N/A", "+20%", "AA (3rd of 21)", "$—", "Total", "%"]
+            ]
+        );
+        assert_eq!(
+            rows(header),
+            [
+                vec!["(in millions)", "Quarter ended Sept. 30,", "%", "Nine months\nended Sept. 30,", "%"],
+                vec!["Revenue", "12", "5"]
+            ]
+        );
+        assert_eq!(
+            &text[header.start..],
+            "(in millions)\nQuarter ended Sept. 30,\n%\nNine months\nended Sept. 30,\n%\nRevenue\t12\t5\n"
+        );
     }
 
     #[test]
