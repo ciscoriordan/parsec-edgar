@@ -34,6 +34,82 @@ parsec-edgar sections AAPL --accession 0000320193-26-000026
 
 Archive documents are cached in `~/.cache/parsec-edgar` (override with `--cache-dir` or `PARSEC_EDGAR_CACHE`, disable with `--no-cache`). Filing lists and the ticker file are always fetched fresh.
 
+## MCP server
+
+`parsec-edgar mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude and other LLM clients can look up companies, list filings, search the full text of EDGAR and read filings one section at a time. It is part of the command-line tool (`cargo install --path crates/parsec-edgar-cli`) and uses the same User-Agent, cache and rate settings.
+
+| Tool | Returns |
+|---|---|
+| `find_company` | Up to 10 filers matching a ticker, a CIK or part of a company name |
+| `list_filings` | Compact rows (accession, form, filing date, period, 8-K Items), filtered by form and filing date |
+| `get_filing_outline` | Filing metadata, total length, and the Item sections' ids, titles and character counts, without the text |
+| `read_section` | One Item section as clean text, `max_chars` characters at a time (default 20,000), with `next_offset` while more remains |
+| `read_filing_text` | The whole primary document the same way, for forms without Item sections (S-1, DEF 14A, 20-F, ...) |
+| `search_full_text` | SEC full-text search hits since 2001: company, CIK, form, filing date, accession and document URL |
+
+The tool descriptions steer the model to call `get_filing_outline` first and then read only the sections it needs. For Apple's 2026 10-K the outline is about 2,200 characters, while the full text is 232,000 and Risk Factors alone is 87,000. Offsets count characters, and a page ends at a paragraph, line or word boundary when there is one near the limit. Failures (unknown ticker, missing section, bad date) come back as tool errors that name the next step, for example the list of section ids that do exist.
+
+### Claude Code
+
+```sh
+claude mcp add parsec-edgar -s user -e PARSEC_EDGAR_USER_AGENT="Example Corp admin@example.com" -- parsec-edgar mcp
+```
+
+### Claude Desktop
+
+Add the server to `claude_desktop_config.json` (on macOS in `~/Library/Application Support/Claude/`, on Windows in `%APPDATA%\Claude\`) and restart Claude Desktop. Claude Desktop does not read your shell's `PATH`, so give the full path that `which parsec-edgar` prints:
+
+```json
+{
+  "mcpServers": {
+    "parsec-edgar": {
+      "command": "/Users/you/.cargo/bin/parsec-edgar",
+      "args": ["mcp"],
+      "env": { "PARSEC_EDGAR_USER_AGENT": "Example Corp admin@example.com" }
+    }
+  }
+}
+```
+
+### Other MCP clients
+
+Over stdio, the command is `parsec-edgar mcp`, with `PARSEC_EDGAR_USER_AGENT` (or `EDGAR_IDENTITY`) set in its environment. The global options apply as usual, for example `parsec-edgar --rps 5 --cache-dir /data/edgar mcp`. The server exits with a clear message if no User-Agent is set.
+
+For clients that connect over HTTP, run the Streamable HTTP transport:
+
+```sh
+parsec-edgar mcp --http 127.0.0.1:8080        # endpoint http://127.0.0.1:8080/mcp
+claude mcp add --transport http parsec-edgar http://127.0.0.1:8080/mcp
+```
+
+The HTTP server accepts only requests addressed to `localhost`, `127.0.0.1` or `::1`, which blocks DNS rebinding from web pages. Behind a reverse proxy, add the public name with `--allow-host mcp.example.com`. It has no authentication of its own, so do not expose it directly to the internet.
+
+### Testing
+
+```sh
+cargo test -p parsec-edgar-cli    # paging and lookup unit tests, plus stdio and HTTP protocol tests that make no SEC requests
+PARSEC_EDGAR_USER_AGENT="Example Corp admin@example.com" \
+    cargo test -p parsec-edgar-cli --test mcp -- --ignored --nocapture   # every tool against live SEC data, 3 requests per second
+```
+
+## Full-text search
+
+The SEC's EDGAR full-text search (documents filed since 2001) is also available from the library. One call returns a page of up to 100 hits, best match first; page further with `offset`.
+
+```rust
+use parsec_edgar::{Client, FullTextQuery};
+
+let client = Client::builder("Example Corp admin@example.com").build()?;
+let q = FullTextQuery::new("\"supply chain disruption\" OR tariffs").forms(&["10-K"]).since("2025").cik(320193);
+let results = client.full_text_search(&q)?;
+println!("{} matching documents", results.total);
+for hit in &results.hits {
+    println!("{} {} {} {}", hit.company, hit.form, hit.filing_date, hit.document_url);
+}
+```
+
+Words must all appear, `"double quotes"` match a phrase, `OR` matches either term, and `-word` excludes one. A form filter also matches the form's amendments. The SEC counts at most 10,000 hits (`total_is_exact` is false beyond that), does not page past 10,000, and returns no text snippets, so read a hit with the filing tools above.
+
 ## Python
 
 ```sh
