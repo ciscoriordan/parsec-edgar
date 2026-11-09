@@ -1,0 +1,21 @@
+[package]
+name = "parsec-edgar"
+description = "Fast SEC EDGAR client and filing parser: company lookup, filing lists, clean text, and 10-K/10-Q/8-K item sections"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+keywords = ["sec", "edgar", "finance", "10-k", "filings"]
+categories = ["parser-implementations", "api-bindings"]
+
+[lib]
+name = "parsec_edgar"
+
+[dependencies]
+ureq = "3.5"
+scraper = "0.29"
+regex = "1.13"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+ego-tree = "0.11.1"
