@@ -1,0 +1,69 @@
+{
+  "accession": "0001047469-04-028470",
+  "cik": 47217,
+  "company": "HP INC",
+  "form": "10-Q",
+  "filing_date": "2004-09-10",
+  "url": "https://www.sec.gov/Archives/edgar/data/47217/000104746904028470/a2142989z10-q.htm",
+  "agent": "Toppan Merrill",
+  "tags": [],
+  "labeled": true,
+  "notes": "A second list of Item headings (bookmarks) follows the exhibit index at the very end.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements.",
+      "occurrence": 0,
+      "next": "HEWLETT-PACKARD COMPANY AND SUBSIDIARIES"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "HEWLETT-PACKARD COMPANY AND SUBSIDIARIES"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "For quantitative and qualitative disclos",
+      "incorporated": true
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Under the supervision and with the parti"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "The information set forth above under No",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds.",
+      "occurrence": 0,
+      "next": "Issuer Purchases of Equity Securities"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits.",
+      "occurrence": 0,
+      "next": "The Exhibit Index found on page 66 of th"
+    }
+  ],
+  "absent": [
+    "part_2_item_1a",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

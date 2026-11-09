@@ -1,0 +1,31 @@
+{
+  "accession": "0001181431-08-003342",
+  "cik": 320193,
+  "company": "Apple Inc.",
+  "form": "8-K",
+  "filing_date": "2008-01-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/320193/000118143108003342/rrd190089.htm",
+  "agent": "agent 0001181431",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_2.02",
+      "text": "Item 2.02. Results of Operations and Financial Condition",
+      "occurrence": 0,
+      "next": "Apple Inc. Chief Executive Officer Steve"
+    },
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01. Other Events",
+      "occurrence": 0,
+      "next": "The information disclosed in Item 2.02 a",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "Signature(s)",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

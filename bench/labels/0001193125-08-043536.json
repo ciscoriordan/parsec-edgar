@@ -1,0 +1,155 @@
+{
+  "accession": "0001193125-08-043536",
+  "cik": 19617,
+  "company": "JPMORGAN CHASE & CO",
+  "form": "10-K",
+  "filing_date": "2008-02-29",
+  "url": "https://www.sec.gov/Archives/edgar/data/19617/000119312508043536/d10k.htm",
+  "agent": "DFIN",
+  "tags": [
+    "bank",
+    "annual-report-attached"
+  ],
+  "labeled": true,
+  "notes": "The 2007 annual report (MD&A, financial statements) is attached after Item 15, from 'Financial:' to the signatures. Running page headers 'Part I' and 'Part II' repeat.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1: Business",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A: Risk factors",
+      "occurrence": 0,
+      "next": "The following discussion sets forth some"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B: Unresolved SEC Staff comments",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2: Properties",
+      "occurrence": 0,
+      "next": "The headquarters of JPMorgan Chase is lo"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3: Legal proceedings",
+      "occurrence": 0,
+      "next": "Enron litigation. JPMorgan Chase and cer"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4: Submission of matters to a vote of security holders",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5: Market for registrant’s common equity, related stockholder matters and issuer purchases of equity securities",
+      "occurrence": 0,
+      "next": "The outstanding shares of JPMorgan Chase"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6: Selected financial data",
+      "occurrence": 0,
+      "next": "For five-year selected financial data, s",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7: Management’s discussion and analysis of financial condition and results of operations",
+      "occurrence": 0,
+      "next": "Management’s discussion and analysis of ",
+      "incorporated": true
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A: Quantitative and qualitative disclosures about market risk",
+      "occurrence": 0,
+      "next": "For information related to market risk, ",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8: Financial statements and supplementary data",
+      "occurrence": 0,
+      "next": "The Consolidated financial statements, t",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9: Changes in and disagreements with accountants on accounting and financial disclosure",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A: Controls and procedures",
+      "occurrence": 0,
+      "next": "As of the end of the period covered by t"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B: Other information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10: Directors, executive officers and corporate governance",
+      "occurrence": 0,
+      "next": "See Item 13 below.",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11: Executive compensation",
+      "occurrence": 0,
+      "next": "See Item 13 below.",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12: Security ownership of certain beneficial owners and management and related stockholder matters",
+      "occurrence": 0,
+      "next": "For security ownership of certain benefi"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13: Certain relationships and related transactions, and Director independence",
+      "occurrence": 0,
+      "next": "Information to be provided in Items 10, ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14: Principal accounting fees and services",
+      "occurrence": 0,
+      "next": "See Item 13 above.",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15: Exhibits, financial statement schedules",
+      "occurrence": 0,
+      "next": "Exhibits, financial statement schedules",
+      "end": {
+        "text": "Financial:",
+        "occurrence": 0,
+        "next": "26\tFive-year summary of consolidated fin"
+      }
+    }
+  ],
+  "end": {
+    "text": "Signatures",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

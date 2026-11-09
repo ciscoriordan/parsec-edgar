@@ -1,0 +1,144 @@
+{
+  "accession": "0000310158-16-000063",
+  "cik": 310158,
+  "company": "Merck & Co., Inc.",
+  "form": "10-K",
+  "filing_date": "2016-02-26",
+  "url": "https://www.sec.gov/Archives/edgar/data/310158/000031015816000063/mrk1231201510k.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness.",
+      "occurrence": 0,
+      "next": "Merck & Co., Inc. (Merck or the Company)"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRisk Factors.",
+      "occurrence": 0,
+      "next": "Investors should carefully consider all "
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.\tUnresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties.",
+      "occurrence": 0,
+      "next": "The Company’s corporate headquarters is "
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings.",
+      "occurrence": 0,
+      "next": "The information called for by this Item ",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tMine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not Applicable"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "The principal market for trading of the "
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Financial Data.",
+      "occurrence": 0,
+      "next": "The following selected financial data sh"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "Description of Merck’s Business"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7a.\tQuantitative and Qualitative Disclosures about Market Risk.",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "(a)\tFinancial Statements"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tControls and Procedures.",
+      "occurrence": 0,
+      "next": "Management of the Company, with the part"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "The required information on directors an",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation.",
+      "occurrence": 0,
+      "next": "The information required on executive co",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "Information with respect to security own"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "The required information on transactions",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPrincipal Accountant Fees and Services.",
+      "occurrence": 0,
+      "next": "The information required for this item i",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits and Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(a) The following documents are filed as"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

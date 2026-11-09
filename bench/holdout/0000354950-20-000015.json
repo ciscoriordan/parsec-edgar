@@ -1,0 +1,149 @@
+{
+  "accession": "0000354950-20-000015",
+  "cik": 354950,
+  "company": "HOME DEPOT, INC.",
+  "form": "10-K",
+  "filing_date": "2020-03-25",
+  "url": "https://www.sec.gov/Archives/edgar/data/354950/000035495020000015/hd10k02022020.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business.",
+      "occurrence": 0,
+      "next": "Introduction"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "Our business, results of operations, and"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties.",
+      "occurrence": 0,
+      "next": "The percentage of our owned versus lease"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "SEC regulations require us to disclose c"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Since April 19, 1984, our common stock h"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "Our MD&A includes the following sections"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "Interest Rate Risk. We have exposure to "
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "Report of Independent Registered Public "
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements With Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information.",
+      "occurrence": 0,
+      "next": "The Home Depot, Inc. has established a $"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "Information required by this item, other"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accounting Fees and Services.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "The following documents are filed as par"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. Form 10-K Summary.",
+      "occurrence": 0,
+      "next": "None."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

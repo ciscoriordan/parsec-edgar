@@ -1,0 +1,77 @@
+{
+  "accession": "0001744489-24-000232",
+  "cik": 1744489,
+  "company": "Walt Disney Co",
+  "form": "10-Q",
+  "filing_date": "2024-08-07",
+  "url": "https://www.sec.gov/Archives/edgar/data/1744489/000174448924000232/dis-20240629.htm",
+  "agent": "agent 0001744489",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1: Financial Statements",
+      "occurrence": 0,
+      "next": "THE WALT DISNEY COMPANY"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2: Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "ORGANIZATION OF INFORMATION"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures about Market Risk.",
+      "occurrence": 0,
+      "next": "See Item 2, Management’s Discussion and ",
+      "incorporated": true
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "As disclosed in Note 13 to the Condensed"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "ITEM 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "For an enterprise as large and complex a"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "ITEM 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "(c)The following table provides informat"
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "ITEM 5. Other Items",
+      "occurrence": 0,
+      "next": "Rule 10b5-1 Trading Arrangements"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6. Exhibits",
+      "occurrence": 0,
+      "next": "INDEX OF EXHIBITS"
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

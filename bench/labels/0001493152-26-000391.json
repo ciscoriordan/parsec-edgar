@@ -1,0 +1,39 @@
+{
+  "accession": "0001493152-26-000391",
+  "cik": 1436229,
+  "company": "BTCS Inc.",
+  "form": "8-K",
+  "filing_date": "2026-01-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/1436229/000149315226000391/form8-k.htm",
+  "agent": "M2 Compliance",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_3.02",
+      "text": "Item 3.02 Unregistered Sales of Equity Securities.",
+      "occurrence": 0,
+      "next": "The information set forth in Item 5.02 b",
+      "incorporated": true
+    },
+    {
+      "id": "item_5.02",
+      "text": "Item 5.02 Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers.",
+      "occurrence": 0,
+      "next": "On January 1, 2026, upon recommendation "
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01 Financial Statements and Exhibits",
+      "occurrence": 0,
+      "next": "(d) Exhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

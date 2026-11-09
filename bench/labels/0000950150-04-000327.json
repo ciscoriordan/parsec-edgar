@@ -1,0 +1,102 @@
+{
+  "accession": "0000950150-04-000327",
+  "cik": 1067983,
+  "company": "BERKSHIRE HATHAWAY INC",
+  "form": "10-K",
+  "filing_date": "2004-03-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/1067983/000095015004000327/a97198e10vk.htm",
+  "agent": "Bowne",
+  "tags": [
+    "insurer",
+    "running-headers"
+  ],
+  "labeled": true,
+  "notes": "Every page repeats its Item heading as a running header. Part III has no Item headings, only a paragraph incorporating the proxy statement.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 1,
+      "next": "Berkshire Hathaway Inc. (“Berkshire,” “C"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Description of Properties",
+      "occurrence": 1,
+      "next": "The physical properties used by the Regi"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 1,
+      "next": "GEICO is a defendant in a number of clas"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders",
+      "occurrence": 1,
+      "next": "None"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Stock and Related Security Holder Matters",
+      "occurrence": 1,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 1,
+      "next": "Selected Financial Data for the Past Fiv"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 1,
+      "next": "Results of Operations"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "See “Market Risk disclosures” contained ",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 1,
+      "next": "INDEPENDENT AUDITORS’ REPORT"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 1,
+      "next": "None"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9 A. Controls and Procedures",
+      "occurrence": 1,
+      "next": "At the end of the period covered by this"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedule, and Reports on Form 8-K",
+      "occurrence": 2,
+      "next": "(a) 1. Financial Statements"
+    }
+  ],
+  "absent": [
+    "item_10",
+    "item_11",
+    "item_12",
+    "item_13",
+    "item_14"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 1,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

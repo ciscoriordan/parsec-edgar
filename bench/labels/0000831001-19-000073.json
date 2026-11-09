@@ -1,0 +1,26 @@
+{
+  "accession": "0000831001-19-000073",
+  "cik": 831001,
+  "company": "CITIGROUP INC",
+  "form": "10-Q",
+  "filing_date": "2019-08-01",
+  "url": "https://www.sec.gov/Archives/edgar/data/831001/000083100119000073/c-6302019x10q.htm",
+  "agent": "self",
+  "tags": [
+    "bank",
+    "cross-reference"
+  ],
+  "labeled": true,
+  "notes": "Quarterly report in a custom layout; no line names an Item.",
+  "items": [],
+  "absent": [
+    "part_1_item_1",
+    "part_1_item_2",
+    "part_1_item_3",
+    "part_1_item_4",
+    "part_2_item_1",
+    "part_2_item_1a",
+    "part_2_item_2",
+    "part_2_item_6"
+  ]
+}

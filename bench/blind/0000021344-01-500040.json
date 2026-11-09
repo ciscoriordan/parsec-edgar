@@ -1,0 +1,53 @@
+{
+  "accession": "0000021344-01-500040",
+  "cik": 21344,
+  "company": "COCA COLA CO",
+  "form": "10-Q",
+  "filing_date": "2001-11-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/21344/000002134401500040/koq930.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements (Unaudited)",
+      "occurrence": 0,
+      "next": "THE COCA-COLA COMPANY AND SUBSIDIARIES"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's Discussion and Analysis of Financial",
+      "occurrence": 1,
+      "next": "Condition and Results of Operations"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures",
+      "occurrence": 1,
+      "next": "About Market Risk"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.     Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a) Exhibits:"
+    }
+  ],
+  "absent": [
+    "part_1_item_4",
+    "part_2_item_1",
+    "part_2_item_1a",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

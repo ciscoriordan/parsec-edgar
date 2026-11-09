@@ -1,0 +1,57 @@
+{
+  "accession": "0001193125-12-453916",
+  "cik": 72971,
+  "company": "WELLS FARGO & COMPANY/MN",
+  "form": "10-Q",
+  "filing_date": "2012-11-06",
+  "url": "https://www.sec.gov/Archives/edgar/data/72971/000119312512453916/d404366d10q.htm",
+  "agent": "DFIN",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "Part I has no Item headings in the body: a cross-reference index maps Items 1-4 to pages of the financial review and statements.",
+  "items": [
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "Information in response to this item can",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "Information in response to this item can",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "The following table shows Company repurc"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.\tExhibits",
+      "occurrence": 0,
+      "next": "A list of exhibits to this Form 10-Q is ",
+      "incorporated": true
+    }
+  ],
+  "absent": [
+    "part_1_item_1",
+    "part_1_item_2",
+    "part_1_item_3",
+    "part_1_item_4",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

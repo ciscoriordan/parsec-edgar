@@ -1,0 +1,30 @@
+{
+  "accession": "0000021344-10-000013",
+  "cik": 21344,
+  "company": "COCA COLA CO",
+  "form": "8-K",
+  "filing_date": "2010-12-09",
+  "url": "https://www.sec.gov/Archives/edgar/data/21344/000002134410000013/ko8k120910.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_5.02",
+      "text": "Item 5.02. Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers.",
+      "occurrence": 0,
+      "next": "On December 9, 2010, the Board of Direct"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01. Financial Statements and Exhibits",
+      "occurrence": 0,
+      "next": "99.1\tPress Release of The Coca-Cola Comp"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

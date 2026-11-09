@@ -1,0 +1,44 @@
+{
+  "accession": "0001193125-24-065885",
+  "cik": 19617,
+  "company": "JPMORGAN CHASE & CO",
+  "form": "8-K",
+  "filing_date": "2024-03-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/19617/000119312524065885/d807686d8k.htm",
+  "agent": "DFIN",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_3.03",
+      "text": "Item 3.03.\tMaterial Modification to Rights of Security Holders.",
+      "occurrence": 0,
+      "next": "On March 12, 2024, JPMorgan Chase & Co. "
+    },
+    {
+      "id": "item_5.03",
+      "text": "Item 5.03.\tAmendments to Articles of Incorporation or Bylaws; Change in Fiscal Year.",
+      "occurrence": 0,
+      "next": "On March 11, 2024, the Company filed a C"
+    },
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01.\tOther Events.",
+      "occurrence": 0,
+      "next": "On March 12, 2024, the Company completed"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01.\tFinancial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "accession": "0001193125-09-033126",
+  "cik": 77476,
+  "company": "PEPSICO INC",
+  "form": "10-K",
+  "filing_date": "2009-02-19",
+  "url": "https://www.sec.gov/Archives/edgar/data/77476/000119312509033126/d10k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness",
+      "occurrence": 0,
+      "next": "PepsiCo, Inc. was incorporated in Delawa"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "Forward-Looking and Cautionary Statement"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "We have received no written comments reg"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "Our most significant corporate propertie"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "We are party to a variety of legal proce"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Stock Trading Symbol – PEP"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "Selected Financial Data is included on p",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "OUR BUSINESS"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Included in “Item 7. Management’s Discus",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "See “Item 15. Exhibits and Financial Sta",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements With Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "(a) Disclosure Controls and Procedures. "
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "The name, age and background of each of "
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "Information on compensation of our direc",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "Information with respect to securities a",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "Transactions with Related Persons. Infor",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "Information on our Audit Committee’s pre",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)1.\tFinancial Statements"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

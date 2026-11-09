@@ -1,0 +1,42 @@
+{
+  "accession": "0001193125-16-619689",
+  "cik": 789019,
+  "company": "MICROSOFT CORP",
+  "form": "8-K",
+  "filing_date": "2016-06-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312516619689/d116815d8k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "Item 1.01.\tEntry into a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "On June 11, 2016, Microsoft Corporation,"
+    },
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01\tRegulation FD Disclosure.",
+      "occurrence": 0,
+      "next": "On and after June 13, 2016, representati"
+    },
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01\tOther Events.",
+      "occurrence": 0,
+      "next": "A copy of the joint press release announ"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01\tFinancial Statements and Exhibits",
+      "occurrence": 0,
+      "next": "(d) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

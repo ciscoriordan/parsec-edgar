@@ -1,0 +1,115 @@
+{
+  "accession": "0000898430-01-503823",
+  "cik": 1001039,
+  "company": "TWDC Enterprises 18 Corp.",
+  "form": "10-K",
+  "filing_date": "2001-12-10",
+  "url": "https://www.sec.gov/Archives/edgar/data/1001039/000089843001503823/d10k.txt",
+  "agent": "agent 0000898430",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Pre-2003 numbering: Item 14 is exhibits. Financial statements follow the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. Business",
+      "occurrence": 0,
+      "next": "The Walt Disney Company, together with i"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. Properties",
+      "occurrence": 0,
+      "next": "The Walt Disney World Resort, Disneyland"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "The Company, together with, in some inst"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of s"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. Market for the Company's Common Stock and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The Company's common stock is listed on "
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "(In millions, except per share data)"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. Management's Discussion and Analysis of Financial Condition and Results",
+      "occurrence": 0,
+      "next": "of Operations"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. Market Risk",
+      "occurrence": 0,
+      "next": "The Company is exposed to the impact of "
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "See Index to Financial Statements and Su",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. Changes in and Disagreements with Accountants on Accounting and",
+      "occurrence": 0,
+      "next": "Financial Disclosure"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. Directors and Executive Officers of the Company",
+      "occurrence": 0,
+      "next": "Directors"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "Information appearing under the captions",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. Security Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 0,
+      "next": "Information setting forth the security o",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "Information regarding certain related tr",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. Exhibits, Financial Statement Schedules and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a) Exhibits and Financial Statements an"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

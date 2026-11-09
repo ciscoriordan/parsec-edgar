@@ -1,0 +1,160 @@
+{
+  "accession": "0000080424-24-000083",
+  "cik": 80424,
+  "company": "PROCTER & GAMBLE Co",
+  "form": "10-K",
+  "filing_date": "2024-08-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/80424/000008042424000083/pg-20240630.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business.",
+      "occurrence": 0,
+      "next": "The Procter & Gamble Company (the Compan"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "We discuss our expectations regarding fu"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_1c",
+      "text": "Item 1C. Cybersecurity.",
+      "occurrence": 0,
+      "next": "Risk Management and Strategy"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties.",
+      "occurrence": 0,
+      "next": "In the U.S., we own and operate 24 manuf"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "The Company is subject, from time to tim"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosure.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "ISSUER PURCHASES OF EQUITY SECURITIES"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Intentionally Omitted.",
+      "occurrence": 0,
+      "next": "Item 7. Management's Discussion and Anal"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "Forward-Looking Statements"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "MANAGEMENT'S REPORT ON INTERNAL CONTROL "
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information.",
+      "occurrence": 0,
+      "next": "During the fiscal year ended June 30, 20"
+    },
+    {
+      "id": "item_9c",
+      "text": "Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspections.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "The Board of Directors has determined th"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "The following table gives information ab"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions and Director Independence.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "1.Financial Statements:"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. Form 10-K Summary.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "accession": "0000320187-21-000028",
+  "cik": 320187,
+  "company": "NIKE, Inc.",
+  "form": "10-K",
+  "filing_date": "2021-07-20",
+  "url": "https://www.sec.gov/Archives/edgar/data/320187/000032018721000028/nke-20210531.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "The auditor's consent sits between Item 16 and the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "GENERAL"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "Special Note Regarding Forward-Looking S"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "The following is a summary of principal "
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "There are no material pending legal proc"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR REGISTRANT'S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "NIKE's Class B Common Stock is listed on"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "NIKE designs, develops, markets and sell"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "In the normal course of business and con"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Management of NIKE, Inc. is responsible "
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "There has been no change of accountants "
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "We maintain disclosure controls and proc"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "No disclosure is required under this ite"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "The information required by Item 401 of ",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by Items 402, 4",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The information required by Item 201(d) ",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required by Items 404 an",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by Item 9(e) of",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "(a)\tThe following documents are filed as"
+    },
+    {
+      "id": "item_16",
+      "text": "ITEM 16. FORM 10-K SUMMARY",
+      "occurrence": 0,
+      "next": "None.",
+      "end": {
+        "text": "Consent of Independent Registered Public Accounting Firm",
+        "occurrence": 0,
+        "next": "We hereby consent to the incorporation b"
+      }
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

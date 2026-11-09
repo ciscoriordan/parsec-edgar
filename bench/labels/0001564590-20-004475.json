@@ -1,0 +1,149 @@
+{
+  "accession": "0001564590-20-004475",
+  "cik": 1318605,
+  "company": "Tesla, Inc.",
+  "form": "10-K",
+  "filing_date": "2020-02-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/1318605/000156459020004475/tsla-10k_20191231.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.\tBUSINESS",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A.\tRISK FACTORS",
+      "occurrence": 0,
+      "next": "You should carefully consider the risks "
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B.\tUNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.\tPROPERTIES",
+      "occurrence": 0,
+      "next": "We are headquartered in Palo Alto, Calif"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.\tLEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "For a description of our material pendin"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.\tMINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.\tMARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.\tSELECTED CONSOLIDATED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "The following selected consolidated fina"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.\tMANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion and analysis sh"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A.\tQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Foreign Currency Risk"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8.\tFINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Index to Consolidated Financial Statemen"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.\tCHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A.\tCONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B.\tOTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.\tDIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "The information required by this Item 10",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.\tEXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this Item 11",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.\tSECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The information required by this Item 12",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.\tCERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required by this Item 13",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14.\tPRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by this Item 14",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15.\tEXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "1.\tFinancial statements (see Index to Co"
+    },
+    {
+      "id": "item_16",
+      "text": "ITEM 16.\tSUMMARY",
+      "occurrence": 0,
+      "next": "None"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

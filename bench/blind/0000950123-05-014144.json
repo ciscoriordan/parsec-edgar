@@ -1,0 +1,28 @@
+{
+  "accession": "0000950123-05-014144",
+  "cik": 77476,
+  "company": "PEPSICO INC",
+  "form": "8-K",
+  "filing_date": "2005-11-29",
+  "url": "https://www.sec.gov/Archives/edgar/data/77476/000095012305014144/y15176e8vk.htm",
+  "agent": "Bowne",
+  "tags": [],
+  "labeled": true,
+  "notes": "Item 9.01 is listed in the filing index but has no heading in the document.",
+  "items": [
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01 Regulation FD Disclosure",
+      "occurrence": 0,
+      "next": "The information in this Current Report i"
+    }
+  ],
+  "absent": [
+    "item_9.01"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

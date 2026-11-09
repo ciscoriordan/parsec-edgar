@@ -1,0 +1,38 @@
+{
+  "accession": "0001047469-06-002377",
+  "cik": 831001,
+  "company": "CITIGROUP INC",
+  "form": "10-K",
+  "filing_date": "2006-02-24",
+  "url": "https://www.sec.gov/Archives/edgar/data/831001/000104746906002377/a2167745z10-k.htm",
+  "agent": "Toppan Merrill",
+  "tags": [
+    "bank",
+    "cross-reference"
+  ],
+  "labeled": true,
+  "notes": "Annual report with a 10-K cross-reference index mapping each Item to page numbers. No Item has a body heading.",
+  "items": [],
+  "absent": [
+    "item_1",
+    "item_1a",
+    "item_1b",
+    "item_2",
+    "item_3",
+    "item_4",
+    "item_5",
+    "item_6",
+    "item_7",
+    "item_7a",
+    "item_8",
+    "item_9",
+    "item_9a",
+    "item_9b",
+    "item_10",
+    "item_11",
+    "item_12",
+    "item_13",
+    "item_14",
+    "item_15"
+  ]
+}

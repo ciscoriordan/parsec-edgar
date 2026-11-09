@@ -1,0 +1,124 @@
+{
+  "accession": "0000914317-04-003536",
+  "cik": 33533,
+  "company": "ESPEY MFG & ELECTRONICS CORP",
+  "form": "10-K",
+  "filing_date": "2004-09-22",
+  "url": "https://www.sec.gov/Archives/edgar/data/33533/000091431704003536/form10k-62953_espy.txt",
+  "agent": "agent 0000914317",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business.",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "The  Company's  manufacturing  and  engi"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "On June 3, 2004, the Company was informe"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for the Registrant's Common Equity and Related Stockholder",
+      "occurrence": 0,
+      "next": "Matters."
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data.",
+      "occurrence": 0,
+      "next": "ESPEY MFG. & ELECTRONICS CORP."
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's Discussion and Analysis of Financial Condition and",
+      "occurrence": 0,
+      "next": "Results of Operations"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements",
+      "occurrence": 0,
+      "next": "Report of Independent Registered Public "
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and disagreements with accountants on accounting and",
+      "occurrence": 0,
+      "next": "financial disclosure"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "(a) The Company's  management,  with the"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "Identification of Directors"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "The following table  summarizes the annu"
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 0,
+      "next": "Security Ownership of Certain Beneficial"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13 Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "As previously  reported,  the Company  e"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14 Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The  information  required by this item ",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedules, and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a)  1. Financial Statements"
+    }
+  ],
+  "end": {
+    "text": "S I G N A T U R E S",
+    "occurrence": 0,
+    "next": "Pursuant  to the  requirements  of Secti"
+  }
+}

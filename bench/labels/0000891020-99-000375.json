@@ -1,0 +1,114 @@
+{
+  "accession": "0000891020-99-000375",
+  "cik": 1018724,
+  "company": "AMAZON COM INC",
+  "form": "10-K",
+  "filing_date": "1999-03-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/1018724/000089102099000375/0000891020-99-000375.txt",
+  "agent": "agent 0000891020",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "This Annual Report on Form 10-K and the "
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "The Company's principal office facilitie"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "Intimate Bookshop. In August 1998, The I"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "No matters were submitted for a vote of "
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR THE REGISTRANT'S COMMON STOCK AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. SELECTED CONSOLIDATED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "The following selected consolidated fina"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS",
+      "occurrence": 0,
+      "next": "OF OPERATIONS"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURE ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "The Company does not have any derivative"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "INDEX TO CONSOLIDATED FINANCIAL STATEMEN"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 0,
+      "next": "FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "Information regarding the Company's exec",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "Information required by Part III, Item 1",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "Information required by Part III, Item 1",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "Information regarding certain of the Com",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(A) LIST OF DOCUMENTS FILED AS A PART OF"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

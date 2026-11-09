@@ -82,13 +82,16 @@ let recent = client.filings("NVDA", &FilingQuery::forms(&["8-K"]).since("2026-01
 
 Each section has `id`, `part` (10-Q only), `item`, `title` (the standard title), `heading` (as printed in the filing), `start` and `end` (byte offsets in the filing text), and `text`.
 
-How it works: every line that looks like an Item heading is a candidate, including table-of-contents entries and running page headers. The extractor picks one candidate per Item so that the chosen headings follow the form's Item order and start the longest runs of text, which skips the table of contents.
+How it works: every line that looks like an Item heading is a candidate, including table-of-contents entries and running page headers. Table-of-contents entries whose heading reappears in the body, bare page headers just before an Item's titled heading, and lists of Items printed again after the signatures are dropped first. The extractor then picks one candidate per Item so that the chosen headings follow the form's Item order and start the longest runs of text. In a 10-Q, PART lines decide whether an Item belongs to Part I or Part II, and Items printed out of order (Part II before Part I) are kept. The last Item ends at the signatures, at the signature block's opening sentence when there is no signatures heading, or at an attached document with its own paginated table of contents, such as a full annual report.
+
+Accuracy is measured against 104 hand-labeled filings from 1997 to 2026 (`bench/`). Every labeled Item start is found (F1 1.000), and 99% or more of the labeled text lands in the right Item. The extractor was tuned on these filings, including the two sets held back at first. [bench/README.md](bench/README.md) has the details and scores edgar-crawler and edgartools on the same filings.
 
 ## Known limitations
 
-- Filings from before about 2002 split only partly (a 1997 Microsoft 10-K yields 4 of its Items).
-- Running page headers such as "Apple Inc. | 2026 Form 10-K | 5" stay in the text.
-- Filings that attach a full annual report after Item 15 (JPMorgan, for example) put that whole report in `item_15`.
+- Financial statement pages printed after the last Item without their own table of contents (Netflix, for example) stay in the last Item.
+- Out-of-order Items are recognized only in 10-Q filings with PART lines.
+- An executive officers section without its own Item number stays in the Item before it (usually Item 4).
+- Running page headers and footers are removed when they carry a page number and repeat on five or more pages; short ones such as "2021 Form 10-K 100" stay.
 - Tables are rendered as tab-separated lines, not yet as structured data.
 
 ## Layout
@@ -98,12 +101,14 @@ How it works: every line that looks like an Item heading is a candidate, includi
 | `crates/parsec-edgar` | Core library |
 | `crates/parsec-edgar-cli` | `parsec-edgar` command-line tool |
 | `python` | Python bindings (PyO3, built with maturin) |
+| `bench` | Section-splitting accuracy and speed benchmark, with hand labels |
 
 ## Development
 
 ```sh
 cargo test                       # unit tests, no network
 cd python && maturin develop     # build the Python extension into the active virtualenv
+cargo run --release -p parsec-edgar-bench -- score   # section accuracy on the labeled filings (downloads them once)
 ```
 
 ## License

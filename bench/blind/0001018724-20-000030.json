@@ -1,0 +1,85 @@
+{
+  "accession": "0001018724-20-000030",
+  "cik": 1018724,
+  "company": "AMAZON COM INC",
+  "form": "10-Q",
+  "filing_date": "2020-10-30",
+  "url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872420000030/amzn-20200930.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1.\tFinancial Statements",
+      "occurrence": 0,
+      "next": "AMAZON.COM, INC."
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Forward-Looking Statements"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3.\tQuantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "We are exposed to market risk for the ef"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "We carried out an evaluation required by"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "See Item 1 of Part I, “Financial Stateme",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "Please carefully consider the following "
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3.\tDefaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.\tMine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5.\tOther Information",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.\tExhibits",
+      "occurrence": 0,
+      "next": "Exhibit"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

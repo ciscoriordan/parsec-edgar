@@ -2,9 +2,10 @@
 //!
 //! One line per block (paragraph, heading, list item, table row). Table cells
 //! are joined with tabs, with `$` and `)`/`%` cells merged into their numbers.
-//! Hidden inline-XBRL headers, scripts, styles, page numbers and repeated
-//! "Table of Contents" links are dropped.
+//! Hidden inline-XBRL headers, scripts, styles, page numbers, running page
+//! headers and footers, and repeated "Table of Contents" links are dropped.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use ego_tree::NodeRef;
@@ -39,9 +40,15 @@ fn first_document_body(raw: &str) -> Option<&str> {
     Some(&rest[start..end])
 }
 
+/// Old plain-text filings use SGML `<TABLE>`, `<S>` and `<C>` tags, so a bare
+/// `<table` does not mean HTML: only tags that plain-text filings never use count.
 fn looks_like_html(s: &str) -> bool {
-    let head: String = s.chars().take(8192).collect::<String>().to_ascii_lowercase();
-    ["<html", "<body", "<div", "<p>", "<p ", "<table", "<font", "<br"].iter().any(|t| head.contains(t))
+    let mut end = s.len().min(64 * 1024);
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    let head = s[..end].to_ascii_lowercase();
+    ["<html", "<body", "<div", "<p>", "<p ", "<font", "<br", "<tr>", "<tr ", "<td", "<span"].iter().any(|t| head.contains(t))
 }
 
 /// Old plain-text filings: drop SGML layout tags, then the same line cleanup as HTML.
@@ -205,21 +212,66 @@ fn merge_cells(cells: Vec<String>) -> Vec<String> {
     merged
 }
 
-/// Trim lines and drop empty lines, bare page numbers and "Table of Contents" links.
+/// Trim lines and drop empty lines, bare page numbers, "Table of Contents"
+/// links and running page headers and footers.
 fn finish(text: &str) -> String {
     static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"^(?:(?i:page)\s+)?(?:\d{1,3}|[ivxlc]{1,7}|F-\d{1,3}|[-–—]\s*\d{1,3}\s*[-–—])$").unwrap()
     });
+    let lines: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !PAGE_NUMBER.is_match(l) && !l.eq_ignore_ascii_case("table of contents"))
+        .collect();
+    let furniture = page_furniture(&lines);
     let mut out = String::with_capacity(text.len());
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() || PAGE_NUMBER.is_match(line) || line.eq_ignore_ascii_case("table of contents") {
-            continue;
+    for (i, line) in lines.iter().enumerate() {
+        if !furniture.contains(&i) {
+            out.push_str(line);
+            out.push('\n');
         }
-        out.push_str(line);
-        out.push('\n');
     }
     out
+}
+
+/// Running page headers and footers: short lines that repeat with only a page
+/// number changing, such as "Apple Inc. | 2026 Form 10-K | 23" or
+/// "26  JPMorgan Chase & Co./2007 Annual Report". The page numbers must
+/// mostly increase through the document, which data rows do not do.
+fn page_furniture(lines: &[&str]) -> HashSet<usize> {
+    const MIN_REPEATS: usize = 5;
+    static NUMBERED: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"^(?:(\d{1,3})(?:\s*\|\s*|\s+)(\S.*)|(.*\S)(?:\s*\|\s*|\s+)(\d{1,3}))$").unwrap()
+    });
+    let mut families: HashMap<&str, Vec<(usize, u32)>> = HashMap::new();
+    for (i, line) in lines.iter().enumerate() {
+        let numbered = line.starts_with(|c: char| c.is_ascii_digit()) || line.ends_with(|c: char| c.is_ascii_digit());
+        if line.len() > 120 || !numbered {
+            continue;
+        }
+        let Some(c) = NUMBERED.captures(line) else { continue };
+        let (Some(num), Some(rest)) = (c.get(1).or_else(|| c.get(4)), c.get(2).or_else(|| c.get(3))) else {
+            continue;
+        };
+        let rest = rest.as_str().trim_matches(|c: char| c == '|' || c.is_whitespace());
+        if rest.chars().filter(|c| c.is_alphabetic()).count() < 10 || !rest.contains(' ') {
+            continue;
+        }
+        if let Ok(n) = num.as_str().parse() {
+            families.entry(rest).or_default().push((i, n));
+        }
+    }
+    let mut drop = HashSet::new();
+    for seen in families.values() {
+        if seen.len() < MIN_REPEATS {
+            continue;
+        }
+        let rising = seen.windows(2).filter(|w| w[1].1 > w[0].1).count();
+        if rising * 10 >= (seen.len() - 1) * 9 {
+            drop.extend(seen.iter().map(|&(i, _)| i));
+        }
+    }
+    drop
 }
 
 #[cfg(test)]
@@ -267,6 +319,22 @@ mod tests {
     }
 
     #[test]
+    fn running_page_footers_dropped() {
+        let mut html = String::new();
+        for page in 20..26 {
+            html += &format!("<p>Text of page {page}.</p><p>Apple Inc. | 2026 Form 10-K | {page}</p>");
+        }
+        // Repeated rows whose numbers do not count up like pages stay.
+        for _ in 0..6 {
+            html += "<p>Total stores at year end 12</p>";
+        }
+        let text = html_to_text(&html);
+        assert!(!text.contains("Form 10-K"));
+        assert!(text.starts_with("Text of page 20.\nText of page 21.\n"));
+        assert_eq!(text.matches("Total stores at year end 12").count(), 6);
+    }
+
+    #[test]
     fn deep_nesting_does_not_overflow() {
         let html = format!("{}deep{}", "<font>".repeat(100_000), "</font>".repeat(100_000));
         assert_eq!(html_to_text(&html), "deep\n");
@@ -276,5 +344,15 @@ mod tests {
     fn full_submission_plain_text() {
         let raw = "<SEC-DOCUMENT>\n<DOCUMENT>\n<TYPE>10-K\n<TEXT>\n<PAGE>\nITEM 1. BUSINESS\n\n  We make things.\n</TEXT>\n</DOCUMENT>";
         assert_eq!(document_to_text(raw), "ITEM 1. BUSINESS\nWe make things.\n");
+    }
+
+    #[test]
+    fn sgml_tables_stay_plain_text() {
+        let raw = "<DOCUMENT>\n<TEXT>\n<PAGE>\nITEM 6. SELECTED FINANCIAL DATA\n<TABLE>\n<CAPTION>\n<S>      <C>\n\
+                   Net sales   $ 6,134\n</TABLE>\nITEM 7. MANAGEMENT'S DISCUSSION\n</TEXT>";
+        assert_eq!(
+            document_to_text(raw),
+            "ITEM 6. SELECTED FINANCIAL DATA\nNet sales   $ 6,134\nITEM 7. MANAGEMENT'S DISCUSSION\n"
+        );
     }
 }

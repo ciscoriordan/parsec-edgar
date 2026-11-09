@@ -1,0 +1,66 @@
+{
+  "accession": "0000891618-05-000821",
+  "cik": 50863,
+  "company": "INTEL CORP",
+  "form": "10-Q",
+  "filing_date": "2005-11-01",
+  "url": "https://www.sec.gov/Archives/edgar/data/50863/000089161805000821/f12965e10vq.htm",
+  "agent": "agent 0000891618",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1. FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "INTEL CORPORATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "We begin Management’s Discussion and Ana"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "The information in this section should b"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Attached as exhibits to this Form 10-Q a"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "A. Tax Matters"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "ITEM 2. UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS",
+      "occurrence": 0,
+      "next": "Issuer Purchases of Equity Securities"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6. EXHIBITS",
+      "occurrence": 0,
+      "next": "10.1\t**\tSummary of Intel Corporation Non"
+    }
+  ],
+  "absent": [
+    "part_2_item_1a",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

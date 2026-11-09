@@ -1,0 +1,143 @@
+{
+  "accession": "0001018724-14-000006",
+  "cik": 1018724,
+  "company": "AMAZON COM INC",
+  "form": "10-K",
+  "filing_date": "2014-01-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872414000006/amzn-20131231x10k.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness",
+      "occurrence": 0,
+      "next": "This Annual Report on Form 10-K and the "
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "Please carefully consider the following "
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.\tUnresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties",
+      "occurrence": 0,
+      "next": "As of December 31, 2013, we operated the"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "See Item 8 of Part II, “Financial Statem",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tMine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for the Registrant’s Common Stock, Related Shareholder Matters, and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Consolidated Financial Data",
+      "occurrence": 0,
+      "next": "The following selected consolidated fina"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Forward-Looking Statements"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "We are exposed to market risk for the ef"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "INDEX TO CONSOLIDATED FINANCIAL STATEMEN"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements with Accountants On Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers, and Corporate Governance",
+      "occurrence": 0,
+      "next": "Information regarding our Executive Offi"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "Information required by Item 11 of Part ",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Shareholder Matters",
+      "occurrence": 0,
+      "next": "Information required by Item 12 of Part ",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "Information required by Item 13 of Part ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPrincipal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "Information required by Item 14 of Part ",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits, Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a) List of Documents Filed as a Part of"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

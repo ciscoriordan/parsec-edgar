@@ -1,0 +1,72 @@
+{
+  "accession": "0001045810-25-000230",
+  "cik": 1045810,
+  "company": "NVIDIA CORP",
+  "form": "10-Q",
+  "filing_date": "2025-11-19",
+  "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000230/nvda-20251026.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements (Unaudited)",
+      "occurrence": 1,
+      "next": "NVIDIA Corporation and Subsidiaries"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Forward-Looking Statements"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "Investment and Interest Rate Risk"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Controls and Procedures"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "Refer to Part I, Item 1, Note 11 of the "
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "Other than the risk factors listed below"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "Issuer Purchases of Equity Securities"
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information",
+      "occurrence": 0,
+      "next": "The following members of our Board of Di"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit No.\tExhibit Description"
+    }
+  ],
+  "end": {
+    "text": "Signature",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

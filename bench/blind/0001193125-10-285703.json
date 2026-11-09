@@ -1,0 +1,72 @@
+{
+  "accession": "0001193125-10-285703",
+  "cik": 1341439,
+  "company": "ORACLE CORP",
+  "form": "10-Q",
+  "filing_date": "2010-12-21",
+  "url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312510285703/d10q.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements (Unaudited)",
+      "occurrence": 1,
+      "next": "ORACLE CORPORATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "We begin Management’s Discussion and Ana"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Foreign Currency Risk"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "The material set forth in Note 14 of Not",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "In addition to the other information set"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "Our Board of Directors has approved a pr"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit"
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

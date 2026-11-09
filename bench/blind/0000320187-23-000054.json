@@ -1,0 +1,36 @@
+{
+  "accession": "0000320187-23-000054",
+  "cik": 320187,
+  "company": "NIKE, Inc.",
+  "form": "8-K",
+  "filing_date": "2023-12-21",
+  "url": "https://www.sec.gov/Archives/edgar/data/320187/000032018723000054/nke-20231221.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_2.02",
+      "text": "Item 2.02 Results of Operations and Financial Condition",
+      "occurrence": 0,
+      "next": "Today NIKE, Inc. (the “Company”) issued "
+    },
+    {
+      "id": "item_2.05",
+      "text": "Item 2.05 Costs Associated with Exit or Disposal Activities",
+      "occurrence": 0,
+      "next": "On December 21, 2023, the Company announ"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01 Financial Statements and Exhibits",
+      "occurrence": 0,
+      "next": "(d) Exhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

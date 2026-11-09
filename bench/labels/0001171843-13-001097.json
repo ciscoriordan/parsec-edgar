@@ -1,0 +1,144 @@
+{
+  "accession": "0001171843-13-001097",
+  "cik": 101295,
+  "company": "UNITED GUARDIAN INC",
+  "form": "10-K",
+  "filing_date": "2013-03-21",
+  "url": "https://www.sec.gov/Archives/edgar/data/101295/000117184313001097/f10k_032013.htm",
+  "agent": "agent 0001171843",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business.",
+      "occurrence": 0,
+      "next": "(a) Introduction"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "The information to be reported under thi"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "The information to be reported under thi"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties.",
+      "occurrence": 0,
+      "next": "The Company maintains its principal offi"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data.",
+      "occurrence": 0,
+      "next": "The information to be reported under thi"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "Critical Accounting Policies"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "The information to be reported under thi"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "Annexed hereto starting on page F-1."
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements With Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tControls and Procedures.",
+      "occurrence": 0,
+      "next": "(a) Evaluation of Disclosure Controls an"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accounting Fees and Services.",
+      "occurrence": 0,
+      "next": "Audit Fees"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(a)\tDocuments filed as part of this repo"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

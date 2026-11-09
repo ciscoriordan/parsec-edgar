@@ -1,0 +1,48 @@
+{
+  "accession": "0001564590-23-000799",
+  "cik": 1318605,
+  "company": "Tesla, Inc.",
+  "form": "8-K",
+  "filing_date": "2023-01-25",
+  "url": "https://www.sec.gov/Archives/edgar/data/1318605/000156459023000799/tsla-8k_20230120.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "Item 1.01Entry Into a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "Revolving Credit Facility"
+    },
+    {
+      "id": "item_1.02",
+      "text": "Item 1.02Termination of a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "Termination of ABL Credit Agreement"
+    },
+    {
+      "id": "item_2.02",
+      "text": "Item 2.02Results of Operations and Financial Condition.",
+      "occurrence": 0,
+      "next": "On January 25, 2023, Tesla released its "
+    },
+    {
+      "id": "item_2.03",
+      "text": "Item 2.03Creation of a Direct Financial Obligation or an Obligation Under an Off-Balance Sheet Arrangement of a Registrant.",
+      "occurrence": 0,
+      "next": "The information set forth in Item 1.01 a"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d)\tExhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

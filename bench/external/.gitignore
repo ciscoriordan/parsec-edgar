@@ -1,0 +1,6 @@
+# Made by run.sh and never committed: the edgar-crawler clone (GPL), the
+# virtual environments, exported filings and tool output.
+/edgar-crawler/
+/.venv-*/
+/raw/
+/out/
