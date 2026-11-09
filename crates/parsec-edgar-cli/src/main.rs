@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+mod crawl;
+
 use clap::{Args, Parser, Subcommand};
 use parsec_edgar::{Client, Error, Filing, FilingQuery};
 
@@ -73,6 +75,9 @@ enum Command {
         #[arg(long)]
         no_text: bool,
     },
+
+    /// Bulk download filings by form and date (all companies, or a list) into JSON files.
+    Crawl(crawl::CrawlArgs),
 }
 
 #[derive(Args)]
@@ -128,6 +133,7 @@ fn run(cli: Cli) -> Result<(), Error> {
             }
             print_json(&serde_json::json!({ "filing": filing, "sections": sections }));
         }
+        Command::Crawl(args) => crawl::run(&client, args)?,
     }
     Ok(())
 }
