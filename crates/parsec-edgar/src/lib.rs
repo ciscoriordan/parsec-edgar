@@ -19,15 +19,23 @@
 
 mod client;
 mod company;
+mod crawl;
 mod encoding;
 mod error;
+mod filing_index;
 mod filings;
 mod html;
+mod index;
+mod profile;
 mod sections;
 
 pub use client::{Client, ClientBuilder};
 pub use company::Company;
+pub use crawl::{CrawlQuery, Document};
 pub use error::{Error, Result};
+pub use filing_index::{Filer, FilingIndex, IndexDocument, parse_filing_index};
 pub use filings::{Filing, FilingQuery};
 pub use html::{document_to_text, html_to_text};
+pub use index::{IndexEntry, Quarter, parse_master_index};
+pub use profile::CompanyProfile;
 pub use sections::{FormKind, Section, extract_sections};
