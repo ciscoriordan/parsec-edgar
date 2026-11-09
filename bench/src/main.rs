@@ -251,9 +251,7 @@ fn run(cli: Cli) -> Res<()> {
                 label.notes = n.clone();
             }
             label.labeled = true;
-            // Save only labels that resolve back to lines of the filing.
-            let truth = labels::resolve(&doc, &label)?;
-            labels::save(&path, &label)?;
+            let truth = labels::save_resolved(&path, &doc, &label)?;
             for t in &truth.items {
                 println!("{:<16} {:>6} {}", t.id, t.line, trunc(doc.line(t.line), 90));
             }

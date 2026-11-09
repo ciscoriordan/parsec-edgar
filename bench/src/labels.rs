@@ -313,6 +313,14 @@ pub fn save(path: &Path, label: &LabelFile) -> Res<()> {
     })
 }
 
+/// Save a label file only when its labels resolve in `doc`, so a bad
+/// labeling command never leaves a broken file behind.
+pub fn save_resolved(path: &Path, doc: &Doc, label: &LabelFile) -> Res<Truth> {
+    let truth = resolve(doc, label)?;
+    save(path, label)?;
+    Ok(truth)
+}
+
 fn load(path: &Path) -> Res<LabelFile> {
     let s = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     serde_json::from_str(&s).map_err(|e| format!("{}: {e}", path.display()))
@@ -408,6 +416,35 @@ mod tests {
         let r = LineRef { text: "Item 7. MD&A".into(), occurrence: 0, next: Some("Results".into()) };
         assert!(doc.find(&r).is_err());
         assert_eq!(doc.find_pos(&r).unwrap(), "Intro text. ".len());
+    }
+
+    #[test]
+    fn labels_that_do_not_resolve_are_not_saved() {
+        let dir = std::env::temp_dir().join(format!("parsec-bench-labels-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("0000000000-00-000001.json");
+        std::fs::write(&path, "old\n").unwrap();
+        let doc = Doc::new("Item 1. Business\nx\nItem 2. Properties\ny\nSIGNATURES\n".into());
+        let mut l = LabelFile { labeled: true, ..LabelFile::default() };
+        // Item 2 is given an end above its own heading.
+        l.items.push(ItemLabel { id: "item_1".into(), heading: doc.line_ref(0).unwrap(), ..ItemLabel::default() });
+        l.items.push(ItemLabel {
+            id: "item_2".into(),
+            heading: doc.line_ref(2).unwrap(),
+            end: Some(doc.line_ref(1).unwrap()),
+            ..ItemLabel::default()
+        });
+        assert!(save_resolved(&path, &doc, &l).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old\n");
+
+        l.items[1].end = None;
+        l.end = Some(doc.line_ref(4).unwrap());
+        assert!(save_resolved(&path, &doc, &l).is_ok());
+        let saved: LabelFile = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(saved.items.len(), 2);
+        // Only the label file is left, no temporary file.
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
