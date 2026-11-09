@@ -45,11 +45,11 @@ pe.extract_sections(text, "10-K")
 text, tables = pe.html_to_text_and_tables(html)
 ```
 
-A table is a list of rows, each a list of cells that read exactly as in the text: `$` and `)` or `%` cells are merged into their numbers ("$391,035", "(1,234)"), and empty cells are left out. `header_rows` lists the rows the filing marks as headers with `<thead>` or `<th>`, which most filings do not. `start` and `end` give the table's place in the text, the same text that `extract_sections` splits, so a table belongs to the section whose `start` and `end` hold its `start`. Offsets of sections and tables count bytes of the UTF-8 text: slice `text.encode()[t["start"]:t["end"]].decode()` when the text is not plain ASCII. Plain-text filings have no tables.
+A table is a list of rows, each a list of cells that read exactly as in the text: `$` and `)` or `%` cells are merged into their numbers ("$391,035", "(1,234)", "14.3%"), and empty cells are left out. Only numbers take them, so a header such as "Amount" keeps the "%" column beside it as a cell of its own, and "$" beside "N/A" stays apart. `header_rows` lists the rows the filing marks as headers with `<thead>` or `<th>`, which most filings do not. `start` and `end` give the table's place in the text, the same text that `extract_sections` splits, so a table belongs to the section whose `start` and `end` hold its `start`. Offsets of sections and tables count bytes of the UTF-8 text: slice `text.encode()[t["start"]:t["end"]].decode()` when the text is not plain ASCII. Plain-text filings have no tables.
 
-Lookup failures raise `LookupError`, bad arguments raise `ValueError`, and network or HTTP failures raise `parsec_edgar.EdgarError`. Network calls release the GIL, so one client can be shared across threads; it stays within its rate limit.
+Dates in `since` and `until` are "YYYY", "YYYY-MM" or "YYYY-MM-DD" in digits, with the month 01 to 12 and the day 01 to 31. Lookup failures raise `LookupError`, bad arguments (such as a date "2024-13") raise `ValueError`, and network or HTTP failures raise `parsec_edgar.EdgarError`. Network calls release the GIL, so one client can be shared across threads; it stays within its rate limit.
 
-The SEC ticker list behind `company()` is downloaded at the first lookup. Once it is a day old, the next lookup starts a new download in the background, and lookups use the old list until the new one has arrived. `tickers_max_age` sets another age in seconds, for example `pe.Client("Example Corp admin@example.com", tickers_max_age=3600)`.
+The SEC ticker list behind `company()` is downloaded at the first lookup. Once it is a day old, the next lookup starts a new download in the background, and lookups use the old list until the new one has arrived. `tickers_max_age` sets another age in seconds, for example `pe.Client("Example Corp admin@example.com", tickers_max_age=3600)`; `math.inf` keeps the first list for the life of the client.
 
 ## Command line
 
