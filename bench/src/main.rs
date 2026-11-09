@@ -112,8 +112,17 @@ enum Command {
         #[arg(long)]
         note: Option<String>,
     },
+    /// Write this extractor's sections in the score-external format. Scoring them
+    /// with score-external checks that the text placement there is faithful.
+    Predict { dir: PathBuf },
     /// Write each labeled filing's raw document to a directory, for running other tools.
-    Export { dir: PathBuf },
+    Export {
+        dir: PathBuf,
+        /// Also write the complete SGML submission as `<accession>.full.txt` (all
+        /// documents, as edgartools reads a filing).
+        #[arg(long)]
+        full_submission: bool,
+    },
 }
 
 fn main() {
@@ -249,7 +258,20 @@ fn run(cli: Cli) -> Res<()> {
                 println!("{:<16} {:>6} {}", "end", e, trunc(doc.line(e), 90));
             }
         }
-        Command::Export { dir } => {
+        Command::Predict { dir } => {
+            let client = client(&cli)?;
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            let files = labels::load_all(&cli.labels, None)?;
+            for (_, l) in &files {
+                let doc = load_doc(&client, l)?;
+                let kind = FormKind::from_form(&l.form).ok_or("form has no Item sections")?;
+                let out: HashMap<String, String> =
+                    extract_sections(&doc.text, kind).into_iter().map(|s| (s.id, s.text)).collect();
+                write_json(&dir.join(format!("{}.json", l.accession)), &out)?;
+            }
+            println!("wrote {} filings to {}", files.len(), dir.display());
+        }
+        Command::Export { dir, full_submission } => {
             let client = client(&cli)?;
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
             let files = labels::load_all(&cli.labels, None)?;
@@ -259,10 +281,23 @@ fn run(cli: Cli) -> Res<()> {
                 let ext = if l.url.ends_with(".txt") { "txt" } else { "htm" };
                 let name = format!("{}.{ext}", l.accession);
                 std::fs::write(dir.join(&name), &raw).map_err(|e| e.to_string())?;
-                manifest.push(serde_json::json!({
+                let mut entry = serde_json::json!({
                     "accession": l.accession, "cik": l.cik, "company": l.company, "form": l.form,
                     "filing_date": l.filing_date, "url": l.url, "file": name,
-                }));
+                });
+                if *full_submission {
+                    let url = format!(
+                        "https://www.sec.gov/Archives/edgar/data/{}/{}/{}.txt",
+                        l.cik,
+                        l.accession.replace('-', ""),
+                        l.accession
+                    );
+                    let bytes = client.get_bytes(&url).map_err(|e| e.to_string())?;
+                    let full = format!("{}.full.txt", l.accession);
+                    std::fs::write(dir.join(&full), &bytes).map_err(|e| e.to_string())?;
+                    entry["full_submission"] = full.into();
+                }
+                manifest.push(entry);
             }
             write_json(&dir.join("manifest.json"), &manifest)?;
             println!("wrote {} filings to {}", manifest.len(), dir.display());
