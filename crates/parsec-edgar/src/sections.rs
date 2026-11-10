@@ -78,12 +78,20 @@
 //! 10-KSB Item 7), the report on internal control (10-K Item 9A, 10-KSB Item
 //! 8A), and the statements and exhibit index of the exhibits Item (10-K Item
 //! 15, 10-KSB Item 13, or an Item after the statements Item that is titled as
-//! the exhibits Item). The exhibits Item ends only where it prints statements
-//! whose pages are numbered apart from the report's (F-1, F-2, ...) after all
-//! of its own text: an index with such page numbers, then at least two of the
+//! the exhibits Item). The exhibits Item ends where it prints statements whose
+//! pages are numbered apart from the report's (F-1, F-2, ...) after all of its
+//! own text: an index with such page numbers, then at least two of the
 //! statements it lists, and none of the Item's own text after them (an exhibit
 //! index, an exhibit list's caption or table header, or a caption such as "(b)
-//! Reports on Form 8-K").
+//! Reports on Form 8-K"). When no Item follows it and the statements Item only
+//! refers to the statements (it prints no block heading), it also ends where
+//! statements with any page numbers, or none, follow all of its own text: an
+//! auditors' report, then headings that repeat the titles of at least three
+//! lines printed before it in the Item, with none of the Item's own captions
+//! after it. An exhibit index printed after such statements does not keep them
+//! in the Item, and the Item ends at an index to them printed after its own
+//! text, or else at the report. Statements printed before another Item are
+//! inside the exhibits Item.
 
 use std::sync::LazyLock;
 
@@ -442,6 +450,14 @@ static CONTROLS_REPORT: LazyLock<Regex> = LazyLock::new(|| {
     ))
     .unwrap()
 });
+
+/// An auditors' report at the start of a line.
+static AUDITORS_REPORT_HEADING: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(?i)^[ \t]*(?:{AUDITORS_REPORT})")).unwrap());
+
+/// A financial statement schedule at the start of a line: `SCHEDULE II`.
+static SCHEDULE_HEADING: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^[ \t]*schedule[ \t]+[ivx]{1,4}\b").unwrap());
 
 /// An index to the financial statements at the start of a line.
 static STATEMENTS_INDEX_HEADING: LazyLock<Regex> =
@@ -1303,6 +1319,31 @@ fn power_of_attorney(text: &str, start: usize, end: usize) -> Option<usize> {
     heading_starts(&POWER_OF_ATTORNEY, text, start, end).find(|&p| !exhibit_cell(text, p))
 }
 
+/// The lines of a section after its heading line, trimmed, with their starts.
+fn item_lines(text: &str, start: usize, end: usize) -> Vec<(usize, &str)> {
+    let from = text[start..end].find('\n').map_or(end, |i| start + i + 1);
+    let mut lines = Vec::new();
+    let mut pos = from;
+    for line in text[from..end].split_inclusive('\n') {
+        lines.push((pos, line.trim()));
+        pos += line.len();
+    }
+    lines
+}
+
+/// A heading line of printed statements, on a trimmed line: at most 100
+/// characters, starting with a capital letter, and not ending in a page
+/// number as an index entry does.
+fn statement_heading(line: &str) -> bool {
+    const MAX_HEADING_CHARS: usize = 100;
+    line.len() <= MAX_HEADING_CHARS && line.starts_with(char::is_uppercase) && !PAGE_REFERENCE.is_match(line)
+}
+
+/// Whether a trimmed line starts with a capital letter and `re` matches it.
+fn capital_match(re: &Regex, line: &str) -> bool {
+    line.starts_with(char::is_uppercase) && re.is_match(line)
+}
+
 /// Start of financial statements that the exhibits Item prints after its own
 /// text with pages numbered apart from the report's (F-1, F-2, ...). Such
 /// pages are a separately paginated part of the report and belong to no Item.
@@ -1322,14 +1363,7 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     // Other lines allowed between two entries, or between an index and its
     // heading.
     const MAX_GAP_LINES: usize = 2;
-    const MAX_HEADING_CHARS: usize = 100;
-    let from = text[start..end].find('\n').map_or(end, |i| start + i + 1);
-    let mut lines: Vec<(usize, &str)> = Vec::new();
-    let mut pos = from;
-    for line in text[from..end].split_inclusive('\n') {
-        lines.push((pos, line.trim()));
-        pos += line.len();
-    }
+    let lines = item_lines(text, start, end);
     // Title keys of the first index's entries, and its first and last lines.
     let mut titles: Vec<String> = Vec::new();
     let (mut first, mut last) = (0, 0);
@@ -1351,12 +1385,11 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     if titles.len() < MIN_ENTRIES {
         return None;
     }
-    let is_heading = |line: &str| {
-        line.len() <= MAX_HEADING_CHARS && line.starts_with(char::is_uppercase) && !PAGE_REFERENCE.is_match(line)
-    };
     // Heading lines after the index, then the first one for each entry's title.
-    let headings: Vec<(usize, String)> =
-        (last + 1..lines.len()).filter(|&j| is_heading(lines[j].1)).map(|j| (j, title_key(lines[j].1))).collect();
+    let headings: Vec<(usize, String)> = (last + 1..lines.len())
+        .filter(|&j| statement_heading(lines[j].1))
+        .map(|j| (j, title_key(lines[j].1)))
+        .collect();
     let mut printed: Vec<usize> =
         titles.iter().filter_map(|t| headings.iter().find(|(_, h)| same_title(h, t)).map(|&(j, _)| j)).collect();
     printed.sort_unstable();
@@ -1365,10 +1398,9 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     // The Item's own text after the statements keeps them in the Item, which
     // then prints them in its middle: its exhibit index, its exhibit list's
     // caption or header, or the caption of another of its parts.
-    let own_text_after = lines[statements + 1..].iter().any(|&(_, line)| {
-        EXHIBITS_ITEM_PART.is_match(line)
-            || (line.starts_with(char::is_uppercase) && EXHIBITS_INDEX_HEADING.is_match(line))
-    });
+    let own_text_after = lines[statements + 1..]
+        .iter()
+        .any(|&(_, line)| EXHIBITS_ITEM_PART.is_match(line) || capital_match(&EXHIBITS_INDEX_HEADING, line));
     if printed.len() < 2 || own_text_after {
         return None;
     }
@@ -1378,6 +1410,52 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
         Some(i) if statements == last + 1 => Some(lines[i].0),
         _ => Some(lines[statements].0),
     }
+}
+
+/// Start of financial statements that the exhibits Item prints after all of
+/// its own text when it is the last Item and the statements Item only refers
+/// to them, whatever their page numbers. They belong to no Item, as text
+/// after the last Item does; printed before another Item, they are inside the
+/// exhibits Item. An auditors' report heading opens them, and heading lines
+/// after it repeat the titles of at least three lines printed before it in
+/// the Item, which are the Item's list of the statements or an index to them;
+/// a schedule or an exhibit index ends that search. The Item ends at an index
+/// heading ("Index to Financial Statements") printed after its own text and
+/// before the report, and otherwise at the report. The Item's own text after
+/// the report (an exhibit list's caption or table header, or a caption such
+/// as "(b) Reports on Form 8-K") keeps the statements in the Item, up to an
+/// exhibit index, which is printed after them before the signatures.
+fn statements_after_items(text: &str, start: usize, end: usize) -> Option<usize> {
+    const MIN_PRINTED: usize = 3;
+    let lines = item_lines(text, start, end);
+    let report = lines.iter().position(|&(_, l)| AUDITORS_REPORT_HEADING.is_match(l) && statement_heading(l))?;
+    let listed: Vec<String> =
+        lines[..report].iter().filter(|(_, l)| !BLOCK_HEADING.is_match(l)).map(|(_, l)| title_key(l)).collect();
+    let after = &lines[report + 1..];
+    let to_exhibits = after.iter().take_while(|(_, l)| !capital_match(&EXHIBITS_INDEX_HEADING, l));
+    // The listed lines whose titles the statements' headings repeat.
+    let mut printed: Vec<usize> = Vec::new();
+    for &(_, line) in to_exhibits.clone().take_while(|(_, l)| !capital_match(&SCHEDULE_HEADING, l)) {
+        if !statement_heading(line) || BLOCK_HEADING.is_match(line) {
+            continue;
+        }
+        let key = title_key(line);
+        if let Some(i) = listed.iter().position(|t| same_title(t, &key))
+            && !printed.contains(&i)
+        {
+            printed.push(i);
+        }
+    }
+    let own_text = |line: &str| EXHIBITS_ITEM_PART.is_match(line) || capital_match(&EXHIBITS_INDEX_HEADING, line);
+    if printed.len() < MIN_PRINTED || to_exhibits.clone().any(|&(_, l)| own_text(l)) {
+        return None;
+    }
+    let index = lines[..report]
+        .iter()
+        .rev()
+        .take_while(|(_, l)| !own_text(l))
+        .find(|(_, l)| capital_match(&STATEMENTS_INDEX_HEADING, l));
+    Some(index.unwrap_or(&lines[report]).0)
 }
 
 /// Some 10-Qs print Items out of form order: banks often put the financial
@@ -1658,10 +1736,11 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     // heading was found: the statements after it are then Item 8's text
     // without its heading. A 10-KSB's statements (Item 7) follow MD&A (Item
     // 6), which keeps them like 10-K Item 7 does. The exhibits Item keeps its
-    // block headings but not statements with pages of their own numbering
-    // printed after all of its own text. The other information Item (10-K
-    // Item 9B, 10-KSB Item 8B) ends at a report on internal control printed
-    // after it, which belongs to the controls Item before it.
+    // block headings but not statements printed after all of its own text,
+    // with pages of their own numbering or, when no Item follows it and the
+    // statements Item only refers to them, with any. The other information
+    // Item (10-K Item 9B, 10-KSB Item 8B) ends at a report on internal
+    // control printed after it, which belongs to the controls Item before it.
     let no_item_8 = !picks.iter().any(|&(_, k)| keys[k].item == "8");
     // The Item that holds the financial statements: 10-K Item 8, 10-KSB Item 7.
     let statements_key = keys.iter().position(|k| k.title.starts_with("Financial Statements"));
@@ -1687,6 +1766,14 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     };
     let other_information =
         |ki: usize| matches!((kind, keys[ki].item), (FormKind::TenK, "9B") | (FormKind::TenKsb, "8B"));
+    // Whether the statements Item was found and only refers to the
+    // statements: it prints no block heading.
+    let statements_elsewhere = picks.iter().enumerate().any(|(p, &(c, k))| {
+        Some(k) == statements_key && {
+            let next = starts.get(p + 1).copied().unwrap_or(doc_end);
+            heading_start(&BLOCK_HEADING, text, cands[c].pos, next).is_none()
+        }
+    });
     // A section that holds the next Item too keeps its block headings: its
     // heading names a second Item ("Items 9 and 9A."), or a heading with the
     // same number and another title follows ("ITEM 9 A – CONTROLS AND
@@ -1716,8 +1803,11 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             } else if other_information(ki) {
                 heading_start(&CONTROLS_REPORT, text, start, end).unwrap_or(end)
             } else if exhibits_item(ki, cand) {
-                // A glossary ends the exhibits Item when no Item follows it.
-                let statements = separate_statements(text, start, end);
+                // Statements printed after all of its text, whatever their
+                // pages, and a glossary end it when no Item follows it.
+                let statements = separate_statements(text, start, end).or_else(|| {
+                    (last && statements_elsewhere).then(|| statements_after_items(text, start, end)).flatten()
+                });
                 let glossary = last.then(|| glossary_start(text, start, end)).flatten();
                 statements.into_iter().chain(glossary).min().unwrap_or(end)
             } else {
@@ -3809,6 +3899,8 @@ mod tests {
         );
         let f_index = "Report of Independent Auditors\tF-2\nConsolidated Balance Sheets\tF-3\n\
                        Consolidated Statements of Operations\tF-4\nNotes to Consolidated Financial Statements\tF-5\n";
+        // No statements Item that only refers to them is found here, so
+        // statements numbered as the report's pages are the Item's own.
         let cases = [
             // Pages numbered as the report's, or as an annual report's.
             format!(
@@ -3855,6 +3947,139 @@ mod tests {
             assert_eq!(s.len(), 2, "{statements}");
             assert_eq!(s[0].end, text.find(next).unwrap(), "{statements}");
         }
+    }
+
+    #[test]
+    fn statements_after_the_last_item_end_it_when_the_statements_item_refers_to_them() {
+        // Item 8 refers to the statements, which follow all of Item 15's text
+        // with the report's own page numbers, or none, and no Item heading.
+        let body = BODY.repeat(30);
+        let item_8 = "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n\
+                      The financial statements are listed in Part IV, Item 15.\n\
+                      ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n";
+        let printed = format!(
+            "EXAMPLE CORP AND SUBSIDIARIES\nCONSOLIDATED BALANCE SHEETS\n{body}\n\
+             CONSOLIDATED STATEMENTS OF OPERATIONS\n{body}\nCONSOLIDATED STATEMENTS OF CASH FLOWS\n{body}\n\
+             NOTES TO CONSOLIDATED FINANCIAL STATEMENTS\n1. Summary of significant accounting policies\n{body}\n"
+        );
+        let report = "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\nTo the Board of Directors\n";
+        // The Item's list gives pages; an exhibit index follows the statements.
+        let text = format!(
+            "{item_8}ITEM 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES\n(1) Financial Statements:\nPage\n\
+             Report of Independent Registered Public Accounting Firm\t50\n\
+             Consolidated Balance Sheets as of December 31, 2020 and 2019\t52\n\
+             Consolidated Statements of Operations for each of the three years\t53\n\
+             Consolidated Statements of Cash Flows for each of the three years\t56\n\
+             Notes to Consolidated Financial Statements\t57\n(2) Financial Statement Schedules. Omitted.\n\
+             (3) Exhibits. See the accompanying Exhibit Index.\n{report}{body}\n{printed}\
+             EXHIBIT INDEX\nExhibit No.\tDescription\n3.1\tCharter\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_9", "item_15"]);
+        assert_eq!(s[2].end, text.find(report).unwrap());
+        // A list with no pages, and the exhibit list, before the statements.
+        let text = format!(
+            "{item_8}Item 15. Exhibits and Financial Statement Schedules\n\
+             (1) The following financial statements appear immediately after this Item 15:\n\
+             Consolidated Statements of Financial Condition as of June 30, 2011 and 2010\n\
+             Consolidated Statements of Income For the Years Ended June 30, 2011 and 2010\n\
+             Consolidated Statements of Cash Flows for the Years Ended June 30, 2011 and 2010\n\
+             (3) The following exhibits are filed as part of this report:\n3.1\tCharter\n21\tSubsidiaries\n\
+             {report}{body}\nCONSOLIDATED STATEMENTS OF FINANCIAL CONDITION\n{body}\n\
+             CONSOLIDATED STATEMENTS OF INCOME\n{body}\nCONSOLIDATED STATEMENTS OF CASH FLOWS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[2].end, text.find(report).unwrap());
+        // An index after the Item's own text opens the statements, also when
+        // an explanatory note comes between it and the report.
+        for note in ["", "Explanatory Note: This report contains forward-looking statements.\n"] {
+            let text = format!(
+                "{item_8}ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K\n\
+                 (a) (1) Financial Statements: see the Index to Financial Statements below.\n\
+                 (a) (3) See the Exhibit Index on page 51.\n(b)\nReports on Form 8-K\nNone.\n\
+                 INDEX TO FINANCIAL STATEMENTS\tPage\nResponsibility for Financial Statements\t24\n\
+                 Report of Independent Public Accountants\t24\nConsolidated Balance Sheets\t25\n\
+                 Consolidated Statements of Operations\t26\n\
+                 Consolidated Statements of Cash Flows....................27\n{note}\
+                 RESPONSIBILITY FOR FINANCIAL STATEMENTS\n{body}\n{report}{body}\n{printed}SIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[2].end, text.find("INDEX TO FINANCIAL STATEMENTS").unwrap(), "{note}");
+        }
+        // A 10-KSB whose Item 7 refers to the statements after Item 13.
+        let text = format!(
+            "ITEM 7. FINANCIAL STATEMENTS\nSee the financial statements following Item 13.\n\
+             ITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n\
+             ITEM 13. EXHIBITS AND REPORTS ON FORM 8-K\n(a) Financial statements: Consolidated Balance Sheets,\n\
+             Consolidated Statements of Operations\nConsolidated Statements of Cash Flows\n\
+             Notes to Consolidated Financial Statements\n(b) Reports on Form 8-K: None.\n{report}{body}\n{printed}\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_7", "item_8", "item_13"]);
+        assert_eq!(s[2].end, text.find(report).unwrap());
+    }
+
+    #[test]
+    fn statements_stay_in_the_last_exhibits_item_unless_printed_after_its_text_and_referred_to() {
+        let body = BODY.repeat(30);
+        let report = "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\nTo the Board of Directors\n";
+        let list = "Report of Independent Registered Public Accounting Firm\t50\nConsolidated Balance Sheets\t52\n\
+                    Consolidated Statements of Operations\t53\nConsolidated Statements of Cash Flows\t56\n";
+        let printed = format!(
+            "CONSOLIDATED BALANCE SHEETS\n{body}\nCONSOLIDATED STATEMENTS OF OPERATIONS\n{body}\n\
+             CONSOLIDATED STATEMENTS OF CASH FLOWS\n{body}\n"
+        );
+        let pointer = "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\nSee Item 15.\n";
+        let cases = [
+            // Item 16 follows the statements and the exhibit index, so they
+            // are inside Item 15.
+            format!(
+                "{pointer}ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{list}3. Exhibits\n{report}{body}\n\
+                 {printed}Exhibit Index\n3.1\tCharter\nITEM 16. FORM 10-K SUMMARY\nNone.\n"
+            ),
+            // Item 8 prints the statements, so Item 15 prints a schedule.
+            format!(
+                "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{report}{body}\n{printed}\
+                 ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{list}2. Financial Statement Schedule\n\
+                 Condensed Balance Sheets\nCondensed Statements of Operations\nCondensed Statements of Cash Flows\n\
+                 {report}{body}\nCONDENSED BALANCE SHEETS\n{body}\nCONDENSED STATEMENTS OF OPERATIONS\n{body}\n\
+                 CONDENSED STATEMENTS OF CASH FLOWS\n{body}\n"
+            ),
+            // The Item's own captions follow the statements.
+            format!(
+                "{pointer}ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n(a)(1) Financial Statements\n{list}\
+                 {report}{body}\n{printed}(a)(3) Exhibits\n3.1\tCharter\n(b) Reports on Form 8-K\nNone.\n"
+            ),
+            // A schedule with its report, which only names the schedule.
+            format!(
+                "{pointer}ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{list}\
+                 Schedule I - Condensed Financial Information of Registrant\nBalance Sheets\n\
+                 Statements of Operations\nStatements of Cash Flows\n{report}{body}\n\
+                 SCHEDULE I - CONDENSED FINANCIAL INFORMATION OF REGISTRANT\nBALANCE SHEETS\n{body}\n\
+                 STATEMENTS OF OPERATIONS\n{body}\nSTATEMENTS OF CASH FLOWS\n{body}\n"
+            ),
+            // Only two of the listed statements are printed.
+            format!(
+                "{pointer}ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{list}{report}{body}\n\
+                 CONSOLIDATED BALANCE SHEETS\n{body}\nCONSOLIDATED STATEMENTS OF OPERATIONS\n{body}\n"
+            ),
+        ];
+        for (i, case) in cases.iter().enumerate() {
+            let text = format!("{case}SIGNATURES\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            let exhibits = s.iter().find(|s| s.id == "item_15").expect("Item 15");
+            let next = s.iter().find(|s| s.id == "item_16").map_or(text.find("SIGNATURES").unwrap(), |s| s.start);
+            assert_eq!(exhibits.end, next, "case {i}");
+        }
+        // An index heading in the Item's list, before its exhibit list's
+        // caption, stays in the Item, which ends at the report.
+        let text = format!(
+            "{pointer}ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\nINDEX TO FINANCIAL STATEMENTS\n{list}\
+             (b) Exhibits\n3.1\tCharter\n{report}{body}\n{printed}SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[1].end, text.find(report).unwrap());
     }
 
     #[test]
