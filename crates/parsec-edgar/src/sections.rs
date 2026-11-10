@@ -23,12 +23,13 @@
 //! just above it, which ends with a comma or with a word such as "in", "see"
 //! or "to" ("as set forth in Part II,").
 //! A heading that names several Items ("Items 1 and 2.", "Items 1 through
-//! 5.") starts the first of them. One that puts a comma after the Item
-//! number, as running text also does ("Item 8, which ..."), counts only when
-//! the line ends where the Item's standard title ends ("Item 8, Financial
-//! Statements and Supplementary Data"), or where the numbers of more Items in
-//! form order, the last after "and", or the standard titles of all of them
-//! end ("ITEMS 9, 9A AND 9B.").
+//! 5.", or with a dash, "Item 1-5.", but not "Item 1-2 of the Form") starts
+//! the first of them. One that puts a comma after the Item number, as
+//! running text also does ("Item 8, which ..."), counts only when the line
+//! ends where the Item's standard title ends ("Item 8, Financial Statements
+//! and Supplementary Data"), or where the numbers of more Items in form
+//! order, the last after "and", or the standard titles of all of them end
+//! ("ITEMS 9, 9A AND 9B.").
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins.
 //!
@@ -473,7 +474,7 @@ struct Candidate {
     /// a 10-K numbers the heading 4A.
     officers: bool,
     /// The heading names a second Item: `Items 9 and 9A.`, `ITEM 7A & 8.`,
-    /// `ITEMS 9, 9A AND 9B.`
+    /// `ITEMS 9, 9A AND 9B.`, `Item 1-5.`
     joined: bool,
     /// Distance to the next heading of a different Item.
     gap: usize,
@@ -522,6 +523,11 @@ static ITEM_LIST: LazyLock<Regex> = LazyLock::new(|| {
 /// An Item number in an `ITEM_LIST` match.
 static ITEM_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d{1,2}[A-Ca-c]?").unwrap());
 
+/// After the first Item number of a heading, a dash and the last Item of a
+/// range: `-5.` in `Item 1-5.`, ` – 13.` in `ITEMS 10 – 13.`
+static ITEM_RANGE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[ \t]*\.?[ \t]*[-–—][ \t]*(\d{1,2}[A-Ca-c]?)(?:[ \t]*[.:])?").unwrap());
+
 /// After the Item number, a comma: `Item 8, Financial Statements`.
 static ITEM_COMMA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*\.?[ \t]*,").unwrap());
 
@@ -561,8 +567,12 @@ fn in_form_order<'k>(labels: &[String], keys: &'k [Key]) -> Vec<Vec<&'k Key>> {
 /// 7, Management's Discussion and Analysis, of our Annual Report"), so the
 /// line must end where the standard title of the Item ends, or for several
 /// Items, which must be in form order, where their numbers or the standard
-/// titles of all of them end. `after` is the line after the first Item
-/// number. Returns the title, and whether the heading names more Items.
+/// titles of all of them end. Or a heading that names a range of Items with a
+/// dash (`Item 1-5. Not applicable.`, `ITEMS 10 - 13.`), as `Items 1 through
+/// 5.` does: the range must go up in form order, and what follows it must
+/// look like a title, so a number (`Item 7 - 2005`) or a cross-reference
+/// (`Items 1-4 of Part I`) is not one. `after` is the line after the first
+/// Item number. Returns the title, and whether the heading names more Items.
 fn listed_items<'a>(label: &str, after: &'a str, keys: &[Key]) -> Option<(&'a str, bool)> {
     if let Some(list) = ITEM_LIST.captures(after) {
         let mut labels = vec![label.to_owned()];
@@ -573,6 +583,12 @@ fn listed_items<'a>(label: &str, after: &'a str, keys: &[Key]) -> Option<(&'a st
         let titled = |ks: &Vec<&Key>| words == ks.iter().flat_map(|k| title_words(k.title)).collect::<Vec<_>>();
         let fits =
             heading_tail_ok(rest) && in_form_order(&labels, keys).iter().any(|ks| words.is_empty() || titled(ks));
+        return fits.then_some((rest, true));
+    }
+    if let Some(range) = ITEM_RANGE.captures(after) {
+        let rest = after[range.get(0).expect("whole match").end()..].trim_start();
+        let labels = [label.to_owned(), range[1].to_ascii_uppercase()];
+        let fits = heading_tail_ok(rest) && !in_form_order(&labels, keys).is_empty();
         return fits.then_some((rest, true));
     }
     let rest = after[ITEM_COMMA.find(after)?.end()..].trim_start();
@@ -2033,6 +2049,65 @@ mod tests {
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_7", "item_8"]);
         assert!(s[0].text.contains("\nItem 8, Financial Statements and Supplementary Data.\nItem 9, 9A\n"));
+    }
+
+    #[test]
+    fn range_of_items_with_a_dash_is_a_heading() {
+        // "Item 1-5." in a 10-Q's Part II and "ITEMS 10 - 13." in a 10-K's
+        // Part III start the first Item of the range, as "Items 1 through 5."
+        // does.
+        let body = BODY.repeat(30);
+        for range in ["Item 1-5.   Not applicable.", "Items 1 - 5", "Items 1–5: None.", "Item 1. - 5. Not applicable."]
+        {
+            let text = format!(
+                "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+                 Part II  OTHER INFORMATION\n{range}\nItem 6.     Exhibits and Reports on Form 8-K\nNone\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"], "{range}");
+            assert_eq!(s[2].heading, range);
+        }
+        for range in ["ITEMS 10 - 13.", "ITEMS 10-14.", "Items 10—13. Omitted under General Instruction I."] {
+            let text = format!(
+                "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure\n\
+                 None.\nPART III.\n{range}\nInformation called for by items 10 through 13 is omitted.\n\
+                 PART IV\nITEM 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_9", "item_10", "item_14"], "{range}");
+            assert_eq!(
+                s[0].text,
+                "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial \
+                                   Disclosure\nNone.\nPART III."
+            );
+        }
+    }
+
+    #[test]
+    fn numbers_after_a_dash_that_name_no_range_of_items_are_no_headings() {
+        // A cross-reference, a range that goes down or past the form's Items,
+        // a contents row whose page follows the range, a year or a number
+        // after a dash, and a title that starts with a form's name.
+        for (label, after) in [
+            ("1", "-2 of the Form"),
+            ("1", "-4 of Part I"),
+            ("2", "-1. Properties"),
+            ("1", "-99."),
+            ("1", ". - 6.                    12"),
+            ("7", " - 2005 compared with 2004"),
+            ("5", " - 10,000 shares"),
+            ("16", " - 10-K SUMMARY"),
+        ] {
+            assert_eq!(listed_items(label, after, TEN_K), None, "Item {label}{after}");
+        }
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 7. Management's Discussion and Analysis\n{body}\nItem 1-2 of the Form requires this.\n\
+             Item 7 - 2005 compared with 2004\n{body}\nItem 15. Exhibits\n{body}\nITEM 16 - 10-K SUMMARY\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_7", "item_15", "item_16"]);
+        assert!(s[0].text.contains("\nItem 1-2 of the Form requires this.\nItem 7 - 2005 compared with 2004\n"));
     }
 
     #[test]
