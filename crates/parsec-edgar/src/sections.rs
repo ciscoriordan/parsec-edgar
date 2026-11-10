@@ -16,6 +16,9 @@
 //! uses for that Item number does. Such a line that starts with a Part I
 //! title and runs on as a sentence that cites the Item ("Item 1. Financial
 //! Statements, of this report") is a wrapped cross-reference, not a heading.
+//! In every form, so is an Item line that carries on a sentence from the line
+//! just above it, which ends with a comma or with a word such as "in", "see"
+//! or "to" ("as set forth in Part II,").
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins.
 //!
@@ -535,6 +538,9 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
         .filter(|c| heading_tail_ok(after_dashes(&c[2])))
         .filter_map(|c| {
             let m = c.get(0).expect("group 0 always matches");
+            if continues_sentence(text, m.start()) {
+                return None;
+            }
             let heading: String = m.as_str().trim().chars().take(300).collect();
             let (number, tail) = (c.get(1).expect("Item number"), c.get(2).expect("tail"));
             let label = number.as_str().to_ascii_uppercase();
@@ -619,10 +625,39 @@ fn next_line_title(text: &str, end: usize) -> &str {
 /// "Condensed Consolidated Financial Statements (Unaudited)".
 const QUALIFIERS: &[&str] = &["unaudited", "interim", "condensed", "consolidated"];
 
-/// Joining words that a 10-Q Part I heading can hold besides the words of its
-/// standard title and the qualifiers.
+/// Joining words. A 10-Q Part I heading can hold them besides the words of its
+/// standard title and the qualifiers, and a sentence does not end with one.
 const JOINING_WORDS: &[&str] =
     &["a", "about", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"];
+
+/// Other words that a sentence does not end with but a line of running text
+/// that cites an Item on the next line does: "see", "as discussed under".
+const OPEN_WORDS: &[&str] = &["see", "See", "under", "within", "this"];
+
+/// A line that holds only a PART label: `PART II,`, `Part I -`.
+static PART_LABEL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[ \t]*(?i:part)[ \t]+[IVX]{1,4}[ \t]*[,.:\-–—]*[ \t]*$").unwrap());
+
+/// Whether the line just above the line that starts at `line_start` stops
+/// inside a sentence, so that this line carries it on: it ends with a comma, a
+/// joining word or one of `OPEN_WORDS`. A hard-wrapped cross-reference starts
+/// its line that way ("The information set forth in Part II," then "Item 7.
+/// Management's Discussion and Analysis, of the Company's Annual Report ...").
+/// A heading comes after the end of a paragraph, a page header, a blank line
+/// or a PART label, also one printed with a comma ("PART II,").
+fn continues_sentence(text: &str, line_start: usize) -> bool {
+    let Some(above) = text[..line_start].strip_suffix('\n') else {
+        return false;
+    };
+    let above = above.strip_suffix('\r').unwrap_or(above);
+    let line = &above[above.rfind('\n').map_or(0, |i| i + 1)..];
+    if PART_LABEL.is_match(line) {
+        return false;
+    }
+    let last = line.trim_end().rsplit([' ', '\t']).next().unwrap_or("");
+    let word = last.trim_start_matches(['(', '"', '“']);
+    last.ends_with(',') || JOINING_WORDS.contains(&word) || OPEN_WORDS.contains(&word)
+}
 
 /// Lowercase words that a heading does not put after its title, but a
 /// sentence that cites the Item does: "Item 1. Financial Statements of this
@@ -2252,6 +2287,100 @@ mod tests {
         ] {
             assert!(!runs_on_as_sentence(if title.starts_with("Fin") { "1" } else { "2" }, title, TEN_Q), "{title}");
         }
+    }
+
+    #[test]
+    fn item_line_that_carries_on_a_sentence_is_not_a_heading() {
+        // A 10-K whose MD&A cites Item 8 in a sentence wrapped so that a line
+        // starts with it, and goes on for longer than Item 8 itself.
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(60);
+        for above in [
+            "The fair value of the notes is described in Note 5 to the financial statements in",
+            "The notes are described in Part II,",
+            "For the fair value of the notes, see",
+            "The fair value of the notes is set out in Note 5 (see",
+            "The fair value of the notes is shown under",
+        ] {
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\nPART II\n\
+                 Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 {body}\n{above}\nItem 8. Financial Statements and Supplementary Data, of this report. The notes\n\
+                 are due in 2030.\n{long}\nItem 8. Financial Statements and Supplementary Data\n{body}\n\
+                 Item 9A. Controls and Procedures\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_2", "item_7", "item_8", "item_9a"], "{above}");
+            assert!(s[2].text.contains("\nItem 8. Financial Statements and Supplementary Data, of this report."));
+            assert_eq!(s[3].heading, "Item 8. Financial Statements and Supplementary Data");
+        }
+        // The issue's layout: no Item 7 heading, and Item 6 cites Item 7 of
+        // the annual report.
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\nPART II\n\
+             Item 6. Selected Financial Data\n{body}\nThe information set forth in Part II,\n\
+             Item 7. Management's Discussion and Analysis, of the Company's Annual Report on Form 10-K for 1998 is \
+             incorporated\nherein by reference.\nMANAGEMENT'S DISCUSSION AND ANALYSIS\n{long}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_6", "item_8"]);
+        assert!(s[2].text.contains("\nMANAGEMENT'S DISCUSSION AND ANALYSIS\n"));
+        // A 10-Q whose Part II Item 1 cites Item 1A of the annual report, and
+        // goes on for longer than its own short Item 1A.
+        let text = format!(
+            "PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n{body}\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             {body}\nItem 4. Controls and Procedures\n{body}\nPART II. OTHER INFORMATION\n\
+             Item 1. Legal Proceedings\n{body}\nThe risks of the litigation described in Part I,\n\
+             Item 1A. Risk Factors, of our Annual Report on Form 10-K for 2019 have not\nchanged materially.\n\
+             {long}\nItem 1A. Risk Factors\nThere have been no material changes.\nItem 6. Exhibits\n{body}\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_1a", "part_2_item_6"]
+        );
+        assert_eq!(s[4].heading, "Item 1A. Risk Factors");
+        // An 8-K whose Item 2.02 cites Item 7.01 the same way.
+        let text = format!(
+            "Item 2.02 Results of Operations and Financial Condition\n{body}\n\
+             The press release is also furnished under\nItem 7.01 Regulation FD Disclosure, of this report.\n\
+             {long}\nItem 7.01 Regulation FD Disclosure\nSee Item 2.02.\n\
+             Item 9.01 Financial Statements and Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::EightK);
+        assert_eq!(ids(&s), ["item_2.02", "item_7.01", "item_9.01"]);
+        assert_eq!(s[1].heading, "Item 7.01 Regulation FD Disclosure");
+    }
+
+    #[test]
+    fn headings_after_lines_that_end_without_a_period_stay() {
+        // Run-in answers with no period, a sentence that stops before a blank
+        // line, a PART label printed with a comma or a dash, and a page header
+        // in capitals that ends with "AND" do not make the next line part of a
+        // sentence.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nItem 1A. Risk Factors\nNot applicable\n\
+             Item 1B. Unresolved Staff Comments\nNone\nItem 2. Properties\n{body}\n\
+             The properties are described in\n\nItem 3. Legal Proceedings\n{body}\nPART II,\n\
+             Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of \
+             Equity Securities\n{body}\nANNUAL REPORT ON FORM 10-K AND\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+             PART IV -\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_1b", "item_2", "item_3", "item_5", "item_7", "item_15"]);
+        let after = |above: &str| continues_sentence(&format!("{above}\nItem 7. Title"), above.len() + 1);
+        for above in ["described in", "see", "(see", "as discussed under", "in Part II,", "in Part II,\r", "a, b and"] {
+            assert!(after(above), "{above:?}");
+        }
+        for above in ["", "None", "Not applicable", "ends here.", "PART II,", "Part I -", "AND", "In", "in\n"] {
+            assert!(!after(above), "{above:?}");
+        }
+        assert!(!continues_sentence("Item 7. Title", 0));
     }
 
     #[test]
