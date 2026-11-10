@@ -71,6 +71,9 @@ def report_for(filing, form: str):
         filing.form = "10-K"
         return TenK(filing)
     if form.startswith("10-Q"):
+        # TenQ accepts only 10-Q and 10-Q/A; a 10-QSB is read the same way.
+        if filing.form not in ("10-Q", "10-Q/A"):
+            filing.form = "10-Q"
         return TenQ(filing)
     return CurrentReport(filing)
 

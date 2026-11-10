@@ -526,9 +526,8 @@ Clones, environments, exported filings and results stay in `bench/external` and 
 - **edgar-crawler** reads the primary document, or the complete submission for filings without one, as its own downloader saves it. It runs with its default settings, including table removal.
 - **edgartools** reads the complete submission through `Filing.from_sgml_text`, which is what it downloads for a filing. Its Items come from the report object's public API (`report.items`, then `report[item]`).
   - The network is blocked, so it never reaches the SEC.
-  - For some filings, edgartools looks up the filing's index page, and the block stops that request with the error "network access is disabled in this benchmark". In the latest runs, of the development set, fresh2 and fresh3, this happened on one development filing, Science Dynamics' 10-KSB 1998, on the 4 fresh2 filings from before 2001, and on the 4 fresh3 filings from before 2000, all plain text (Max & Erma's Restaurants 1996, Red Brick Systems 1997, Cellular Communications of Puerto Rico's 10-Q 1998 and Banknorth Group 1999). Earlier runs saw it on 8 development filings from 1997 to 2000 (seven plain-text filings and Walmart's 2000 10-K, which is HTML) and on the 4 plain-text filings of the fresh set; run with network access on those 12, edgartools made one or two requests per filing and returned no Items, so the score was the same either way.
-  - 10-K405 and 10-KSB filings are read as 10-Ks, because edgartools' 10-K class accepts only 10-K and 10-K/A. edgar-crawler is given them as 10-Ks too.
-  - 10-QSB filings are given to edgartools' 10-Q class without that relabeling, and it stops with "AssertionError: This form should be a 10-Q but was 10QSB". So edgartools scores 0 on all five 10-QSBs, three in the development set and two in fresh3. Relabeling them as 10-Qs, as the runner does for the 10-KSBs, would be the fair comparison, and has not been done yet.
+  - For some filings, edgartools looks up the filing's index page, and the block stops that request with the error "network access is disabled in this benchmark". In the latest runs, of the development set, fresh2 and fresh3, this happened on one development filing, Science Dynamics' 10-KSB 1998, on the 4 fresh2 filings from before 2001, and on the 5 fresh3 filings from 2000 and before, all plain text (Max & Erma's Restaurants 1996, Red Brick Systems 1997, Cellular Communications of Puerto Rico's 10-Q 1998, Banknorth Group 1999 and the 10-QSB 2000 of Diamondhead Casino, filed as Europa Cruises). Earlier runs saw it on 8 development filings from 1997 to 2000 (seven plain-text filings and Walmart's 2000 10-K, which is HTML) and on the 4 plain-text filings of the fresh set; run with network access on those 12, edgartools made one or two requests per filing and returned no Items, so the score was the same either way.
+  - 10-K405 and 10-KSB filings are read as 10-Ks, and 10-QSB filings as 10-Qs, because edgartools' 10-K and 10-Q classes accept only their own form and its amendment. edgar-crawler is given them as 10-Ks and 10-Qs too. Before the 10-QSBs were relabeled, edgartools stopped on all five of them with "AssertionError: This form should be a 10-Q but was 10QSB"; with the relabeling it finds 1 of the 26 Items of the three development 10-QSBs and none of the two in fresh3.
 
 The other tools' scores on the development set and on fresh3 were measured with main. Those on fresh2 were measured with main before changes 22 to 36, whose text of the fresh2 filings is the same as main's. Those on the held-out, blind and fresh sets were measured before version 0.1.1 was released and were not repeated. The labels and the filings of those three sets are the same; what changed is this library's text, in which `score-external` places their sections (changes 5, 14 and 20).
 
@@ -568,7 +567,7 @@ The 10-K column includes the 10-K405. Version 0.1.1 cannot read the 10-KSB and 1
 
 On the other 27 filings, the mean span accuracy is 0.999 for parsec-edgar, 0.994 for edgar-crawler and 0.665 for edgartools, and F1 is 1.000, 0.993 and 0.850. On fresh3:
 - **edgar-crawler** finds Banknorth Group's Item 14 at its body heading, and Wendy's Part I Item 4 ends at the PART II line as labeled. It misses Item 10 of Max & Erma's Restaurants 1996 and of WellCare 2019, each printed as one heading of several Items ("Items 10, 11, 12 and 13.", "Items 10, 11, 12, 13 and 14."). In WellCare, its Item 9B then runs on through Part III, Item 15 and the financial statements (188,626 characters against 42), and its Item 15 through the statements (186,622 against 645). Omnicell's Item 16 runs on through the financial statements (152,785 characters against 33). It misses Items 8A and 8B of John D. Oil and Gas's 10-KSB 2007 and Part I Item 1 of Artisanal Brands' 10-QSB, and starts Part I Item 1 of GB&T Bancshares' 10-Q 2004 at a contents line. Some Items end late or early: O'Reilly's Item 4 (3,932 characters against 253) and Item 15 (4,139 against 5,240), Red Brick Systems' 10-K405 1997 Item 4 (3,366 against 177) and Murphy Oil's Part II Item 6 (338 against 2,042).
-- **edgartools** raises "network access is disabled in this benchmark" on the 4 filings from before 2000, stops on both 10-QSBs (see the runner note above), and returns no Items for Joshua Tree Construction's 10-KSB 2002 and for the 10-Q 2009 of Elys BMG Group, filed as Empire Global. All eight score 0. It also finds only 3 of O'Reilly's 17 Items and 2 of Aptimus' 20 (10-K 2007).
+- **edgartools** raises "network access is disabled in this benchmark" on the 5 plain-text filings from 2000 and before (see the runner note above), and returns no Items for Artisanal Brands' 10-QSB 2005, Joshua Tree Construction's 10-KSB 2002 and the 10-Q 2009 of Elys BMG Group, filed as Empire Global. All eight score 0. It also finds only 3 of O'Reilly's 17 Items and 2 of Aptimus' 20 (10-K 2007).
 
 Fresh2 at its first scoring was the fair comparison before fresh3:
 
@@ -619,7 +618,7 @@ These are the 111 filings of the development, held-out and blind sets, combined.
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | parsec-edgar (main, in-sample) | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
 | edgar-crawler | 0.991 | 0.987 | 0.989 | 0.914 | 0.997 | 0.973 | 0.948 | 0.980 | 1.000 |
-| edgartools | 0.950 | 0.782 | 0.858 | 0.637 | 0.871 | 0.154 | 0.926 | 0.000 | 1.000 |
+| edgartools | 0.950 | 0.783 | 0.858 | 0.640 | 0.871 | 0.154 | 0.926 | 0.074 | 1.000 |
 
 On the 104 of them without the 10-KSBs and 10-QSBs, version 0.1.1 scores F1 1.000 with span 0.993 (in-sample), and the initial commit F1 0.902 with span 0.775.
 
@@ -631,7 +630,7 @@ By label set:
 | parsec-edgar, version 0.1.1 | 1.000 | 0.990 | 1.000 | 1.000 | 1.000 | 1.000 | 0.994 | 0.935 |
 | parsec-edgar, main | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
 | edgar-crawler | 0.992 | 0.907 | 0.987 | 0.928 | 0.972 | 0.925 | 0.961 | 0.843 |
-| edgartools | 0.837 | 0.580 | 0.884 | 0.675 | 0.928 | 0.810 | 0.900 | 0.705 |
+| edgartools | 0.837 | 0.585 | 0.884 | 0.675 | 0.928 | 0.810 | 0.900 | 0.705 |
 
 The development columns are for 72 filings, except version 0.1.1's, which are for the 65 without the 10-KSBs and 10-QSBs.
 
@@ -640,7 +639,7 @@ How to read these numbers:
 - **edgar-crawler** finds Item starts nearly as well, from a hard-coded list of each form's Items. On fresh3 its F1 is higher than parsec-edgar's, because of one cross-reference 10-K, and its span accuracy is lower; at fresh2's first scoring its span accuracy was the higher one (above).
   - It loses span accuracy on the last Item, which runs on into attached annual reports (span 0.136 on the `annual-report-attached` filings).
   - Some 10-Q Items start at the table of contents or at a "(continued)" page header.
-- **edgartools** returns no Items for most filings without an HTML document, so it scores 0.039 F1 on the 21 `plain-text` filings of the development, held-out and blind sets. It also misses Items in many exhibit-13 and small-company 10-Ks and in the 10-KSBs, and it scores 0 on the 10-QSBs because of how the benchmark's runner passes them (above).
+- **edgartools** returns no Items for most filings without an HTML document, so it scores 0.047 F1 on the 21 `plain-text` filings of the development, held-out and blind sets. It also misses Items in many exhibit-13 and small-company 10-Ks, in the 10-KSBs, and in the 10-QSBs, where it finds 1 of 26 Items.
 - **Time.** The Python times include reading the filing from disk, and edgartools' times include parsing the whole submission. The parsec-edgar times start after the cached document has been read.
   - edgar-crawler's time is its whole run, minus its start-up time, divided by the number of filings.
   - edgartools' time is measured per filing.
