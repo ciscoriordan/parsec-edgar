@@ -118,7 +118,11 @@
 //! renamed the Item, the printed heading picks the title among those it has
 //! had ("Selected Financial Data" or "[Reserved]" for 10-K Item 6), and the
 //! current title is kept when the heading fits none of the earlier ones
-//! better. That choice never decides which lines are headings: the rules
+//! better. Titles have grown, so a heading that prints only words that an
+//! earlier title shares with the current one fits the earlier, shorter one
+//! better ("Directors and Executive Officers of the Company" for 10-K Item
+//! 10, titled "Directors and Executive Officers of the Registrant" until
+//! 2006). That choice never decides which lines are headings: the rules
 //! above that compare a line with an Item's title (a comma after the Item
 //! number, Item 1 printed without a number, a lettered sub-item) use the
 //! current title only, so "Item 10, Directors and Executive Officers of the
@@ -406,7 +410,8 @@ const TEN_QSB: &[Key] = &[
     q("I", "3", "Controls and Procedures"),
     q("II", "1", "Legal Proceedings"),
     q("II", "1A", "Risk Factors"),
-    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds").was(&["Changes in Securities"]),
+    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds")
+        .was(&["Changes in Securities and Use of Proceeds", "Changes in Securities"]),
     q("II", "3", "Defaults Upon Senior Securities"),
     q("II", "4", "Submission of Matters to a Vote of Security Holders"),
     q("II", "5", "Other Information"),
@@ -2091,33 +2096,54 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
 /// (`title_words`) of the printed title are compared with each title's: the
 /// title must hold the first of them, and the one with the most words in
 /// common, in order, wins, counted over as many of the printed words as the
-/// title has and two more; then one that is printed whole. A former title
-/// also needs at least half of its words printed. On a tie, and when no
+/// title has and two more; then the one with the fewest words not printed:
+/// one printed whole, or else the shorter one. Titles have grown over time,
+/// so a heading that prints only words that an earlier title shares with
+/// the current one gets the earlier title, as one that prints the earlier
+/// title whole does: "Market for the Company's Common Stock and Related
+/// Shareholder Matters" (1999) or "Directors and Executive Officers of the
+/// Company" (2001). A former title also needs at least half of its words
+/// printed, and more than half when the printed title shares a word with
+/// the current one, so that "Issuer Purchases of Equity Securities", which
+/// 10-Qs print as a caption under the current Item 2 title, keeps that title
+/// rather than taking the one of 2004 that holds it. On a tie, and when no
 /// title fits, the current title stays. The lines after the printed title go
-/// on with it while they hold only words of the title, as a heading printed
-/// over several lines does ("SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS
-/// AND MANAGEMENT" then "AND RELATED STOCKHOLDER MATTERS").
+/// on with it while all of their words but at most one, and most of them,
+/// are words of the title, as a heading printed over several lines does
+/// ("SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT" then
+/// "AND RELATED STOCKHOLDER MATTERS"), also with a word misspelled
+/// ("STOCKHOLDER MATTERS AND ISSUE PURCHASES OF EQUITY SECURITIES").
 fn printed_title(key: &Key, printed: &str, next: &str) -> &'static str {
     if key.former.is_empty() {
         return key.title;
     }
     let printed = title_words(printed);
     let next: Vec<Vec<String>> = next.lines().map(title_words).collect();
-    let mut best = (key.title, 0, false);
+    let current = title_words(key.title);
+    let shares_current = printed.iter().any(|w| current.contains(w));
+    // The best title so far, with its words in common and its words not
+    // printed.
+    let mut best = (key.title, 0, usize::MAX);
     for (i, &title) in std::iter::once(&key.title).chain(key.former).enumerate() {
         let words = title_words(title);
         if !printed.first().is_some_and(|w| words.contains(w)) {
             continue;
         }
+        let goes_on = |line: &&Vec<String>| {
+            let other = line.iter().filter(|w| !words.contains(w)).count();
+            !line.is_empty() && other <= 1 && 2 * other < line.len()
+        };
         let mut seq: Vec<&String> = printed.iter().collect();
-        for line in next.iter().take_while(|l| !l.is_empty() && l.iter().all(|w| words.contains(w))) {
+        for line in next.iter().take_while(goes_on) {
             seq.extend(line);
         }
         seq.truncate(words.len() + 2);
         let common = common_in_order(&seq, &words);
-        let fit = (common, common == words.len());
-        if fit > (best.1, best.2) && (i == 0 || 2 * common >= words.len()) {
-            best = (title, fit.0, fit.1);
+        let missing = words.len() - common;
+        let better = common > best.1 || (common == best.1 && missing < best.2);
+        let enough = if shares_current { 2 * common > words.len() } else { 2 * common >= words.len() };
+        if better && (i == 0 || enough) {
+            best = (title, common, missing);
         }
     }
     best.0
@@ -5563,7 +5589,8 @@ Pursuant to ...
         // Item 6 is MD&A or plan of operation, Item 7 the financial
         // statements with their auditors' report, and Items 8A and 8B are
         // Items of the form. Read with the 10-K Items, "ITEM 8A." and "ITEM
-        // 8B." would end Item 8 and their text would be in no section.
+        // 8B." would end Item 8 and their text would be in no section. Item 9
+        // prints the title it had before corporate governance was added.
         let body = BODY.repeat(30);
         let text = format!(
             "FORM 10-KSB\nPART I\nITEM 1. DESCRIPTION OF BUSINESS\n{body}\nITEM 2. DESCRIPTION OF PROPERTY\n{body}\n\
@@ -5596,8 +5623,8 @@ Pursuant to ...
                 "Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
                 "Controls and Procedures",
                 "Other Information",
-                "Directors, Executive Officers, Promoters, Control Persons and Corporate Governance; Compliance with \
-                 Section 16(a) of the Exchange Act",
+                "Directors, Executive Officers, Promoters and Control Persons; Compliance with Section 16(a) of the \
+                 Exchange Act",
                 "Exhibits",
                 "Principal Accountant Fees and Services",
             ]
@@ -5787,6 +5814,12 @@ Pursuant to ...
             ]
         );
         assert!(s[1].text.contains("\nItem 3. Controls and Procedures, of this report"));
+        // Part II Item 2 printed with use of proceeds, as from 1997.
+        let text = format!(
+            "PART II\nItem 1. Legal Proceedings\nNone.\nItem 2.           Changes in Securities and Use of Proceeds\n\
+             None.\nItem 6. Exhibits and Reports on Form 8-K\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(extract_sections(&text, kind)[1].title, "Changes in Securities and Use of Proceeds");
         // Financial statements printed after MD&A under a PART I line are
         // added out of order, as in a 10-Q.
         let text = format!(
@@ -6071,7 +6104,7 @@ Pursuant to ...
         // Item 4's title, and 10-Ks printed it as Item 4 before 2010. Both
         // forms' lists title Item 14 "Principal Accountant Fees and
         // Services". Neither moves a 10-K to the 10-KSB's Items: Item 5 has
-        // the 10-K's title.
+        // a 10-K title, the one before 2004 whose words it prints.
         let body = BODY.repeat(30);
         let text = format!(
             "ITEM 3. LEGAL PROCEEDINGS\n{body}\nITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNone.\n\
@@ -6081,7 +6114,7 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_3", "item_4", "item_5", "item_14"]);
         assert_eq!(s[1].title, "Submission of Matters to a Vote of Security Holders");
-        assert_eq!(s[2].title, TEN_K[7].title);
+        assert_eq!(s[2].title, TEN_K[7].former[0]);
         // Nor does a 10-Q's Part II "Item 4. Submission of Matters ..." move
         // it to the 10-QSB's Items when Part I Item 4 is printed as "Item 4T".
         let text = format!(
@@ -6207,7 +6240,7 @@ Pursuant to ...
              PART II\nItem 5. MARKET FOR REGISTRANT'S COMMON EQUITY, RELATED\n\
              STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES\n{body}\n\
              Item 6. [Reserved]\nItem 7. Management's Discussion and Analysis\n{body}\n\
-             PART III\nItem 10. Directors and Executive Officers\n{body}\n\
+             PART III\nItem 10. Directors, Executive Officers and Corporate\n{body}\n\
              Item 12. Security Ownership of Certain\nBeneficial Owners and Management and\n\
              Related Stockholder Matters\n{body}\n\
              Item 13. Certain Relationships and Related Transactions, and Director Independence\n{body}\n\
@@ -6232,6 +6265,14 @@ Pursuant to ...
              {body}\nSIGNATURES\n"
         );
         assert_eq!(extract_sections(&text, FormKind::TenK)[1].title, TEN_K[18].title);
+        // A title printed over two lines with a word misspelled on the second
+        // ("ISSUE"), which still goes on with the current title.
+        let text = format!(
+            "Item 4. Mine Safety Disclosures\nNot applicable.\n\
+             ITEM 5.\tMARKET FOR THE REGISTRANT'S COMMON EQUITY, RELATED\n\
+             STOCKHOLDER MATTERS AND ISSUE PURCHASES OF EQUITY SECURITIES.\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].title, TEN_K[7].title);
         // A bare heading whose next line is text, not a title, and a
         // heading that shares only a few words with an earlier title.
         let text = format!(
@@ -6248,5 +6289,61 @@ Pursuant to ...
             titles(&extract_sections(&text, FormKind::TenQ)),
             ["Legal Proceedings", "Unregistered Sales of Equity Securities and Use of Proceeds", "Exhibits"]
         );
+        // Half of an earlier title is not enough when the heading shares
+        // words with the current one: "Issuer Purchases of Equity
+        // Securities", a caption that 10-Qs print under the current Item 2
+        // title, is half of the 2004 title, and "Use of Proceeds" half of the
+        // title before it.
+        for heading in ["Issuer Purchases of Equity Securities", "Use of Proceeds"] {
+            let text = format!(
+                "PART II\nItem 1. Legal Proceedings\nNone.\nItem 2. {heading}\n{body}\n\
+                 Item 6. Exhibits\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(s[1].title, "Unregistered Sales of Equity Securities and Use of Proceeds", "{heading}");
+        }
+    }
+
+    #[test]
+    fn headings_that_print_words_of_an_earlier_title_get_it() {
+        // Titles have grown, so a heading that prints only words that an
+        // earlier title shares with the current one, with other words for
+        // some of them ("Shareholder", "Company") or cut short, prints the
+        // earlier title: a 10-K for 1998 and a 10-KSB for 2003.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART II\nItem 5. Market for the Registrant's Common Stock and Related Shareholder Matters\n{body}\n\
+             Item 6. Selected Financial Data\n{body}\n\
+             PART III\nItem 10. Directors and Executive Officers of the Company\n{body}\n\
+             Item 11. Executive Compensation\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5", "item_6", "item_10", "item_11"]);
+        assert_eq!(
+            titles(&s),
+            [
+                "Market for Registrant's Common Equity and Related Stockholder Matters",
+                "Selected Financial Data",
+                "Directors and Executive Officers of the Registrant",
+                "Executive Compensation",
+            ]
+        );
+        let text = format!(
+            "ITEM 5.  MARKET FOR THE REGISTRANT'S COMMON EQUITY AND RELATED\nSHAREHOLDER MATTERS\n{body}\n\
+             ITEM 6.  SELECTED FINANCIAL DATA\n{body}\nITEM 10.  DIRECTORS AND EXECUTIVE OFFICERS\n{body}\n\
+             ITEM 11.  EXECUTIVE COMPENSATION\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[0].title, "Market for Registrant's Common Equity and Related Stockholder Matters");
+        assert_eq!(s[2].title, "Directors and Executive Officers of the Registrant");
+        let text = format!(
+            "ITEM 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNone.\n\
+             ITEM 5.  MARKET FOR THE COMPANY'S COMMON STOCK AND RELATED\nSTOCKHOLDER MATTERS\n{body}\n\
+             ITEM 6.  MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION\n{body}\n\
+             ITEM 7.  FINANCIAL STATEMENTS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_4", "item_5", "item_6", "item_7"]);
+        assert_eq!(s[1].title, "Market for Common Equity and Related Stockholder Matters");
     }
 }
