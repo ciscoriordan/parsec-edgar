@@ -62,19 +62,25 @@
 //! ("Items 10, 11, 12, 13 and 14", "Items 10 - 13"), none of whose Items is
 //! Item 1, when only such lines come before it and no heading of another
 //! Item it names comes next: in a filing that prints no Item headings, the
-//! cover's row would start Item 10 and run to the signatures. A body's
-//! heading of several later Items ("ITEMS 10 - 13.") follows the heading of
-//! an earlier Item. Two Items joined with "and" and a range with "through"
-//! stay, as they can start a 10-K/A that amends only those Items ("ITEMS 7
-//! AND 7A."). A comma after the number of one Item, as running text also
-//! puts it ("Item 8, which ..."), counts only when the line ends where the
-//! Item's standard title ends ("Item 8, Financial Statements and
-//! Supplementary Data"). In a 10-K or 10-KSB whose first Item found is Item
-//! 1A or Item 2, a line that holds only Item 1's standard title after the
-//! last `PART I` line before it ("PART I." and then "BUSINESS") starts Item
-//! 1, unless an Item line comes between them, or the title line is printed
-//! more than once after the last Item line before the heading (Item 1's pages
-//! print "PART I" and "Business" as page headers).
+//! cover's row would start Item 10 and run to the signatures. A body's heading
+//! of several later Items ("ITEMS 10 - 13.") follows the heading of an earlier
+//! Item. Nor is a line that names several Items and nothing else, with or
+//! without its Part ("Items 1, 1A, 2 and 3", "Items 10 and 11", "Part III –
+//! Items 10 through 14"), or one Item after its Part ("Part II – Item 5"), when
+//! the heading of the cover's list of documents incorporated by reference comes
+//! at most 2,000 characters before it with only the list's rows between them
+//! (no other Part line, Item line or explanatory note), unless the list says
+//! "None" or the next line holds the first Item's standard title. Otherwise two
+//! Items joined with "and" and a range with "through" stay, as they can start a
+//! 10-K/A that amends only those Items ("ITEMS 7 AND 7A."). A comma after the
+//! number of one Item, as running text also puts it ("Item 8, which ..."),
+//! counts only when the line ends where the Item's standard title ends ("Item
+//! 8, Financial Statements and Supplementary Data"). In a 10-K or 10-KSB whose
+//! first Item found is Item 1A or Item 2, a line that holds only Item 1's
+//! standard title after the last `PART I` line before it ("PART I." and then
+//! "BUSINESS") starts Item 1, unless an Item line comes between them, or the
+//! title line is printed more than once after the last Item line before the
+//! heading (Item 1's pages print "PART I" and "Business" as page headers).
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins. A power of attorney printed
 //! before the signatures under a "POWER OF ATTORNEY" line goes with them, so
@@ -141,11 +147,11 @@
 //! earlier title shares with the current one fits the earlier, shorter one
 //! better ("Directors and Executive Officers of the Company" for 10-K Item
 //! 10, titled "Directors and Executive Officers of the Registrant" until
-//! 2006). That choice never decides which lines are headings: the rules
-//! above that compare a line with an Item's title (a comma after the Item
-//! number, Item 1 printed without a number, a lettered sub-item) use the
-//! current title only, so "Item 10, Directors and Executive Officers of the
-//! Registrant" (the title before 2006) is no heading.
+//! 2006). That choice never decides which lines are headings: the rules above
+//! that compare a line with an Item's title (a comma after the Item number,
+//! Item 1 printed without a number, a lettered sub-item, the line below a
+//! cover's row) use the current title only, so "Item 10, Directors and
+//! Executive Officers of the Registrant" (the title before 2006) is no heading.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -955,6 +961,83 @@ fn lettered_sub_item<'a>(
     standard.then_some((lettered, title))
 }
 
+/// A line that names several Items and nothing else: `Items 10, 11, 12, 13
+/// and 14`, `Items 1-3`, `Part III – Items 10 through 14`, `ITEMS 7 AND 7A.`
+static SEVERAL_ITEMS: LazyLock<Regex> = LazyLock::new(|| {
+    let part = r"(?:part[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[-–—]+)?[ \t]*)?";
+    let n = r"\d{1,2}[A-Ca-c]?\.?";
+    let joint = r"(?:,[ \t]*(?:and|&)?|and|&|through|to|[-–—])";
+    Regex::new(&format!(
+        r"(?i)^[ \t]*{part}items?[ \t]*{n}(?:[ \t]*{joint}[ \t]*(?:items?[ \t]*)?{n})+[ \t]*[.:]?[ \t]*$"
+    ))
+    .unwrap()
+});
+
+/// A line that names only Parts and Items, starting with a Part: `Part I –
+/// Items 1, 1A, 2 and 3; Part II – Items 5, 6, 7,`, `Part II, Item 5`.
+static PARTS_AND_ITEMS: LazyLock<Regex> = LazyLock::new(|| {
+    let part = r"part[ \t]+[IV]{1,3}";
+    let n = r"\d{1,2}[A-Ca-c]?";
+    let marks = r"[ \t]*[,.:;&\-–—]*[ \t]*";
+    let word = format!(r"(?:{part}|items?|{n}|and|through|to)(?-u:\b)");
+    Regex::new(&format!(r"(?i)^[ \t]*{part}{marks}items?[ \t]*{n}(?-u:\b)(?:{marks}{word})*{marks}$")).unwrap()
+});
+
+/// The heading of a cover's list of documents incorporated by reference, and
+/// the rest of its line: `DOCUMENTS INCORPORATED BY REFERENCE`, `Documents
+/// incorporated by reference: None`.
+static INCORPORATED_DOCUMENTS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^[ \t]*documents?[ \t]+incorporated[ \t]+(?:herein[ \t]+)?by[ \t]+reference\b[ \t:.\-–—]*(.*)$")
+        .unwrap()
+});
+
+/// `None`, `Not applicable.`, `N/A`.
+static NONE_LINE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^[ \t]*(?:none|not[ \t]+applicable|n/a)[ \t]*\.?[ \t]*$").unwrap());
+
+/// Whether the line from `start` to `end`, of Item `label`, is a row of a
+/// cover's list of documents incorporated by reference: it names several
+/// Items and nothing else ("Items 10, 11, 12, 13 and 14", "Part III – Items 10
+/// through 14") or starts with a Part and names only Parts and Items ("Part II
+/// – Item 5"), and the list's heading ("DOCUMENTS INCORPORATED BY REFERENCE")
+/// comes at most 2,000 characters before it, with only other such rows and the
+/// documents' names between them: no other Part line, Item line or
+/// explanatory note. A list that says "None" lists nothing, and a heading
+/// of several Items has the title of its first Item on the next line ("ITEMS
+/// 7 AND 7A.", then "MANAGEMENT'S DISCUSSION AND ANALYSIS").
+fn cover_row(text: &str, start: usize, end: usize, label: &str, keys: &[Key]) -> bool {
+    const NEAR: usize = 2000;
+    let row = &text[start..end];
+    if !SEVERAL_ITEMS.is_match(row) && !PARTS_AND_ITEMS.is_match(row) {
+        return false;
+    }
+    let next = title_key(next_line_title(text, end));
+    if keys.iter().any(|k| k.item == label && same_title(&next, &title_key(k.title))) {
+        return false;
+    }
+    let mut back = 0;
+    let mut below: Option<&str> = None;
+    for line in text[..start].rsplit('\n') {
+        back += line.len() + 1;
+        if back > NEAR {
+            return false;
+        }
+        if line.trim().is_empty() || SEVERAL_ITEMS.is_match(line) || PARTS_AND_ITEMS.is_match(line) {
+            continue;
+        }
+        if let Some(c) = INCORPORATED_DOCUMENTS.captures(line) {
+            return !NONE_LINE.is_match(&c[1])
+                && (!c[1].trim().is_empty() || !below.is_some_and(|l| NONE_LINE.is_match(l)));
+        }
+        let note = line.trim_start().get(..16).is_some_and(|w| w.eq_ignore_ascii_case("explanatory note"));
+        if PART_LINE.is_match(line) || PERIODIC_HEADING.is_match(line) || note {
+            return false;
+        }
+        below = Some(line);
+    }
+    false
+}
+
 fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     let keys = keys_for(kind);
     let re = if kind == FormKind::EightK { &*CURRENT_HEADING } else { &*PERIODIC_HEADING };
@@ -964,6 +1047,9 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
             let m = c.get(0).expect("group 0 always matches");
             let (number, tail) = (c.get(1).expect("Item number"), c.get(2).expect("tail"));
             let label = number.as_str().to_ascii_uppercase();
+            if kind != FormKind::EightK && cover_row(text, m.start(), m.end(), &label, keys) {
+                return None;
+            }
             // "Item 8, Financial Statements ...", "ITEMS 9, 9A AND 9B." A list
             // or a range of Items with nothing after it, on a line that starts
             // with a Part, names where text is incorporated, as a cover's list
@@ -3416,6 +3502,83 @@ Pursuant to ...
              Items 9, 10, 11, 12 and 14\nCROSS-REFERENCE INDEX\n{body}{body}\nSIGNATURES\n"
         );
         assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), [] as [&str; 0]);
+    }
+
+    #[test]
+    fn cover_rows_that_name_several_items_are_no_headings() {
+        // A 10-K that prints no Item headings, and a row of the cover's list
+        // of documents incorporated by reference that names Item 1, or joins
+        // Items with "and" or "through", with or without its Part, also after
+        // the row of another document.
+        let body = BODY.repeat(30);
+        for row in [
+            "Items 1, 1A, 2 and 3",
+            "Items 1-3",
+            "Part III – Items 10 through 14",
+            "Part III – Items 10 and 11",
+            "Items 10 and 11",
+            "ITEMS 10 THROUGH 14.",
+            "Items 5, 6, 7, 7A and 8\nPortions of the Proxy Statement for the 2018 Annual Meeting\nItems 10 and 11",
+            // A row of one Item with its Part, and rows that join Parts.
+            "Part II – Item 5\nPortions of the Proxy Statement for the 2018 Annual Meeting\nPart III – Items 10 and 11",
+            "Part I – Items 1, 1A, 2 and 3; Part II – Items 5, 6, 7,\n7A, 8 and 9A; and Part IV– Item 15.\n\
+             Portions of the Proxy Statement for the 2018 Annual Meeting\nPart III – Items 10 through 14",
+        ] {
+            let cover = format!(
+                "FORM 10-K\nDOCUMENTS INCORPORATED BY REFERENCE\n\
+                 Document\tPart of Form 10-K into which incorporated\n\
+                 Portions of the Annual Report to Shareholders for 2017\t\n{row}\n\
+                 FORM 10-K CROSS-REFERENCE INDEX\n1\tBusiness\t2-20\n{body}{body}\n"
+            );
+            let s = extract_sections(&format!("{cover}SIGNATURES\n"), FormKind::TenK);
+            assert_eq!(ids(&s), [] as [&str; 0], "{row}");
+            let text =
+                format!("{cover}PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_15"], "{row}");
+        }
+    }
+
+    #[test]
+    fn headings_of_several_items_after_a_covers_list_stay() {
+        let body = BODY.repeat(30);
+        let info = format!("The information is incorporated by reference to the proxy statement.\n{body}");
+        let tail = format!("PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n");
+        let list =
+            "DOCUMENTS INCORPORATED BY REFERENCE\nPortions of the Proxy Statement are incorporated into Part III.\n";
+        // A 10-K/A that amends only Items 10 to 14 starts with a heading of
+        // all of them, after a list that says "None", a Part line, an
+        // explanatory note, another Item, or a long text.
+        for before in [
+            "DOCUMENTS INCORPORATED BY REFERENCE: None\n".to_owned(),
+            "DOCUMENTS INCORPORATED BY REFERENCE\nNone.\n".to_owned(),
+            format!("{list}PART III\n"),
+            format!("{list}EXPLANATORY NOTE\nThis amendment adds the information required by Part III.\n"),
+            format!("{list}Item 9. Changes in and Disagreements with Accountants\nNone.\n"),
+            format!("{list}PART II – ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n"),
+            format!("{list}{body}\n"),
+        ] {
+            let text = format!("FORM 10-K/A\n{before}ITEMS 10 THROUGH 14.\n{info}\n{tail}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s).iter().rev().take(2).collect::<Vec<_>>(), [&"item_15", &"item_10"], "{before}");
+        }
+        // A heading of one Item is no row.
+        let text = format!(
+            "FORM 10-K/A\n{list}Item 10. Directors, Executive Officers and Corporate Governance\n{info}\n{tail}"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_10", "item_15"]);
+        // A heading of several Items prints the title of the first on the
+        // next line.
+        let text = format!(
+            "FORM 10-K/A\n{list}ITEMS 7 AND 7A.\nMANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_7", "item_8"]);
+        let text = format!("FORM 10-K\n{list}ITEMS 1, 1A AND 2.\nBUSINESS AND PROPERTIES\n{body}\n{tail}");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_15"]);
+        let text =
+            format!("FORM 10-K/A\n{list}PART II – ITEM 5\nMARKET FOR REGISTRANT'S COMMON EQUITY\n{body}\n{tail}");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_5", "item_15"]);
     }
 
     #[test]
