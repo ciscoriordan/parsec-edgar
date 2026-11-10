@@ -38,14 +38,15 @@ latest = client.latest("AAPL", "10-K")      # a filing dict
 text = client.text(latest)                  # clean text
 for s in client.sections(latest):
     print(s["id"], s["title"], len(s["text"]))
-tables = client.tables(latest)              # [{'start': ..., 'end': ..., 'header_rows': [], 'rows': [[...], ...]}, ...]
+tables = client.tables(latest)              # [{'start': ..., 'end': ..., 'header_rows': [], 'rows': [[...], ...],
+                                            #   'columns': [[...], ...], 'spans': [[...], ...]}, ...]
 
 pe.html_to_text(html)                       # parse documents you already have
 pe.extract_sections(text, "10-K")
 text, tables = pe.html_to_text_and_tables(html)
 ```
 
-A table is a list of rows, each a list of cells that read exactly as in the text: `$` and `)` or `%` cells are merged into their numbers ("$391,035", "(1,234)", "14.3%"), and empty cells are left out. Only numbers take them, so a header such as "Amount" keeps the "%" column beside it as a cell of its own, and "$" beside "N/A" stays apart. `header_rows` lists the rows the filing marks as headers with `<thead>` or `<th>`, which most filings do not. `start` and `end` give the table's place in the text, the same text that `extract_sections` splits, so a table belongs to the section whose `start` and `end` hold its `start`. Offsets of sections and tables count bytes of the UTF-8 text: slice `text.encode()[t["start"]:t["end"]].decode()` when the text is not plain ASCII. Plain-text filings have no tables.
+A table is a list of rows, each a list of cells that read exactly as in the text: `$` and `)` or `%` cells are merged into their numbers ("$391,035", "(1,234)", "14.3%"), and empty cells are left out. Only numbers take them, so a header such as "Amount" keeps the "%" column beside it as a cell of its own, and "$" beside "N/A" stays apart. `columns` and `spans` give each cell's column in the table's grid, counted from 0, and how many columns it covers, with empty cells, `colspan` and `rowspan` counted as a browser counts them, and a merged "$391,035" in the number's column. A header cell is above the values whose column is in its range, so `t["columns"][r][i]` lines values up with headers even when empty cells or a wide row label make the cell positions differ. `header_rows` lists the rows the filing marks as headers with `<thead>` or `<th>`, which most filings do not. `start` and `end` give the table's place in the text, the same text that `extract_sections` splits, so a table belongs to the section whose `start` and `end` hold its `start`. Offsets of sections and tables count bytes of the UTF-8 text: slice `text.encode()[t["start"]:t["end"]].decode()` when the text is not plain ASCII. Plain-text filings have no tables.
 
 Dates in `since` and `until` are "YYYY", "YYYY-MM" or "YYYY-MM-DD" in digits, with the month 01 to 12 and the day 01 to 31. Lookup failures raise `LookupError`, bad arguments (such as a date "2024-13") raise `ValueError`, and network or HTTP failures raise `parsec_edgar.EdgarError`. Network calls release the GIL, so one client can be shared across threads; it stays within its rate limit.
 

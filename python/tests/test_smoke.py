@@ -45,7 +45,7 @@ def test_html_to_text():
 
 def test_html_to_text_and_tables():
     html = (
-        "<p>Résultats</p><table><tr><th></th><th>2024</th></tr>"
+        "<p>Résultats</p><table><tr><th></th><th colspan=2>2024</th></tr>"
         "<tr><td>Net sales</td><td>$</td><td>391,035</td></tr></table><p>After the table.</p>"
     )
     text, tables = pe.html_to_text_and_tables(html)
@@ -53,6 +53,9 @@ def test_html_to_text_and_tables():
     [t] = tables
     assert t["rows"] == [["2024"], ["Net sales", "$391,035"]]
     assert t["header_rows"] == [0]
+    # "2024" covers the "$" and number columns; "$391,035" sits in the number's column.
+    assert t["columns"] == [[1], [0, 2]]
+    assert t["spans"] == [[2], [1, 1]]
     # Offsets count bytes of the UTF-8 text, like section offsets.
     assert text.encode()[t["start"] : t["end"]].decode() == "2024\nNet sales\t$391,035\n"
     assert pe.html_to_text_and_tables("A plain-text filing.\n") == ("A plain-text filing.\n", [])
