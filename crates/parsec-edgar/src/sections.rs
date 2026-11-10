@@ -27,7 +27,12 @@
 //! report") is a wrapped cross-reference, not a heading. In every form, so is
 //! an Item line that carries on a sentence from the line just above it, which
 //! ends with a comma or with a word such as "in", "see" or "to" ("as set
-//! forth in Part II,").
+//! forth in Part II,"). So is one whose title, whole or by its first three
+//! words, goes straight on to name the report or another document ("Item 1A.
+//! Risk Factors, of our Annual Report on Form 10-K for 2019 describes"), when
+//! a heading of the Item with that title follows it before any heading of an
+//! Item that comes later in the form. Without such a heading after it, the
+//! line may be a run-in heading and stays a candidate.
 //! A heading that names several Items ("Items 1 and 2.", "Items 1 through
 //! 5.", or with a dash, "Item 1-5.", but not "Item 1-2 of the Form") starts
 //! the first of them. One that puts a comma after the Item number, as
@@ -586,6 +591,8 @@ struct Candidate {
     /// The heading names a second Item: `Items 9 and 9A.`, `ITEM 7A & 8.`,
     /// `ITEMS 9, 9A AND 9B.`, `Item 1-5.`
     joined: bool,
+    /// The line cites the Item and a document (`cites_document`).
+    cites: bool,
     /// Distance to the next heading of a different Item.
     gap: usize,
     score: f64,
@@ -807,7 +814,7 @@ fn lettered_sub_item<'a>(
 fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     let keys = keys_for(kind);
     let re = if kind == FormKind::EightK { &*CURRENT_HEADING } else { &*PERIODIC_HEADING };
-    let mut cands: Vec<Candidate> = re
+    let cands: Vec<Candidate> = re
         .captures_iter(text)
         .filter_map(|c| {
             let m = c.get(0).expect("group 0 always matches");
@@ -858,6 +865,7 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
             if title_part == Some("I") && !bare && runs_on_as_sentence(&label, tail, keys) {
                 return None;
             }
+            let cites = !bare && cites_document(&label, tail, keys);
             Some(Candidate {
                 pos: m.start(),
                 label,
@@ -871,11 +879,41 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                 listed: false,
                 officers,
                 joined,
+                cites,
                 gap: 0,
                 score: 0.0,
             })
         })
         .collect();
+    // A line that cites an Item and a document is not a heading when the
+    // Item's next heading follows it: a titled one with the same title, before
+    // any heading of an Item that comes later in the form. It must not cut
+    // the Item it sits in short. Without one it may be a run-in heading
+    // ("Item 7. Management's Discussion and Analysis of the Company's 1998
+    // Annual Report is incorporated herein by reference."), also when an
+    // index after the body lists the Item again.
+    // The first and the last place of an Item number in the form's order (a
+    // 10-Q numbers Items 1 to 4 in both parts).
+    let place = |label: &str| {
+        let mut at = keys.iter().enumerate().filter(|(_, k)| k.item == label).map(|(i, _)| i);
+        let first = at.next();
+        (first, at.next_back().or(first))
+    };
+    let cited: Vec<bool> = cands
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let last = place(&c.label).1;
+            c.cites
+                && cands[i + 1..]
+                    .iter()
+                    .take_while(|o| {
+                        o.label == c.label || place(&o.label).0.zip(last).is_none_or(|(other, cited)| other < cited)
+                    })
+                    .any(|o| !o.cites && !o.bare && o.label == c.label && same_title(&o.title, &c.title))
+        })
+        .collect();
+    let mut cands: Vec<Candidate> = cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect();
     set_gaps(&mut cands, text.len());
     let mut cands = drop_running_headers(drop_contents_entries(cands, text, keys), keys);
     // Score by the gap to the next heading of a different Item, so repeated
@@ -972,6 +1010,55 @@ fn continues_sentence(text: &str, line_start: usize) -> bool {
     let last = line.trim_end().rsplit([' ', '\t']).next().unwrap_or("");
     let word = last.trim_start_matches(['(', '"', '“']);
     last.ends_with(',') || JOINING_WORDS.contains(&word) || OPEN_WORDS.contains(&word)
+}
+
+/// After an Item's title, a phrase that names the report or another document,
+/// as a cross-reference goes on: `, of our Annual Report on Form 10-K`, ` in
+/// this report`, ` of the Company's 1998 Annual Report`. A heading that goes
+/// on after its title names the registrant at most ("... of the Registrant").
+static DOCUMENT_REFERENCE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"^[,"”’')\]]*[ \t]+(?:of|in)[ \t]+(?:this|our|its|the[ \t]+\p{Lu}[\w.&-]*['’]s)[ \t](?:[^\n]*?[ \t])?(?i:report|form[ \t]+10-?[kq]|10-?[kq])\b"#,
+    )
+    .unwrap()
+});
+
+/// A word of a title, with apostrophes inside it, and its place.
+static TITLE_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\p{Alphabetic}\p{N}'’]+").unwrap());
+
+/// Whether a title cites Item `label` and a document, as a cross-reference
+/// that starts its sentence does: it starts with a title the form gives the
+/// Item (also an earlier one), whole or by its first three words, and goes
+/// straight on with `DOCUMENT_REFERENCE` ("Item 1A. Risk Factors, of our
+/// Annual Report on Form 10-K for 2019 describes ...", "Item 7.
+/// Management's Discussion and Analysis, of the Company's Annual Report").
+fn cites_document(label: &str, title: &str, keys: &[Key]) -> bool {
+    keys.iter()
+        .filter(|k| k.item == label)
+        .flat_map(|k| std::iter::once(k.title).chain(k.former.iter().copied()))
+        .filter_map(|standard| after_title(title, standard))
+        .any(|rest| DOCUMENT_REFERENCE.is_match(rest))
+}
+
+/// The rest of `printed` after the words of `standard` (`title_words`) that
+/// it starts with, when they are all of them or at least three.
+fn after_title<'a>(printed: &'a str, standard: &str) -> Option<&'a str> {
+    let words = title_words(standard);
+    let (mut matched, mut end) = (0, 0);
+    for m in TITLE_WORD.find_iter(printed) {
+        let word = word_stem(m.as_str().trim_matches(['\'', '’']));
+        if word.is_empty() || JOINING_WORDS.contains(&word.as_str()) {
+            continue;
+        }
+        if words.get(matched) != Some(&word) {
+            break;
+        }
+        (matched, end) = (matched + 1, m.end());
+        if matched == words.len() {
+            break;
+        }
+    }
+    (matched > 0 && (matched == words.len() || matched >= 3)).then(|| &printed[end..])
 }
 
 /// Lowercase words that a heading does not put after its title, but a
@@ -1720,6 +1807,7 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
         listed: false,
         officers: false,
         joined: false,
+        cites: false,
         gap: heading - pos,
         score: 0.0,
     })
@@ -3511,6 +3599,136 @@ mod tests {
         let s = extract_sections(&text, FormKind::EightK);
         assert_eq!(ids(&s), ["item_2.02", "item_7.01", "item_9.01"]);
         assert_eq!(s[1].heading, "Item 7.01 Regulation FD Disclosure");
+    }
+
+    #[test]
+    fn item_line_that_cites_a_document_before_its_heading_is_not_a_heading() {
+        // The layouts of `item_line_that_carries_on_a_sentence_is_not_a_heading`,
+        // with the cross-reference starting its own sentence after a period.
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(60);
+        for line in [
+            "Item 8. Financial Statements and Supplementary Data, of this report describes the notes.",
+            "Item 8. Financial Statements and Supplementary Data in this Annual Report on Form 10-K describes them.",
+            "Item 8. \"Financial Statements and Supplementary Data\" of this Form 10-K describes the notes.",
+        ] {
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\nPART II\n\
+                 Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 {body}\nThe notes are due in 2030.\n{line}\n{long}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\n\
+                 Item 9A. Controls and Procedures\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_2", "item_7", "item_8", "item_9a"], "{line}");
+            assert!(s[2].text.contains(&format!("\n{line}\n")), "{line}");
+            assert_eq!(s[3].heading, "Item 8. Financial Statements and Supplementary Data");
+        }
+        // A 10-K that prints Item 6's earlier title, and cites Item 7 in it.
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\nItem 6. Selected Financial Data\n{body}\n\
+             The table is unaudited.\nItem 7. Management's Discussion and Analysis, of the Company's 1998 Annual \
+             Report discusses it.\n{long}\nItem 7. Management's Discussion and Analysis of Financial Condition and \
+             Results of Operations\n{body}\nItem 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_6", "item_7", "item_8"]);
+        assert!(s[1].text.contains("\nItem 7. Management's Discussion and Analysis, of the Company's 1998"));
+        // The issue's 10-Q: Part II Item 1 cites Item 1A of the annual report.
+        let text = format!(
+            "PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n{body}\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             {body}\nItem 4. Controls and Procedures\n{body}\nPART II. OTHER INFORMATION\n\
+             Item 1. Legal Proceedings\n{body}\nThe litigation is pending.\n\
+             Item 1A. Risk Factors, of our Annual Report on Form 10-K for 2019 describes the risks\nof the \
+             litigation.\n{long}\nItem 1A. Risk Factors\nThere have been no material changes.\nItem 6. Exhibits\n\
+             {body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_1a", "part_2_item_6"]
+        );
+        assert!(s[3].text.contains("\nItem 1A. Risk Factors, of our Annual Report on Form 10-K for 2019"));
+        assert_eq!(s[4].heading, "Item 1A. Risk Factors");
+        // An 8-K whose Item 2.02 cites Item 7.01.
+        let text = format!(
+            "Item 2.02 Results of Operations and Financial Condition\n{body}\nThe press release is attached.\n\
+             Item 7.01 Regulation FD Disclosure, of this report furnishes it as well.\n{long}\n\
+             Item 7.01 Regulation FD Disclosure\nSee Item 2.02.\n\
+             Item 9.01 Financial Statements and Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::EightK);
+        assert_eq!(ids(&s), ["item_2.02", "item_7.01", "item_9.01"]);
+        assert_eq!(s[1].heading, "Item 7.01 Regulation FD Disclosure");
+    }
+
+    #[test]
+    fn item_lines_that_cite_a_document_with_no_heading_after_them_stay() {
+        // A run-in heading that names the annual report it incorporates, with
+        // no heading of its Item after it, starts the Item.
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(60);
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\nItem 6. Selected Financial Data\n{body}\n\
+             The table is unaudited.\nItem 7. Management's Discussion and Analysis of the Company's 1998 Annual \
+             Report is incorporated herein by reference.\n{long}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_6", "item_7", "item_8"]);
+        assert!(s[2].heading.starts_with("Item 7. Management's Discussion and Analysis of the Company's 1998"));
+        // A later Item line of another Item, or of the same Item with another
+        // title, does not count as its heading.
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\nItem 6. Selected Financial Data\n{body}\n\
+             Item 7. Management's Discussion and Analysis, of this report is set out below.\n{long}\n\
+             Item 7. Liquidity\n{body}\nItem 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_6", "item_7", "item_8"]);
+        assert!(s[2].heading.starts_with("Item 7. Management's Discussion and Analysis, of this report"));
+        // A run-in heading of Item 7 and an index after the body that lists
+        // Items 7 and 8: Item 8's heading comes between them.
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\nItem 6. Selected Financial Data\n{body}\n\
+             The table is unaudited.\nItem 7. Management's Discussion and Analysis of the Company's 1998 Annual \
+             Report is incorporated herein by reference.\n{long}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nCROSS-REFERENCE INDEX\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             Item 8. Financial Statements and Supplementary Data\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_6", "item_7", "item_8"]);
+        assert!(s[2].heading.starts_with("Item 7. Management's Discussion and Analysis of the Company's 1998"));
+    }
+
+    #[test]
+    fn titles_that_name_a_document_after_the_item_title_cite_it() {
+        assert!(cites_document("1A", "Risk Factors, of our Annual Report on Form 10-K for 2019 describes", TEN_K));
+        assert!(cites_document("1A", "Risk Factors in this report", TEN_Q));
+        assert!(cites_document("1A", "“Risk Factors” of this Form 10-Q", TEN_Q));
+        assert!(cites_document(
+            "7",
+            "Management's Discussion and Analysis, of the Company's 1998 Annual Report",
+            TEN_K
+        ));
+        assert!(cites_document("6", "Selected Financial Data of its 10-K", TEN_K));
+        assert!(cites_document("7.01", "Regulation FD Disclosure, of this report", EIGHT_K));
+        // No document named, fewer than three words of the title, a word of
+        // its own between the title and the phrase, or capitals.
+        for (label, title) in [
+            ("10", "Directors, Executive Officers and Corporate Governance of the Registrant"),
+            ("1A", "Risk Factors of our business"),
+            ("1A", "Risk Factors of the Company"),
+            ("9A", "Controls, of this report"),
+            ("7", "Management's Discussion, of this report"),
+            ("1A", "Risk Factors Relating to the Merger in this report"),
+            ("8", "FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA OF THIS REPORT"),
+            ("1A", "Risk Factors"),
+        ] {
+            assert!(!cites_document(label, title, TEN_K), "{title}");
+        }
     }
 
     #[test]
