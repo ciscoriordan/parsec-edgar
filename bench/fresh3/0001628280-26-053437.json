@@ -1,0 +1,75 @@
+{
+  "accession": "0001628280-26-053437",
+  "cik": 717423,
+  "company": "MURPHY OIL CORP",
+  "form": "10-Q",
+  "filing_date": "2026-08-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/717423/000162828026053437/mur-20260630.htm",
+  "agent": "Workiva",
+  "tags": [
+    "running-headers"
+  ],
+  "labeled": true,
+  "notes": "The contents list (lines 31 to 66) is not labeled. Every MD&A page after the first repeats 'ITEM 2. MANAGEMENT'S DISCUSSION AND ANALYSIS ... (CONTINUED)' as a running header (19 copies, lines 784 to 1224); Part I Item 2 is labeled at the first heading, line 766, which has no '(CONTINUED)'. Part II prints only Items 1, 1A, 5 and 6, and so does the contents list, so Items 2, 3 and 4 are absent. Part II Item 1A only points to the risk factors in the 2025 Form 10-K and says none were added, so it is marked incorporated, as in the Terex 2007 label. Part II Item 5 reports on trading arrangements and is not marked. Item 6's exhibit list ends at SIGNATURE.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1. FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "MURPHY OIL CORPORATION AND CONSOLIDATED "
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following Management’s Discussion an"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "The Company is exposed to market risks a"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Under the direction of its principal exe"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "Murphy and its subsidiaries are engaged "
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "ITEM 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "The Company’s operations in the oil and ",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "ITEM 5. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "During the three months ended June 30, 2"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6. EXHIBITS",
+      "occurrence": 0,
+      "next": "The following is an index of exhibits th"
+    }
+  ],
+  "absent": [
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

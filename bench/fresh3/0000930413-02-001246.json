@@ -1,0 +1,102 @@
+{
+  "accession": "0000930413-02-001246",
+  "cik": 1130481,
+  "company": "JOSHUA TREE CONSTRUCTION INC",
+  "form": "10KSB",
+  "filing_date": "2002-04-16",
+  "url": "https://www.sec.gov/Archives/edgar/data/1130481/000093041302001246/c24169_10ksb.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "Plain-text Form 10-KSB for fiscal 2001, 10-KSB numbering, no table of contents. Items 1 to 13 each have one body heading. The form had no Items 8A, 8B or 14 yet, so nothing is listed as absent (as in the VerticalBuyer 2001 10-KSB label). Item 7 opens with the auditor's consent letter and prints the financial statements. Item 9's title is printed 'PRINTERS AND CONTROL PERSONS' (for promoters). Item 8 says 'None.', an answer, so it is not marked. Soft call, unscored: Item 12 is marked incorporated because every sentence in it only refers the reader to Items 1, 2 and 11 above, as in the earlier labels that mark Items pointing only to another Item of the same report (fresh 0000003753-98-000003 Item 8, fresh2 0000702165-02-000012 Item 7A, fresh2 0000935036-21-000014 Item 8); one labeler left it unmarked because the references name the relationships. Item 13 lists the exhibits and 8-K reports and ends at SIGNATURES, the end of the document.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.   DESCRIPTION OF BUSINESS",
+      "occurrence": 0,
+      "next": "We were incorporated under the laws of t"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.  DESCRIPTION OF PROPERTY",
+      "occurrence": 0,
+      "next": "As of December 31, 2001, we had no signi"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.  LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "As of December 31, 2001, and as of the d"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "During the fourth quarter of the period "
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.  MARKET FOR EQUITY AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The principal market for our common stoc"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.  MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION",
+      "occurrence": 0,
+      "next": "The following discussion and analysis sh"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.  FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "AUDITOR'S CONSENT LETTER"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. CHANGES IN AND  DISAGREEMENTS  WITH AUDITORS ON ACCOUNTING AND FINANCIAL",
+      "occurrence": 0,
+      "next": "DISCLOSURE"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.  DIRECTORS, EXECUTIVE OFFICERS, PRINTERS AND CONTROL PERSONS.",
+      "occurrence": 0,
+      "next": "As of November 6, 2001, Vincent Hesser w"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.  EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "During the fiscal year ended December 31"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.  SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "As of December 31, 2001, our sole direct"
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.  CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS.",
+      "occurrence": 0,
+      "next": "With respect to relationships we have wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.  EXHIBITS AND REPORTS ON FORM 8-K.",
+      "occurrence": 0,
+      "next": "(A) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with Section 13 or 15(d) o"
+  }
+}

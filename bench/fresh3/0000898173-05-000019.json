@@ -1,0 +1,141 @@
+{
+  "accession": "0000898173-05-000019",
+  "cik": 898173,
+  "company": "O REILLY AUTOMOTIVE INC",
+  "form": "10-K",
+  "filing_date": "2005-03-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/898173/000089817305000019/form10k2004.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text",
+    "exhibit-13",
+    "annual-report-attached"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-K for fiscal 2004 with no table of contents, filed before Items 1A and 1B existed; the unnumbered 'Risk Factors' section stays in Item 1. Item 9B (added to the form in August 2004) has no heading and is absent. 'Item 4A. Executive Officers of the Company' is not a standard Item, so Item 4 ends at its heading and the executive officers section belongs to no Item, as in bench/holdout Ford 2010. Items 5 to 8 only incorporate portions of the annual report to shareholders, and Items 11 to 14 only incorporate the proxy statement. Item 10 adds its own code of ethics and audit committee financial expert text, so it is not marked. Item 4 ('No matters were submitted ...') and Item 9 ('None.') are answers and are not marked (the labelers differed on Item 9). Item 15 says Schedule II 'is included in Item 15(d)', and Schedule II is printed right after the 8-K list, so it stays in Item 15, which ends at SIGNATURES. The exhibit index and Exhibit 13.1 (portions of the 2004 annual report: MD&A, the auditors' report and the financial statements, about 2,100 lines) follow the signatures and belong to no Item.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.  Business",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.  Properties",
+      "occurrence": 0,
+      "next": "The   following   table   provides   cer"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.  Legal Proceedings",
+      "occurrence": 0,
+      "next": "The Company is involved in various  othe"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.       Submission Of Matters To A Vote Of Security Holders",
+      "occurrence": 0,
+      "next": "No matters  were  submitted  to a vote o",
+      "end": {
+        "text": "Item 4A.      Executive Officers of the Company",
+        "occurrence": 0,
+        "next": "The following  paragraphs  discuss  info"
+      }
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market For Registrant's Common Equity And Related Shareholder Matters",
+      "occurrence": 0,
+      "next": "Common  Stock  Market  Prices and  Divid",
+      "incorporated": true
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "Selected  Financial  Data on  pages 22 a",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's  Discussion And Analysis Of Financial Condition And Results",
+      "occurrence": 0,
+      "next": "Of Operations",
+      "incorporated": true
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative And Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "We do not have any material amounts  out"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements And Supplementary Data",
+      "occurrence": 0,
+      "next": "The Company's consolidated financial sta",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item  9.  Changes  In And  Disagreements  With  Accountants  On  Accounting  And",
+      "occurrence": 0,
+      "next": "Financial Disclosure"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Disclosure and Internal Control",
+      "occurrence": 0,
+      "next": "The Company's management,  under the sup"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors And Executive Officers Of The Registrant",
+      "occurrence": 0,
+      "next": "The  information  regarding the  directo"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "The  material  in  the  Proxy  Statement",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership Of Certain Beneficial Owners And Management",
+      "occurrence": 0,
+      "next": "Information regarding equity compensatio",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships And Related Transactions",
+      "occurrence": 0,
+      "next": "The material in the Proxy  Statement und",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The  material  in the Proxy  Statement  ",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedule And Reports On Form 8-K",
+      "occurrence": 0,
+      "next": "(a) 1.  Financial Statements-O'Reilly Au"
+    }
+  ],
+  "absent": [
+    "item_9b"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the  requirements of Section"
+  }
+}

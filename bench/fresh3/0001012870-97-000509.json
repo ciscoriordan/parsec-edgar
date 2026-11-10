@@ -1,0 +1,114 @@
+{
+  "accession": "0001012870-97-000509",
+  "cik": 1001489,
+  "company": "RED BRICK SYSTEMS INC",
+  "form": "10-K405",
+  "filing_date": "1997-03-17",
+  "url": "https://www.sec.gov/Archives/edgar/data/1001489/000101287097000509/0001012870-97-000509.txt",
+  "agent": "",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-K405 for fiscal 1996, pre-2003 numbering (Item 14 is exhibits, schedules and 8-K reports). The dotted INDEX (lines 47 to 73) is not labeled; a forward-looking statements paragraph between 'PART I' and Item 1 belongs to no Item. 'ITEM 4a. EXECUTIVE OFFICERS OF THE REGISTRANT' (line 980) is not a standard Item, so Item 4 ends at its heading and the executive officers list belongs to no Item, as in the Walmart 2000 label. Item 7A did not yet apply to a fiscal 1996 report, so nothing is listed as absent (as in fresh2's CFSB Bancorp 1997 label). Item 8 prints the financial statements and Schedule II. Items 4 and 9 give short answers ('No matters were submitted', 'None') and are not marked. Items 11 to 13 only refer to the proxy statement and Item 10 to the proxy statement and the executive officers section, so all four are marked incorporated. Item 14 ends at SIGNATURES, the end of the document.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "OVERVIEW"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "The Company's principal administrative, "
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "There are no pending material legal proc"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of t",
+      "end": {
+        "text": "ITEM 4a. EXECUTIVE OFFICERS OF THE REGISTRANT",
+        "occurrence": 0,
+        "next": "The following sets forth certain informa"
+      }
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR REGISTRANT'S COMMON STOCK AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The Company's common stock has been trad"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. SELECTED CONSOLIDATED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "YEAR ENDED DECEMBER 31,"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND",
+      "occurrence": 0,
+      "next": "RESULTS OF OPERATIONS"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. CONSOLIDATED FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "RED BRICK SYSTEMS, INC."
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 0,
+      "next": "FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "The information required by this item re",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a) Documents filed as part of this repo"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

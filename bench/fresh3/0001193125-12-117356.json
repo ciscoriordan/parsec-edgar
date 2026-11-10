@@ -1,0 +1,143 @@
+{
+  "accession": "0001193125-12-117356",
+  "cik": 18169,
+  "company": "DOLE FOOD CO INC",
+  "form": "10-K",
+  "filing_date": "2012-03-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/18169/000119312512117356/d287051d10k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "notes": "Every Item from 1 to 15 has one body heading; the contents list at lines 47 to 74 gives Item numbers without the word 'Item' and is not labeled. Item 8 prints the full financial statements and supplementary data. Items 1B, 4, 9 and 9B say only 'None.', which is an answer, so they are not marked (the labelers differed here). Items 11 to 14 only refer to the proxy statement. Hard call (the labelers differed): Item 10 refers to the proxy statement and adds a code of ethics paragraph of its own (whom the code covers, where it is posted, how amendments and waivers are disclosed), so it is not marked, as with O'Reilly 2005 in this set and Funko 2026 in bench/fresh2; the Apple 2016, Visa 2017, BTCS 2025 and MSB Financial labels mark such an Item. Item 15 lists the exhibits itself and ends at SIGNATURES. Schedule II (valuation and qualifying accounts) and the exhibit index follow the signatures and belong to no Item.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness",
+      "occurrence": 0,
+      "next": "Dole Food Company, Inc. was founded in H"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "RISK FACTORS"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved\tStaff Comments",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "The following is a description of our si"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal\tProceedings",
+      "occurrence": 0,
+      "next": "Dole is involved from time to time in cl"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tMine Safety Disclosures",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Dole’s common stock is listed and traded"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "Year"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "This Management’s Discussion and Analysi"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "As a result of its global operating and "
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "I.\tIndex to Consolidated Financial State"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes\tin and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls\tand Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other\tInformation",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors,\tExecutive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "Information concerning Directors, Execut"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive\tCompensation",
+      "occurrence": 0,
+      "next": "Information concerning Executive Compens",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security\tOwnership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "Information concerning Security Ownershi",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain\tRelationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "Information concerning Certain Relations",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal\tAccountant Fees and Services",
+      "occurrence": 0,
+      "next": "Information as to Principal Accountant F",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)\t1.\tFinancial Statements: The followi"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

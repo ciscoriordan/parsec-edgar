@@ -1,0 +1,132 @@
+{
+  "accession": "0000950152-07-002934",
+  "cik": 1086411,
+  "company": "JOHN D. OIL & GAS CO",
+  "form": "10KSB",
+  "filing_date": "2007-04-02",
+  "url": "https://www.sec.gov/Archives/edgar/data/1086411/000095015207002934/l24257ae10ksb.htm",
+  "agent": "",
+  "tags": [
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "Form 10-KSB for fiscal 2006 with the 10-KSB numbering: Item 6 is MD&A or plan of operation, Item 7 financial statements, Item 8 changes in accountants, Items 8A and 8B, Item 13 exhibits and Item 14 accountant fees; Item 1A (risk factors) is printed. The index (lines 31 to 57) uses 'Item N:' with page numbers and is not labeled. The glossary of terms between 'PART I' and Item 1 belongs to no Item. Item 5 prints its own market, dividend and stock issuance text and is not marked. Item 7 only says the auditors' report and the statements are filed as part of the report, so it is marked incorporated, as in the bench/labels 10-KSB 0000350644-98-000002; the report and statements follow the signatures and belong to no Item. Item 8 describes the change of accountants and is not marked. Items 4 and 8B ('None.') are nil answers and are marked incorporated, following the field definition in bench/src/labels.rs. Items 9 to 12 and 14 only incorporate the proxy statement. Item 13 holds the exhibit list and Item 14 follows it; the filing ends at SIGNATURES. Nothing is absent.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Description of Business",
+      "occurrence": 0,
+      "next": "John D. Oil and Gas Company, formerly Li"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "Risks Related to Our Oil and Natural Gas"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Description of Property",
+      "occurrence": 0,
+      "next": "Oil and Natural Gas Wells"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "There are no material pending legal proc"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Common Equity, Related Stockholder Matters and Issuer’s Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Market Information. The Company’s shares"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Management’s Discussion and Analysis or Plan of Operation",
+      "occurrence": 0,
+      "next": "John D. Oil and Gas Company, formerly Li"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Financial Statements",
+      "occurrence": 0,
+      "next": "The Company’s Report of Independent Regi",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "On April 4, 2006, Grant Thornton LLP not"
+    },
+    {
+      "id": "item_8a",
+      "text": "Item 8A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "As of December 31, 2006, the Company car"
+    },
+    {
+      "id": "item_8b",
+      "text": "Item 8B. Other Information",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Directors, Executive Officers and Control Persons; Compliance with Section 16 (a) of the Exchange Act",
+      "occurrence": 0,
+      "next": "The information required by this Item 9 ",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Executive Compensation",
+      "occurrence": 0,
+      "next": "The information required by Item 10 is c",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information required by Item 11 is c",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "The information required by Item 12 is c",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Exhibits",
+      "occurrence": 0,
+      "next": "NO.\tDESCRIPTION"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The information required by Item 14 is c",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

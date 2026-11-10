@@ -1,0 +1,100 @@
+{
+  "accession": "0000950152-96-000097",
+  "cik": 706471,
+  "company": "MAX & ERMAS RESTAURANTS INC",
+  "form": "10-K",
+  "filing_date": "1996-01-16",
+  "url": "https://www.sec.gov/Archives/edgar/data/706471/000095015296000097/0000950152-96-000097.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "exhibit-13"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-K for fiscal 1995, before Item 7A existed; pre-2003 numbering, so Item 14 is exhibits, schedules and 8-K reports. No table of contents. Uncertain: Part III prints one combined heading, 'Items 10, 11, 12 and 13. DIRECTORS AND EXECUTIVE OFFICERS ...', followed by one paragraph that incorporates the proxy statement; it is labeled as Item 10 (incorporated) and Items 11 to 13, which have no heading of their own, are absent, as with Harleysville Savings' 'Item 1-5.' in bench/fresh2/0000914317-02-000557. Items 5 to 8 only incorporate the annual report to shareholders (Exhibit 13), which the converted text does not include. Items 4 and 9 say only 'None', which is an answer, so they are not marked, as in most earlier labels (the labelers differed here). Item 14 states which statements and exhibits are filed and that there were no 8-K reports, so it is not marked. The filing ends at SIGNATURES; the index to financial statements (headed 'ITEMS 8, 14(a)(1)') and the index to exhibits follow the signatures and belong to no Item.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. BUSINESS",
+      "occurrence": 0,
+      "next": "- ----------------"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.  PROPERTIES",
+      "occurrence": 0,
+      "next": "- -------  ----------"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "- ------- -----------------"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "----------------------------------------"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.  MARKET FOR REGISTRANT'S COMMON EQUITY AND RELATED",
+      "occurrence": 0,
+      "next": "- -------  -----------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.  SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "- -------  -----------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION",
+      "occurrence": 0,
+      "next": "- -------  -----------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.  FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "- -------  -----------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.  CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS",
+      "occurrence": 0,
+      "next": "- -------  -----------------------------"
+    },
+    {
+      "id": "item_10",
+      "text": "Items 10, 11, 12 and 13.  DIRECTORS AND EXECUTIVE OFFICERS OF THE",
+      "occurrence": 0,
+      "next": "REGISTRANT:  EXECUTIVE COMPENSATION:  SE",
+      "incorporated": true,
+      "uncertain": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.  EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON FORM",
+      "occurrence": 0,
+      "next": "8-K."
+    }
+  ],
+  "absent": [
+    "item_11",
+    "item_12",
+    "item_13"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

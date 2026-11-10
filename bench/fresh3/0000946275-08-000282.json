@@ -1,0 +1,155 @@
+{
+  "accession": "0000946275-08-000282",
+  "cik": 1315399,
+  "company": "PARKE BANCORP, INC.",
+  "form": "10-K",
+  "filing_date": "2008-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/1315399/000094627508000282/f10k_123107-0343.htm",
+  "agent": "Malizia Spidi & Fisch",
+  "tags": [
+    "bank",
+    "small-cap",
+    "exhibit-13"
+  ],
+  "labeled": true,
+  "notes": "Form 10-K for fiscal 2007 of a bank holding company that is a smaller reporting company. The contents list (lines 43 to 79) is not labeled. A forward-looking statements section between 'PART I' and Item 1 belongs to no Item. Items 6, 7 and 7A only incorporate sections of the 2007 annual report to stockholders, filed as Exhibit 13, a separate document, and Item 8 only incorporates the statements listed under Item 15, so all four are marked incorporated. Item 9A is printed 'Item 9A (T).' Items 1B and 9 ('None.'), Item 4 (no matters submitted) and Item 9B ('Not applicable.') are nil answers and are marked incorporated, following the field definition in bench/src/labels.rs. Item 5 prints a fourth-quarter repurchase table and Item 12 an equity compensation plan table, so neither is marked. Hard call: Item 10 incorporates the proxy statement and adds a code of ethics statement (a copy is furnished on written request) and one sentence saying the nominee procedures have not changed. It is marked incorporated, as the fresh2 MSB Financial 2011 label (same filing agent) does for a single code of ethics sentence; the fresh2 ITT label leaves Item 10 unmarked only because it prints its own governance text. Items 11, 13 and 14 only incorporate the proxy statement. Item 15 lists the statements incorporated from the annual report and the exhibits; the filing ends at SIGNATURES, the last text in the document.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness",
+      "occurrence": 0,
+      "next": "The Company is a bank holding company in"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "The following is a summary of the materi"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.\tUnresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties",
+      "occurrence": 0,
+      "next": "(a) Properties"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "On December 27, 2004, Republic First Ban"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tSubmission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "There were no matters submitted to a vot",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "(a)\tThe information contained under the "
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Financial Data",
+      "occurrence": 0,
+      "next": "The information contained under the sect",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "The information contained in the section",
+      "incorporated": true
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "The information contained in the section",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The Company’s financial statements liste",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements With Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A (T).\tControls and Procedures",
+      "occurrence": 0,
+      "next": "(a)\tDisclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "The information contained under the head",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "The information contained in the section",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "(a) Security Ownership of Certain Benefi"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "The information contained in the section",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPrincipal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The information contained in the section",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)\tListed below are all financial state"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

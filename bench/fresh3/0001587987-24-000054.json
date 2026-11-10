@@ -1,0 +1,166 @@
+{
+  "accession": "0001587987-24-000054",
+  "cik": 1587987,
+  "company": "NewtekOne, Inc.",
+  "form": "10-K",
+  "filing_date": "2024-04-01",
+  "url": "https://www.sec.gov/Archives/edgar/data/1587987/000158798724000054/newt-20231231.htm",
+  "agent": "self",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "Form 10-K for fiscal 2023. The contents list (lines 44 to 73) prints Item numbers without the word 'Item' and is not labeled. A defined terms list, an explanatory note and the forward-looking statements section come before Item 1 and belong to no Item; the body has no 'PART I' line. Items 1B, 4 and 9 ('None.') and Item 9C ('Not Applicable.') are nil answers and are marked incorporated, following the field definition in bench/src/labels.rs. Item 6 '[RESERVED].' has no body and is not marked. Item 3 refers to a note to the financial statements but adds its own paragraph on the FTC order, so it is not marked. Item 8 only says the statements begin on page F-1 and is marked incorporated. Items 10 to 14 incorporate the proxy statement. Hard call: Item 11 adds one sentence saying a clawback policy was adopted in November 2023; it is still marked incorporated, as the fresh2 MSB Financial 2011 label does for a single code of ethics sentence. Item 15 holds the exhibit list and ends at SIGNATURES, the filing end; the index to the financial statements and the statements (F-pages) follow the signatures and belong to no Item. No Item 16 heading anywhere, including the contents, so Item 16 is listed absent.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS.",
+      "occurrence": 0,
+      "next": "Prior to January 6, 2023 and during the "
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. RISK FACTORS.",
+      "occurrence": 0,
+      "next": "The following is a summary of the risk f"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B. UNRESOLVED STAFF COMMENTS.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_1c",
+      "text": "ITEM 1C. CYBERSECURITY.",
+      "occurrence": 0,
+      "next": "Risk Management and Strategy"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES.",
+      "occurrence": 0,
+      "next": "We conduct our principal business activi"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS.",
+      "occurrence": 0,
+      "next": "Refer to “NOTE 14—COMMITMENTS AND CONTIN"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. MINE SAFETY DISCLOSURES.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR THE REGISTRANT'S COMMON EQUITY AND RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES.",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. [RESERVED].",
+      "occurrence": 0,
+      "next": "ITEM 7. MANAGEMENT'S DISCUSSION AND ANAL"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS.",
+      "occurrence": 0,
+      "next": "Introduction and Certain Cautionary Stat"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK.",
+      "occurrence": 0,
+      "next": "We consider the principal types of risk "
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. CONSOLIDATED FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA.",
+      "occurrence": 0,
+      "next": "Our consolidated financial statements an",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES. .",
+      "occurrence": 0,
+      "next": "(a) Evaluation of Disclosure Controls an"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. OTHER INFORMATION.",
+      "occurrence": 0,
+      "next": "Trading Arrangements"
+    },
+    {
+      "id": "item_9c",
+      "text": "ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS",
+      "occurrence": 0,
+      "next": "Not Applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE.",
+      "occurrence": 0,
+      "next": "The information required by Item 10 is h",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by Item 11 is h",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The information required by Item 12 is h",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS, RELATED PARTY TRANSACTIONS AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required by Item 13 is h",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTING FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by Item 14 is h",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES.",
+      "occurrence": 0,
+      "next": "(a)(1) Financial Statements."
+    }
+  ],
+  "absent": [
+    "item_16"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

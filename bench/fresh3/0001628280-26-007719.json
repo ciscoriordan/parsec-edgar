@@ -1,0 +1,165 @@
+{
+  "accession": "0001628280-26-007719",
+  "cik": 1718512,
+  "company": "Gates Industrial Corp Ltd.",
+  "form": "10-K",
+  "filing_date": "2026-02-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/1718512/000162828026007719/gtes-20251231.htm",
+  "agent": "Workiva",
+  "tags": [],
+  "labeled": true,
+  "notes": "Every Item from 1 to 16, including 1C and 9C, has a body heading; the contents (lines 42 to 69) are not labeled. Forward-looking statements, website disclosure and 'ABOUT THIS ANNUAL REPORT' sit between the contents and PART I and belong to no Item. Item 6 is '[Reserved]' with no body and is not marked. Item 7's heading uses a colon and wraps: 'Item 7: Management's Discussion and Analysis', then 'of Financial Condition and Results of Operations'. Item 8 only points to the financial statements indexed in Item 15, so it is marked incorporated, as in the ITT 2015 label. Items 4, 9C and 16 say 'Not applicable.' and are marked; Items 1B and 9 say only 'None.', which is an answer, so they are not marked (the labelers differed here). Item 9B reports trading arrangements and is not marked. Items 11 to 14 only refer to the proxy statement. Hard call (the labelers differed): Item 10 refers to the proxy statement and adds a 'Code of Ethics' subsection of its own, so it is not marked, as in the Funko 2026 label in bench/fresh2, which has the same layout, and as Dole 2012 in this set. Item 15 holds the index to financial statements and the exhibit list; the filing ends at SIGNATURES, and the auditors' report and the F-page financial statements follow it and belong to no Item.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 0,
+      "next": "We are a global manufacturer of innovati"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "The risk factors noted in this section, "
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_1c",
+      "text": "Item 1C. Cybersecurity",
+      "occurrence": 0,
+      "next": "Risk Management and Strategy"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "We operate from over 125 locations in 31"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "Gates is, from time to time, party to ge"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters, and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. [Reserved]",
+      "occurrence": 0,
+      "next": "Item 7: Management’s Discussion and Anal"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7: Management’s Discussion and Analysis",
+      "occurrence": 0,
+      "next": "of Financial Condition and Results of Op"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Our market risk includes the potential l"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements With Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "Trading Arrangements"
+    },
+    {
+      "id": "item_9c",
+      "text": "Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspections",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "Directors and Executive Officers"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "The information called for by this Item ",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information called for by this Item ",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "The information called for by this Item ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The information called for by this Item ",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "The financial statements filed as part o"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. Form 10-K Summary",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

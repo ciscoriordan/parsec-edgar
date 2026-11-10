@@ -1,0 +1,145 @@
+{
+  "accession": "0001144204-07-015886",
+  "cik": 1087277,
+  "company": "APTIMUS INC",
+  "form": "10-K",
+  "filing_date": "2007-04-02",
+  "url": "https://www.sec.gov/Archives/edgar/data/1087277/000114420407015886/v069998_10k.htm",
+  "agent": "Vintage Filings",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "No table of contents; most headings use a colon ('Item 1: Business'), Items 1B and 15 a period. A forward-looking statements paragraph before 'PART I' belongs to no Item. Items 1B and 9 say only 'Not applicable' and Items 11 and 13 only incorporate the proxy statement, so they are marked incorporated. Item 10 cites the proxy statement but adds its own 'Code of Ethics' subsection, Item 12 prints an equity compensation plan table and Item 14 a fee policy and table, so they are not marked; Items 4 and 9B give short answers ('No matters were submitted', 'None.') and are not marked. Item 8 holds the financial statements; Item 15 holds the statement list, Schedule II and the exhibit list, and ends at SIGNATURES. An 'EXHIBITS INDEX' repeating the exhibit list follows the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1: Business",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A: Risk Factors",
+      "occurrence": 0,
+      "next": "RISKS RELATED TO OUR BUSINESS"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "Not applicable",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2: Properties",
+      "occurrence": 0,
+      "next": "We currently occupy 4,200 square feet in"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3: Legal Proceedings",
+      "occurrence": 0,
+      "next": "We are not engaged in any material litig"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4: Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No matters were submitted for a vote of "
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5: Market For Our Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Price Range of Common Stock"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6: Selected Financial Data",
+      "occurrence": 0,
+      "next": "The following selected consolidated fina"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7: Management’s Discussion And Analysis Of Financial Conditions And Results Of Operations",
+      "occurrence": 0,
+      "next": "OVERVIEW"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A: Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "All of our cash is held in accounts that"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8: Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "INDEX TO CONSOLIDATED FINANCIAL STATEMEN"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9: Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A: Controls And Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B: Other Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10: Directors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "Information with respect to Directors ma"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11: Executive Compensation",
+      "occurrence": 0,
+      "next": "The information in the Proxy Statement s",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12: Security Ownership of Certain Beneficial Owners and Management and related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information set forth under the capt"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13: Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "The information set forth under the capt",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14: Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "It is the policy of the Company for the "
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)1. Financial Statements"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

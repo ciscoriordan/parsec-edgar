@@ -1,0 +1,37 @@
+{
+  "accession": "0001157523-22-000139",
+  "cik": 1732845,
+  "company": "WestRock Co",
+  "form": "8-K",
+  "filing_date": "2022-02-03",
+  "url": "https://www.sec.gov/Archives/edgar/data/1732845/000115752322000139/a52573128.htm",
+  "agent": "Business Wire",
+  "tags": [],
+  "labeled": true,
+  "notes": "Short earnings 8-K with three Item headings and no contents list; they match the three Items in the EDGAR filing header, so none is absent. Items 2.02 and 7.01 describe the earnings release and the conference call presentation (Exhibits 99.1 and 99.2) themselves, so neither is marked incorporated. The exhibits are not in the primary document. Item 9.01 lists the exhibits and ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "item_2.02",
+      "text": "Item 2.02.\tResults of Operations and Financial Condition",
+      "occurrence": 0,
+      "next": "On February 3, 2022, WestRock Company is"
+    },
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01.\tRegulation FD Disclosure",
+      "occurrence": 0,
+      "next": "On February 3, 2022, WestRock will host "
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01.\tFinancial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(c)\tExhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

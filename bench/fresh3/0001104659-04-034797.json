@@ -1,0 +1,58 @@
+{
+  "accession": "0001104659-04-034797",
+  "cik": 1061068,
+  "company": "GB&T BANCSHARES INC",
+  "form": "10-Q",
+  "filing_date": "2004-11-09",
+  "url": "https://www.sec.gov/Archives/edgar/data/1061068/000110465904034797/a04-13092_110q.htm",
+  "agent": "Toppan Merrill",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "The contents list (lines 28 to 47) is not labeled, so the body headings for Part I Items 3 and 4, Part II Item 6 and SIGNATURES are second occurrences. The company-name page header above Item 2 stays in Item 1. Part II prints only Item 6; Items 1 to 5 have no heading and are absent (Part II Item 1A did not exist in 2004). Item 6 lists the exhibits and certifications and ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1 - FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "GB&T BANCSHARES, INC. AND SUBSIDIARIES"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND",
+      "occurrence": 0,
+      "next": "RESULTS OF OPERATIONS"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 1,
+      "next": "We are exposed only to U.S. dollar inter"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. CONTROLS AND PROCEDURES",
+      "occurrence": 1,
+      "next": "As of the end of the period covered by t"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. EXHIBITS",
+      "occurrence": 1,
+      "next": "Exhibits"
+    }
+  ],
+  "absent": [
+    "part_2_item_1",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 1,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

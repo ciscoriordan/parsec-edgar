@@ -1,0 +1,91 @@
+{
+  "accession": "0001080319-09-000023",
+  "cik": 1080319,
+  "company": "Elys BMG Group, Inc.",
+  "form": "10-Q",
+  "filing_date": "2009-09-18",
+  "url": "https://www.sec.gov/Archives/edgar/data/1080319/000108031909000023/emgl070630-10q.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-Q of Empire Global Corp. (later Elys BMG Group) for the quarter ended June 30, 2007, filed late in 2009. Uncertain: 'ITEM 1. FINANCIAL STATEMENTS' appears twice before the statements: at line 30, between the cover and the contents list, with the sentence 'The un-audited quarterly financial statements ... immediately follow.', and again at line 47, after the contents list (lines 33 to 46, not labeled) and directly above the statements. Part I Item 1 is labeled at the second, which heads the statements; the alternative is line 30, which would put the contents list inside Item 1. There is no PART I line in the body. Part I Item 3 and Part II Item 1A say a smaller reporting company is not required to provide the information and are marked incorporated. Part II Items 2 and 3 say only 'None.', which is an answer, so they are not marked (the labelers differed here); Part II Items 4 ('No matter was submitted ...') and 5 are answers too. Part II Item 6 lists exhibits 31 and 32. The filing ends at the second SIGNATURES line; the first is the last line of the contents list.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1. FINANCIAL STATEMENTS",
+      "occurrence": 1,
+      "next": "EMPIRE GLOBAL CORP.",
+      "uncertain": true
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS",
+      "occurrence": 0,
+      "next": "OF OPERATIONS"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3.\tQuantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "Empire is a smaller reporting company as",
+      "incorporated": true
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4.\tControls and Procedures.",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.  Legal Proceedings.",
+      "occurrence": 0,
+      "next": "The Company is subject to claims arising"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A.  Risk Factors.",
+      "occurrence": 0,
+      "next": "Empire is a smaller reporting company as",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.  Unregistered Sales of Equity Securities and Use of Proceeds.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3.  Defaults Upon Senior Securities.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.  Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "No matter was submitted to a vote of sec"
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5.  Other Information.",
+      "occurrence": 0,
+      "next": "During the quarter of the fiscal year co"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.  Exhibits",
+      "occurrence": 0,
+      "next": "(a) Index to and Description of Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 1,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

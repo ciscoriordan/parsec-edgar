@@ -1,0 +1,37 @@
+{
+  "accession": "0001289490-26-000003",
+  "cik": 1289490,
+  "company": "Extra Space Storage Inc.",
+  "form": "8-K",
+  "filing_date": "2026-01-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/1289490/000128949026000003/exr-20260105.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Short Inline XBRL 8-K. Item 5.02 reports the promotion of an officer to President; Item 7.01 furnishes the press release on it as Exhibit 99.1, which is not in this document, and describes it, so it is not marked incorporated. Item 9.01 lists Exhibits 99.1 and 104. Each Item has one heading and there is no contents list. The filing ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "item_5.02",
+      "text": "Item 5.02\tDeparture of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers.",
+      "occurrence": 0,
+      "next": "On January 5, 2026, Extra Space Storage "
+    },
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01\tRegulation FD Disclosure",
+      "occurrence": 0,
+      "next": "On January 5, 2026, the Company issued a"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01\tFinancial Statements and Exhibits",
+      "occurrence": 0,
+      "next": "(d) The following exhibit is furnished h"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

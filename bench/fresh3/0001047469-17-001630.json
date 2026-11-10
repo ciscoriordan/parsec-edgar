@@ -1,0 +1,152 @@
+{
+  "accession": "0001047469-17-001630",
+  "cik": 1567345,
+  "company": "HEMISPHERE MEDIA GROUP, INC.",
+  "form": "10-K",
+  "filing_date": "2017-03-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/1567345/000104746917001630/a2231257z10-k.htm",
+  "agent": "Toppan Merrill",
+  "tags": [],
+  "labeled": true,
+  "notes": "Form 10-K for fiscal 2016. The contents list (lines 59 to 84) is not labeled. A definitions paragraph and the forward-looking statements section between 'PART I' and Item 1 belong to no Item. Item 8 only points to the financial statements under Item 15 and is marked incorporated. Items 1B, 9 and 9B ('None.') and Item 4 ('Not applicable.') are nil answers and are marked incorporated, following the field definition in bench/src/labels.rs. The headings of Items 10 to 14 are printed one after another, followed by one paragraph that incorporates all five from the proxy statement. Each heading is labeled, so Items 10 to 13 hold only their heading lines and the shared paragraph falls in Item 14, as in the fresh2 Norfolk Southern label; all five are marked incorporated. Item 15 ends at SIGNATURES, the filing end; the index to the financial statements, the reports and the statements (F-pages) follow the signatures and belong to no Item. The form defined Item 16 (Form 10-K Summary) from June 2016 and the filing has no heading for it, so it is listed absent, as in the fresh2 ACI Worldwide and Alleghany labels.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business.",
+      "occurrence": 0,
+      "next": "OVERVIEW"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "The following risk factors and the forwa"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties.",
+      "occurrence": 0,
+      "next": "We lease our headquarters at 4000 Ponce "
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "From time to time, we or our subsidiarie"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Our Class A common stock is listed and t"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data.",
+      "occurrence": 0,
+      "next": "The following table sets forth our selec"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "The following discussion and analysis su"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "Interest Rate Risk"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "The response to this item is provided in",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "Item 11. Executive Compensation.",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation.",
+      "occurrence": 0,
+      "next": "Item 12. Security Ownership of Certain B",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "Item 13. Certain Relationships and Relat",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "Item 14. Principal Accounting Fees and S",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accounting Fees and Services.",
+      "occurrence": 0,
+      "next": "The information required by Items 10, 11",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statements and Schedules.",
+      "occurrence": 0,
+      "next": "(a)"
+    }
+  ],
+  "absent": [
+    "item_16"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

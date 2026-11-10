@@ -1,0 +1,89 @@
+{
+  "accession": "0001213900-23-041982",
+  "cik": 1866838,
+  "company": "Inception Growth Acquisition Ltd",
+  "form": "10-Q",
+  "filing_date": "2023-05-22",
+  "url": "https://www.sec.gov/Archives/edgar/data/1866838/000121390023041982/f10q0323_inception.htm",
+  "agent": "EdgarAgents",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Part I has no Item 1 heading: the contents list (lines 40 to 47) names only the financial statements, and 'PART I – FINANCIAL INFORMATION' leads straight into the balance sheet, so Part I Item 1 is absent and the statements and notes belong to no Item, as in fresh/0001104659-14-056950. Part II Item 1 says only that the company is not party to any legal proceedings; Item 1A only refers to the risk factors in the IPO prospectus and says there are no material changes, as in fresh2/0000794619-21-000087; Items 3 and 5 say 'None.' and Item 4 'Not Applicable.' All five are marked incorporated, following the field definition in bench/src/labels.rs. The filing ends at SIGNATURES. Tagged small-cap: a SPAC that checks the smaller reporting company box.",
+  "items": [
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "References in this report (the “Quarterl"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "As of March 31, 2023, we were not subjec"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1 Legal Proceedings",
+      "occurrence": 0,
+      "next": "The Company is not party to any legal pr",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "Factors that could cause our actual resu",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds.",
+      "occurrence": 0,
+      "next": "On December 13, 2021, we consummated our"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults Upon Senior Securities.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Mine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not Applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "The following exhibits are filed as part"
+    }
+  ],
+  "absent": [
+    "part_1_item_1"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with the requirements of t"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "accession": "0000950144-00-007167",
+  "cik": 844887,
+  "company": "DIAMONDHEAD CASINO CORP",
+  "form": "10QSB",
+  "filing_date": "2000-05-22",
+  "url": "https://www.sec.gov/Archives/edgar/data/844887/000095014400007167/0000950144-00-007167.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-QSB filed under the name Europa Cruises. The contents list with dotted leaders (lines 30 to 45) is not labeled. Part II Item 1 says only 'See Note 3. Material Contingencies.' and Item 4 says 'None.', so both are marked incorporated, following the field definition in bench/src/labels.rs. Part II Items 2, 3 and 5 have no heading and are absent; the 2000 form had no Part I Item 3 and no Part II Item 1A, so neither is listed. The filing ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1            FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "The results of operations for the interi"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2.  MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS",
+      "occurrence": 0,
+      "next": "OF OPERATIONS"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.  LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "See Note 3. Material Contingencies.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITIES HOLDERS",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.  EXHIBITS AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "Exhibit 27.       Financial Data Schedul"
+    }
+  ],
+  "absent": [
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with Section 13 or 15(d) o"
+  }
+}

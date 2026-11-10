@@ -1,0 +1,136 @@
+{
+  "accession": "0001279363-19-000008",
+  "cik": 1279363,
+  "company": "WELLCARE HEALTH PLANS, INC.",
+  "form": "10-K",
+  "filing_date": "2019-02-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/1279363/000127936319000008/wcg-2018123110k.htm",
+  "agent": "self",
+  "tags": [
+    "insurer"
+  ],
+  "labeled": true,
+  "notes": "The contents list (lines 38 to 62) is not labeled. Items 1B, 9 and 9B say 'None', Item 4 says 'Not Applicable.' and Item 8 only points to the statements at the end of the report, so they are marked incorporated. The auditors' report on internal control is printed inside Item 9A. Hard call (uncertain): Part III prints one combined heading, 'Items 10, 11, 12, 13 and 14.', with one paragraph incorporating the proxy statement; it is labeled as Item 10 (incorporated), and Items 11 to 14, which have no heading of their own, are absent, as with 'Item 1-5' in fresh2/0000914317-02-000557. Item 15 says the schedules are listed on the index immediately preceding the financial statements at the end of the report; that index ('Index to Consolidated Financial Statements and Schedules', line 1206) follows directly, then the statements and Schedule I with no Item heading, so Item 15 ends at the index and that text belongs to no Item, as in the ITT 2015 and ACI Worldwide 2021 labels. The order after them is Exhibit Index, then SIGNATURES, so the filing ends at the Exhibit Index, the first end marker after the last Item's text, as in the ACI label; Item 15 has its own end, so this changes no span. No Item 16 heading.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business.",
+      "occurrence": 0,
+      "next": "OVERVIEW"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "You should carefully consider the follow"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties.",
+      "occurrence": 0,
+      "next": "Our principal administrative, sales and "
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "We are involved in legal actions in the "
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not Applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Market for Common Stock"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data.",
+      "occurrence": 0,
+      "next": "The following table sets forth our summa"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "The following discussion and analysis of"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Qualitative and Quantitative Disclosures about Market Risk.",
+      "occurrence": 0,
+      "next": "Investment Return Market Risk"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "Our consolidated financial statements an",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes In and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "(a)\tEvaluation of Disclosure Controls an"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information.",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Items 10, 11, 12, 13 and 14.",
+      "occurrence": 0,
+      "next": "The information required by Items 10, 11",
+      "incorporated": true,
+      "uncertain": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(a) Financial Statements and Financial S",
+      "end": {
+        "text": "Index to Consolidated Financial Statements and Schedules",
+        "occurrence": 0,
+        "next": "WellCare Health Plans, Inc."
+      }
+    }
+  ],
+  "absent": [
+    "item_11",
+    "item_12",
+    "item_13",
+    "item_14",
+    "item_16"
+  ],
+  "end": {
+    "text": "Exhibit Index",
+    "occurrence": 0,
+    "next": "INCORPORATED BY REFERENCE"
+  }
+}

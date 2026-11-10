@@ -1,0 +1,39 @@
+{
+  "accession": "0001092306-06-000702",
+  "cik": 899166,
+  "company": "POINT BLANK SOLUTIONS, INC.",
+  "form": "8-K",
+  "filing_date": "2006-11-16",
+  "url": "https://www.sec.gov/Archives/edgar/data/899166/000109230606000702/form8k.txt",
+  "agent": "",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 8-K; EDGAR lists the filer as Point Blank Solutions, and the document prints the earlier name DHB Industries. Item 5.02's heading wraps onto a second line ('APPOINTMENT OF PRINCIPAL OFFICERS.'); the label is the first line. Items 8.01 and 9.01 have one heading each. The filing ends at SIGNATURES; an exhibit index for the press release (Exhibit 99.1) follows it.",
+  "items": [
+    {
+      "id": "item_5.02",
+      "text": "ITEM 5.02. DEPARTURE OF DIRECTORS OR PRINCIPAL OFFICERS; ELECTION OF DIRECTORS;",
+      "occurrence": 0,
+      "next": "APPOINTMENT OF PRINCIPAL OFFICERS."
+    },
+    {
+      "id": "item_8.01",
+      "text": "ITEM 8.01 OTHER EVENTS",
+      "occurrence": 0,
+      "next": "On November 9, 2006, the Board of Direct"
+    },
+    {
+      "id": "item_9.01",
+      "text": "ITEM 9.01 FINANCIAL STATEMENTS AND EXHIBITS.",
+      "occurrence": 0,
+      "next": "(d)  Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

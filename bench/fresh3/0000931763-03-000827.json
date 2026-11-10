@@ -1,0 +1,128 @@
+{
+  "accession": "0000931763-03-000827",
+  "cik": 911576,
+  "company": "VESTA INSURANCE GROUP INC",
+  "form": "10-K",
+  "filing_date": "2003-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/911576/000093176303000827/d10k.htm",
+  "agent": "",
+  "tags": [
+    "insurer"
+  ],
+  "labeled": true,
+  "notes": "2003 numbering: Item 14 is Controls and Procedures and Item 15 is exhibits, schedules and reports on Form 8-K; the form had no Items 1A, 1B, 9A, 9B or 16 yet, so none is absent. The contents list (lines 43 to 76) is not labeled; it omits Item 7A, which the body prints. Items 4 and 9 say only 'None' and Items 10, 11 and 13 only incorporate the proxy statement, so they are marked incorporated; Item 12 prints its own part (c) and the equity compensation plan table, so it is not. Item 15 says the exhibits are in the index at page 86; the EXHIBITS INDEX follows directly and stays in Item 15, as in the MONY Group 2004 label. Hard call (uncertain): financial statement schedules II to V (pages 88 to 92, listed under Item 15(a)(2)) follow the exhibit index with no Item heading, then SIGNATURES. Statements with no Item heading belong to no Item, as in the Netflix 2003, ITT 2015 and ACI Worldwide 2021 labels, so Item 15 ends at 'Vesta Insurance Group, Inc.' above 'Schedule II' (line 1775). The alternative keeps them in Item 15 to SIGNATURES, as in fresh2/0000950150-00-000202, but there the Item said the schedules appear at its conclusion, while this Item 15 only gives their page numbers. The filing ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 0,
+      "next": "Business Overview"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "Properties"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "Securities Litigation"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity and Related",
+      "occurrence": 0,
+      "next": "Stockholder Matters"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "The following information should be read"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "Market Risk of Financial Instruments"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "Page"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors and Executive Officers of Registrant",
+      "occurrence": 0,
+      "next": "Information required by this item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "Information required by this item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners",
+      "occurrence": 0,
+      "next": "and Management and Related Stockholder M"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "Information required by this item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Within 90 days prior to the date of this"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statements Schedules, and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a) Index of documents filed as a part o",
+      "uncertain": true,
+      "end": {
+        "text": "Vesta Insurance Group, Inc.",
+        "occurrence": 3,
+        "next": "(Parent Company)"
+      }
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

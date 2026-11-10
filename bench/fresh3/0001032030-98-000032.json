@@ -1,0 +1,47 @@
+{
+  "accession": "0001032030-98-000032",
+  "cik": 1032030,
+  "company": "CELLULAR COMMUNICATIONS OF PUERTO RICO INC /DE/",
+  "form": "10-Q",
+  "filing_date": "1998-11-16",
+  "url": "https://www.sec.gov/Archives/edgar/data/1032030/000103203098000032/0001032030-98-000032.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-Q for the quarter ended September 30, 1998. The index (lines 38 to 56) is not labeled; the body Part I Item 1 heading is the second 'ITEM 1. FINANCIAL STATEMENTS' line. Part I Item 2 is printed 'ITEM 2:' with a colon. The page header repeats the company name on every page, not an Item heading, so the filing is not tagged running-headers. The safe harbor statement at the end of Part I stays in Part I Item 2. Part II has only Item 6; a line in Item 6 that starts 'Item 5, Other Events,' is a wrapped reference to an 8-K, not a heading. Part II Items 1 to 5 have no heading and are absent. Hard call: Part I Item 3 (market risk) has no heading and is listed absent. The form defined it from 1997, although a registrant of this size probably had to give quarterly market risk disclosure only from 1999; the absent list records what the form defines when the filing is made, as the fresh2 CCA Industries 2006 label does, while the fresh2 American Filtrona 1997 label leaves Item 3 out because its quarter ended before the Item took effect for anyone. Part I Item 4 and Part II Item 1A did not exist yet. Part II Item 6 ends at SIGNATURES, the filing end.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1.  FINANCIAL STATEMENTS",
+      "occurrence": 1,
+      "next": "Cellular Communications of Puerto Rico, "
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2:  MANAGEMENT'S DISCUSSION AND ANALYSIS OF RESULTS OF OPERATIONS AND",
+      "occurrence": 0,
+      "next": "FINANCIAL CONDITION"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6.   EXHIBITS AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a)  Exhibits."
+    }
+  ],
+  "absent": [
+    "part_1_item_3",
+    "part_2_item_1",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "----------"
+  }
+}

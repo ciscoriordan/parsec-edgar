@@ -1,0 +1,173 @@
+{
+  "accession": "0000926326-25-000003",
+  "cik": 926326,
+  "company": "OMNICELL, INC.",
+  "form": "10-K",
+  "filing_date": "2025-02-27",
+  "url": "https://www.sec.gov/Archives/edgar/data/926326/000092632625000003/omcl-20241231.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "The contents list (lines 44 to 74) is not labeled. The unnumbered 'Information About Our Executive Officers' section stays in Item 1. Item 6 is '[Reserved]' with no body and is not marked. Marked incorporated: Item 1B (no unresolved comments), Item 3 (points to Note 14), Items 4 and 9C ('Not applicable.'), Item 8 (points to the F-pages listed in Item 15), Items 9 and 16 ('None.') and Items 11 to 14 (proxy statement). Item 10 adds its own Code of Conduct paragraph, so it is not marked, as in the ITT 2015 label. Item 16 is followed by the auditors' report, the statements and Schedule II with no Item heading, so Item 16 ends at the first 'REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM' (line 848) and that text belongs to no Item, as in the Netflix 2017 label. The order after them is INDEX TO EXHIBITS, then SIGNATURES, so the filing ends at INDEX TO EXHIBITS, as in the ACI Worldwide 2021 label; Item 16 has its own end, so this changes no span.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "Summary of Risk Factors"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "There are currently no unresolved issues",
+      "incorporated": true
+    },
+    {
+      "id": "item_1c",
+      "text": "ITEM 1C. CYBERSECURITY",
+      "occurrence": 0,
+      "next": "In general, the Company addresses cybers"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "Our headquarters are located in a leased"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "Refer to the information set forth under",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS, AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "Market for Our Common Stock"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. [Reserved]",
+      "occurrence": 0,
+      "next": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANAL"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion and analysis sh"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "We are exposed to market risks related t"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "The Report of Independent Auditors and C",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "Securities Trading Plans of Directors an"
+    },
+    {
+      "id": "item_9c",
+      "text": "ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS.",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "The information required by this Item wi"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this Item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The information required by this Item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required by this Item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "The following documents are included as "
+    },
+    {
+      "id": "item_16",
+      "text": "ITEM 16. FORM 10-K SUMMARY",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true,
+      "end": {
+        "text": "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM",
+        "occurrence": 0,
+        "next": "To the shareholders and the Board of Dir"
+      }
+    }
+  ],
+  "end": {
+    "text": "INDEX TO EXHIBITS",
+    "occurrence": 0,
+    "next": "Incorporated By Reference"
+  }
+}

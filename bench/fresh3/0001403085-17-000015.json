@@ -1,0 +1,52 @@
+{
+  "accession": "0001403085-17-000015",
+  "cik": 1403085,
+  "company": "JRjr33, Inc.",
+  "form": "8-K",
+  "filing_date": "2017-10-24",
+  "url": "https://www.sec.gov/Archives/edgar/data/1403085/000140308517000015/form8-kjgb.htm",
+  "agent": "self",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Five Items. Item 2.03 only incorporates the Item 1.01 disclosure, so it is marked incorporated. Item 3.02 also incorporates Item 1.01 but adds its own sentence on the registration exemption for the notes and warrants, so it is not. Item 9.01 lists the exhibits and ends at SIGNATURES; an exhibit index follows the signatures.",
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "Item 1.01. Entry into a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "On October 19, 2017, JRjr33, Inc., a Flo"
+    },
+    {
+      "id": "item_1.02",
+      "text": "Item 1.02. Termination of a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "On October 20, 2017, the Company paid of"
+    },
+    {
+      "id": "item_2.03",
+      "text": "Item 2.03. Creation of a Direct Financial Obligation or an Obligation Under an Off-Balance Sheet Arrangement of a Registrant.",
+      "occurrence": 0,
+      "next": "The information required by this Item 2.",
+      "incorporated": true
+    },
+    {
+      "id": "item_3.02",
+      "text": "Item 3.02. Unregistered Sales of Equity Securities.",
+      "occurrence": 0,
+      "next": "The information required by this Item 3."
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01. Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

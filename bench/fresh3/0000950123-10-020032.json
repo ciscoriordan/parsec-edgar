@@ -1,0 +1,148 @@
+{
+  "accession": "0000950123-10-020032",
+  "cik": 1156388,
+  "company": "BIG 5 SPORTING GOODS Corp",
+  "form": "10-K",
+  "filing_date": "2010-03-02",
+  "url": "https://www.sec.gov/Archives/edgar/data/1156388/000095012310020032/v55325e10vk.htm",
+  "agent": "Bowne",
+  "tags": [],
+  "labeled": true,
+  "notes": "The converted text has no contents list. Item 4 is '(REMOVED AND RESERVED)' with no body and is not marked. Items 1B, 9 and 9B say 'None.', Item 8 only points to the index on page F-1, and Items 10 to 14 incorporate the proxy statement, so they are marked incorporated, following the field definition in bench/src/labels.rs. The auditors' report on internal control is printed inside Item 9A. Item 15 points to the F-pages and the exhibit index, and SIGNATURES follows it directly; the F-pages and the exhibit index after the signatures belong to no Item.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.\tBUSINESS",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A.\tRISK FACTORS",
+      "occurrence": 0,
+      "next": "An investment in the Company entails ris"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B.\tUNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.\tPROPERTIES",
+      "occurrence": 0,
+      "next": "Properties"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.\tLEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "On August 6, 2009, the Company was serve"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.\t(REMOVED AND RESERVED)",
+      "occurrence": 0,
+      "next": "PART II"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.\tMARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "Our common stock, par value $0.01 per sh"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.\tSELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "The “Statement of Operations Data” and t"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.\tMANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "Throughout this section, our fiscal year"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A.\tQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "We are subject to risks resulting from i"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8.\tFINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "The financial statements and the supplem",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.\tCHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A.\tCONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B.\tOTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.\tDIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "The information required by this Item ha",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.\tEXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this Item ha",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.\tSECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The information required by this Item ha",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.\tCERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required by this Item ha",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14.\tPRINCIPAL ACCOUNTING FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by this Item ha",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15.\tEXHIBITS, FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "(a) Documents filed as part of this repo"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

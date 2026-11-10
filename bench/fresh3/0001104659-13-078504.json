@@ -1,0 +1,73 @@
+{
+  "accession": "0001104659-13-078504",
+  "cik": 1082554,
+  "company": "UNITED THERAPEUTICS Corp",
+  "form": "10-Q",
+  "filing_date": "2013-10-29",
+  "url": "https://www.sec.gov/Archives/edgar/data/1082554/000110465913078504/a13-19630_110q.htm",
+  "agent": "Toppan Merrill",
+  "tags": [],
+  "labeled": true,
+  "notes": "The contents list (lines 33 to 47) is not labeled. Part I has Items 1 to 4; Part II has headings only for Items 1, 1A, 4 and 6, so Part II Items 2, 3 and 5 are listed as absent. Part II Item 4 says only 'Not applicable.' and is marked incorporated. Part II Item 6 lists the exhibits by pointing to the exhibit index and is not marked. The filing ends at SIGNATURES; the EXHIBIT INDEX follows it.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Consolidated Financial Statements",
+      "occurrence": 0,
+      "next": "UNITED THERAPEUTICS CORPORATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion should be read "
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "As of September 30, 2013, we have invest"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Based on their evaluation, as of Septemb"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "Sandoz Inc."
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "Forward-Looking Statements"
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. EXHIBITS",
+      "occurrence": 0,
+      "next": "Exhibits filed as a part of this Form 10"
+    }
+  ],
+  "absent": [
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

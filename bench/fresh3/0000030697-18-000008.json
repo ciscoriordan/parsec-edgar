@@ -1,0 +1,79 @@
+{
+  "accession": "0000030697-18-000008",
+  "cik": 30697,
+  "company": "Wendy's Co",
+  "form": "10-Q",
+  "filing_date": "2018-08-07",
+  "url": "https://www.sec.gov/Archives/edgar/data/30697/000003069718000008/twc10qq22018.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended July 1, 2018. The index (lines 31 to 48) is not labeled. Part I Item 3 describes the effect of a refinancing on market risk and is not marked. Part II Item 1 gives its own litigation statement and is not marked; Part II Item 1A only points to the risk factors in the 2017 Form 10-K and says there are no material changes, so it is marked incorporated, as in the fresh2 Terex and American Woodmark labels. Part II has no Items 3, 4 or 5, which are listed absent. Uncertain: 'PART II. OTHER INFORMATION' is followed by an unnumbered 'Special Note Regarding Forward-Looking Statements and Projections' (lines 1166 to 1200, about 8,000 characters) before Part II Item 1. As text under a Part heading before its first Item, like a forward-looking section between 'PART I' and Item 1 of a 10-K, it belongs to no Item, so Part I Item 4 ends at the PART II line. The alternative leaves the section in Part I Item 4 under the plain next-heading rule. Both labelers chose the same end. Item 6 holds the exhibit list; the filing ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements.",
+      "occurrence": 0,
+      "next": "THE WENDY’S COMPANY AND SUBSIDIARIES"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "Introduction"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures about Market Risk.",
+      "occurrence": 0,
+      "next": "This “Quantitative and Qualitative Discl"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr",
+      "uncertain": true,
+      "end": {
+        "text": "PART II. OTHER INFORMATION",
+        "occurrence": 0,
+        "next": "Special Note Regarding Forward-Looking S"
+      }
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "We are involved in litigation and claims"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "In addition to the information contained",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds.",
+      "occurrence": 0,
+      "next": "The following table provides information"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits.",
+      "occurrence": 0,
+      "next": "EXHIBIT NO.\tDESCRIPTION"
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

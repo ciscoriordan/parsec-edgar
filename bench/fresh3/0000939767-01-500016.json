@@ -1,0 +1,115 @@
+{
+  "accession": "0000939767-01-500016",
+  "cik": 939767,
+  "company": "EXELIXIS, INC.",
+  "form": "10-K",
+  "filing_date": "2001-03-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/939767/000093976701500016/body10k.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Form 10-K for fiscal 2000 with the pre-2003 numbering: Item 14 is exhibits, financial statement schedules and reports on Form 8-K, so no Item is absent. The contents list (lines 31 to 52), with 'XX' placeholders for page numbers, is not labeled. A forward-looking statements paragraph between 'PART I' and Item 1 belongs to no Item. Risk factors are an unnumbered subsection of Item 1. Item 7 is printed 'ITEM 7.MANAGEMENT'S ...' with no space. Item 8 prints the full financial statements. Items 4 ('None.') and 9 ('None') are nil answers and are marked incorporated, following the field definition in bench/src/labels.rs. Items 10 to 13 only incorporate the proxy statement. Item 14 ends at SIGNATURES, the filing end; the index to exhibits follows the signatures. Adjudicated from two independent labels, which agreed on every Item start and on the end and differed only on the incorporated flag for the nil answers.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "We currently have commitments to lease a"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "We are not party to any material legal p"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR REGISTRANT'S COMMON EQUITY AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "Our common stock has traded on the Nasda"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. SELECTED CONSOLIDATED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "The following selected consolidated hist"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITIONS AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion and analysis co"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Our investments are only subject to inte"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. CONSOLIDATED FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "EXELIXIS, INC."
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "Information required by this item, insof",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a) The following documents are being fi"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

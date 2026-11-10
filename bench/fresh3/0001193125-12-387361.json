@@ -1,0 +1,31 @@
+{
+  "accession": "0001193125-12-387361",
+  "cik": 878088,
+  "company": "PAR PHARMACEUTICAL COMPANIES, INC.",
+  "form": "8-K",
+  "filing_date": "2012-09-11",
+  "url": "https://www.sec.gov/Archives/edgar/data/878088/000119312512387361/d409403d8k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "notes": "8-K with Items 7.01 and 9.01. Item 7.01 furnishes selected information for prospective debt financing sources (Exhibit 99.1). The unnumbered 'Forward-Looking Statements', 'Important Notice and Additional Information' and 'Participants in the Solicitation' sections follow Item 7.01's text before Item 9.01 and stay in Item 7.01. Item 9.01 lists Exhibit 99.1 and ends at SIGNATURE, the filing end; the exhibit index follows the signature, and the exhibit itself is a separate document.",
+  "items": [
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01.\tRegulation FD Disclosure.",
+      "occurrence": 0,
+      "next": "This Current Report on Form 8-K (this “F"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01.\tFinancial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits. The following Exhibits are"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

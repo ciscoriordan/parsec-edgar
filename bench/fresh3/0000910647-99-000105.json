@@ -1,0 +1,46 @@
+{
+  "accession": "0000910647-99-000105",
+  "cik": 851105,
+  "company": "BANKNORTH GROUP INC /NEW/ /DE/",
+  "form": "10-K",
+  "filing_date": "1999-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/851105/000091064799000105/0000910647-99-000105.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "bank",
+    "cross-reference",
+    "exhibit-13"
+  ],
+  "labeled": true,
+  "notes": "The document is the 1998 annual report to shareholders followed by a 'Form 10-K' section. That section opens with a cross-reference index (lines 4924 to 4956) mapping Items 1 to 14 to annual report and proxy pages, then answers Items 1, 2, 3, 5 and 9 under unnumbered headings ('Business', 'Properties', 'Legal Proceedings', 'Market for Registrant's Common Equity and Related ...', 'Changes in and Disagreements with Accountants ...'); Items 4, 6 to 8 and 10 to 13 have no body heading at all, and Part III is incorporated from the proxy statement. Hard call: Items 1 to 13 and 7A are listed as absent, as in the Citigroup cross-reference labels, bench/fresh/0000093410-99-000045 (Chevron) and fresh2's American Filtrona and Harleysville Savings, where whole parts of the form are answered only under unnumbered headings. The alternative is to label the five unnumbered headings as Items 1, 2, 3, 5 and 9, as fresh2's A10 Networks label did, but there a single Item lacked its number among numbered headings. Both labelers chose absent. Only 'Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K.' (line 5193, after 'Part IV.') has a numbered body heading; it holds the exhibit list, which names the annual report as Exhibit 13, and ends at 'Signatures' (line 5372). A glossary from the annual report follows the signatures and belongs to no Item. Tagged exhibit-13 because the Items are answered by reference to the annual report filed as Exhibit 13; not annual-report-attached, because the report comes before the 10-K section, not after the last Item.",
+  "items": [
+    {
+      "id": "item_14",
+      "text": "Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K.",
+      "occurrence": 0,
+      "next": "(a)  Documents Filed as Part of this Rep"
+    }
+  ],
+  "absent": [
+    "item_1",
+    "item_2",
+    "item_3",
+    "item_4",
+    "item_5",
+    "item_6",
+    "item_7",
+    "item_7a",
+    "item_8",
+    "item_9",
+    "item_10",
+    "item_11",
+    "item_12",
+    "item_13"
+  ],
+  "end": {
+    "text": "Signatures",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

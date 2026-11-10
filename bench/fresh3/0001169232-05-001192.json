@@ -1,0 +1,78 @@
+{
+  "accession": "0001169232-05-001192",
+  "cik": 945634,
+  "company": "Artisanal Brands, Inc.",
+  "form": "10QSB",
+  "filing_date": "2005-02-23",
+  "url": "https://www.sec.gov/Archives/edgar/data/945634/000116923205001192/d62594_10qsb.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-QSB of Novex Systems International (later Artisanal Brands) for the quarter ended November 30, 2004. The index at lines 30 to 52 is not labeled, nor is the cover's 'Part II, Item 6 None' line. Uncertain: Part I starts with two Item 1 lines, 'Item 1. Financial Information (Unaudited)' (line 55, Part I's title printed with an Item number) and 'Item 1. Financial Statements (Unaudited)' (line 56), followed by an index of the statements with F-page numbers and then the statements. Part I Item 1 is labeled at line 56, the line with the Item's own title; the alternative is line 55. Part I Item 3 is Controls and Procedures, as the 10-QSB numbers it. Part II Items 2 to 6 each print the heading and the answer on one line, and each line is labeled. Part II Item 3 says only 'See Item 1. above.' and is marked incorporated. Items 2, 4, 5 and 6 say only 'None.', which is an answer, so they are not marked (the labelers differed here). The 10-QSB of this period had no Part II Item 1A, so nothing is absent. The filing ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1.  Financial Statements (Unaudited)",
+      "occurrence": 1,
+      "next": "Balance Sheet as of November 30, 2004 ..",
+      "uncertain": true
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2.  Management's Discussion and Analysis of Financial",
+      "occurrence": 1,
+      "next": "Condition and Results of Operations"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3.  Controls and Procedures",
+      "occurrence": 0,
+      "next": "(A)   Evaluation of Disclosure Controls "
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "All litigation between Dime Commercial C"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Changes in Securities. None.",
+      "occurrence": 0,
+      "next": "Item 3. Defaults Upon Senior Securities."
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults Upon Senior Securities. See Item 1. above.",
+      "occurrence": 0,
+      "next": "Item 4. Submission of Matters to a Vote ",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders. None.",
+      "occurrence": 0,
+      "next": "Item 5. Other Information. None."
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information. None.",
+      "occurrence": 0,
+      "next": "Item 6. Exhibits and Reports on Form 8-K"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits and Reports on Form 8-K. None.",
+      "occurrence": 0,
+      "next": "SIGNATURES"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}
