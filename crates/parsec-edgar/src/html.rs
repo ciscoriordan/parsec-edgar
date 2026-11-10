@@ -59,9 +59,12 @@ pub struct Table {
     /// `rowspan` laid out as browsers lay them out. Empty cells, which `rows`
     /// leaves out, still take their columns, so a value lines up with the
     /// header above it even when the two rows have different numbers of
-    /// cells. A cell merged from a `$` or `(` cell, its number and a `)` or
-    /// `%` cell takes the column of its number. The cells of a table inside
-    /// a cell of another one count the columns of their own table.
+    /// cells. A cell hidden with `display:none` or the `hidden` attribute
+    /// takes no column, as in a browser, and neither does anything in a row
+    /// that is not a `td` or `th` cell, such as a hidden `<input>`. A cell
+    /// merged from a `$` or `(` cell, its number and a `)` or `%` cell takes
+    /// the column of its number. The cells of a table inside a cell of
+    /// another one count the columns of their own table.
     #[serde(default)]
     pub columns: Vec<Vec<usize>>,
     /// How many grid columns each cell of `rows` covers, row by row: its
@@ -344,11 +347,16 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
         .filter(|(_, el)| !is_skipped(el))
         .collect();
     // Grid columns are laid out only when tables are wanted. Empty cells take
-    // theirs too.
+    // theirs too. Only `td` and `th` are cells, as in the HTML table model,
+    // so a hidden `<input>` or an empty `<form>` that the parser leaves in a
+    // row takes no column.
     let mut columns = match out.rows {
         Some(_) => {
             let group = tr.parent().map_or(tr.id(), |p| p.id());
-            place_cells(out.spanning.entry(group).or_default(), elements.iter().map(|(_, el)| colspan_rowspan(el)))
+            let spans = elements
+                .iter()
+                .map(|(_, el)| if matches!(el.name(), "td" | "th") { colspan_rowspan(el) } else { (0, 1) });
+            place_cells(out.spanning.entry(group).or_default(), spans)
         }
         None => Vec::new(),
     }
@@ -473,10 +481,11 @@ const MAX_SPANNING_COLUMN: usize = 1000;
 
 /// Lay out one row of a table's grid: the columns that each cell, given as
 /// its colspan and rowspan, covers. A cell takes the first column that no
-/// cell of the rows above covers with its rowspan. `spanning` holds those
-/// cells of the rows above, as the columns they cover and how many more rows
-/// they cover, in the order of their first column, and is updated for the
-/// next row.
+/// cell of the rows above covers with its rowspan; a colspan of 0, given
+/// for an element that is not a cell, places an empty range there.
+/// `spanning` holds those cells of the rows above, as the columns they cover
+/// and how many more rows they cover, in the order of their first column,
+/// and is updated for the next row.
 fn place_cells(
     spanning: &mut Vec<(Range<usize>, usize)>,
     cells: impl Iterator<Item = (usize, usize)>,
@@ -1480,9 +1489,10 @@ mod tests {
     }
 
     /// Cells keep the grid columns that colspan and rowspan give them, with
-    /// empty and spanned-over columns counted, so values line up with their
-    /// headers. A cell merged from `$`, its number and `%` takes the column
-    /// of its number, and `$` beside "N/A" keeps its own.
+    /// empty and spanned-over columns counted and a `display:none` cell
+    /// taking none, so values line up with their headers. A cell merged from
+    /// `$`, its number and `%` takes the column of its number, and `$` beside
+    /// "N/A" keeps its own.
     #[test]
     fn cells_keep_their_grid_columns() {
         let html = r#"<table>
@@ -1562,6 +1572,26 @@ mod tests {
         let [t] = &tables[..] else { panic!("{tables:?}") };
         assert_eq!(rows(t), [vec!["Name", "Title"], vec!["Jane Doe", "Chair"], vec!["Net\nsales", "5"]]);
         assert_eq!(t.columns, [[0, 1], [0, 1], [1, 2]]);
+    }
+
+    /// Only `td` and `th` cells take grid columns. The parser leaves a hidden
+    /// `<input>` and an empty `<form>` inside a row; neither moves the cells
+    /// after it, and the text does not change.
+    #[test]
+    fn grid_columns_count_only_cells() {
+        for extra in [r#"<input type="hidden" name="x">"#, r#"<form action="/x">"#, "<form><input type=hidden>"] {
+            let html = format!(
+                "<table><tr><td>Name</td><td>2024</td></tr>\
+                 <tr>{extra}<td>Sales</td><td>5</td></tr>\
+                 <tr><td>Cost</td>{extra}<td colspan=\"2\">3</td></tr></table>"
+            );
+            let (text, tables) = tables_of(&html);
+            let [t] = &tables[..] else { panic!("{tables:?}") };
+            assert_eq!(rows(t), [["Name", "2024"], ["Sales", "5"], ["Cost", "3"]], "{extra}");
+            assert_eq!(t.columns, [[0, 1], [0, 1], [0, 1]], "{extra}");
+            assert_eq!(t.spans, [[1, 1], [1, 1], [1, 2]], "{extra}");
+            assert_eq!(text, "Name\t2024\nSales\t5\nCost\t3\n", "{extra}");
+        }
     }
 
     #[test]
