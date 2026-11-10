@@ -17,25 +17,28 @@
 //! heading. A list of one Item and "SIGNATURES", which an 8-K's cover can
 //! print just above the body, is such a contents list too. So are rows that
 //! end with a page number or a range of pages ("Item 3. Quantitative and
-//! Qualitative Disclosures About Market Risk   10 - 11"), with the rows just
-//! before them whose entries end with one and that name an earlier Item, as
-//! a contents list does, also when the body prints no heading for them; such
-//! a row is never taken for a body heading. A heading followed by a running
-//! header of its own Item that prints the page, or by an index of Items
-//! after the body, is no such row. In a 10-Q
-//! or 10-QSB a `PART I` or `PART II` line just above a heading fixes its
-//! part, and without one a title that only one part uses for that Item number
-//! does. Such a line that starts with a Part I title and runs on as a
+//! Qualitative Disclosures About Market Risk   10 - 11") among other Item
+//! lines (another Item's line follows closely, or the line above, a Part's
+//! line aside, ends with a page too), with the rows just before them whose
+//! entries end with one and that name an earlier Item, as a contents list
+//! does, also when the body prints no heading for them; such a row is never
+//! taken for a body heading. A heading printed with a footnote's number
+//! ("Item 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed
+//! by its text, and one followed by a running header of its own Item that
+//! prints the page, or by an index of Items after the body, is no such row.
+//! In a 10-Q or 10-QSB a `PART I` or `PART II` line just above a heading fixes
+//! its part, and without one a title that only one part uses for that Item
+//! number does. Such a line that starts with a Part I title and runs on as a
 //! sentence that cites the Item ("Item 1. Financial Statements, of this
 //! report") is a wrapped cross-reference, not a heading. In every form, so is
 //! an Item line that carries on a sentence from the line just above it, which
-//! ends with a comma or with a word such as "in", "see" or "to" ("as set
-//! forth in Part II,"). So is one whose title, whole or by its first three
-//! words, goes straight on to name the report or another document ("Item 1A.
-//! Risk Factors, of our Annual Report on Form 10-K for 2019 describes"), when
-//! a heading of the Item with that title follows it before any heading of an
-//! Item that comes later in the form. Without such a heading after it, the
-//! line may be a run-in heading and stays a candidate.
+//! ends with a comma or with a word such as "in", "see" or "to" ("as set forth
+//! in Part II,"). So is one whose title, whole or by its first three words,
+//! goes straight on to name the report or another document ("Item 1A. Risk
+//! Factors, of our Annual Report on Form 10-K for 2019 describes"), when a
+//! heading of the Item with that title follows it before any heading of an Item
+//! that comes later in the form. Without such a heading after it, the line may
+//! be a run-in heading and stays a candidate.
 //! A heading that names several Items ("Items 1 and 2.", "Items 1 through
 //! 5.", with a dash, "Item 1-5.", but not "Item 1-2 of the Form", or with
 //! commas, "ITEMS 9, 9A AND 9B.") starts the first of them. A range or a list
@@ -666,6 +669,10 @@ static PAGE_REFERENCE: LazyLock<Regex> = LazyLock::new(|| {
 
 /// `PART I`, `Part II - Other Information`, also as the start of a heading line.
 static PART_MARK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*(?i:part)[ \t]+(II|I)(?-u:\b)").unwrap());
+
+/// A Part's line in any form: `Part III`, `PART IV**`, `PART II - OTHER
+/// INFORMATION`.
+static PART_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*(?i:part)[ \t]+[IV]{1,3}(?-u:\b)").unwrap());
 
 /// One entry of a page-numbered table of contents: `26<TAB>Five-year summary` or `Introduction<TAB>46`.
 static TOC_ENTRY: LazyLock<Regex> =
@@ -1516,17 +1523,21 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 /// Contents rows found by their page numbers. A row is an Item line that ends
 /// with a page number or a range of pages, after a tab, two spaces or dot
 /// leaders (`Item 3. Quantitative and Qualitative Disclosures About Market
-/// Risk     10 - 11`). Going back from a row, the Item line before it is a
-/// row too when it is at most `block` characters before it, the last line
-/// between them ends with a page number, and it names an Item that comes
-/// earlier in the form, as the entries of a contents list do. Its entry lists
-/// pages under it ("Item 1. Financial Statements", then "Balance Sheets   1",
-/// ...), or its title wraps onto a line with the page ("Item 2. Management's
-/// Discussion and Analysis of Financial", then "Condition and Results of
-/// Operations   9 - 10"). A heading followed by a running header of its own
-/// Item that prints the page ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS
-/// (Continued)   5"), or by an index of Items printed after the body, which
-/// starts again at an earlier Item, is no row.
+/// Risk     10 - 11`), in a run of Item lines: a line of another Item follows
+/// it within `block` characters, or the line above it (a Part's line aside)
+/// ends with a page number too, as the last row of a list does. A body heading printed with a
+/// footnote's number ("Item 7.<TAB>Management's Discussion and Analysis
+/// ...<TAB>1") is followed by its text. Going back from a row, the Item line
+/// before it is a row too when it is at most `block` characters before it,
+/// the last line between them ends with a page number, and it names an Item
+/// that comes earlier in the form, as the entries of a contents list do. Its
+/// entry lists pages under it ("Item 1. Financial Statements", then "Balance
+/// Sheets   1", ...), or its title wraps onto a line with the page ("Item 2.
+/// Management's Discussion and Analysis of Financial", then "Condition and
+/// Results of Operations   9 - 10"). A heading followed by a running header of
+/// its own Item that prints the page ("ITEM 7. MANAGEMENT'S DISCUSSION AND
+/// ANALYSIS (Continued)   5"), or by an index of Items printed after the
+/// body, which starts again at an earlier Item, is no row.
 fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Vec<bool> {
     let ends_with_page = |l: &str| PAGE_REFERENCE.is_match(l.trim_end());
     let n = cands.len();
@@ -1534,7 +1545,11 @@ fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Ve
     for i in (0..n).rev() {
         let start = cands[i].pos;
         let line_end = text[start..].find('\n').map_or(text.len(), |e| start + e);
-        let own = ends_with_page(&text[start..line_end]);
+        let in_run = cands[i + 1..].iter().take_while(|o| o.pos - start <= block).any(|o| o.label != cands[i].label)
+            || (i > 0
+                && start - cands[i - 1].pos <= block
+                && last_entry_line(text, cands[i - 1].pos, start).is_some_and(ends_with_page));
+        let own = in_run && ends_with_page(&text[start..line_end]);
         let entry = i + 1 < n
             && paged[i + 1]
             && cands[i + 1].pos - start <= block
@@ -1547,6 +1562,13 @@ fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Ve
         paged[i] = own || entry;
     }
     paged
+}
+
+/// The last line of `text[from..to]` that is neither blank nor the line of a
+/// Part alone (`PART II` between the rows of a contents list).
+fn last_entry_line(text: &str, from: usize, to: usize) -> Option<&str> {
+    let part_alone = |l: &str| PART_LINE.is_match(l) && !PERIODIC_HEADING.is_match(l);
+    text[from..to].lines().rfind(|l| !l.trim().is_empty() && !part_alone(l))
 }
 
 /// Drop a bare running page header ("Item 7") that comes just before the
@@ -3830,6 +3852,68 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
         assert!(s[3].text.starts_with("Item 6. Exhibits\n31.1\t"));
+    }
+
+    #[test]
+    fn heading_that_ends_with_a_footnote_number_stays() {
+        // A heading printed with a footnote cell ends with a number after a
+        // tab or two spaces, as a contents row ends with its page, but its
+        // text follows it, not the line of another Item, and the line above
+        // it prints no page or is not near the previous Item line. Also when
+        // a running header of its own Item follows within the page.
+        let body = BODY.repeat(30);
+        let page = BODY.repeat(12);
+        let mdna = "Item 7.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\t1";
+        for (before, heading, after) in [
+            ("Item 6. [Reserved]\n", mdna, String::new()),
+            (
+                "Item 6. [Reserved]\n",
+                mdna,
+                format!("{page}\nItem 7. Management's Discussion and Analysis (continued)\n"),
+            ),
+            (
+                "Item 6. [Reserved]\nPART II\n",
+                "Item 7.  Management's Discussion and Analysis of Financial Condition   2",
+                String::new(),
+            ),
+            (
+                &format!("Item 6. Selected Financial Data\n{body}\nNumber of stores   214   198   176\n"),
+                mdna,
+                String::new(),
+            ),
+        ] {
+            let text = format!(
+                "Item 5. Market for Registrant's Common Equity\n{body}\n{before}{heading}\n{after}{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_5", "item_6", "item_7", "item_8"], "{heading}");
+            assert_eq!(s[2].heading, heading);
+        }
+    }
+
+    #[test]
+    fn contents_rows_with_pages_are_rows_next_to_other_item_lines() {
+        // The body prints no Part I Item headings. The first row follows a
+        // line with no page, and the line of the next Item follows it. The
+        // last row follows a row with a page and a Part's line, or a row that
+        // starts with its Part, and the body's long text follows it.
+        let body = BODY.repeat(30);
+        for (first, part_1, part_2) in
+            [("Index\tPage\n", "", "PART II\n"), ("PART I\n", "", "PART II\n"), ("", "PART I - ", "PART II - ")]
+        {
+            let text = format!(
+                "FORM 10-Q\n{first}{part_1}Item 1. Financial Statements\t3\n\
+                 {part_1}Item 2. Management's Discussion and Analysis of Financial Condition and Results of \
+                 Operations\t10\n\
+                 {part_2}Item 6. Exhibits\t20\nCONSOLIDATED BALANCE SHEETS\n{body}{body}\n\
+                 MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\nPART II - OTHER INFORMATION\nItem 6. Exhibits\n\
+                 {body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_2_item_6"], "{first:?} {part_1:?}");
+            assert!(s[0].text.starts_with("Item 6. Exhibits\nLorem"));
+        }
     }
 
     #[test]
