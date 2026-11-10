@@ -638,23 +638,36 @@ fn ends_like_number(cell: &str) -> bool {
     rest.ends_with(|c: char| c.is_ascii_digit() || DASHES.contains(&c))
 }
 
-/// A bare page number, such as "12", "Page 12", "F-3", "F - 3", "- 7 -" or
-/// "ii", with the number in the first group that matched. Old text filings
-/// escape a line that starts with a dash as "- -", so "- -7-" is one too.
+/// A bare page number, such as "12", "Page 12", "F-3", "F - 3", "- 7 -",
+/// "ii" or "- ii -", or "Page" and a page number with a prefix, "Page E-1",
+/// with the number in the first group that matched (roman numerals in the
+/// second and fifth). Old text filings escape a line that starts with a dash
+/// as "- -", so "- -7-" is one too.
 static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
-        r"^(?:(?i:page)\s+)?",
-        r"(?:(\d{1,3})|([ivxlc]{1,7})|F\s*[-‐‑‒–—−]\s*(\d{1,3})|(?:-\s+)?[-–—]\s*(\d{1,3})\s*[-–—])$",
+        r"^(?:(?:(?i:page)\s+)?",
+        r"(?:(\d{1,3})|([ivxlc]{1,7})|F\s*[-‐‑‒–—−]\s*(\d{1,3})",
+        r"|(?:-\s+)?[-–—]\s*(?:(\d{1,3})|([ivxlc]{1,7}))\s*[-–—])",
+        r"|(?i:page)\s+[A-Z]{1,3}\s*[-‐‑‒–—−]\s*(\d{1,3}))$",
     ))
     .unwrap()
 });
 
 /// A page number alone on its line after a dash and a prefix of one to three
-/// capital letters ("FS - 12", "S-3", "II-4"), a chapter number ("7-3"), or
-/// nothing ("- 4"), with an optional final ".". The prefix is in the first
-/// group, the chapter in the second and the page in the third.
+/// capital letters ("FS - 12", "S-3", "II-4"), a chapter number, which may
+/// end in a letter as the Items do ("7-3", "7A-1"), or nothing ("- 4"), with
+/// an optional final ".". The prefix is in the first group, the chapter in
+/// the second and the page in the third.
 static PAGE_LABEL: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^(?:([A-Z]{1,3})|(\d{1,2}))?\s*[-‐‑‒–—−]\s*(\d{1,3})\.?$").unwrap());
+    LazyLock::new(|| Regex::new(r"^(?:([A-Z]{1,3})|(\d{1,2}[A-Z]?))?\s*[-‐‑‒–—−]\s*(\d{1,3})\.?$").unwrap());
+
+/// A line of text with a page number with a prefix at its start or end, as
+/// in "Bank of America 2013 E-1" or "II-2 | Goldman Sachs", with the text in
+/// whichever of the two groups matched.
+static LABELED: LazyLock<Regex> = LazyLock::new(|| {
+    let label = r"(?:[A-Z]{1,3}|\d{1,2}[A-Z]?)\s*[-‐‑‒–—−]\s*\d{1,3}";
+    Regex::new(&format!(r"^(?:{label}(?:\s*\|\s*|\s+)(\S.*)|(.*\S)(?:\s*\|\s*|\s+){label})$")).unwrap()
+});
 
 /// Trim the lines of `text` and drop empty lines, bare page numbers, "Table
 /// of Contents" links and running page headers and footers. Returns the lines
@@ -663,7 +676,7 @@ static PAGE_LABEL: LazyLock<Regex> =
 /// not dropped as page numbers or page furniture on their own, but those of a
 /// row of `cell_rows` (byte ranges of `text`, see `Out::cell_rows`) are
 /// dropped together when the row is. A printed page ends at each of the
-/// sorted offsets `breaks`.
+/// sorted offsets `breaks`, and at the end of the text when there are any.
 fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>], breaks: &[usize]) -> Vec<&'a str> {
     debug_assert!(cell_lines.is_sorted(), "cell lines are recorded in text order");
     debug_assert!(cell_rows.is_sorted_by_key(|r| r.start), "cell rows are recorded in text order");
@@ -689,12 +702,13 @@ fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>
         .map(|r| starts.partition_point(|&s| s < r.start)..starts.partition_point(|&s| s < r.end))
         .filter(|r| !r.is_empty())
         .collect();
-    // Whether a page ends after a line and before the next kept line.
+    // Whether a page ends after a line and before the next kept line. In a
+    // document printed on pages, the last line ends the last page.
     let ends_page: Vec<bool> = (0..lines.len())
         .map(|i| {
             let next = starts.get(i + 1).copied().unwrap_or(text.len());
             let after = breaks.partition_point(|&b| b < starts[i] + lines[i].len());
-            breaks.get(after).is_some_and(|&b| b <= next)
+            breaks.get(after).is_some_and(|&b| b <= next) || (i + 1 == lines.len() && !breaks.is_empty())
         })
         .collect();
     let furniture = page_furniture(&lines, &is_cell, &rows, &ends_page);
@@ -804,10 +818,20 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
 /// consecutive lines, whatever their length.
 ///
 /// A page number with a prefix alone on its line (see `PAGE_LABEL`) belongs
-/// to the family of its prefix, or of all chapter numbers ("7-3"). Its copies
-/// must mostly not be on consecutive lines, and must mostly come one to three
-/// pages after the copy before (see `page_steps`), as page numbers do and
-/// lists of exhibits ("EX-21", "EX-23", "EX-31") do not.
+/// to the family of its prefix, or of all chapter numbers ("7-3", "7A-1").
+/// Its copies must mostly not be on consecutive lines, and must mostly come
+/// one to three pages after the copy before (see `page_steps`), as page
+/// numbers do and lists of exhibits ("EX-21", "EX-23", "EX-31") do not.
+/// Copies with a prefix of letters and no final "." also go, however few,
+/// when those that end a printed page (`ends_page`) are numbered 1, 2, 3 and
+/// so on, as the pages of signatures ("S-1", "S-2") or of an exhibit index
+/// are. Only those copies go, so a reference to a page ("S-1" in an index)
+/// stays, and so does the end of a sentence wrapped onto its own line
+/// ("... begins on page" over "E-1.").
+///
+/// A running header or footer that goes also takes the lines with its text
+/// and a page number with a prefix in place of its page number, as on the
+/// pages of an exhibit index ("Bank of America 2013 E-1").
 ///
 /// A page number in parentheses or followed by a period alone on its line
 /// ("(12)", "12.") counts only where it ends a printed page (`ends_page`),
@@ -845,8 +869,17 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>], ends_
             }
         }
     }
+    // The text beside the page number of each running header or footer that
+    // goes, for the copies with a prefixed page number in its place.
+    let mut texts = HashSet::new();
     for (&(before, after, place), seen) in &families {
         let n = seen.len();
+        if place == Place::Label && !before.is_empty() {
+            let ending = seen.iter().filter(|&&(i, _)| ends_page[i] && !lines[i].ends_with('.'));
+            if ending.clone().zip(1..).all(|((_, p), k)| p.number == k) {
+                drop.extend(ending.map(|&(i, _)| i));
+            }
+        }
         if n < MIN_REPEATS {
             continue;
         }
@@ -866,6 +899,18 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>], ends_
         };
         if furniture {
             drop.extend(seen.iter().map(|&(i, _)| i));
+            if place == Place::Edge {
+                texts.insert(before);
+            }
+        }
+    }
+    for (i, line) in lines.iter().enumerate() {
+        if texts.is_empty() || line.len() > MAX_LEN || is_cell[i] {
+            continue;
+        }
+        let text = LABELED.captures(line).and_then(|c| c.get(1).or(c.get(2)));
+        if text.is_some_and(|t| texts.contains(t.as_str().trim_matches(|c: char| c == '|' || c.is_whitespace()))) {
+            drop.insert(i);
         }
     }
 
@@ -929,13 +974,17 @@ fn rising(seen: &[(usize, PageNumber)]) -> usize {
 
 /// How many copies of a page number with a prefix come one to three pages
 /// after the copy before: later in the same chapter, or on one of the first
-/// three pages of one of the next three chapters ("1-8", then "2-1").
+/// three pages of a later chapter at most three chapter numbers on ("1-8",
+/// then "2-1"; "7-9", then "7A-1").
 fn page_steps(seen: &[(usize, PageNumber)]) -> usize {
-    let near = |a: u32, b: u32| b > a && b - a <= 3;
     seen.windows(2)
         .filter(|w| {
             let (a, b) = (&w[0].1, &w[1].1);
-            if a.chapter == b.chapter { near(a.number, b.number) } else { near(a.chapter, b.chapter) && b.number <= 3 }
+            if a.chapter == b.chapter {
+                b.number > a.number && b.number - a.number <= 3
+            } else {
+                b.chapter > a.chapter && b.chapter.0 - a.chapter.0 <= 3 && b.number <= 3
+            }
         })
         .count()
 }
@@ -951,7 +1000,7 @@ enum Place {
     Middle,
     /// Alone after a prefix of capital letters, or nothing, and a dash: "FS - 12", "- 4".
     Label,
-    /// Alone after a chapter number and a dash: "7-3".
+    /// Alone after a chapter number and a dash: "7-3", "7A-1".
     Chapter,
     /// Alone in parentheses or followed by a period: "(12)", "12.".
     Alone,
@@ -970,8 +1019,9 @@ struct PageNumber<'a> {
     number: u32,
     /// Written in roman numerals.
     roman: bool,
-    /// The chapter of a page numbered as "7-3", else 0.
-    chapter: u32,
+    /// The chapter of a page numbered as "7-3" or "7A-1", as its number and
+    /// letter (0 for none), else (0, 0).
+    chapter: (u32, u8),
     /// The page count M in "Page N of M".
     of: Option<u32>,
     /// The number is at the start of the line.
@@ -984,7 +1034,7 @@ struct PageNumber<'a> {
 impl<'a> PageNumber<'a> {
     /// A page number in digits, with nothing else known about it.
     fn new(number: u32, key: PageKey<'a>) -> Self {
-        PageNumber { number, roman: false, chapter: 0, of: None, first: false, piped: false, key }
+        PageNumber { number, roman: false, chapter: (0, 0), of: None, first: false, piped: false, key }
     }
 }
 
@@ -1010,8 +1060,8 @@ fn page_numbers<'a>(line: &'a str) -> [Option<PageNumber<'a>>; 2] {
     });
     let none = || [None, None];
     if let Some(c) = PAGE_NUMBER.captures(line) {
-        let roman = c.get(2).is_some();
-        let Some(m) = (1..5).find_map(|g| c.get(g)) else { return none() };
+        let roman = c.get(2).or(c.get(5)).is_some();
+        let Some(m) = (1..7).find_map(|g| c.get(g)) else { return none() };
         let number = if roman { self::roman(m.as_str()) } else { m.as_str().parse().ok() };
         let key = (&line[..m.start()], &line[m.end()..], Place::Edge);
         return [number.map(|number| PageNumber { roman, ..PageNumber::new(number, key) }), None];
@@ -1019,10 +1069,13 @@ fn page_numbers<'a>(line: &'a str) -> [Option<PageNumber<'a>>; 2] {
     if let Some(c) = PAGE_LABEL.captures(line) {
         let Ok(number) = c[3].parse() else { return none() };
         let page = match c.get(2) {
-            Some(chapter) => PageNumber {
-                chapter: chapter.as_str().parse().unwrap_or(0),
-                ..PageNumber::new(number, ("", "", Place::Chapter))
-            },
+            Some(chapter) => {
+                let chapter = chapter.as_str();
+                let digits = chapter.trim_end_matches(|c: char| c.is_ascii_uppercase());
+                let letter = chapter.as_bytes().get(digits.len()).copied().unwrap_or(0);
+                let chapter = (digits.parse().unwrap_or(0), letter);
+                PageNumber { chapter, ..PageNumber::new(number, ("", "", Place::Chapter)) }
+            }
             None => PageNumber::new(number, (c.get(1).map_or("", |m| m.as_str()), "", Place::Label)),
         };
         return [Some(page), None];
@@ -1134,8 +1187,11 @@ mod tests {
     #[test]
     fn page_numbers_and_toc_links_dropped() {
         let html = "<p>Text</p><p>12</p><p>Table of Contents</p><p>F-3</p><p>- 7 -</p><p>ii</p><p>More</p>\
-                    <p>F - 4</p><p>F\u{2011}5</p><p>- -8-</p><p>End</p>";
+                    <p>F - 4</p><p>F\u{2011}5</p><p>- -8-</p><p>- ii -</p><p>-iii-</p><p>Page E-1</p><p>End</p>";
         assert_eq!(html_to_text(html), "Text\nMore\nEnd\n");
+        // Only a whole line is a page number.
+        let html = "<p>- iv - Text</p><p>Page E-1 lists the exhibits.</p><p>See page A-2</p>";
+        assert_eq!(html_to_text(html), "- iv - Text\nPage E-1 lists the exhibits.\nSee page A-2\n");
     }
 
     /// Text of `pages` pages, each "Text of page N." followed by `footer`
@@ -1168,6 +1224,10 @@ mod tests {
         let chapters = ["1-1", "1-2", "1-3", "2-1", "2-2", "4-1", "4-2"].map(String::from);
         let (html, want) = paged("{}", chapters);
         assert_eq!(html_to_text(&html), want);
+        // Chapters named after Items with a letter, such as Item 7A.
+        let chapters = ["7-8", "7-9", "7A-1", "7A-2", "7A-3", "8-1", "9A-1"].map(String::from);
+        let (html, want) = paged("{}", chapters);
+        assert_eq!(html_to_text(&html), want);
     }
 
     /// Lines that look like page numbers with a prefix but are lists stay:
@@ -1188,12 +1248,18 @@ mod tests {
         for n in 1..5 {
             html += &format!("<p>Text.</p><p>A-{n}</p>");
         }
+        for label in ["10A-1", "3B-12", "7A-30", "2C-5", "11A-2", "4B-9"] {
+            html += &format!("<p>Text.</p><p>{label}</p>");
+        }
         for n in 1..9 {
             html += &format!("<p>{n}.</p><p>Title of note {n}</p><p>Text of note {n}.</p>");
         }
         let text = html_to_text(&html);
         for (start, copies) in [("EX-", 7), ("Months", 6), ("S-", 6), ("A-", 4)] {
             assert_eq!(text.lines().filter(|l| l.starts_with(start)).count(), copies, "{start}");
+        }
+        for label in ["10A-1", "3B-12", "7A-30", "2C-5", "11A-2", "4B-9"] {
+            assert!(text.contains(&format!("\n{label}\n")), "{label}");
         }
         for range in ["0-3", "4-12", "13-24", "25-36", "37-48", "49-60"] {
             assert!(text.contains(&format!("\n{range}\n")), "{range}");
@@ -1325,6 +1391,50 @@ mod tests {
         assert_eq!(text, format!("{list}More.\n"));
     }
 
+    /// The few pages of signatures, schedules or an exhibit index numbered
+    /// "S-1", "S-2", "E-1" and so on lose their page numbers when the copies
+    /// that end printed pages count up from 1, also on the last line of the
+    /// document and in text filings.
+    #[test]
+    fn page_numbers_with_a_prefix_on_a_few_last_pages_dropped() {
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        let html = format!(
+            "<p>Text.</p>{page_break}<p>Signatures.</p><p>S-1</p>{page_break}<p>More signatures.</p><p>S - 2</p>\
+             {page_break}<p>Exhibit index.</p><p>E-1</p>{page_break}<p>More exhibits.</p><p>E-2</p>"
+        );
+        assert_eq!(tables_of(&html).0, "Text.\nSignatures.\nMore signatures.\nExhibit index.\nMore exhibits.\n");
+        let raw =
+            "<DOCUMENT>\n<TEXT>\nText.\n<PAGE>\nSignatures.\n\n                S-1\n<PAGE>\nIndex.\n   E-1\n</TEXT>";
+        assert_eq!(document_to_text(raw), "Text.\nSignatures.\nIndex.\n");
+        // A reference to page S-1 in an index stays, while the page's own number goes.
+        let html = format!("<p>Schedule II</p><p>S-1</p><p>Text.</p>{page_break}<p>Schedule II.</p><p>S-1</p>");
+        assert_eq!(tables_of(&html).0, "Schedule II\nS-1\nText.\nSchedule II.\n");
+    }
+
+    /// Few lines that look like the page numbers of the last pages stay when
+    /// they do not end pages, when those that do skip a number or do not
+    /// start at 1, when they end a sentence, when the document has no page
+    /// breaks, when they have no prefix of letters, or when they are cells.
+    #[test]
+    fn few_numbers_with_a_prefix_that_do_not_count_pages_stay() {
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        let cases = [
+            "<p>Exhibits</p><p>E-1</p><p>E-2</p><p>Text.</p>".to_string(),
+            format!("<p>Text.</p><p>E-4</p>{page_break}<p>Text.</p>"),
+            format!("<p>Text.</p><p>S-1</p>{page_break}<p>Text.</p><p>S-3</p>{page_break}<p>Text.</p>"),
+            format!("<p>The index begins on page</p><p>E-1.</p>{page_break}<p>Text.</p>"),
+            "<p>Signatures.</p><p>S-1</p>".to_string(),
+            format!("<p>Text.</p><p>- 1</p>{page_break}<p>Text.</p><p>- 2</p>{page_break}<p>Text.</p>"),
+            format!("<p>Text.</p><p>1-1</p>{page_break}<p>Text.</p><p>1-2</p>{page_break}<p>Text.</p>"),
+            format!("<table><tr><td>Schedule<br>II</td><td>S-1</td></tr></table>{page_break}<p>Text.</p>"),
+        ];
+        for html in cases {
+            // Every line of the input stays.
+            let all: String = Html::parse_fragment(&html).root_element().text().map(|t| format!("{t}\n")).collect();
+            assert_eq!(tables_of(&html).0, all, "{html}");
+        }
+    }
+
     /// Old text filings that number their page tags, as in "<Page 2>".
     #[test]
     fn numbered_page_tags_dropped() {
@@ -1346,6 +1456,55 @@ mod tests {
         assert!(!text.contains("Form 10-K"));
         assert!(text.starts_with("Text of page 20.\nText of page 21.\n"));
         assert_eq!(text.matches("Total stores at year end 12").count(), 6);
+    }
+
+    /// The pages of an exhibit index that print the running footer with a
+    /// page number with a prefix lose it with the rest of the family, as a
+    /// line or as a row of cells, on either side of the text.
+    #[test]
+    fn running_footers_with_a_prefixed_page_number_dropped() {
+        for cell_by_cell in [false, true] {
+            let mut html = String::new();
+            let mut want = String::new();
+            let pages = (20..26).map(|n| n.to_string()).chain(["E-1", "E-2", "II-1", "7A-1"].map(String::from));
+            for (i, page) in pages.enumerate() {
+                let cells =
+                    if i % 2 == 0 { ["Acme Corporation 2013", &page] } else { [&page, "Acme Corporation 2013"] };
+                let footer = match cell_by_cell {
+                    false => format!("<p>{}</p>", cells.join(" ")),
+                    true => format!("<table><tr><td>{}</td><td>{}</td></tr></table>", cells[0], cells[1]),
+                };
+                html += &format!("<p>Text of page {page}.</p>{footer}");
+                want += &format!("Text of page {page}.\n");
+            }
+            let (text, tables) = tables_of(&html);
+            assert_eq!(text, want, "{html}");
+            assert!(tables.is_empty(), "{tables:?}");
+        }
+
+        // They stay when the lines with the same text and a number do not go
+        // (the numbers do not count up like pages), when the text differs, and
+        // in a cell of a row printed cell by cell.
+        let mut html = String::new();
+        for n in [12, 9, 14, 3, 20, 1] {
+            html += &format!("<p>Text.</p><p>Acme Corporation 2013 {n}</p>");
+        }
+        html += "<p>Text.</p><p>Acme Corporation 2013 E-1</p>";
+        for page in 30..36 {
+            html += &format!("<p>Text of page {page}.</p><p>Acme Inc. Annual Report {page}</p>");
+        }
+        html += "<p>Text.</p><p>Acme Inc. Annual Report 2014 E-1</p><p>Exhibit 10 to Acme Inc. Annual Report E-1</p>";
+        html += "<table><tr><td>Acme Inc. Annual Report E-2<br>Exhibit 10</td><td>Filed herewith</td></tr></table>";
+        let text = html_to_text(&html);
+        for line in [
+            "Acme Corporation 2013 E-1",
+            "Acme Inc. Annual Report 2014 E-1",
+            "Exhibit 10 to Acme Inc. Annual Report E-1",
+            "Acme Inc. Annual Report E-2",
+        ] {
+            assert!(text.contains(&format!("{line}\n")), "{line}");
+        }
+        assert!(!text.contains("Acme Inc. Annual Report 3"));
     }
 
     #[test]
