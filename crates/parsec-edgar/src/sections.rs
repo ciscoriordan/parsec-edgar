@@ -456,11 +456,29 @@ static SIGNATURE_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
 static POWER_OF_ATTORNEY: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?im)^[ \t]*powers?[ \t]+of[ \t]+attorney[ \t]*:?[ \t]*$").unwrap());
 
-/// An exhibit number alone on its line, as an exhibit list printed cell by
-/// cell has it: `24`, `99.1*`, `10(a)`, `(23)`, `101.INS`.
-static EXHIBIT_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\(?\d{1,3}(?:\.\d{1,3})?\)?(?:\([a-zA-Z0-9]{1,5}\)|\.[A-Z]{3})*[*†‡#+^]*$").unwrap()
+/// The opening words of a power of attorney: "KNOW ALL PERSONS BY THESE
+/// PRESENTS", "Each person whose signature appears below constitutes and
+/// appoints ...", "hereby authorizes".
+static POWER_OF_ATTORNEY_TEXT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)\bknown?\s+all\b|\bconstitutes?\s+and\s+appoints?\b|\bhereby\s+(?:authorizes?|appoints?|constitutes?)\b|\battorneys?-in-fact\b|\bwhose\s+(?:individual\s+)?signature\s+appears\s+below\b",
+    )
+    .unwrap()
 });
+
+/// An exhibit number alone on its line, as an exhibit list printed cell by
+/// cell has it: `24`, `99.1*`, `24.1 *`, `10(a)`, `(23)`, `101.INS`,
+/// `10.1.1`, also with a dash (`3-A`, `10-F-1`, `24-1`) or the word before
+/// it (`Exhibit 24`, `EX-24`, `Ex. 99.2`).
+static EXHIBIT_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^(?:(?i:exhibit|exh?)[ \t]*[.\-]?[ \t]*(?i:no\.?[ \t]*)?)?\(?\d{1,3}(?:\.\d{1,3}){0,2}\)?(?:[-–][A-Za-z0-9]{1,3})*(?:\([a-zA-Z0-9]{1,5}\)|\.[A-Z]{3})*[ \t]*[*†‡#+^]*$",
+    )
+    .unwrap()
+});
+
+/// A cell of an exhibit list that only marks a row: `*`, `†`, `X`.
+static MARKER_CELL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(?:[*†‡#+^]{1,3}|[xX✓✔])$").unwrap());
 
 /// Bare sub-item references such as `Item 14(d):` or `Item 15(a)(1)`, which
 /// sit inside an Item. `Item 6 (a). Exhibits` has a title and stays.
@@ -1514,13 +1532,17 @@ fn heading_starts<'a>(re: &'a Regex, text: &'a str, start: usize, end: usize) ->
 }
 
 /// Whether the line at `pos` sits in an exhibit list printed cell by cell:
-/// the line above or below it (blank lines skipped) is an exhibit number
-/// alone. Such a line is an exhibit's description ("24.1" then "Power of
-/// Attorney"), not a heading.
+/// the line above or below it (blank lines skipped, and a cell that only
+/// marks the row, such as `*`) is an exhibit number alone. Such a line is an
+/// exhibit's description ("24.1" then "Power of Attorney"), not a heading.
 fn exhibit_cell(text: &str, pos: usize) -> bool {
-    let above = text[..pos].lines().rev().find(|l| !l.trim().is_empty());
-    let below = text[pos..].lines().skip(1).find(|l| !l.trim().is_empty());
-    [above, below].into_iter().flatten().any(|l| EXHIBIT_NUMBER.is_match(l.trim()))
+    fn next_cell<'a>(lines: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+        let mut cells = lines.map(str::trim).filter(|l| !l.is_empty());
+        cells.next().and_then(|l| if MARKER_CELL.is_match(l) { cells.next() } else { Some(l) })
+    }
+    let above = next_cell(text[..pos].lines().rev());
+    let below = next_cell(text[pos..].lines().skip(1));
+    [above, below].into_iter().flatten().any(|l| EXHIBIT_NUMBER.is_match(l))
 }
 
 /// Start of the first glossary heading in a section that is not an exhibit's
@@ -1571,9 +1593,21 @@ fn line_copies(text: &str, line: &str) -> usize {
 }
 
 /// Start of a power of attorney printed after the last Item's text and
-/// before the signatures, under a heading of its own.
+/// before the signatures at `end`, under a heading of its own: its text
+/// before the signatures reads as one ("KNOW ALL PERSONS BY THESE PRESENTS",
+/// "constitutes and appoints"), and the heading is not an exhibit's
+/// description in an exhibit list.
 fn power_of_attorney(text: &str, start: usize, end: usize) -> Option<usize> {
-    heading_starts(&POWER_OF_ATTORNEY, text, start, end).find(|&p| !exhibit_cell(text, p))
+    // The heading line and the start of the text after it, where its first
+    // sentence is.
+    const OPENING_BYTES: usize = 1000;
+    heading_starts(&POWER_OF_ATTORNEY, text, start, end).find(|&p| {
+        let mut to = (p + OPENING_BYTES).min(end);
+        while !text.is_char_boundary(to) {
+            to -= 1;
+        }
+        !exhibit_cell(text, p) && POWER_OF_ATTORNEY_TEXT.is_match(&text[p..to])
+    })
 }
 
 /// The lines of a section after its heading line, trimmed, with their starts.
@@ -2577,6 +2611,59 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_14", "item_15"]);
+        assert_eq!(s[1].end, text.find("SIGNATURES").unwrap());
+    }
+
+    #[test]
+    fn exhibit_cells_with_other_numbers_or_a_marker_cell_keep_the_exhibit_list() {
+        // Exhibit numbers printed with the word "Exhibit" or "EX-", with a
+        // dash, or with a marker after a space, and a marker cell between the
+        // number and the description: a power of attorney or a glossary
+        // filed as an exhibit does not end the last Item. A caption that only
+        // names the power of attorney does not either.
+        let body = BODY.repeat(30);
+        let rows = [
+            "Exhibit 24\nPowers of Attorney\n",
+            "EX-24\nPOWER OF ATTORNEY\n",
+            "24-1\nPower of Attorney\n",
+            "24.1 *\nPower of Attorney\n",
+            "24\n*\nPower of Attorney\n",
+            "Exhibit 99.2\nGlossary of Terms\n",
+            "99.2\n*\nGlossary of Terms\n",
+            "Exhibit 3-A\nRestated Certificate of Incorporation\nExhibit 10-F-1\nGLOSSARY\n",
+            "24\nSee the signature page.\nPOWER OF ATTORNEY\nThe directors sign the report through attorneys named \
+             on the signature page.\n",
+        ];
+        for row in rows {
+            let text = format!(
+                "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\n\
+                 ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n(a)(3) Exhibits\nExhibit\nDescription\n\
+                 Exhibit 3.1\nRestated Certificate of Incorporation\n{row}Exhibit 31.1\n\
+                 Rule 13a-14(a) Certification of Chief Executive Officer\nExhibit 101.INS\nXBRL Instance Document\n\
+                 SIGNATURES\nPursuant to the requirements of Section 13 of the Securities Exchange Act of 1934 ...\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_14", "item_15"], "{row}");
+            assert_eq!(s[1].end, text.find("SIGNATURES").unwrap(), "{row}");
+        }
+        // The marked row is the list's last.
+        let text = format!(
+            "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES
+{body}
+             ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES
+(a)(3) Exhibits
+Exhibit
+Description
+             21
+Subsidiaries of the Registrant
+99.2
+*
+Glossary of Terms
+SIGNATURES
+Pursuant to ...
+"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(s[1].end, text.find("SIGNATURES").unwrap());
     }
 
