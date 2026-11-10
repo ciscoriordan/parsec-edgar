@@ -104,12 +104,12 @@
 //! last Part line before that heading is a `PART I` line that comes after every
 //! Item line before it, a line that holds only Item 1's standard title starts
 //! Item 1: the first one right after a `PART I` line ("PART I." and then
-//! "BUSINESS"), unless another Part's line comes after it, as in a contents
-//! list printed without Item numbers. It may come before the last `PART I`
-//! line, since Item 1's pages may print "PART I" and "Business" again as page
-//! headers. Without one, the first such line after the last `PART I` line
-//! starts Item 1, unless the title line is printed more than once after the
-//! last Item line before the heading.
+//! "BUSINESS"), unless another Part's line comes after it or the next line
+//! holds only another Item's title, as in a contents list printed without Item
+//! numbers. It may come before the last `PART I` line, since Item 1's pages may
+//! print "PART I" and "Business" again as page headers. Without one, the first
+//! such line after the last `PART I` line starts Item 1, unless the title line
+//! is printed more than once after the last Item line before the heading.
 //! A heading that writes the Item number in roman numerals ("ITEM I.
 //! BUSINESS", with the letter I for 1) starts that Item when its title starts
 //! like one of the Item's standard titles, current or former, and it sits
@@ -2786,8 +2786,11 @@ fn add_lettered(cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize
 /// ("Business", "Description of Business") right after a `PART I` line starts
 /// Item 1, unless another Part's line comes after it, as in a contents list
 /// printed without Item numbers ("PART I", "Business", "Risk Factors", ...,
-/// "PART II", ...). It may come before the last `PART I` line, since Item 1's
-/// pages may print "PART I" and "Business" as page headers. Without such a
+/// "PART II", ...), or the next line holds only a title of another Item, as
+/// the next entry of such a list does when it prints no later Part line or
+/// prints it with a page or a title ("PART II<TAB>20"). It may come before
+/// the last `PART I` line, since Item 1's pages may print "PART I" and
+/// "Business" as page headers. Without such a
 /// line, the first title line between the last `PART I` line and the heading
 /// starts Item 1, unless the title line is printed more than once after the
 /// last Item line before the heading. Returns the title line as a candidate.
@@ -2823,17 +2826,25 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
         line.starts_with(char::is_uppercase) && title_key(line) == letters && title_words(line) == words
     };
     // The first title line right after a PART I line, unless another Part's
-    // line comes after it.
+    // line comes after it, or the next line is a contents entry.
     let part_one = |l: &str| PART_LABEL.is_match(l) && PART_MARK.captures(l).is_some_and(|c| &c[1] == "I");
+    let other_title = |l: &str| {
+        let words = title_words(l);
+        keys.iter().filter(|k| k.item != item_1.item).any(|k| k.titles().any(|t| title_words(t) == words))
+    };
     let mut first: Option<(usize, &str)> = None;
-    let mut above = "";
-    for (start, line) in lines_in(text, 0, heading).into_iter().filter(|(_, l)| !l.is_empty()) {
+    let before: Vec<(usize, &str)> = lines_in(text, 0, heading).into_iter().filter(|(_, l)| !l.is_empty()).collect();
+    for (i, &(start, line)) in before.iter().enumerate() {
         if PART_LABEL.is_match(line) && !part_one(line) {
             first = None;
-        } else if first.is_none() && part_one(above) && title_line(line) {
+        } else if first.is_none()
+            && i > 0
+            && part_one(before[i - 1].1)
+            && title_line(line)
+            && !before.get(i + 1).is_some_and(|&(_, next)| other_title(next))
+        {
             first = Some((start, line));
         }
-        above = line;
     }
     let copies = text[..heading].lines().rev().take_while(|l| !is_item_line(l)).filter(|l| title_line(l)).count();
     let (pos, line) = match first {
@@ -4514,7 +4525,8 @@ Pursuant to ...
         // with no contents list before, a contents list with Item numbers and
         // pages, one without pages, or one without Item numbers or pages; also
         // with an Item line between the copies. And a contents list without
-        // Item numbers or pages before a body that prints the pair once.
+        // Item numbers or pages before a body that prints the pair once, also
+        // when no bare Part line follows the list's "Business".
         let body = BODY.repeat(30);
         let pages = format!("4\nPART I\nBusiness\n{body}\n5\nPART I\nBusiness\n{body}\n");
         let item_line = format!("Item 7 of this report describes our results.\n{body}\n{pages}");
@@ -4530,6 +4542,15 @@ Pursuant to ...
             layouts.extend([(contents, pages.as_str()), (contents, item_line.as_str())]);
         }
         layouts.push((no_numbers, ""));
+        // Contents lists without Item numbers whose next Part line prints a
+        // page or a title, or that list only Part I.
+        for contents in [
+            "PART I\nBusiness\nRisk Factors\nProperties\nPART II\t20\nMarket\n",
+            "PART I\nBusiness\nRisk Factors\nProperties\nPART II - MARKET AND FINANCIAL INFORMATION\nMarket\n",
+            "PART I\nBusiness\nRisk Factors\nProperties\n",
+        ] {
+            layouts.extend([(contents, ""), (contents, pages.as_str())]);
+        }
         let rest =
             format!("ITEM 1A. RISK FACTORS\n{body}\nITEM 2. PROPERTIES\n{body}\nPART II\nITEM 5. MARKET\n{body}\n");
         for (contents, after) in layouts {
