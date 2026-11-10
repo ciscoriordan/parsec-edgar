@@ -59,8 +59,11 @@
 //!
 //! Some annual report text has no Item heading of its own and belongs to no
 //! Item: financial statements printed with no Item 8 heading or after Item 9
-//! of a 10-K, and statements, schedules, an exhibit index, a consent or a
-//! glossary printed after the last Item. A block heading (an auditors' report,
+//! of a 10-K, reports on internal control printed after the other
+//! information Item (10-K Item 9B, 10-KSB Item 8B), which an auditors' report
+//! or a management's report on internal control heading ends, and
+//! statements, schedules, an exhibit index, a consent or a glossary printed
+//! after the last Item. A block heading (an auditors' report,
 //! an index to the financial statements, a financial statement schedule, an
 //! exhibit index or an accountants' consent) ends the Items that never hold
 //! such text: changes in accountants (10-K Item 9, 10-KSB Item 8) and the
@@ -411,16 +414,29 @@ const STATEMENTS_INDEX: &str = r"index[ \t]+to[ \t]+(?:the[ \t]+)?(?:consolidate
 /// `EXHIBIT INDEX`, `Index to Exhibits`, one of the block headings.
 const EXHIBITS_INDEX: &str = r"exhibits?[ \t]+index\b|index[ \t]+(?:to|of)[ \t]+exhibits\b";
 
+/// An auditors' report (`Report of Independent Registered Public Accounting
+/// Firm`, `Independent Auditors' Report`, or with the firm's name first,
+/// `Report of Example LLP, Independent Auditors`), one of the block headings.
+const AUDITORS_REPORT: &str = r"report[ \t]+of[ \t]+(?:[^\n,]{1,60},[ \t]*)?independent\b|independent[ \t]+(?:registered[ \t]+public[ \t]+accounting[ \t]+firm|auditors?['’]?s?['’]?|accountants['’]?)[ \t]+(?:report|consent)\b";
+
 /// Headings that open text printed with no Item heading of its own: the
-/// auditors' report before the financial statements (`Report of Independent
-/// Registered Public Accounting Firm`, `Independent Auditors' Report`, or with
-/// the firm's name first, `Report of Example LLP, Independent Auditors`), an
-/// index to the financial statements, a financial statement schedule
-/// (`SCHEDULE I – CONDENSED PARENT COMPANY FINANCIAL STATEMENTS`), an exhibit
-/// index, or an accountants' consent.
+/// auditors' report before the financial statements, an index to the
+/// financial statements, a financial statement schedule (`SCHEDULE I –
+/// CONDENSED PARENT COMPANY FINANCIAL STATEMENTS`), an exhibit index, or an
+/// accountants' consent.
 static BLOCK_HEADING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r"(?im)^[ \t]*(?:report[ \t]+of[ \t]+(?:[^\n,]{{1,60}},[ \t]*)?independent\b|independent[ \t]+(?:registered[ \t]+public[ \t]+accounting[ \t]+firm|auditors?['’]?s?['’]?|accountants['’]?)[ \t]+(?:report|consent)\b|{STATEMENTS_INDEX}|schedule[ \t]+[ivx]{{1,4}}\b|{EXHIBITS_INDEX}|consent[ \t]+of[ \t]+independent\b)",
+        r"(?im)^[ \t]*(?:{AUDITORS_REPORT}|{STATEMENTS_INDEX}|schedule[ \t]+[ivx]{{1,4}}\b|{EXHIBITS_INDEX}|consent[ \t]+of[ \t]+independent\b)",
+    ))
+    .unwrap()
+});
+
+/// A report on internal control over financial reporting, which belongs to
+/// the controls Item (10-K Item 9A): an auditors' report or `Management's
+/// Report on Internal Control over Financial Reporting`.
+static CONTROLS_REPORT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(
+        r"(?im)^[ \t]*(?:{AUDITORS_REPORT}|management(?:['’]?s)?[ \t]+(?:annual[ \t]+)?reports?[ \t]+on[ \t]+internal[ \t]+control\b)",
     ))
     .unwrap()
 });
@@ -1635,7 +1651,9 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     // without its heading. A 10-KSB's statements (Item 7) follow MD&A (Item
     // 6), which keeps them like 10-K Item 7 does. The exhibits Item keeps its
     // block headings but not statements with pages of their own numbering
-    // printed after all of its own text.
+    // printed after all of its own text. The other information Item (10-K
+    // Item 9B, 10-KSB Item 8B) ends at a report on internal control printed
+    // after it, which belongs to the controls Item before it.
     let no_item_8 = !picks.iter().any(|&(_, k)| keys[k].item == "8");
     // The Item that holds the financial statements: 10-K Item 8, 10-KSB Item 7.
     let statements_key = keys.iter().position(|k| k.title.starts_with("Financial Statements"));
@@ -1659,6 +1677,8 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
         (FormKind::TenK, "7A") => no_item_8,
         _ => after_exhibits(ki, cand),
     };
+    let other_information =
+        |ki: usize| matches!((kind, keys[ki].item), (FormKind::TenK, "9B") | (FormKind::TenKsb, "8B"));
     // A section that holds the next Item too keeps its block headings: its
     // heading names a second Item ("Items 9 and 9A."), or a heading with the
     // same number and another title follows ("ITEM 9 A – CONTROLS AND
@@ -1684,6 +1704,8 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
                 let block = heading_start(&BLOCK_HEADING, text, start, end);
                 let glossary = after_exhibits(ki, cand).then(|| heading_start(&GLOSSARY, text, start, end)).flatten();
                 block.into_iter().chain(glossary).min().unwrap_or(end)
+            } else if other_information(ki) {
+                heading_start(&CONTROLS_REPORT, text, start, end).unwrap_or(end)
             } else if exhibits_item(ki, cand) {
                 separate_statements(text, start, end).unwrap_or(end)
             } else {
@@ -3934,8 +3956,8 @@ mod tests {
     #[test]
     fn auditors_reports_and_exhibit_indexes_inside_an_item_stay_there() {
         // Items 7 and 7A when Item 8 has a heading, Item 8 itself, the report
-        // on internal control in Items 9A and 9B, and Item 15's statements,
-        // schedule, exhibit index and consent all keep these headings.
+        // on internal control in Item 9A, and Item 15's statements, schedule,
+        // exhibit index and consent all keep these headings.
         let body = BODY.repeat(30);
         let text = format!(
             "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n\
@@ -3945,9 +3967,9 @@ mod tests {
              ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\nIndex to Consolidated Financial Statements\n\
              Report of Independent Registered Public Accounting Firm\n{body}\n\
              ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n\
-             ITEM 9A. CONTROLS AND PROCEDURES\n{body}\nReport of Independent Registered Public Accounting Firm\n{body}\n\
-             ITEM 9B. OTHER INFORMATION\nManagement's Report on Internal Control\n{body}\n\
-             REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\nPART IV\n\
+             ITEM 9A. CONTROLS AND PROCEDURES\nManagement's Report on Internal Control\n{body}\n\
+             REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\n\
+             ITEM 9B. OTHER INFORMATION\n{body}\nPART IV\n\
              ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n(a) 1. Financial Statements\n\
              Report of Independent Registered Public Accounting Firm\n{body}\n\
              SCHEDULE II – VALUATION AND QUALIFYING ACCOUNTS\n{body}\nEXHIBIT INDEX\n{body}\n\
@@ -3977,6 +3999,77 @@ mod tests {
         let s = extract_sections(text, FormKind::EightK);
         assert_eq!(ids(&s), ["item_2.01", "item_9.01"]);
         assert!(s[1].text.ends_with("We have audited the balance sheet."));
+    }
+
+    #[test]
+    fn reports_on_internal_control_after_the_other_information_item_end_it() {
+        // Item 9A says the auditors' report on internal control appears after
+        // Item 9B, where it is printed with no heading of its own. Or Item 9B
+        // says "None." and management's reports and the auditors' report
+        // follow it. A 10-KSB's Item 8B ends the same way.
+        let body = BODY.repeat(30);
+        let report = "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\nTo the Board of Directors\n";
+        let text = format!(
+            "ITEM 9A.\tCONTROLS AND PROCEDURES\n{body}\n\
+             The report of the auditors appears subsequent to Item 9B in this Annual Report.\n\
+             ITEM 9B.\tOTHER INFORMATION\nDisclosure pursuant to Section 219 of the Act\n{body}\n{report}{body}\n\
+             PART III\nITEM 10.\tDIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9a", "item_9b", "item_10"]);
+        assert_eq!(s[1].end, text.find(report).unwrap());
+        let text = format!(
+            "ITEM 9A. CONTROLS AND PROCEDURES\n{body}\nITEM 9B. OTHER INFORMATION\nNone.\n\
+             MANAGEMENT REPORT ON INTERNAL CONTROL OVER\nFINANCIAL REPORTING—EXAMPLE\n{body}\n{report}{body}\n\
+             PART III\nITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[1].text, "ITEM 9B. OTHER INFORMATION\nNone.");
+        let text = format!(
+            "ITEM 8A. CONTROLS AND PROCEDURES\n{body}\nITEM 8B. OTHER INFORMATION\nNone.\n\
+             Management's Annual Report on Internal Control over Financial Reporting\n{body}\n\
+             PART III\nITEM 9. DIRECTORS, EXECUTIVE OFFICERS, PROMOTERS AND CONTROL PERSONS\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_8a", "item_8b", "item_9"]);
+        assert_eq!(s[1].text, "ITEM 8B. OTHER INFORMATION\nNone.");
+    }
+
+    #[test]
+    fn reports_on_internal_control_stay_in_the_controls_item() {
+        // Item 9A's own reports, a sentence in Item 9B that names the report,
+        // a section that holds Items 9A and 9B, and a 10-Q's Part II Item 5
+        // (Other Information).
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 9A. CONTROLS AND PROCEDURES\nManagement's Report on Internal Control over Financial Reporting\n\
+             {body}\nReport of Independent Registered Public Accounting Firm\n{body}\n\
+             ITEM 9B. OTHER INFORMATION\nThe Board adopted amended bylaws. As described in\n\
+             management's report on internal control over financial reporting, no change occurred.\n{body}\n\
+             ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9a", "item_9b", "item_10"]);
+        for (i, sec) in s.iter().enumerate() {
+            let next = s.get(i + 1).map_or(text.len(), |n| n.start);
+            assert_eq!(sec.end, next, "{}", sec.id);
+        }
+        let text = format!(
+            "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\n\
+             ITEMS 9A AND 9B. CONTROLS AND PROCEDURES; OTHER INFORMATION\n{body}\n\
+             REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\n\
+             ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_9a", "item_10"]);
+        assert_eq!(s[1].end, s[2].start);
+        let text = format!(
+            "PART II\nItem 5. Other Information\nNone.\nReport of Independent Registered Public Accounting Firm\n\
+             {body}\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_2_item_5", "part_2_item_6"]);
+        assert_eq!(s[0].end, s[1].start);
     }
 
     /// Titles of the sections, in order.
