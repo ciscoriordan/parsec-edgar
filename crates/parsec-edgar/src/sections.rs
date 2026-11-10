@@ -33,7 +33,12 @@
 //! heading. A heading printed with a footnote's number ("Item
 //! 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed by its
 //! text, and one followed by a running header of its own Item that prints the
-//! page, or by an index of Items after the body, is no such row.
+//! page, or by an index of Items after the body, is no such row. A copy
+//! printed after the signature block's sentence ("Pursuant to the
+//! requirements of ... duly caused"), such as an exhibit's, is no body
+//! heading: it goes, and the copy before the signatures stays when an Item
+//! earlier in the form's order with text of its own comes before it, however
+//! short its own text.
 //! In a 10-Q or 10-QSB a `PART I` or `PART II` line just above a heading fixes
 //! its part, and without one a title that only one part uses for that Item
 //! number does. Such a line that starts with a Part I title and runs on as a
@@ -1505,13 +1510,17 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 ///
 /// Two candidates are the same heading when they share Item and title and other
 /// Items come between them. The earlier copy is a contents entry when it starts
-/// the shorter stretch of text. With no other Item between them, it is one when
-/// a signatures line follows it and the later copy follows that line closely,
-/// before the signatures (a list of one Item and "SIGNATURES"), or when it
-/// comes just after a page-numbered row and names a later Item (the last row
-/// of a cross-reference index, which prints no page, in a 10-K whose body
-/// prints no other Item heading). The later copy
-/// is a listing when a signatures heading comes between them, at or after the
+/// the shorter stretch of text, unless the signature block's sentence comes
+/// between the two (a signatures line alone does not count, since contents
+/// list "Signatures" too) and an Item earlier in the form's order with text
+/// of its own comes before the earlier copy: that copy is then a body
+/// heading, and the later one (an exhibit's, or the heading over statements
+/// printed after the signatures) goes. With no other Item between them, it is
+/// one when a signatures line follows it and the later copy follows that line
+/// closely, before the signatures (a list of one Item and "SIGNATURES"), or
+/// when it comes just after a page-numbered row and names a later Item (the
+/// last row of a cross-reference index, which prints no page, in a 10-K whose
+/// body prints no other Item heading). The later copy is a listing when a signatures heading comes between them, at or after the
 /// first body heading (contents often list "Signatures" too). In a 10-Q this
 /// matters most: a contents entry for Part I Item 2 could otherwise be taken as
 /// Part I and the body heading as Part II. Rows that print a page number
@@ -1535,6 +1544,9 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // The later copy of any matched pair, which the spread below must not take.
     let mut paired = vec![false; n];
     let mut later_copies: Vec<(usize, usize)> = Vec::new();
+    // Later copies printed after the report's signatures, such as an
+    // exhibit's, of a body heading.
+    let mut signed_copies: Vec<usize> = Vec::new();
     // Rows that print a page number are contents rows, also when no body
     // heading repeats them, and never the body copy of a pair.
     let paged = paged_rows(&cands, text, keys, SAME_BLOCK);
@@ -1547,7 +1559,10 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
             if cands[b].label != cands[a].label {
                 other_between = true;
             } else if other_between && !paged[b] && same_title(&cands[a].title, &cands[b].title) {
-                if cands[b].gap > cands[a].gap {
+                let signed = SIGNATURE_BLOCK.is_match(&text[cands[a].pos..cands[b].pos]);
+                if signed && follows_body_item(&cands, a, keys, SAME_BLOCK) {
+                    signed_copies.push(b);
+                } else if cands[b].gap > cands[a].gap {
                     contents[a] = true;
                     body[b] = true;
                 } else {
@@ -1636,6 +1651,9 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         }
     }
     let mut after = vec![false; n];
+    for b in signed_copies {
+        after[b] = true;
+    }
     if !later_copies.is_empty() {
         let body_start = body_start.unwrap_or(0);
         let sigs = signature_lines(text);
@@ -1656,6 +1674,14 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         .filter(|&(i, _)| !contents[i] && !after[i])
         .map(|(i, c)| Candidate { listed: body[i], ..c })
         .collect()
+}
+
+/// Whether an Item earlier in the form's order than candidate `i`, with text
+/// of its own (more than `block` characters before the next Item), comes
+/// before it: then `i` is in the body, past any contents list.
+fn follows_body_item(cands: &[Candidate], i: usize, keys: &[Key], block: usize) -> bool {
+    let Some(last) = form_places(&cands[i], keys).next_back() else { return false };
+    cands[..i].iter().any(|c| c.gap > block && form_places(c, keys).next().is_some_and(|f| f < last))
 }
 
 /// The places in the form's order (indexes into `keys`) that a candidate's
@@ -4561,18 +4587,103 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_2", "part_1_item_3", "part_2_item_1", "part_2_item_6"]);
         // An exhibit after the signatures repeats Item 4 with more text. Item
-        // 3 follows MD&A and stays.
+        // 3 follows MD&A and stays, and so does Item 4: the exhibit's copy
+        // comes after the signatures (a heading or the signature sentence).
+        let sentence = "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly \
+                        caused this report to be signed.\n";
+        for signatures in [format!("SIGNATURES\n{sentence}"), sentence.to_owned()] {
+            let text = format!(
+                "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+                 Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot applicable.\n\
+                 Item 4. Controls and Procedures\nOur disclosure controls are effective.\nPART II\n\
+                 Item 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n31.1 Certification\n{signatures}\
+                 Exhibit 99.1\nPART I\nItem 4. Controls and Procedures\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            let all =
+                ["part_1_item_1", "part_1_item_2", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"];
+            assert_eq!(ids(&s), all, "{signatures}");
+            assert!(s[1].text.ends_with(body.trim()));
+            assert_eq!(
+                s[2].text,
+                "Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot applicable."
+            );
+            assert_eq!(s[3].text, "Item 4. Controls and Procedures\nOur disclosure controls are effective.\nPART II");
+            assert_eq!(s[5].text, "Item 6. Exhibits\n31.1 Certification");
+        }
+    }
+
+    #[test]
+    fn copy_of_a_body_heading_after_the_signatures_is_no_body_heading() {
+        // Item 8 only points to the statements, which open after the
+        // signatures under Item 8's heading again.
+        let body = BODY.repeat(30);
+        let signed = "SIGNATURES\nPursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of \
+                      1934, the registrant has duly caused this report to be signed.\n";
         let text = format!(
-            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
-             Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot applicable.\n\
-             Item 4. Controls and Procedures\nOur disclosure controls are effective.\nPART II\n\
-             Item 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n31.1 Certification\nSIGNATURES\nPursuant to...\n\
-             Exhibit 99.1\nPART I\nItem 4. Controls and Procedures\n{body}\n"
+            "PART II\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n\
+             Our audited consolidated financial statements begin on page F-1 of this annual report.\n\
+             Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure.\nNone.\n\
+             Item 9A. Controls and Procedures.\n{body}\nPART IV\nItem 15. Exhibits and Financial Statement Schedules.\n\
+             {body}\n{signed}\
+             Item 8. Financial Statements and Supplementary Data.\nINDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n\
+             {body}{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_7", "item_7a", "item_8", "item_9", "item_9a", "item_15"]);
+        assert_eq!(
+            s[2].text,
+            "Item 8. Financial Statements and Supplementary Data\n\
+             Our audited consolidated financial statements begin on page F-1 of this annual report."
+        );
+        assert!(s[5].text.ends_with(body.trim()));
+        // An exhibit repeats the exhibits Item, which Item 16 follows.
+        let text = format!(
+            "Item 14. Principal Accountant Fees and Services\n{body}\nItem 15. Exhibits and Financial Statement Schedules\n\
+             See the Exhibit Index.\nItem 16. Form 10-K Summary\nNone.\n{signed}Exhibit 13\n\
+             Item 15. Exhibits and Financial Statement Schedules of the Annual Report\n{}\n",
+            BODY.repeat(300)
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_14", "item_15", "item_16"]);
+        assert_eq!(s[1].text, "Item 15. Exhibits and Financial Statement Schedules\nSee the Exhibit Index.");
+        // Contents rows before the body name Items that the report prints
+        // after its signatures (Part IV): the row is a contents entry and the
+        // heading after the signatures starts the Item, also when a later
+        // Item's text comes before the contents.
+        for before in ["", "PART IV\nItem 15. Additional Exhibits\n{body}\n"] {
+            let text = format!(
+                "{before}TABLE OF CONTENTS\nPART I\nItem 1. Business\nItem 2. Properties\nPART IV\n\
+                 Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\nSignatures\n\
+                 PART I\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\n{signed}\
+                 PART IV\nItem 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\n{body}\n"
+            )
+            .replace("{body}", &body);
+            let s = extract_sections(&text, FormKind::TenK);
+            let item_14 = s.iter().find(|s| s.id == "item_14").expect("Item 14");
+            let heading = "Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\nLorem";
+            assert!(item_14.text.starts_with(heading), "{before}");
+        }
+        // A contents list without pages ends with a "Signatures" row, below
+        // a note that cites an Item with text of its own: the row is no
+        // signature block, so the body headings after it stay.
+        let text = format!(
+            "FORM 10-Q/A\nEXPLANATORY NOTE\nPart I – Item 4. Controls and Procedures\n{body}\nTABLE OF CONTENTS\n\
+             PART I\nItem 1. Financial Statements\nItem 4. Controls and Procedures\nPART II\n\
+             Item 1. Legal Proceedings\nItem 6. Exhibits\nSignatures\nPART I\nItem 1. Financial Statements\n{body}\n\
+             Item 4. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\n{body}\n\
+             Item 6. Exhibits\n{body}\n{signed}"
         );
         let s = extract_sections(&text, FormKind::TenQ);
-        assert_eq!(ids(&s)[..3], ["part_1_item_1", "part_1_item_2", "part_1_item_3"]);
-        assert!(s[1].text.ends_with(body.trim()));
-        assert!(s[2].text.starts_with("Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot"));
+        let part_2: Vec<(&str, usize)> =
+            s.iter().filter(|s| s.part.as_deref() == Some("II")).map(|s| (s.id.as_str(), s.start)).collect();
+        let at = |heading: &str| text.find(&format!("{heading}\nLorem")).expect("body heading");
+        assert_eq!(
+            part_2,
+            [("part_2_item_1", at("Item 1. Legal Proceedings")), ("part_2_item_6", at("Item 6. Exhibits"))]
+        );
     }
 
     #[test]
