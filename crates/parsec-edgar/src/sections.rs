@@ -81,6 +81,14 @@
 //! "BUSINESS") starts Item 1, unless an Item line comes between them, or the
 //! title line is printed more than once after the last Item line before the
 //! heading (Item 1's pages print "PART I" and "Business" as page headers).
+//! A heading that writes the Item number in roman numerals ("ITEM I.
+//! BUSINESS", with the letter I for 1) starts that Item when its title starts
+//! like one of the Item's standard titles, current or former, and it sits
+//! where the Item belongs: the Items found before it come earlier in the
+//! form's order, those found after it come later, it comes before the
+//! signatures, and no other Item line comes between it and the next Item found,
+//! as one does below a contents entry. So it never replaces an Item found with
+//! a number in digits, and of its copies (running headers) the first counts.
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins. A power of attorney printed
 //! before the signatures under a "POWER OF ATTORNEY" line goes with them, so
@@ -147,11 +155,12 @@
 //! earlier title shares with the current one fits the earlier, shorter one
 //! better ("Directors and Executive Officers of the Company" for 10-K Item
 //! 10, titled "Directors and Executive Officers of the Registrant" until
-//! 2006). That choice never decides which lines are headings: the rules above
-//! that compare a line with an Item's title (a comma after the Item number,
-//! Item 1 printed without a number, a lettered sub-item, the line below a
-//! cover's row) use the current title only, so "Item 10, Directors and
-//! Executive Officers of the Registrant" (the title before 2006) is no heading.
+//! 2006). Apart from a heading numbered in roman numerals, that choice never
+//! decides which lines are headings: the rules above that compare a line with
+//! an Item's title (a comma after the Item number, Item 1 printed without a
+//! number, a lettered sub-item, the line below a cover's row) use the current
+//! title only, so "Item 10, Directors and Executive Officers of the
+//! Registrant" (the title before 2006) is no heading.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -2299,14 +2308,38 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
     if text[..heading].lines().rev().take_while(|l| !is_item_line(l)).filter(|l| title_line(l)).count() > 1 {
         return None;
     }
-    Some(Candidate {
+    Some(added_candidate(text, pos, item_1.item, line))
+}
+
+/// `ITEM I.  BUSINESS`, `ITEM IV. CONTROLS AND PROCEDURES`: an Item heading
+/// whose number is written in roman numerals, as some filings print one
+/// heading, with the letter I for the number 1.
+static ROMAN_HEADING: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[\-–—]+)?[ \t]*)?(?i:item)[ \t]+([IVX]{1,5})(?-u:\b)[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
+    )
+    .unwrap()
+});
+
+/// The number that a roman numeral up to XVI writes: `4` for `IV`.
+fn roman_number(numeral: &str) -> Option<usize> {
+    const NUMERALS: [&str; 16] =
+        ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI"];
+    NUMERALS.iter().position(|&n| n == numeral).map(|i| i + 1)
+}
+
+/// A candidate for a heading line that a rule finds after the chain is
+/// built, with `printed` as its title.
+fn added_candidate(text: &str, pos: usize, label: &str, printed: &str) -> Candidate {
+    let end = text[pos..].find('\n').map_or(text.len(), |i| pos + i);
+    Candidate {
         pos,
-        label: item_1.item.to_owned(),
-        heading: line.trim().to_owned(),
+        label: label.to_owned(),
+        heading: text[pos..end].trim().chars().take(300).collect(),
         bare: false,
-        title: title_key(line),
-        printed: line.trim().to_owned(),
-        printed_next: String::new(),
+        title: title_key(printed),
+        printed: printed.trim().chars().take(300).collect(),
+        printed_next: lines_after(text, end).chars().take(300).collect(),
         part: None,
         title_part: None,
         listed: false,
@@ -2314,9 +2347,68 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
         joined: None,
         bare_list: false,
         cites: false,
-        gap: heading - pos,
+        gap: 0,
         score: 0.0,
-    })
+    }
+}
+
+/// Items whose heading writes the number in roman numerals ("ITEM I.
+/// BUSINESS"), which the heading pattern does not read. Such a heading, with
+/// a title that starts like one of the standard titles, current or former,
+/// of the Item with that number, starts the Item when it sits where the Item
+/// belongs, before the signatures: after the Items found before it, which
+/// come earlier in the form's order, and before those found after it, which
+/// come later, so never when the Item was found. The title picks the Item
+/// in a 10-Q or 10-QSB, whose parts give their Items of one number different
+/// titles. No other Item line may come between the heading and the next Item
+/// found, as one does below an entry of a contents list; copies of the
+/// heading (running headers) may, and the first copy starts the Item.
+/// Returns the headings as candidates, with their keys, in document order.
+fn roman_items(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(usize, usize)]) -> Vec<(Candidate, usize)> {
+    let Some(&(last, _)) = picks.last() else { return Vec::new() };
+    let limit = signatures_after(text, cands[last].pos).unwrap_or(text.len());
+    // Roman headings with a title of the Item of their number, with its key.
+    let mut headings: Vec<(Candidate, usize, &str)> = Vec::new();
+    for c in ROMAN_HEADING.captures_iter(text) {
+        let (m, numeral) = (c.get(0).expect("group 0 always matches"), c.get(1).expect("numeral").as_str());
+        let Some(number) = roman_number(numeral) else { continue };
+        let label = number.to_string();
+        let tail = after_dashes(c.get(2).expect("tail").as_str()).trim();
+        if m.start() >= limit || !heading_tail_ok(tail) || continues_sentence(text, m.start()) {
+            continue;
+        }
+        let printed = if tail.chars().any(char::is_alphabetic) { tail } else { next_line_title(text, m.end()) };
+        let title = title_key(printed);
+        let ki = keys.iter().position(|k| {
+            k.item == label && std::iter::once(&k.title).chain(k.former).any(|t| same_title(&title, &title_key(t)))
+        });
+        if let Some(ki) = ki {
+            headings.push((added_candidate(text, m.start(), &label, printed), ki, numeral));
+        }
+    }
+    // From the last heading back, so that the next Item found after a
+    // heading is known when it is checked, and an earlier copy of a
+    // heading replaces a later one.
+    let mut found: Vec<(Candidate, usize)> = Vec::new();
+    for (cand, ki, numeral) in headings.into_iter().rev() {
+        let mut around: Vec<(usize, usize)> = picks.iter().map(|&(p, k)| (cands[p].pos, k)).collect();
+        around.extend(found.iter().filter(|(_, k)| *k != ki).map(|(c, k)| (c.pos, *k)));
+        around.sort_unstable();
+        let at = around.partition_point(|&(p, _)| p < cand.pos);
+        let in_place =
+            at.checked_sub(1).is_none_or(|i| around[i].1 < ki) && around.get(at).is_none_or(|&(_, k)| ki < k);
+        let next = around.get(at).map_or(limit, |&(p, _)| p);
+        let line_end = text[cand.pos..].find('\n').map_or(text.len(), |i| cand.pos + i);
+        let other_item = text[line_end..next.max(line_end)]
+            .lines()
+            .any(|l| is_item_line(l) && ROMAN_HEADING.captures(l).is_none_or(|o| &o[1] != numeral));
+        if in_place && !other_item {
+            found.retain(|(_, k)| *k != ki);
+            found.push((cand, ki));
+        }
+    }
+    found.sort_by_key(|(c, _)| c.pos);
+    found
 }
 
 /// The title the heading prints, of the titles the form has given its Item
@@ -2487,6 +2579,13 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     }
     let filled = add_lettered(&cands, keys, &mut picks);
     let mut cands = cands;
+    if kind != FormKind::EightK {
+        for (cand, ki) in roman_items(text, &cands, keys, &picks) {
+            let at = picks.partition_point(|&(p, _)| cands[p].pos < cand.pos);
+            cands.push(cand);
+            picks.insert(at, (cands.len() - 1, ki));
+        }
+    }
     if kind.annual()
         && let Some(item_1) = unnumbered_item_1(text, &cands, keys, &picks)
     {
@@ -3739,6 +3838,103 @@ Pursuant to ...
         );
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn item_numbered_in_roman_numerals_starts_its_item() {
+        // "ITEM I." with the letter I, the other headings with digits.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nITEM I.  BUSINESS\nGeneral\n{body}\nItem 2.  PROPERTIES\n{body}\n\
+             ITEM 3.  LEGAL PROCEEDINGS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3"]);
+        assert_eq!((s[0].heading.as_str(), s[0].title.as_str()), ("ITEM I.  BUSINESS", "Business"));
+        assert!(s[0].text.starts_with("ITEM I.  BUSINESS\nGeneral\nLorem"));
+        // A 10-Q whose contents list prints the number in digits.
+        let text = format!(
+            "PART I FINANCIAL INFORMATION\nItem 1\tFinancial Statements\t3-7\n\
+             Item 2\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\t21\n\
+             PART II OTHER INFORMATION\t35\nItem 6 Exhibits\t35\n\
+             PART I. FINANCIAL INFORMATION\nITEM I. FINANCIAL STATEMENTS\n{body}\n\
+             ITEM 2. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS\n{body}\n\
+             PART II. OTHER INFORMATION\nITEM 6. EXHIBITS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+        assert_eq!(s[0].heading, "ITEM I. FINANCIAL STATEMENTS");
+        // Two Items in roman numerals, one printed again as a running header,
+        // and a former title; a contents entry in roman numerals has the next
+        // entry below it.
+        let text = format!(
+            "ITEM I. BUSINESS\t3\nItem 3. Legal Proceedings\t9\nItem 5. Market for Registrant's Common Equity\t11\n\
+             PART I\nITEM I. BUSINESS\n{body}\nITEM I. BUSINESS (continued)\n{body}\nITEM II. PROPERTIES\n{body}\n\
+             Item 3. Legal Proceedings\n{body}\nITEM IV. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNone.\n\
+             Item 5. Market for Registrant's Common Equity\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3", "item_4", "item_5"]);
+        assert_eq!(s[0].start, text.find("PART I\n").unwrap() + 7);
+        assert_eq!(s[3].title, "Submission of Matters to a Vote of Security Holders");
+    }
+
+    #[test]
+    fn roman_numerals_start_no_item_elsewhere() {
+        // Another title (the executive officers caption numbered "X"), the
+        // Item found in digits, an Item out of place either way, a contents
+        // entry, a wrapped cross-reference, a heading after the signatures,
+        // a lowercase numeral and a title in lowercase.
+        let body = BODY.repeat(30);
+        let annual = |text: &str| ids(&extract_sections(text, FormKind::TenK)).join(" ");
+        for (text, items) in [
+            (
+                format!(
+                    "Item 4. Submission of Matters to a Vote of Security Holders\nNone.\n\
+                     ITEM X. EXECUTIVE OFFICERS OF THE COMPANY\n{body}\nItem 5. Market for Common Equity\n{body}\n"
+                ),
+                "item_4 item_5",
+            ),
+            (format!("PART I\nITEM I. GENERAL\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (
+                format!("PART I\nItem 1. Business\n{body}\nITEM I. BUSINESS\n{body}\nItem 2. Properties\n{body}\n"),
+                "item_1 item_2",
+            ),
+            (
+                format!("Item 2. Properties\n{body}\nITEM I. BUSINESS\n{body}\nItem 3. Legal Proceedings\n{body}\n"),
+                "item_2 item_3",
+            ),
+            (
+                format!(
+                    "PART I\nITEM II. PROPERTIES\n{body}\nItem 1. Business\n{body}\nItem 3. Legal Proceedings\n{body}\n"
+                ),
+                "item_1 item_3",
+            ),
+            (
+                format!(
+                    "ITEM I. BUSINESS\nItem 2. Properties\nItem 3. Legal Proceedings\n\
+                     PART I\n{body}\nItem 2. Properties\n{body}\nItem 3. Legal Proceedings\n{body}\n"
+                ),
+                "item_2 item_3",
+            ),
+            (
+                format!(
+                    "PART I\nThe business is described in\nITEM I. BUSINESS of the annual report.\n{body}\nItem 2. Properties\n{body}\n"
+                ),
+                "item_2",
+            ),
+            (format!("PART I\nItem i. Business\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (format!("PART I\nItem I business is described below.\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (
+                format!(
+                    "Item 13. Certain Relationships and Related Transactions\n{body}\nSIGNATURES\n{body}\n\
+                     ITEM XV. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\n"
+                ),
+                "item_13",
+            ),
+        ] {
+            assert_eq!(annual(&text), items, "{text:.60}");
+        }
     }
 
     #[test]
