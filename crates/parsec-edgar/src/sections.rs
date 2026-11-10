@@ -89,26 +89,27 @@
 //! of several later Items ("ITEMS 10 - 13.") follows the heading of an earlier
 //! Item. Nor is a line that names several Items and nothing else, with or
 //! without its Part ("Items 1, 1A, 2 and 3", "Items 10 and 11", "Part III –
-//! Items 10 through 14"), or one Item after its Part ("Part II – Item 5"), when
-//! the heading of the cover's list of documents incorporated by reference comes
-//! at most 2,000 characters before it with only the list's rows between them
-//! (no other Part line, Item line or explanatory note), unless the list says
-//! "None" or the next line holds the first Item's standard title. Otherwise two
-//! Items joined with "and" and a range with "through" stay, as they can start a
-//! 10-K/A that amends only those Items ("ITEMS 7 AND 7A."). A comma after the
-//! number of one Item, as running text also puts it ("Item 8, which ..."),
-//! counts only when the line ends where the Item's standard title ends ("Item
-//! 8, Financial Statements and Supplementary Data"). In a 10-K or 10-KSB whose
-//! first Item found is Item 1A or Item 2, and whose last Part line before that
-//! heading is a `PART I` line that comes after every Item line before it, a
-//! line that holds only Item 1's standard title starts Item 1: the first one
-//! right after a `PART I` line ("PART I." and then "BUSINESS"), unless another
-//! Part's line comes after it, as in a contents list printed without Item
-//! numbers. It may come before the last `PART I` line, since Item 1's pages
-//! may print "PART I" and "Business" again as page headers. Without one, the
-//! first such line after the last `PART I` line starts Item 1, unless the
-//! title line is printed more than once after the last Item line before the
-//! heading.
+//! Items 10 through 14"), or one Item after its Part ("Part II – Item 5") with
+//! another row next to it, when the heading of the cover's list of documents
+//! incorporated by reference comes at most 2,000 characters before it with only
+//! the list's rows between them (no other Part line, Item line or explanatory
+//! note), unless the list says "None" or that no document is incorporated, or
+//! the next line holds one of the first Item's standard titles, current or
+//! former. Otherwise two Items joined with "and" and a range with "through"
+//! stay, as they can start a 10-K/A that amends only those Items ("ITEMS 7 AND
+//! 7A."). A comma after the number of one Item, as running text also puts it
+//! ("Item 8, which ..."), counts only when the line ends where the Item's
+//! standard title ends ("Item 8, Financial Statements and Supplementary Data").
+//! In a 10-K or 10-KSB whose first Item found is Item 1A or Item 2, and whose
+//! last Part line before that heading is a `PART I` line that comes after every
+//! Item line before it, a line that holds only Item 1's standard title starts
+//! Item 1: the first one right after a `PART I` line ("PART I." and then
+//! "BUSINESS"), unless another Part's line comes after it, as in a contents
+//! list printed without Item numbers. It may come before the last `PART I`
+//! line, since Item 1's pages may print "PART I" and "Business" again as page
+//! headers. Without one, the first such line after the last `PART I` line
+//! starts Item 1, unless the title line is printed more than once after the
+//! last Item line before the heading.
 //! A heading that writes the Item number in roman numerals ("ITEM I.
 //! BUSINESS", with the letter I for 1) starts that Item when its title starts
 //! like one of the Item's standard titles, current or former, and it sits
@@ -1199,9 +1200,13 @@ static INCORPORATED_DOCUMENTS: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
-/// `None`, `Not applicable.`, `N/A`.
-static NONE_LINE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)^[ \t]*(?:none|not[ \t]+applicable|n/a)[ \t]*\.?[ \t]*$").unwrap());
+/// `None`, `Not applicable.`, `N/A`, or a sentence that says that no
+/// document is incorporated: `No documents are incorporated by reference.`,
+/// `There are no documents incorporated by reference in this Amendment.`
+static NONE_LINE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^[ \t]*(?:(?:none|not[ \t]+applicable|n/a)[ \t]*\.?[ \t]*$|(?:there[ \t]+(?:are|is)[ \t]+)?no[ \t]+\p{L})")
+        .unwrap()
+});
 
 /// Whether the line from `start` to `end`, of Item `label`, is a row of a
 /// cover's list of documents incorporated by reference: it names several
@@ -1210,32 +1215,60 @@ static NONE_LINE: LazyLock<Regex> =
 /// – Item 5"), and the list's heading ("DOCUMENTS INCORPORATED BY REFERENCE")
 /// comes at most 2,000 characters before it, with only other such rows and the
 /// documents' names between them: no other Part line, Item line or
-/// explanatory note. A list that says "None" lists nothing, and a heading
-/// of several Items has the title of its first Item on the next line ("ITEMS
-/// 7 AND 7A.", then "MANAGEMENT'S DISCUSSION AND ANALYSIS").
+/// explanatory note. A list that says "None" or "No documents are
+/// incorporated by reference" lists nothing, and a heading of several Items
+/// has a title of its first Item on the next line ("ITEMS 7 AND 7A.", then
+/// "MANAGEMENT'S DISCUSSION AND ANALYSIS"; "ITEMS 10 THROUGH 13.", then
+/// "DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT", the title until
+/// 2006). A row that names one Item with its Part has another row next to it,
+/// as a cover's list does: one between it and the list's heading, or one that
+/// names several Items after it, before any other Part or Item line. A
+/// heading printed with its Part ("PART I, ITEM 1.", then "GENERAL
+/// DEVELOPMENT OF BUSINESS") has none.
 fn cover_row(text: &str, start: usize, end: usize, label: &str, keys: &[Key]) -> bool {
     const NEAR: usize = 2000;
     let row = &text[start..end];
-    if !SEVERAL_ITEMS.is_match(row) && !PARTS_AND_ITEMS.is_match(row) {
+    let several = |line: &str| {
+        SEVERAL_ITEMS.is_match(line) || (PARTS_AND_ITEMS.is_match(line) && ITEM_NUMBER.find_iter(line).nth(1).is_some())
+    };
+    let is_row = |line: &str| SEVERAL_ITEMS.is_match(line) || PARTS_AND_ITEMS.is_match(line);
+    if !is_row(row) {
         return false;
     }
     let next = title_key(next_line_title(text, end));
-    if keys.iter().any(|k| k.item == label && same_title(&next, &title_key(k.title))) {
+    if keys.iter().any(|k| k.item == label && k.titles().any(|t| same_title(&next, &title_key(t)))) {
         return false;
     }
+    // A row of several Items after it, before any other Part or Item line.
+    let several_after = || {
+        let mut ahead = 0;
+        for line in text[end..].split('\n').skip(1) {
+            ahead += line.len() + 1;
+            if ahead > NEAR || PART_LINE.is_match(line) || PERIODIC_HEADING.is_match(line) {
+                return ahead <= NEAR && several(line);
+            }
+        }
+        false
+    };
     let mut back = 0;
     let mut below: Option<&str> = None;
+    let mut rows_between = false;
     for line in text[..start].rsplit('\n') {
         back += line.len() + 1;
         if back > NEAR {
             return false;
         }
-        if line.trim().is_empty() || SEVERAL_ITEMS.is_match(line) || PARTS_AND_ITEMS.is_match(line) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if is_row(line) {
+            rows_between = true;
             continue;
         }
         if let Some(c) = INCORPORATED_DOCUMENTS.captures(line) {
             return !NONE_LINE.is_match(&c[1])
-                && (!c[1].trim().is_empty() || !below.is_some_and(|l| NONE_LINE.is_match(l)));
+                && (!c[1].trim().is_empty() || !below.is_some_and(|l| NONE_LINE.is_match(l)))
+                && (several(row) || rows_between || several_after());
         }
         let note = line.trim_start().get(..16).is_some_and(|w| w.eq_ignore_ascii_case("explanatory note"));
         if PART_LINE.is_match(line) || PERIODIC_HEADING.is_match(line) || note {
@@ -4273,6 +4306,7 @@ Pursuant to ...
             "Items 5, 6, 7, 7A and 8\nPortions of the Proxy Statement for the 2018 Annual Meeting\nItems 10 and 11",
             // A row of one Item with its Part, and rows that join Parts.
             "Part II – Item 5\nPortions of the Proxy Statement for the 2018 Annual Meeting\nPart III – Items 10 and 11",
+            "Part II – Items 5, 6, 7 and 8\nPortions of the Proxy Statement for the 2018 Annual Meeting\nPart IV – Item 15",
             "Part I – Items 1, 1A, 2 and 3; Part II – Items 5, 6, 7,\n7A, 8 and 9A; and Part IV– Item 15.\n\
              Portions of the Proxy Statement for the 2018 Annual Meeting\nPart III – Items 10 through 14",
         ] {
@@ -4299,11 +4333,16 @@ Pursuant to ...
         let list =
             "DOCUMENTS INCORPORATED BY REFERENCE\nPortions of the Proxy Statement are incorporated into Part III.\n";
         // A 10-K/A that amends only Items 10 to 14 starts with a heading of
-        // all of them, after a list that says "None", a Part line, an
-        // explanatory note, another Item, or a long text.
+        // all of them, after a list that says "None" or that no document is
+        // incorporated, a Part line, an explanatory note, another Item, or a
+        // long text.
         for before in [
             "DOCUMENTS INCORPORATED BY REFERENCE: None\n".to_owned(),
             "DOCUMENTS INCORPORATED BY REFERENCE\nNone.\n".to_owned(),
+            "DOCUMENTS INCORPORATED BY REFERENCE\nNo documents are incorporated by reference.\n".to_owned(),
+            "DOCUMENTS INCORPORATED BY REFERENCE\n\
+             There are no documents incorporated by reference in this Amendment.\n"
+                .to_owned(),
             format!("{list}PART III\n"),
             format!("{list}EXPLANATORY NOTE\nThis amendment adds the information required by Part III.\n"),
             format!("{list}Item 9. Changes in and Disagreements with Accountants\nNone.\n"),
@@ -4331,6 +4370,31 @@ Pursuant to ...
         let text =
             format!("FORM 10-K/A\n{list}PART II – ITEM 5\nMARKET FOR REGISTRANT'S COMMON EQUITY\n{body}\n{tail}");
         assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_5", "item_15"]);
+        // Or the title that the first Item had before 2006, after a note
+        // that is no explanatory note.
+        let text = format!(
+            "FORM 10-K/A\n{list}INTRODUCTORY NOTE\nThis amendment adds the information required by Part III.\n\
+             ITEMS 10 THROUGH 13.\nDIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT\n{body}\n{tail}"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_10", "item_15"]);
+        // A heading of one Item with its Part has no other row next to it:
+        // a 10-K/A that amends the exhibits Item, with its title until 2004
+        // or another line after it, and a 10-K whose Item headings print
+        // their Part.
+        for after in ["EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON FORM 8-K", "(a) Documents filed"] {
+            let text = format!(
+                "FORM 10-K/A\n{list}The registrant hereby amends Part IV of its annual report.\n\
+                 PART IV, ITEM 14\n{after}\n{body}\nSIGNATURES\n"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_14"], "{after}");
+        }
+        for item_1 in ["Lorem ipsum.".to_owned(), body.clone()] {
+            let text = format!(
+                "FORM 10-K\n{list}PART I, ITEM 1.\nGENERAL DEVELOPMENT OF BUSINESS\n{item_1}\n\
+                 PART I, ITEM 2.\nPROPERTIES\n{body}\n{tail}"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2", "item_15"]);
+        }
     }
 
     #[test]
