@@ -1,0 +1,169 @@
+{
+  "accession": "0000950170-25-031193",
+  "cik": 46195,
+  "company": "BANK OF HAWAII CORP",
+  "form": "10-K",
+  "filing_date": "2025-03-04",
+  "url": "https://www.sec.gov/Archives/edgar/data/46195/000095017025031193/boh-20241231.htm",
+  "agent": "DFIN",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "Bank holding company 10-K for 2024. Every Item of the form, including 1C, 6, 9C and 16, has one body heading, so nothing is absent. The contents list, which prints the Part labels on the same rows as some Items, is not labeled. Item 6 'Reserved' has no body; it is labeled and not marked incorporated, as in the earlier sets. Item 7A only points to the Market Risk section of MD&A and is marked incorporated. Item 9A holds the auditors' report on internal control. The filing ends at Signatures (line 3278). Incorporated (unscored): Items 1B, 4, 7A, 9, 9C, 11 to 14 and 16. Items 9B (trading arrangements) and 10 (insider trading policy) have text of their own and are not marked. Both labelers agreed on every label.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "There are a number of risks and uncertai"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_1c",
+      "text": "Item 1C. Cybersecurity",
+      "occurrence": 0,
+      "next": "As a company that collects and retains l"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "Our principal offices are located in the"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "We are from time to time subject to laws"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not Applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "The common stock of the Parent is traded"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Reserved",
+      "occurrence": 0,
+      "next": "Item 7. Management’s Discussion and Anal"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "The following MD&A is intended to help t"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "See the Market Risk section in Managemen",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "Index\tPage"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "During the fiscal quarter ended December"
+    },
+    {
+      "id": "item_9c",
+      "text": "Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspections",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "Certain information regarding the execut"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "The information required by this Item 11",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information required by Item 201(d) ",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "The information required by this Item 13",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accounting Fees and Services",
+      "occurrence": 0,
+      "next": "The information required by this Item 14",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. Form 10-K Summary",
+      "occurrence": 0,
+      "next": "Not Applicable.",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "Signatures",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

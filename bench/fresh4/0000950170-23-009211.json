@@ -1,0 +1,160 @@
+{
+  "accession": "0000950170-23-009211",
+  "cik": 1484565,
+  "company": "SOLENO THERAPEUTICS INC",
+  "form": "10-K",
+  "filing_date": "2023-03-22",
+  "url": "https://www.sec.gov/Archives/edgar/data/1484565/000095017023009211/slno-20221231.htm",
+  "agent": "DFIN",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Adjudicated from two independent labels, which agreed on everything. 10-K for fiscal 2022; Item 1C did not exist yet. The contents list (lines 48 to 75) is not labeled. Every Item from 1 to 15, including 9C, has a body heading; Item 16 has none and is listed absent. 'ITEM 6. RESERVED' has no body and is not marked, as in earlier labels of reserved Items. Item 3 gives a general statement about ordinary-course litigation and is not marked. Items 1B and 4 say 'Not applicable.', Items 9, 9B and 9C 'None.', and Items 10 to 14 only incorporate the proxy statement, so all are marked incorporated. Item 15's text points to the accompanying index, and the EXHIBIT INDEX (line 1667) follows directly before the signatures, so it stays in Item 15, as in the fresh2 0001193125-04-042285 and 0001193125-18-052080 and fresh3 0001493152-22-008220 labels. The filing ends at SIGNATURES (line 1892); the power of attorney and the signers follow.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "Company Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "An investment in our securities has a hi"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "Facilities"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "We may, from time to time, be party to l"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. RESERVED",
+      "occurrence": 0,
+      "next": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANAL"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion and analysis sh"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Interest Rate Sensitivity"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. CONSOLIDATED FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Soleno Therapeutics, Inc."
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURES",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9c",
+      "text": "ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS,AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTING FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "1."
+    }
+  ],
+  "absent": [
+    "item_16"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "accession": "0001125282-04-001011",
+  "cik": 1091748,
+  "company": "Argo Group International Holdings, Inc.",
+  "form": "10-K",
+  "filing_date": "2004-03-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/1091748/000112528204001011/b330645_10k.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "insurer"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-K of PXRE Group Ltd. (EDGAR lists the filer under its later name, Argo Group International Holdings) for fiscal 2003, filed in March 2004, with no table of contents. 2003 numbering: Item 14 is accountant fees and Item 15 is exhibits, schedules and reports on Form 8-K; the form had no Items 1A, 1B, 9B or 16 yet, so nothing is absent. The introduction and forward-looking statements between 'PART I' (line 52) and Item 1 belong to no Item. Item 7A is printed as 'Item 7 A.' with no title (line 3932), followed by an 'Investments' subheading and the market risk discussion. Item 4 ('No matters were submitted to a vote ...') and Item 9 ('Not applicable') are nil answers, marked following the field definition in bench/src/labels.rs; the labelers differed on Item 4, and it is marked because this label, like fresh2/0000808326-08-000065 and fresh3/0000946275-08-000282, marks nil answers. Item 8 only lists the statements on F-pages that follow the signatures. Items 11 to 14 only incorporate the proxy statement. Hard call (the labelers differed): Item 10 incorporates the proxy statement and adds one sentence saying the code of ethics is provided on request, with a pointer to 'Available Information' in Item 1; it is marked incorporated, as the fresh2 MSB Financial 2011 label does for a single code of ethics sentence (an Item 10 with its own code of ethics paragraph, as in fresh3 O'Reilly 2005 and Dole 2011, is not marked). Item 15 ends at SIGNATURES (line 4225), the filing end; the auditors' report, statements, schedules and EXHIBIT INDEX follow the signatures and belong to no Item.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.   Business",
+      "occurrence": 0,
+      "next": "Business: Overview"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.       Properties",
+      "occurrence": 0,
+      "next": "PXRE leases office space in Bermuda wher"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.       Pending Legal Proceedings",
+      "occurrence": 0,
+      "next": "We are subject to litigation and arbitra"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.       Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of t",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.       Market for Registrant's Common Equity and Related Shareholder",
+      "occurrence": 0,
+      "next": "Matters"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.       Selected Financial Data.",
+      "occurrence": 0,
+      "next": "Year Ended December 31,"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7 .      Management's Discussion and Analysis of Financial Condition and",
+      "occurrence": 0,
+      "next": "Results of Operations"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7 A.",
+      "occurrence": 0,
+      "next": "Investments"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.       Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The following financial statements are f",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.       Changes in and Disagreements With Accountants on Accounting and",
+      "occurrence": 0,
+      "next": "Financial Disclosure",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "(a) Evaluation of Disclosure Controls an"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.      Directors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "The information required with respect to",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.      Executive Compensation",
+      "occurrence": 0,
+      "next": "The information required by Item 11 of F",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.      Security Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 0,
+      "next": "The stock ownership information required",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.      Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "The information required by Item 13 of F",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.      Principal Accountants' Fees and Services",
+      "occurrence": 0,
+      "next": "The information required by Item 14 of F",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.      Exhibits, Financial Statement Schedules and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a) The following documents are filed as"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

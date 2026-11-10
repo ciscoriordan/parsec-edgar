@@ -1,0 +1,85 @@
+{
+  "accession": "0001169561-25-000089",
+  "cik": 1169561,
+  "company": "COMMVAULT SYSTEMS INC",
+  "form": "10-Q",
+  "filing_date": "2025-10-29",
+  "url": "https://www.sec.gov/Archives/edgar/data/1169561/000116956125000089/cvlt-20250930.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended September 30, 2025. The index (lines 33 to 54) is not labeled. Hard call: the body prints no PART I line and no Part I Item 1 heading (the HTML was checked too); the index ends with 'SIGNATURES 41' and the balance sheet follows directly ('Commvault Systems, Inc.', 'Consolidated Balance Sheets', line 55). The only 'Item 1. Financial Statements' line (line 36) is the index entry above the list of statements with page numbers. So Part I Item 1 is listed absent, and the statements and notes (lines 55 to 606) belong to no Item, as in fresh3/0001213900-23-041982. The alternative takes the index entry at line 36 as Item 1's heading, which would put the rest of the index into Item 1; an absent Item cannot carry the uncertain flag, so this note records it. Part II Item 1 only says the company is not party to any material pending legal action and points to the annual report's risk factors, Item 3 says 'None.' and Item 4 'Not Applicable.', so they are marked incorporated, following the field definition in bench/src/labels.rs. Part II Item 1A adds new risk factors on the convertible notes and is not marked; Item 5 gives its own Rule 10b5-1 trading arrangement statement. Item 6 holds the exhibit list; the filing ends at SIGNATURES (line 859). Adjudicated from two independent labels, which agreed on every field.",
+  "items": [
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "You should read the following discussion"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "Interest Rate Risk"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "From time to time, we are subject to cla",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "In addition to the other information set"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "Issuer Purchases of Equity Securities"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults upon Senior Securities",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not Applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information",
+      "occurrence": 0,
+      "next": "During the three months ended September "
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit No.\tDescription"
+    }
+  ],
+  "absent": [
+    "part_1_item_1"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

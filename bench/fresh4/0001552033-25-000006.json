@@ -1,0 +1,31 @@
+{
+  "accession": "0001552033-25-000006",
+  "cik": 1552033,
+  "company": "TransUnion",
+  "form": "8-K",
+  "filing_date": "2025-02-05",
+  "url": "https://www.sec.gov/Archives/edgar/data/1552033/000155203325000006/ck0001552033-20250131.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Item 5.02 (line 34) and Item 9.01 (line 38) each have one heading. The filing ends at SIGNATURES (line 43).",
+  "items": [
+    {
+      "id": "item_5.02",
+      "text": "Item 5.02 Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers.",
+      "occurrence": 0,
+      "next": "(e) As previously disclosed, on November"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01 Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

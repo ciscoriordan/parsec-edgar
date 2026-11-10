@@ -1,0 +1,134 @@
+{
+  "accession": "0000884887-21-000006",
+  "cik": 884887,
+  "company": "ROYAL CARIBBEAN CRUISES LTD",
+  "form": "10-K",
+  "filing_date": "2021-02-26",
+  "url": "https://www.sec.gov/Archives/edgar/data/884887/000088488721000006/rcl-20201231.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "The contents list (lines 42 to 66) is not labeled; the introduction between PART I and Item 1 belongs to no Item. Hard call (uncertain): Part III prints one combined heading, 'Items 10, 11, 12, 13 and 14.' (line 1148), so it is labeled as Item 10 and Items 11 to 14 are listed absent, as in the fresh3 WellCare 2019 label. Hard call (the labelers differed, not scored): unlike WellCare, that section adds a code of ethics paragraph of its own (whom the code covers, where it is posted, copies on request, how amendments and waivers are disclosed), so Item 10 is not marked incorporated, as in the fresh3 Dole 2012 and O'Reilly 2005 labels. Items 1B, 4, 9, 9B and 16 say 'None.' and Item 8 only points to the statements at page F-1, so they are marked incorporated. Item 16 ends at SIGNATURES (line 1325), the filing end; the financial statements follow it.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business.",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "The risk factors set forth below and els"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "Information about our cruise ships, incl"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "As previously reported, two lawsuits wer"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "The selected consolidated financial data"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Cautionary Note Concerning Forward-Looki"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Financial Instruments and Other"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "Our Consolidated Financial Statements an",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes In and Disagreements With Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Items 10, 11, 12, 13 and 14. Directors, Executive Officers and Corporate Governance; Executive Compensation; Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters; Certain Relationships and Related Transactions; and Director Independence and Principal Accountant Fees and Services.",
+      "occurrence": 0,
+      "next": "Except for information concerning execut",
+      "uncertain": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)(1) Financial Statements"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. Form 10-K Summary",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    }
+  ],
+  "absent": [
+    "item_11",
+    "item_12",
+    "item_13",
+    "item_14"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "accession": "0001019687-08-002546",
+  "cik": 1023008,
+  "company": "LEARNING PRIORITY INC",
+  "form": "10-K",
+  "filing_date": "2008-06-04",
+  "url": "https://www.sec.gov/Archives/edgar/data/1023008/000101968708002546/edulink_10k-123106.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Adjudicated from two independent labels, which agreed on everything. Plain-text 10-K of Learning Priority (Edulink) for fiscal 2006, filed in 2008. The contents list (lines 54 to 81) is not labeled, so the body Items 5 and 9 are the second copies of their headings. The forward-looking statements note between the contents and 'Part 1' belongs to no Item. Item 1B has no heading in the body or in the contents and is listed absent. Items 4, 9B and 13 say only 'None.' and are marked incorporated, following the field definition in bench/src/labels.rs. Item 3 describes a default judgment and is not marked. Item 15 lists the exhibits, and the filing ends at SIGNATURES (line 2302).",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.  Business.",
+      "occurrence": 0,
+      "next": "Explanatory Note"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.      Risk Factors.",
+      "occurrence": 0,
+      "next": "RISK FACTORS"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.    Properties.",
+      "occurrence": 0,
+      "next": "At December 31, 2006 EduLink utilized a "
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.    Legal Proceedings.",
+      "occurrence": 0,
+      "next": "On February 28, 2006, a default judgment"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.    Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.   Market for Registrant's Common Equity, Related Stockholder Matters",
+      "occurrence": 1,
+      "next": "and issuer Purchases of Equity Securitie"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.     Selected Financial Data.",
+      "occurrence": 0,
+      "next": "Year Ended December 31, 2006 as compared"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's Discussion and Analysis of Financial Condition and Results",
+      "occurrence": 0,
+      "next": "of Operations."
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.     Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "Market Risk"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.      Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "EDULINK, INC."
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.      Changes In and Disagreements With Accountants on Accounting and",
+      "occurrence": 1,
+      "next": "Financial Disclosure."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.     Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.     Other Information.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10      Directors and Executive Officers of the Registrant.",
+      "occurrence": 0,
+      "next": "Director and Executive Officer"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.     Executive Compensation.",
+      "occurrence": 0,
+      "next": "Compensation of Executive Officers."
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and",
+      "occurrence": 0,
+      "next": "Related Stockholder Matters."
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.      Certain Relationships and Related Transactions.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.     Principal Accounting Fees and Services.",
+      "occurrence": 0,
+      "next": "Audit Fees"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.     Exhibits.",
+      "occurrence": 0,
+      "next": "Exhibit No. Title of Document           "
+    }
+  ],
+  "absent": [
+    "item_1b"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

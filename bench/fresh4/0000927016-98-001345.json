@@ -1,0 +1,117 @@
+{
+  "accession": "0000927016-98-001345",
+  "cik": 921960,
+  "company": "PHOTOELECTRON CORP",
+  "form": "10-K",
+  "filing_date": "1998-04-01",
+  "url": "https://www.sec.gov/Archives/edgar/data/921960/000092701698001345/0000927016-98-001345.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-K for the fiscal year ended January 3, 1998. The contents list (lines 62 to 79) is not labeled; Items 1 to 14 each have one body heading. An unnumbered 'EXCUTIVE OFFICERS' section stays in Item 1. Item 8 only points to the statements on page F-3 and Item 9 says 'None.', and Items 10 to 13 only incorporate the proxy statement, so they are marked incorporated; Item 4 ('No matters were submitted') is an answer and is not. Item 14 ends at the company-name line above the index to the statements (line 1247): the statements at pages F-2 to F-15 follow with no Item heading and belong to no Item, as in the Netflix 2003 and Vesta 2003 labels. There is no signatures heading, so the filing ends at the signature block's opening sentence, 'PURSUANT TO THE REQUIREMENTS ...' (line 2025); the 'Signature' at line 2053 is a column header. Item 7A has no heading and is not listed absent, following the Allen Organ 1998 label (fiscal 1997, small company), since market risk disclosure was not yet required of a company this size; the fresh3 Cellular Communications of Puerto Rico 1998 label would list it absent because the form defined it at filing. The absent list is not scored.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.   BUSINESS.",
+      "occurrence": 0,
+      "next": "Photoelectron Corporation (the \"Company\""
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.   PROPERTIES.",
+      "occurrence": 0,
+      "next": "The Company currently occupies approxima"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.   LEGAL PROCEEDINGS.",
+      "occurrence": 0,
+      "next": "The Company is currently involved in set"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.   SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS.",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of t"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.   MARKET FOR REGISTRANT'S COMMON EQUITY AND RELATED STOCKHOLDER MATTERS.",
+      "occurrence": 0,
+      "next": "There were 62 stockholders of record of "
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.   SELECTED CONSOLIDATED FINANCIAL DATA.",
+      "occurrence": 0,
+      "next": "The selected consolidated statement of o"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.   MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND",
+      "occurrence": 0,
+      "next": "RESULTS OF OPERATIONS."
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8.   FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA.",
+      "occurrence": 0,
+      "next": "The Company's financial statements begin",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.   CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 0,
+      "next": "FINANCIAL DISCLOSURE.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.   DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "The information required herein will be ",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.   EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required herein will be ",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.   SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "The information required herein will be ",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.   CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "The information required herein will be ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON FORM 8-K.",
+      "occurrence": 0,
+      "next": "(a) See the Exhibit Index included immed",
+      "end": {
+        "text": "PHOTOELECTRON CORPORATION AND SUBSIDIARY",
+        "occurrence": 0,
+        "next": "(A DEVELOPMENT STAGE COMPANY)"
+      }
+    }
+  ],
+  "end": {
+    "text": "PURSUANT TO THE REQUIREMENTS OF THE SECURITIES EXCHANGE ACT OF 1934, THE",
+    "occurrence": 0,
+    "next": "REGISTRANT HAS CAUSED THIS REPORT TO BE "
+  }
+}

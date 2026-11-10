@@ -1,0 +1,31 @@
+{
+  "accession": "0001060736-20-000005",
+  "cik": 1060736,
+  "company": "Seagen Inc.",
+  "form": "8-K",
+  "filing_date": "2020-02-06",
+  "url": "https://www.sec.gov/Archives/edgar/data/1060736/000106073620000005/a8-ker2019q4.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Short earnings 8-K filed under the name Seattle Genetics, Inc. (now Seagen), with no contents list. Its two Item headings match the two Items in the EDGAR filing header (2.02 and 9.01), so none is absent. Item 2.02 describes the earnings press release furnished as Exhibit 99.1 (not in this document) and is not marked incorporated. Item 9.01 lists Exhibit 99.1 and ends at SIGNATURES (line 38), the filing end. Adjudicated from two independent labels, which agreed on every field.",
+  "items": [
+    {
+      "id": "item_2.02",
+      "text": "Item 2.02 Results of Operations and Financial Condition",
+      "occurrence": 0,
+      "next": "On February 6, 2020, Seattle Genetics, I"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01 Financial Statements and Exhibits",
+      "occurrence": 0,
+      "next": "(d) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

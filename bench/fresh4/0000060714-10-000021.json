@@ -1,0 +1,25 @@
+{
+  "accession": "0000060714-10-000021",
+  "cik": 60714,
+  "company": "LSB INDUSTRIES, INC.",
+  "form": "8-K",
+  "filing_date": "2010-08-23",
+  "url": "https://www.sec.gov/Archives/edgar/data/60714/000006071410000021/form_8k.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Adjudicated from two independent labels, which agreed on everything. One body heading, 'Item 8.01. Other Events' (line 30), under 'Section 8 – Other Events'. The filing ends at SIGNATURES (line 33), the last text before the signers. The SEC header lists only Other Events and there are no exhibits, so nothing is listed as absent.",
+  "items": [
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01. Other Events",
+      "occurrence": 0,
+      "next": "On August 16, 2010, the Golsen Family, L"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

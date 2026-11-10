@@ -1,0 +1,145 @@
+{
+  "accession": "0000950129-06-002135",
+  "cik": 909413,
+  "company": "Exterran Energy Corp.",
+  "form": "10-K",
+  "filing_date": "2006-03-01",
+  "url": "https://www.sec.gov/Archives/edgar/data/909413/000095012906002135/h33106e10vk.htm",
+  "agent": "",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-K for 2005, printed under the name Hanover Compressor Company (EDGAR now lists the filer as Exterran Energy Corp.). The contents list is not labeled; Items 1 to 15 each have one body heading, and nothing is absent. The forward-looking statements note between PART I and Item 1 belongs to no Item. Items 1B and 9 say 'None.', Item 8 only points to the statements, and Items 11, 13 and 14 only incorporate the proxy statement, so they are marked incorporated. Hard call (the labelers differed, not scored): Item 10 refers to the proxy statement but adds a code of ethics paragraph of its own (whom the code covers, where it is posted, how changes and waivers are disclosed, how to request a copy), so it is not marked, as in the fresh3 Dole 2012 and O'Reilly 2005 labels and the fresh2 Funko 2026 label. Item 12 prints an equity compensation plan table and is not marked. Item 15 holds the exhibit list and ends at SIGNATURES (line 1148), the filing end; the financial statements follow the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "We have a substantial amount of debt, in"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.\tUnresolved Comments",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties",
+      "occurrence": 0,
+      "next": "The following table describes the materi"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "In the ordinary course of business we ar"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tSubmission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of o"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Our common stock is listed on the New Yo"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Financial Data",
+      "occurrence": 0,
+      "next": "In the table below we have presented cer"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Management’s discussion and analysis of "
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "We are exposed to interest rate and fore"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The financial statements and supplementa",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "Conclusion Regarding the Effectiveness o"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information",
+      "occurrence": 0,
+      "next": "On February 27, 2006, the Board approved"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "The information included or to be includ"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "The information included or to be includ",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information included or to be includ"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "The information included or to be includ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPrincipal Accounting Fees and Services",
+      "occurrence": 0,
+      "next": "The information included or to be includ",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits, Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a) Documents filed as a part of this re"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

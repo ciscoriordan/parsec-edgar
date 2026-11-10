@@ -1,0 +1,70 @@
+{
+  "accession": "0001104659-07-018214",
+  "cik": 14177,
+  "company": "BRIDGFORD FOODS CORP",
+  "form": "10-Q",
+  "filing_date": "2007-03-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/14177/000110465907018214/a07-7731_110q.htm",
+  "agent": "Toppan Merrill",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended January 26, 2007. The index (lines 32 to 49) is not labeled; its last line says Part II Items 1 and 3 to 5 are omitted as not applicable, and they have no body heading, so they are listed absent. Part I Item 1 has no heading of its own: each statement is printed under a sub-heading 'Item 1. a.' to 'Item 1. e.', so Item 1 starts at the first of them, 'Item 1. a.' (line 51), under the second 'Part I. Financial Information' line, and the others stay inside it. Part II Item 1A only points to the risk factors in the Form 10-K for fiscal 2006 and says there are no material changes, so it is marked incorporated, as in the fresh3 Wendy's 2018 label. Part II Item 6 is printed as 'Item 6.' with 'Exhibits' on the next line and holds the exhibit list. The filing ends at the second SIGNATURES line (line 351; the first is the index entry). Adjudicated from two independent labels, which agreed on every field.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. a.",
+      "occurrence": 0,
+      "next": "BRIDGFORD FOODS CORPORATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 1,
+      "next": "NOTE REGARDING FORWARD-LOOKING STATEMENT"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures regarding Market Risk",
+      "occurrence": 0,
+      "next": "General Business Risks"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 1,
+      "next": "Management of the Company, with the part"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 1,
+      "next": "The risk factors listed in Part I “Item ",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 1,
+      "next": "The following table provides information"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.",
+      "occurrence": 0,
+      "next": "Exhibits"
+    }
+  ],
+  "absent": [
+    "part_2_item_1",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 1,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

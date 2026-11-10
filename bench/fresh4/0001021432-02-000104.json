@@ -1,0 +1,80 @@
+{
+  "accession": "0001021432-02-000104",
+  "cik": 1122108,
+  "company": "GLOBAL FOOD TECHNOLOGIES, INC.",
+  "form": "10QSB",
+  "filing_date": "2002-11-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/1122108/000102143202000104/bou10q093002.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-qsb"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-QSB for the quarter ended September 30, 2002, filed as Boulevard Acquisition Corporation (now Global Food Technologies). Part I Item 2's heading wraps onto a second line; it is labeled at the first line (256). Hard call (unscored): Controls and Procedures was added to Form 10-QSB as Part I Item 3 in August 2002, and here the disclosure-controls paragraph (lines 323 to 331) has no heading and sits at the end of MD&A, so it stays in Part I Item 2 and Part I Item 3 is listed absent. Part II Items 1 to 6 each have a heading and give only a nil answer, so all six are marked incorporated. The filing ends at SIGNATURES (line 350), followed by the certification. Both labelers agreed on every label.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1.  FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "BOULEVARD ACQUISITION CORPORATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT'S DISCUSSION AND ANALYSIS OF",
+      "occurrence": 0,
+      "next": "FINANCIAL CONDITION AND  RESULTS OF OPER"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1.  LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "There are no legal proceedings against t",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "ITEM 2.  CHANGES IN SECURITIES",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "ITEM 3.  DEFAULTS UPON SENIOR SECURITIES",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "ITEM 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "ITEM 5.  OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6.  EXHIBITS AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a)     Exhibits",
+      "incorporated": true
+    }
+  ],
+  "absent": [
+    "part_1_item_3"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

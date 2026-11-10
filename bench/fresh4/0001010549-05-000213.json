@@ -1,0 +1,124 @@
+{
+  "accession": "0001010549-05-000213",
+  "cik": 1239188,
+  "company": "GENERAL STEEL HOLDINGS INC",
+  "form": "10KSB",
+  "filing_date": "2005-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/1239188/000101054905000213/general10ksb123104.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "Adjudicated from two independent labels, which agreed on every Item start, the uncertain flag and the end, and differed only on the unscored incorporated flag for Items 3 and 4. Plain-text 10-KSB for fiscal 2004 with 10-KSB numbering: Items 1 to 14 with 8A and 8B; the form had no Item 1A or 15 then, and nothing is absent. The forward-looking statements text between 'Part I' and Item 1 belongs to no Item. Item 7 prints the auditors' report and statements. UNCERTAIN: Item 12's heading is misprinted 'Exhibit 12.  Certain Relationships and Related Transactions.' (line 1887). It sits between Items 11 and 13, carries Item 12's title and is followed by related-party text, so it is labeled as Item 12, as the fresh2 A10 Networks label does for an Item heading printed without its number; the alternative lists Item 12 absent and leaves that text in Item 11. Items 8 and 8B say 'Not applicable.' Item 4 says only 'No matter was submitted to a vote of security holders.' and Item 3 only that the company is not involved in any material litigation and none is pending or threatened; both are nil answers and are marked incorporated, following the field definition in bench/src/labels.rs and the fresh2 0000808326-08-000065, fresh3 0000946275-08-000282 and fresh3 0001213900-23-041982 labels (labeler B left them unmarked as answers). The filing ends at 'Signatures' (line 1949).",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.  Description of Business.",
+      "occurrence": 0,
+      "next": "As used in this annual report, \"we\", \"us"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.   Description of Property",
+      "occurrence": 0,
+      "next": "Property"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.   Legal Proceedings.",
+      "occurrence": 0,
+      "next": "We are currently not involved in any  li",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.   Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "No matter was submitted to a vote of sec",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.  Market for Common Equity and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "Our common stock is quoted sporadically,"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.  Management's Discussion and Analysis",
+      "occurrence": 0,
+      "next": "The  following  is  management's  discus"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.  Financial statements",
+      "occurrence": 0,
+      "next": "REPORT OF INDEPENDENT REGISTERED PUBLIC "
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Changes and  disagreements  with Accountants on Accounting and Financial",
+      "occurrence": 0,
+      "next": "Disclosure.",
+      "incorporated": true
+    },
+    {
+      "id": "item_8a",
+      "text": "Item 8A.  Controls and procedures.",
+      "occurrence": 0,
+      "next": "As required by Rule 13a-15 under the Exc"
+    },
+    {
+      "id": "item_8b",
+      "text": "Item 8B.  Other information",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Directors, Executive officers, Promoters and Control Persons; Compliance",
+      "occurrence": 0,
+      "next": "with Section 16(a) of the Exchange Act."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.  Executive compensation",
+      "occurrence": 0,
+      "next": "The  following  table sets forth  certai"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.  Security  ownership of certain  beneficial  owners and  management and",
+      "occurrence": 0,
+      "next": "related stockholders matters."
+    },
+    {
+      "id": "item_12",
+      "text": "Exhibit 12.  Certain Relationships and Related Transactions.",
+      "occurrence": 0,
+      "next": "Other payable",
+      "uncertain": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Exhibits.",
+      "occurrence": 0,
+      "next": "Exhibit No.       Description"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.  Principal accounting fees and services",
+      "occurrence": 0,
+      "next": "(a) Audit Fees"
+    }
+  ],
+  "end": {
+    "text": "Signatures",
+    "occurrence": 0,
+    "next": "In  accordance  with  Section  13 or 15("
+  }
+}

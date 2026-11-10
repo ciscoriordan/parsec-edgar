@@ -1,0 +1,73 @@
+{
+  "accession": "0000950159-97-000208",
+  "cik": 912908,
+  "company": "FOAMEX INTERNATIONAL INC.",
+  "form": "10-Q",
+  "filing_date": "1997-08-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/912908/000095015997000208/0000950159-97-000208.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "running-headers"
+  ],
+  "labeled": true,
+  "notes": "Adjudicated from two independent labels, which agreed on every Item start and the end and differed only on the unscored absent list. Plain-text 10-Q for the quarter ended June 29, 1997. The INDEX (lines 27 to 44) is not labeled, so Part I Item 1 is the second 'ITEM 1.  FINANCIAL STATEMENTS' line (46). Part I Item 2 is labeled at its first body heading (line 689); the same two-line heading repeats at the top of each MD&A page (lines 751, 814, 875, 937 and 998) and these are not labeled. Hard call (the labelers differed): Part I Item 3 (market risk) has no heading and is not listed absent. Item 305 applied first to annual reports for fiscal periods ending after June 15, 1997, and its quarterly part asks for material changes since that first annual disclosure, so no registrant owed it in a 10-Q for a quarter ended June 1997; the fresh2 American Filtrona label leaves Item 3 out for a quarter ended March 1997 for the same reason, and the fresh3 Cellular Communications of Puerto Rico label lists it absent only for a 1998 quarter. Labeler A listed it absent, reading June 15, 1997 as the date the Item took effect. Part II Item 1 refers to the annual report and the March 10-Q and incorporates Notes 6 and 7, and Items 3 and 5 say 'None.', so these are marked incorporated; Item 2 describes the note amendments and Item 4 the annual meeting votes, so neither is marked. Item 6 lists the exhibits and 8-K reports and ends at SIGNATURES (line 1500).",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1.  FINANCIAL STATEMENTS",
+      "occurrence": 1,
+      "next": "FOAMEX INTERNATIONAL INC. AND SUBSIDIARI"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND",
+      "occurrence": 0,
+      "next": "RESULTS OF OPERATIONS"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.    Legal Proceedings",
+      "occurrence": 0,
+      "next": "Reference  is  made  to  the  descriptio",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.    Changes in Securities",
+      "occurrence": 0,
+      "next": "As part of the Refinancing Plan, Foamex "
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3.    Defaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.    Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "a) The  Company's   Annual  Meeting  of "
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5.    Other Information",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.    Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a)   Exhibits:"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the  requirements of the Sec"
+  }
+}

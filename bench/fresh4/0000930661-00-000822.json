@@ -1,0 +1,109 @@
+{
+  "accession": "0000930661-00-000822",
+  "cik": 760498,
+  "company": "BANCFIRST CORP /OK/",
+  "form": "10-K",
+  "filing_date": "2000-03-30",
+  "url": "https://www.sec.gov/Archives/edgar/data/760498/000093066100000822/0000930661-00-000822.txt",
+  "agent": "DFIN",
+  "tags": [
+    "plain-text",
+    "bank",
+    "annual-report-attached"
+  ],
+  "labeled": true,
+  "notes": "Adjudicated from two independent labels, which agreed on every Item start, the absent list and the end, and differed only on the unscored incorporated flag for Item 9. Plain-text 10-K for fiscal 1999 (complete submission), pre-2003 numbering (Item 14 is exhibits, schedules and 8-K reports). The CROSS-REFERENCE INDEX (lines 46 to 71) is an ordinary contents list with page numbers and is not labeled; the body prints numbered headings, so the filing is not tagged cross-reference. Items 2, 3 and 4 appear only in that index: Item 1 ends with 'Pending and Proposed Legislation' and PART II follows directly, and the text has no Properties, Legal Proceedings or vote heading anywhere, so they are listed absent. Items 6, 7, 7A and 8 only incorporate parts of the attached Appendix A, and Items 10 to 13 only incorporate the 2000 proxy statement. Item 9 says only that there were no disagreements with the accountants to report, a nil answer; it is marked incorporated, as the fresh2 0000808326-08-000065 and fresh3 0000946275-08-000282 labels do for one-sentence nil answers (labeler B left it unmarked as an answer). Items 5 and 14 print their own text and are not marked. Item 14 ends at SIGNATURES (line 769). 'APPENDEX A' (sic, line 820) holds the financial review (MD&A), selected data, auditors' reports, statements and notes (to line 3270), and the INDEX TO EXHIBITS follows it; all of this comes after the signatures and belongs to no Item. Tagged annual-report-attached, as the fresh3 0000898173-05-000019 label is for MD&A and statements after the signatures. Not tagged exhibit-13: the appendix is not filed as Exhibit 13, and only Items 6 to 8 refer to it.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.  Business.",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.  Market for the Company's Common Stock and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "BancFirst Common Stock is listed on the "
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.  Selected Financial Data.",
+      "occurrence": 0,
+      "next": "Incorporated by reference from \"Selected",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.  Management's Discussion and Analysis of Financial Condition and Results",
+      "occurrence": 0,
+      "next": "of Operations.",
+      "incorporated": true
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "Incorporated by reference from \"Financia",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.  Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "The consolidated financial statements of",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.  Changes in and Disagreements with Accountants on Accounting and",
+      "occurrence": 0,
+      "next": "Financial Disclosure.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.  Directors and Executive Officers of the Registrant.",
+      "occurrence": 0,
+      "next": "The information required by Item 401 of ",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.  Executive Compensation.",
+      "occurrence": 0,
+      "next": "The information required by Item 402 of ",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.  Security Ownership of Certain Beneficial Owners and Management.",
+      "occurrence": 0,
+      "next": "The information required by Item 403 of ",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.  Certain Relationships and Related Transactions.",
+      "occurrence": 0,
+      "next": "The information required by Item 404 of ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.  Exhibits, Financial Statement Schedules and Reports on Form 8-K.",
+      "occurrence": 0,
+      "next": "(a)  The following documents are filed a"
+    }
+  ],
+  "absent": [
+    "item_2",
+    "item_3",
+    "item_4"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

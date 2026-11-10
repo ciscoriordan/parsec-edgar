@@ -1,0 +1,150 @@
+{
+  "accession": "0001193125-16-638404",
+  "cik": 40704,
+  "company": "GENERAL MILLS INC",
+  "form": "10-K",
+  "filing_date": "2016-06-30",
+  "url": "https://www.sec.gov/Archives/edgar/data/40704/000119312516638404/d221637d10k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-K for fiscal 2016, filed June 30, 2016. Hard call: Item 16 (Form 10-K Summary) took effect June 9, 2016, before this filing, and has no heading here, so it is listed absent, as the newer sets (fresh, fresh2, fresh3) do for 10-Ks filed after that date; some older development labels leave it out. The Glossary (lines 2737 to 2779) is printed after the quarterly data at the end of Item 8 and before Item 9, and stays in Item 8. Item 15 ends at Signatures (line 2870); Schedule II and the exhibit index follow the signatures and belong to no Item. Incorporated (unscored): Items 1B, 4, 9, 9B and 11 to 14. Item 10 adds its own Code of Conduct text and is not marked. Both labelers agreed on every label.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1\tBusiness",
+      "occurrence": 0,
+      "next": "General Mills, Inc. was incorporated in "
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A\tRisk Factors",
+      "occurrence": 0,
+      "next": "Our business is subject to various risks"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B\tUnresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2\tProperties",
+      "occurrence": 0,
+      "next": "We own our principal executive offices a"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "We are the subject of various pending or"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4\tMine Safety Disclosures",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5\tMarket for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Our common stock is listed on the New Yo"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6\tSelected Financial Data",
+      "occurrence": 0,
+      "next": "The following table sets forth selected "
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "EXECUTIVE OVERVIEW"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "We are exposed to market risk stemming f"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8\tFinancial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "REPORT OF MANAGEMENT RESPONSIBILITIES"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9\tChanges in and Disagreements With Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A\tControls and Procedures",
+      "occurrence": 0,
+      "next": "We, under the supervision and with the p"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B\tOther Information",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10\tDirectors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "The information contained in the section"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "The information contained in the section",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information contained in the section",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13\tCertain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "The information set forth in the section",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14\tPrincipal Accounting Fees and Services",
+      "occurrence": 0,
+      "next": "The information contained in the section",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15\tExhibits, Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "1.\tFinancial Statements:"
+    }
+  ],
+  "absent": [
+    "item_16"
+  ],
+  "end": {
+    "text": "Signatures",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

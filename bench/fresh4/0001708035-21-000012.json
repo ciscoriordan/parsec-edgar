@@ -1,0 +1,73 @@
+{
+  "accession": "0001708035-21-000012",
+  "cik": 1708035,
+  "company": "Ecovyst Inc.",
+  "form": "10-Q",
+  "filing_date": "2021-05-17",
+  "url": "https://www.sec.gov/Archives/edgar/data/1708035/000170803521000012/pqg-20210331.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended March 31, 2021, filed under the earlier name PQ Group Holdings. Line 1281 opens with the quoted cross-reference '\"Item 1A, Risk Factors\" in our Annual Report'; it is body text of Part II Item 1A, not a heading. Part II Item 1A only points to the 10-K and is marked incorporated (unscored). Part II Items 3, 4 and 5 have no heading and are absent. The filing ends at SIGNATURES (line 1306). Both labelers agreed on every label.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1. FINANCIAL STATEMENTS (UNAUDITED).",
+      "occurrence": 0,
+      "next": "PQ GROUP HOLDINGS INC. AND SUBSIDIARIES"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS.",
+      "occurrence": 0,
+      "next": "Unless the context requires otherwise, r"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK.",
+      "occurrence": 0,
+      "next": "Our major market risk exposure is potent"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4. CONTROLS AND PROCEDURES.",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1. LEGAL PROCEEDINGS.",
+      "occurrence": 0,
+      "next": "From time to time we may be subject to v"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "ITEM 1A. RISK FACTORS.",
+      "occurrence": 0,
+      "next": "“Item 1A, Risk Factors” in our Annual Re",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "ITEM 2. UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS.",
+      "occurrence": 0,
+      "next": "Tax Withholdings"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6. EXHIBITS.",
+      "occurrence": 0,
+      "next": "The following exhibits are being filed o"
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "accession": "0000950144-05-001037",
+  "cik": 1070985,
+  "company": "CoreCivic, Inc.",
+  "form": "8-K",
+  "filing_date": "2005-02-09",
+  "url": "https://www.sec.gov/Archives/edgar/data/1070985/000095014405001037/g93137e8vk.htm",
+  "agent": "",
+  "tags": [],
+  "labeled": true,
+  "notes": "Short 8-K filed under the name Corrections Corporation of America (EDGAR now lists the filer as CoreCivic). Just below the cover's check boxes, lines 24 to 28 ('Item 2.02 ...', 'Item 9.01 ...', 'SIGNATURE', 'EXHIBIT INDEX', 'Ex-99.1 Press Release') are a short contents list and are not labeled. The body headings are the second copies: Item 2.02 at line 29 and Item 9.01 at line 32. Item 2.02 describes the furnished press release and is not marked incorporated. The filing ends at the second 'SIGNATURE' (line 35); an exhibit index follows it.",
+  "items": [
+    {
+      "id": "item_2.02",
+      "text": "Item 2.02. Results of Operations and Financial Condition",
+      "occurrence": 1,
+      "next": "On February 9, 2005, Corrections Corpora"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01. Financial Statements and Exhibits",
+      "occurrence": 1,
+      "next": "(c) The following exhibit is furnished a"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 1,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

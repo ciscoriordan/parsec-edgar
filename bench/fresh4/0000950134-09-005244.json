@@ -1,0 +1,149 @@
+{
+  "accession": "0000950134-09-005244",
+  "cik": 702513,
+  "company": "Bank of Commerce Holdings",
+  "form": "10-K",
+  "filing_date": "2009-03-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/702513/000095013409005244/f51783e10vk.htm",
+  "agent": "",
+  "tags": [
+    "bank",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Bank holding company 10-K for 2008. Headings as printed: Item 1A is 'ITEM 1A.' alone on line 248 with its title on the next line, Item 1B is 'ITEM 1(b).' and Item 7A is 'ITEM 7-A.'. Uncertain: the Item 9B heading and the form's instruction sentence are printed twice (lines 1772 and 1774), and only the second copy is followed by 'None to report.'. Item 9B is labeled at the first copy, because lines 1772 and 1773 hold nothing but 9B's heading and instruction and so belong to 9B, not 9A; the alternative is line 1774. The one-sentence note under PART III (line 1778) stays in Item 9B. The filing ends at SIGNATURES (line 1859); the power of attorney and the exhibit index follow. Incorporated (unscored): Items 1B, 4, 9, 9B, 11 and 12. Both labelers agreed on every label, including the uncertain one.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. BUSINESS",
+      "occurrence": 0,
+      "next": "Bank of Commerce Holdings (the “Holding "
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A.",
+      "occurrence": 0,
+      "next": "Forward Looking Statements and Risk Fact"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1(b). UNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None to report.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "The Company’s principal administrative o"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The Company is subject to various pendin"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "No matters were submitted during the qua",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMARKET FOR REGISTRANT’S COMMON EQUITY AND RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "The principal market on which the Common"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. SELECTED CONSOLIDATED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "The selected consolidated financial data"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF RESULTS OF OPERATIONS AND FINANCIAL CONDITION",
+      "occurrence": 0,
+      "next": "The following discussion should be read "
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7-A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Market risk is the risk that values of a"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Index to Consolidated Financial Statemen"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "There have been no changes in or disagre",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "The registrant must disclose under this ",
+      "incorporated": true,
+      "uncertain": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "Executive Officers of the Registrant"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this section",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The information required by this section",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS.",
+      "occurrence": 0,
+      "next": "Some of the directors, officers and prin"
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "Audit Fees"
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. EXHIBITS, FINANCIAL STATEMENTS AND SCHEDULES",
+      "occurrence": 0,
+      "next": "(a)\tThe following documents are filed as"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

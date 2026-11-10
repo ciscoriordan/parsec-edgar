@@ -1,0 +1,115 @@
+{
+  "accession": "0000912057-02-010616",
+  "cik": 75677,
+  "company": "PACKAGING CORP OF AMERICA",
+  "form": "10-K",
+  "filing_date": "2002-03-20",
+  "url": "https://www.sec.gov/Archives/edgar/data/75677/000091205702010616/a2072847z10-k.htm",
+  "agent": "Toppan Merrill",
+  "tags": [],
+  "labeled": true,
+  "notes": "Form 10-K for fiscal 2001 with the pre-2003 numbering: Item 14 is exhibits, financial statement schedules and reports on Form 8-K, so no Item is absent. The INDEX (lines 31 to 53) and the QuickLinks list of Item headings at the end of the converted document (lines 1665 to 1691) are not labeled. Item 7A is printed 'QUANTITIVE' (sic). Item 14 holds both Schedule IIs, with Arthur Andersen's report on the first, inside 14(a)(2), then the Form 8-K note and the exhibit list, and ends at SIGNATURES (line 562). The index to financial statements, the auditors' reports and the F-pages follow the signatures and belong to no Item; Item 8 only points to page F-1. Incorporated (unscored) covers reference-only and nil answers: Items 4, 8, 9 and 11 to 13. Item 10 prints its own executive officers list and is not marked. Both labelers agreed on every label.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. BUSINESS",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "The table below provides a summary of ou"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "On May 14, 1999, we were named as a defe"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of s",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. MARKET FOR REGISTRANT'S COMMON STOCK AND RELATED SHAREHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "Market for Common Stock; Dividends"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "The following table sets forth the selec"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following Management's Discussion an"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. QUANTITIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "While part of Tenneco, PCA has not had a"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "The response to this item is included in",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURES",
+      "occurrence": 0,
+      "next": "There were no changes in or disagreement",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "Information with respect to PCA's direct"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "Information with respect to executive co",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "Information with respect to security own",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "Information with respect to certain rela",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a)"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

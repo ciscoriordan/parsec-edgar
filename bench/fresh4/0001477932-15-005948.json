@@ -1,0 +1,27 @@
+{
+  "accession": "0001477932-15-005948",
+  "cik": 1474266,
+  "company": "Titanium Healthcare, Inc.",
+  "form": "8-K",
+  "filing_date": "2015-09-16",
+  "url": "https://www.sec.gov/Archives/edgar/data/1474266/000147793215005948/tihc_8k.htm",
+  "agent": "",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "8-K with one Item heading, 1.01 (line 21), which has its own text and is not marked incorporated. No other Item heading is printed, and labeler B found only Item 1.01 in the EDGAR header. The filing ends at SIGNATURES (line 23). Both labelers agreed on every label.",
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "Item 1.01 Entry into a Material Definitive Agreement",
+      "occurrence": 0,
+      "next": "On September 11, 2015, Titanium Healthca"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

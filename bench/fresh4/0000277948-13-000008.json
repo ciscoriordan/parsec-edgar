@@ -1,0 +1,150 @@
+{
+  "accession": "0000277948-13-000008",
+  "cik": 277948,
+  "company": "CSX CORP",
+  "form": "10-K",
+  "filing_date": "2013-02-19",
+  "url": "https://www.sec.gov/Archives/edgar/data/277948/000027794813000008/csx-12282012x10k.htm",
+  "agent": "self",
+  "tags": [
+    "running-headers"
+  ],
+  "labeled": true,
+  "notes": "The contents list (lines 39 to 73) is not labeled. Every page repeats a PART line, and every page of the statements repeats 'Item 8. Financial Statements and Supplementary Data' as a page header; Item 8 is labeled at its first copy (line 845), which starts the index to the statements. The unnumbered 'Executive Officers of the Registrant' section follows Item 4 ('Not Applicable') and stays in Item 4, so Item 4 is not marked incorporated. Soft call (not scored): Item 3 prints only a case caption and a reference to Note 7, so it is marked incorporated. Items 1B, 9 and 9B say 'None' and Items 10 to 14 incorporate the proxy statement. Item 15 ends at the first SIGNATURES (line 2390), the filing end. Nothing is absent; Items 1C and 16 did not exist yet.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 0,
+      "next": "CSX Corporation (“CSX”), and together wi"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "The risks set forth in the following ris"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "The Company’s properties primarily consi"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "Fuel Surcharge Antitrust Litigation",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosure",
+      "occurrence": 0,
+      "next": "Not Applicable"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "Selected financial data related to the C"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "STRATEGIC OVERVIEW"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "CSX does not hold or issue derivative fi"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "INDEX TO CONSOLIDATED FINANCIAL STATEMEN"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers of the Registrant and Corporate Governance",
+      "occurrence": 0,
+      "next": "In accordance with Instruction G(3) of F",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "In accordance with Instruction G(3) of F",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "In accordance with Instruction G(3) of F",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "In accordance with Instruction G(3) of F",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accounting Fees and Services",
+      "occurrence": 0,
+      "next": "In accordance with Instruction G(3) of F",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)(1) Financial Statements"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

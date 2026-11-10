@@ -1,0 +1,91 @@
+{
+  "accession": "0001372414-16-000090",
+  "cik": 1372414,
+  "company": "AEROHIVE NETWORKS, INC",
+  "form": "10-Q",
+  "filing_date": "2016-08-04",
+  "url": "https://www.sec.gov/Archives/edgar/data/1372414/000137241416000090/aerohive2016q210-q.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Adjudicated from two independent labels, which agreed on everything. 10-Q for the quarter ended June 30, 2016. The contents list (lines 29 to 46) is not labeled. All eleven Items have body headings and nothing is absent. Part II Item 1 only incorporates the Contingencies part of Note 5, Item 2 prints a 'Recent Sale of Unregistered Securities' subheading and then only 'None.', Items 3 and 5 say 'None.', Item 4 'Not applicable.', and Item 6 only says the exhibit index after the signature page is incorporated by reference, so all are marked incorporated. Marking Item 6 follows the blind 0001193125-12-453916 and fresh2 0001579684-16-000004 labels; the fresh3 0001104659-13-078504 label does not mark such an Item. The filing ends at SIGNATURES (line 1191); the EXHIBIT INDEX follows the signatures.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1. CONDENSED CONSOLIDATED FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "AEROHIVE NETWORKS, INC."
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "You should read the following discussion"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Interest Rate Sensitivity"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The information set forth under the “Con",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "ITEM 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "In evaluating Aerohive and our business,"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "ITEM 2. UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS",
+      "occurrence": 0,
+      "next": "Recent Sale of Unregistered Securities",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "ITEM 3. DEFAULT UPON SENIOR SECURITIES",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "ITEM 4. MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "ITEM 5. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6. EXHIBITS",
+      "occurrence": 0,
+      "next": "See the Exhibit Index which follows the ",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

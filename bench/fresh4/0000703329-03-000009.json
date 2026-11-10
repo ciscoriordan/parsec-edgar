@@ -1,0 +1,43 @@
+{
+  "accession": "0000703329-03-000009",
+  "cik": 703329,
+  "company": "FIRST FARMERS & MERCHANTS CORP",
+  "form": "10-Q",
+  "filing_date": "2003-08-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/703329/000070332903000009/jun03_10q.htm",
+  "agent": "self",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "Bank holding company 10-Q for the quarter ended June 30, 2003. The document prints only Part I Items 1 and 2 and has no Part II at all; MD&A runs straight to SIGNATURES (line 187), which the certifications follow. Absent: Part I Items 3 and 4, and Part II Items 1 to 6. Part II Item 1A did not exist yet and is not listed. Both labelers agreed on every label.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "The following unaudited consolidated fin"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's Discussion and Analysis of Financial Condition",
+      "occurrence": 0,
+      "next": "Material Changes in Financial Condition"
+    }
+  ],
+  "absent": [
+    "part_1_item_3",
+    "part_1_item_4",
+    "part_2_item_1",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5",
+    "part_2_item_6"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "accession": "0001019687-99-000228",
+  "cik": 319013,
+  "company": "SPECTRUM LABORATORIES INC /CA",
+  "form": "10KSB",
+  "filing_date": "1999-04-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/319013/000101968799000228/0001019687-99-000228.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-KSB for the fiscal year ended January 2, 1999, with 10-KSB numbering: Item 6 is MD&A, Item 7 the financial statements, Item 8 changes in accountants, Items 9 to 12 Part III and Item 13 exhibits and reports on Form 8-K. The contents list (lines 43 to 64) is not labeled, and the forward-looking legend between it and PART I (lines 65 to 69) belongs to no Item. Items 1 to 13 each have one body heading. Nothing is absent, because Items 8A, 8B and 14 did not exist yet, as in the fresh3 Joshua Tree 2002 label. Item 4 says 'None.' and Item 7 only says the statements are submitted in a separate section and prints their index, so both are marked incorporated. Item 13 ends at SIGNATURES (line 812), the filing end; the statements follow the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.  DESCRIPTION OF BUSINESS",
+      "occurrence": 0,
+      "next": "GENERAL"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.  DESCRIPTION OF PROPERTY",
+      "occurrence": 0,
+      "next": "The Company's executive offices are loca"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.  LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "There are no material pending legal proc"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.  MARKET FOR COMMON EQUITY AND RELATED SHAREHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The Company's Common Stock is currently "
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS",
+      "occurrence": 0,
+      "next": "OF OPERATIONS"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.  FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "The financial statements in response to ",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 0,
+      "next": "FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. DIRECTORS, EXECUTIVE OFFICERS, PROMOTERS AND CONTROL PERSONS; COMPLIANCE",
+      "occurrence": 0,
+      "next": "WITH SECTION 16(a) OF THE EXCHANGE ACT"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.  EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The following table sets forth the annua"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.  SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "The following table sets forth certain i"
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "The Company had transactions with relate"
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.  EXHIBITS AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with Section 13 or 15(d) o"
+  }
+}

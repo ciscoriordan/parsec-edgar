@@ -1,0 +1,164 @@
+{
+  "accession": "0001193125-18-077161",
+  "cik": 800457,
+  "company": "DONEGAL GROUP INC",
+  "form": "10-K",
+  "filing_date": "2018-03-09",
+  "url": "https://www.sec.gov/Archives/edgar/data/800457/000119312518077161/d475968d10k.htm",
+  "agent": "DFIN",
+  "tags": [
+    "insurer"
+  ],
+  "labeled": true,
+  "notes": "10-K for fiscal 2017. The index (lines 41 to 68) is not labeled. Item 4 says 'Not applicable.', but the unnumbered 'Executive Officers of the Registrant' section (line 608) follows it before PART II and stays in Item 4, so Item 4 is not marked. Item 8 holds the index, the statements and the auditors' report on them. Item 1B (no unresolved comments) and Items 9 and 9B ('None.') are nil answers, marked following the field definition in bench/src/labels.rs, and Items 10 to 14 only incorporate the proxy statement (Item 10 also Part I and Exhibit 14). Hard call (uncertain): the auditors' report on internal control ('Report of Independent Registered Public Accounting Firm', line 2391) is printed after Item 9B's 'None.' and before PART III with no Item heading; Item 9A only says the report is included in this Form 10-K, so Item 9B ends at it and the report belongs to no Item, as in fresh2/0000216228-15-000007 (ITT 2015). The alternative leaves it in Item 9B. Hard call (uncertain): Item 15 lists the statements, Schedule III and the Rule 3-09 financial statements of Donegal Financial Services Corporation, and prints the exhibit list with its footnotes; Schedule III ('DONEGAL GROUP INC. AND SUBSIDIARIES' above 'SCHEDULE III', line 2518) and the investee's audited statements with their own contents (from line 2588) follow with no Item heading up to SIGNATURES. Statements with no Item heading after the exhibits Item belong to no Item, as in fresh3 Vesta Insurance 2003, so Item 15 ends at line 2518; the alternatives end it at line 2588 or keep everything to SIGNATURES. The filing ends at SIGNATURES (line 3740). No Item 16 heading appears anywhere, including the index, so Item 16 is listed absent; the form had no Item 1C yet. Adjudicated from two independent labels, which agreed on every field, including both uncertain ends.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness.",
+      "occurrence": 0,
+      "next": "Introduction"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRisk Factors.",
+      "occurrence": 0,
+      "next": "Risk Factors"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.\tUnresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "We have no unresolved written comments f",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties.",
+      "occurrence": 0,
+      "next": "We and our insurance subsidiaries share "
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings.",
+      "occurrence": 0,
+      "next": "Our insurance subsidiaries are parties t"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tMine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Our Class A common stock and Class B com"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Financial Data.",
+      "occurrence": 0,
+      "next": "Year Ended December 31,\t2017\t2016\t2015\t2"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "We are exposed to the impact of interest"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementry Data.",
+      "occurrence": 0,
+      "next": "Index to Consolidated Financial Statemen"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tControls and Procedures.",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true,
+      "uncertain": true,
+      "end": {
+        "text": "Report of Independent Registered Public Accounting Firm",
+        "occurrence": 1,
+        "next": "To the Stockholders and Board of Directo"
+      }
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "We incorporate the response to this Item",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation.",
+      "occurrence": 0,
+      "next": "We incorporate the response to this Item",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "We incorporate the response to this Item",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "We incorporate the response to this Item",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPrincipal Accounting Fees and Services.",
+      "occurrence": 0,
+      "next": "We incorporate the response to this Item",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits, Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(a)\tFinancial statements, financial stat",
+      "uncertain": true,
+      "end": {
+        "text": "DONEGAL GROUP INC. AND SUBSIDIARIES",
+        "occurrence": 0,
+        "next": "SCHEDULE III — SUPPLEMENTARY INSURANCE I"
+      }
+    }
+  ],
+  "absent": [
+    "item_16"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

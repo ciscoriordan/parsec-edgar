@@ -1,0 +1,82 @@
+{
+  "accession": "0001010549-07-000947",
+  "cik": 1101423,
+  "company": "VANTONE INTERNATIONAL GROUP, INC.",
+  "form": "10QSB",
+  "filing_date": "2007-11-14",
+  "url": "https://www.sec.gov/Archives/edgar/data/1101423/000101054907000947/senior10qsb093007.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-qsb"
+  ],
+  "labeled": true,
+  "notes": "Plain-text Form 10-QSB of Senior Optician Service, Inc. (EDGAR lists the filer under its later name, Vantone International Group) for the quarter ended September 30, 2007, a shell company. There is no contents list. 'PART I - FINANCIAL INFORMATION' and 'Item 1. Financial Statements' (lines 38 and 39) open the body; the second 'PART I - FINANCIAL INFORMATION' and 'Part 1 - Financial Statements' lines just below them head the statement pages and stay in Item 1. 10-QSB numbering: Part I Item 2 is MD&A or plan of operation and Part I Item 3 is controls and procedures. Part II Item 1A is not listed absent: Form 10-QSB did not have it, as in the bench/labels 10-QSB labels. Part II Items 1, 2, 3 and 5 say only 'None.' and are marked incorporated, following the field definition in bench/src/labels.rs. The labelers differed on Part II Item 4, which says only that no matter was submitted to a vote during the quarter; it is a nil answer like the four 'None.' Items beside it and is marked, as in fresh2/0000808326-08-000065 and fresh3/0000946275-08-000282, which mark nil answers. (fresh3 O'Reilly 2005 and Empire Global 2009 leave such an Item 4 unmarked, but they leave 'None.' unmarked too.) Item 6 lists the certification exhibits; the filing ends at SIGNATURES (line 619). Nothing is absent.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "PART I - FINANCIAL INFORMATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2.  Management's Discussion and Analysis or Plan of Operation",
+      "occurrence": 0,
+      "next": "(a)  Background:  Senior Optician  Servi"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Controls and Procedures",
+      "occurrence": 0,
+      "next": "(a)  Evaluation of Disclosure Controls a"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No  matter  was  submitted  to a  vote  ",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit No.                Exhibit Name"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with the  requirements of "
+  }
+}

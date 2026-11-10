@@ -1,0 +1,164 @@
+{
+  "accession": "0001213900-26-037460",
+  "cik": 2070457,
+  "company": "Twenty One Capital, Inc.",
+  "form": "10-K",
+  "filing_date": "2026-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/2070457/000121390026037460/ea0280065-10k_twenty.htm",
+  "agent": "EdgarAgents",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-K for fiscal 2025, the company's first annual report after its business combination. The contents list (lines 46 to 66) is not labeled; it omits Items 1A, 1B, 1C, 7A and 9A to 9C, which the body prints. The forward-looking statements and the summary of risk factors between the contents and 'Part I' (lines 67 to 308) belong to no Item. Every Item from 1 to 16 has a body heading, so nothing is absent. Items 1B, 9 and 16 ('None.'), Items 4 and 9C ('Not applicable.') and Item 6 ('[Reserved]', with the body 'Not applicable.') are nil answers, marked following the field definition in bench/src/labels.rs; Item 8 only says the statements are appended from page F-1 and is marked incorporated. Hard call (the labelers differed): Item 3 says the company may from time to time become involved in legal proceedings and is not currently a party to any whose outcome would be material; it is not marked, as in fresh3/0001047469-17-001630 and fresh3/0000939767-01-500016, which mark 'None.' answers but leave such an Item 3 unmarked. Item 7A gives its own text on Bitcoin price and custodian risk before the smaller reporting company sentence, and Item 9B its own trading arrangement statement, so neither is marked. Part III Items 10 to 14 print their own text (no proxy statement is incorporated). Item 15 holds the exhibit list. The filing ends at SIGNATURES (line 1559); the financial statements after the signatures belong to no Item. Not tagged small-cap: the cover checks the smaller reporting company box, but it gives a non-affiliate float of about $365.3 million at December 31, 2025, since no public market existed at June 30, 2025.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 0,
+      "next": "Business"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "A description of the risks and uncertain"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_1c",
+      "text": "Item 1C. Cybersecurity",
+      "occurrence": 0,
+      "next": "Cybersecurity Risk Management and Strate"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "At this stage of our development, we do "
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "From time to time, Twenty One or any of "
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Market Information for Common Stock"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. [Reserved]",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "The following discussion and analysis of"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Bitcoin market price risk"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The financial statements required to be ",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "During the three months ended December 3"
+    },
+    {
+      "id": "item_9c",
+      "text": "Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspections",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive, Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "Directors"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "The Company is an “emerging growth compa"
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The following table and accompanying foo"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "Policies and Procedures for Related Pers"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "Fees Paid Independent Registered Public "
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibit and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)\tThe following documents are filed as"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. Form 10-K Summary",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

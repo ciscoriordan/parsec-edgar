@@ -1,0 +1,146 @@
+{
+  "accession": "0000729237-11-000015",
+  "cik": 729237,
+  "company": "PARKWAY PROPERTIES INC",
+  "form": "10-K",
+  "filing_date": "2011-03-04",
+  "url": "https://www.sec.gov/Archives/edgar/data/729237/000072923711000015/f10k2010pkyinc.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-K for fiscal 2010. The contents list (lines 45 to 73) is not labeled. Every Item from 1 to 15 has a body heading; the form had no Items 1C, 9C or 16 yet, so nothing is absent. Item 3 incorporates Note K but adds its own statement, and Item 7A points to the liquidity discussion in Item 7 but adds its own variable rate debt figures, so neither is marked. Item 4 '[Removed and Reserved]' has no body and is not marked. Items 1B, 9 and 9B ('None.') are nil answers, marked following the field definition in bench/src/labels.rs. Item 8 holds the statements and Schedules II to IV; Item 9A holds management's report and the auditors' report on internal control. Items 10, 11, 13 and 14 only incorporate the proxy statement (Item 10 also points to Item 1); Item 12 prints its own equity compensation plan table and is not marked. Item 15 holds the exhibit list and ends at the second SIGNATURES line (line 2339; the first is the contents entry), the filing end. Adjudicated from two independent labels, which agreed on every field.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. Business.",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "In addition to the other information con"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B. Unresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. Properties.",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "The Company and its subsidiaries are, fr"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. [Removed and Reserved]",
+      "occurrence": 0,
+      "next": "PART II"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "The Company’s common stock ($.001 par va"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. Selected Financial Data.",
+      "occurrence": 0,
+      "next": "Year Ended"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. Management's Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "See information appearing under the capt"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "Index to Consolidated Financial Statemen"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "The Company’s management, with the parti"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "The information regarding directors is i",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation.",
+      "occurrence": 0,
+      "next": "The information included under the follo",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "Information regarding security ownership"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "The information regarding transactions w",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services.",
+      "occurrence": 0,
+      "next": "The information regarding principal audi",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(a) 1 Consolidated Financial Statements"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 1,
+    "next": "Pursuant to the requirements of Section "
+  }
+}
