@@ -225,15 +225,28 @@ struct Cache {
     loading: HashMap<DocKey, Loading>,
 }
 
-/// A document being loaded. The entry goes when its last call returns or is cancelled.
+/// A document being loaded. The entry goes when the load finishes, so that a
+/// call made after a failed load tries again, or when every call waiting for
+/// it is cancelled.
 #[derive(Default)]
 struct Loading {
-    /// Calls waiting for the document.
+    /// Calls waiting for the outcome.
     waiting: usize,
-    doc: Arc<OnceCell<Arc<Doc>>>,
+    /// The document, or the error, that every call waiting for it gets.
+    outcome: Arc<LoadOutcome>,
 }
 
+type LoadOutcome = OnceCell<Result<Arc<Doc>, String>>;
+
 impl Cache {
+    /// Drop the entry of the load that `outcome` belongs to. A finished load's
+    /// entry may already have been replaced by a later load's, which stays.
+    fn end_load(&mut self, key: &DocKey, outcome: &Arc<LoadOutcome>) {
+        if self.loading.get(key).is_some_and(|loading| Arc::ptr_eq(&loading.outcome, outcome)) {
+            self.loading.remove(key);
+        }
+    }
+
     /// The latest filing for `key` if it was looked up less than LATEST_TTL
     /// before `now`. An older entry is dropped.
     fn fresh_latest(&mut self, key: &(String, String), now: Instant) -> Option<Filing> {
@@ -736,28 +749,38 @@ impl EdgarServer {
     }
 
     /// The parsed document for `key`, loading it with `load` unless it is cached.
-    /// Concurrent calls for one document share a single download and parse.
+    /// Concurrent calls for one document share a single download and parse, and
+    /// its error when it fails, so a throttled or failing SEC is not asked again
+    /// by each of them in turn. A call made after the load has failed loads again.
     async fn shared_doc(
         &self,
         key: DocKey,
         load: impl FnOnce() -> Result<Doc, String> + Send + 'static,
     ) -> Result<Arc<Doc>, String> {
-        let cell = {
+        let outcome = {
             let mut cache = self.lock();
             if let Some(doc) = cache.docs.get(&key) {
                 return Ok(doc.clone());
             }
             let loading = cache.loading.entry(key.clone()).or_default();
             loading.waiting += 1;
-            loading.doc.clone()
+            loading.outcome.clone()
         };
-        let _waiting = Waiting { server: self, key: key.clone() };
-        let init = || async move { blocking(move || load().map(Arc::new)).await };
-        let loaded = cell.get_or_try_init(init).await.cloned();
-        if let Ok(doc) = &loaded {
-            self.lock().docs.put(key, doc.clone());
-        }
-        loaded
+        let _waiting = Waiting { server: self, key: key.clone(), outcome: outcome.clone() };
+        // One waiting call runs the load. Should that call be cancelled, another
+        // waiting call runs its own.
+        let init = || async {
+            let loaded = blocking(move || load().map(Arc::new)).await;
+            // Cache the document and end the load at once, so that a call made
+            // from now on finds the document, or after a failure loads again.
+            let mut cache = self.lock();
+            if let Ok(doc) = &loaded {
+                cache.docs.put(key.clone(), doc.clone());
+            }
+            cache.end_load(&key, &outcome);
+            loaded
+        };
+        outcome.get_or_init(init).await.clone()
     }
 
     async fn filing(&self, company: &str, accession: Option<&str>, form: Option<&str>) -> Result<Filing, String> {
@@ -790,16 +813,21 @@ impl EdgarServer {
 }
 
 /// One call waiting for a document load. Dropping it, when the call returns or
-/// is cancelled, removes the load from `loading` once no other call waits for it.
+/// is cancelled, removes the load from `loading` once no other call waits for
+/// it, unless the load has finished and a later load has taken its place.
 struct Waiting<'a> {
     server: &'a EdgarServer,
     key: DocKey,
+    /// The outcome of the load waited for, which identifies it.
+    outcome: Arc<LoadOutcome>,
 }
 
 impl Drop for Waiting<'_> {
     fn drop(&mut self) {
         let mut cache = self.server.lock();
-        if let Some(loading) = cache.loading.get_mut(&self.key) {
+        if let Some(loading) = cache.loading.get_mut(&self.key)
+            && Arc::ptr_eq(&loading.outcome, &self.outcome)
+        {
             loading.waiting -= 1;
             if loading.waiting == 0 {
                 cache.loading.remove(&self.key);
@@ -2617,6 +2645,61 @@ mod tests {
         assert!(Arc::ptr_eq(&docs[0], &docs[1]));
         assert_eq!(loads.load(Ordering::SeqCst), 1);
         assert!(server.lock().loading.is_empty());
+    }
+
+    /// A failing load that counts itself in `loads`.
+    fn failing_load(loads: Arc<AtomicUsize>) -> impl FnOnce() -> Result<Doc, String> + Send + 'static {
+        move || {
+            loads.fetch_add(1, Ordering::SeqCst);
+            Err("HTTP 503".to_owned())
+        }
+    }
+
+    /// The calls that joined a load that fails all get its error, without
+    /// loading again one after another, and a call made after the failure
+    /// starts a new load.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn failed_loads_are_shared_by_their_waiters() {
+        let server = offline_server();
+        let loads = Arc::new(AtomicUsize::new(0));
+        let call = |load: Box<dyn FnOnce() -> Result<Doc, String> + Send>| {
+            let server = server.clone();
+            tokio::spawn(async move { server.shared_doc(key("acc", ""), load).await })
+        };
+        let (started_tx, started) = mpsc::channel();
+        let (release, release_rx) = mpsc::channel::<()>();
+        let first = failing_load(loads.clone());
+        let first = call(Box::new(move || {
+            started_tx.send(()).unwrap();
+            release_rx.recv().map_err(|e| e.to_string())?;
+            first()
+        }));
+        started.recv().unwrap();
+        let mut calls = vec![first];
+        calls.extend((0..3).map(|_| call(Box::new(failing_load(loads.clone())))));
+        wait_for_waiting(&server, &key("acc", ""), 4);
+        release.send(()).unwrap();
+        for c in calls {
+            assert_eq!(c.await.unwrap().err().as_deref(), Some("HTTP 503"));
+        }
+        assert_eq!(loads.load(Ordering::SeqCst), 1);
+        assert!(server.lock().loading.is_empty());
+        assert!(server.shared_doc(key("acc", ""), counted_load(loads.clone())).await.is_ok());
+        assert_eq!(loads.load(Ordering::SeqCst), 2);
+    }
+
+    /// A call that waited for a finished load, leaving after a later load for
+    /// the same document has started, leaves the later load's entry alone.
+    #[test]
+    fn waiters_of_a_finished_load_leave_a_later_load_alone() {
+        let server = offline_server();
+        let finished: Arc<LoadOutcome> = Arc::new(OnceCell::new());
+        let later = Loading { waiting: 1, ..Loading::default() };
+        server.lock().loading.insert(key("acc", ""), later);
+        drop(Waiting { server: &server, key: key("acc", ""), outcome: finished.clone() });
+        assert_eq!(server.lock().loading.get(&key("acc", "")).map(|l| l.waiting), Some(1));
+        server.lock().end_load(&key("acc", ""), &finished);
+        assert!(server.lock().loading.contains_key(&key("acc", "")));
     }
 
     #[test]
