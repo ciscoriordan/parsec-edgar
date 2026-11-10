@@ -661,7 +661,7 @@ const TEN_KSB: &[Key] = &[
     k("4", "Submission of Matters to a Vote of Security Holders"),
     k(
         "5",
-        "Market for Common Equity and Related Stockholder Matters and Small Business Issuer Purchases of Equity Securities",
+        "Market for Common Equity, Related Stockholder Matters and Small Business Issuer Purchases of Equity Securities",
     )
     .was(REPURCHASES, &[(EARLIEST, "Market for Common Equity and Related Stockholder Matters")]),
     k("6", "Management's Discussion and Analysis or Plan of Operation"),
@@ -8979,6 +8979,20 @@ Pursuant to ...
             let text = format!("{heading}\n{body}\nItem 6. Selected Financial Data\n{body}\nSIGNATURES\n");
             assert_eq!(titles_for(&text, FormKind::TenK, "2004-03-10", Some("2003-12-31"))[0], title, "{heading}");
         }
+    }
+
+    #[test]
+    fn ksb_item_5_has_the_caption_of_release_33_8335() {
+        // Release 33-8335 (68 FR 64952), amendment 12, set the caption of
+        // 10-KSB Item 5; a 10-KSB for 2005 that prints the Item bare gets it.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNone.\nITEM 5.\n{body}\n\
+             ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION\n{body}\nSIGNATURES\n"
+        );
+        let caption = "Market for Common Equity, Related Stockholder Matters and Small Business Issuer Purchases of Equity Securities";
+        assert_eq!(dated(&text, FormKind::TenKsb, "2006-03-30")[1].title, caption);
+        assert_eq!(extract_sections(&text, FormKind::TenKsb)[1].title, caption);
     }
 
     #[test]
