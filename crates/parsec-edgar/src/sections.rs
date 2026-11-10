@@ -53,7 +53,9 @@
 //! Data"). In a 10-K or 10-KSB whose first Item found is Item 1A or Item 2, a
 //! line that holds only Item 1's standard title after the last `PART I` line
 //! before it ("PART I." and then "BUSINESS") starts Item 1, unless an Item
-//! line comes between them.
+//! line comes between them, or the title line is printed more than once
+//! after the last Item line before the heading (Item 1's pages print "PART
+//! I" and "Business" as page headers).
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins. A power of attorney printed
 //! before the signatures under a "POWER OF ATTORNEY" line goes with them, so
@@ -2023,8 +2025,12 @@ fn add_lettered(cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize
 /// Business"), between the last `PART I` line before that Item's heading and
 /// the heading, starts Item 1, unless an Item line comes between that `PART
 /// I` line and the heading. A Part I printed with no Item numbers at all has
-/// its first numbered heading in Part II, so it gets no Item 1. Returns the
-/// title line as a candidate.
+/// its first numbered heading in Part II, so it gets no Item 1. Neither does
+/// one whose title line is printed more than once after the last Item line
+/// before the heading: Item 1's pages then print "PART I" and "Business" as
+/// page headers, the `PART I` line nearest the heading is one of them, and
+/// the first copy of the title, which may be the heading, may also be a
+/// contents entry. Returns the title line as a candidate.
 fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(usize, usize)]) -> Option<Candidate> {
     let &(first, key) = picks.first()?;
     let item_1 = keys.iter().find(|k| k.item == "1")?;
@@ -2052,10 +2058,14 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
     }
     // The same letters, and no number such as a page.
     let (letters, words) = (title_key(item_1.title), title_words(item_1.title));
-    let (pos, line) = lines.into_iter().rev().find(|&(_, line)| {
+    let title_line = |line: &str| {
         let line = line.trim();
         line.starts_with(char::is_uppercase) && title_key(line) == letters && title_words(line) == words
-    })?;
+    };
+    let (pos, line) = lines.into_iter().rev().find(|&(_, line)| title_line(line))?;
+    if text[..heading].lines().rev().take_while(|l| !is_item_line(l)).filter(|l| title_line(l)).count() > 1 {
+        return None;
+    }
     Some(Candidate {
         pos,
         label: item_1.item.to_owned(),
@@ -3228,8 +3238,8 @@ Pursuant to ...
         // A Part I with no Item numbers at all, an Item line between PART I
         // and the first numbered heading, another title, no PART I line or
         // another PART line, a first numbered heading after Item 1A, a
-        // numbered Item 1, and a 10-Q whose Part I prints its title without a
-        // number.
+        // numbered Item 1, "PART I" and "Business" printed again as page
+        // headers, and a 10-Q whose Part I prints its title without a number.
         let body = BODY.repeat(30);
         let annual = |text: &str| ids(&extract_sections(text, FormKind::TenK)).join(" ");
         for (text, items) in [
@@ -3254,6 +3264,13 @@ Pursuant to ...
                 "item_1b",
             ),
             (format!("PART I\nBUSINESS\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\n"), "item_1 item_2"),
+            (
+                format!(
+                    "PART I\nBUSINESS\n{body}\n4\nPART I\nBusiness\n{body}\n5\nPART I\nBusiness\n{body}\n\
+                     ITEM 1A. RISK FACTORS\n{body}\n"
+                ),
+                "item_1a",
+            ),
         ] {
             assert_eq!(annual(&text), items, "{text:.60}");
         }
