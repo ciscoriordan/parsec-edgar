@@ -1455,14 +1455,41 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     // it comes later in the form than the last of those. A run-in heading
     // after a contents list stays, since the body's next heading goes back to
     // an Item that the list printed before it.
-    let after_heading = |i: usize, c: &Candidate| {
-        let before = cands[..i].iter().rev().take_while(|o| o.label == c.label || later(&o.label, &c.label));
-        let Some(heading) = before.clone().position(|o| o.label == c.label && heading_of(c, o)) else {
-            return false;
-        };
-        let last = before.take(heading).find(|o| o.label != c.label).map_or(&c.label, |o| &o.label);
-        cands[i + 1..].iter().find(|o| o.label != c.label).is_none_or(|o| later(&o.label, last))
-    };
+    // One pass over the lines for each Item that such lines cite, keeping
+    // the Item's headings since the last line of an Item that is not later
+    // in the form (the latest one of each title) and the last line of a
+    // later Item, so that the time grows with the number of lines and not
+    // with its square.
+    let mut after_heading = vec![false; cands.len()];
+    // The next line of another Item after each line.
+    let mut next_other: Vec<Option<usize>> = vec![None; cands.len()];
+    for i in (0..cands.len().saturating_sub(1)).rev() {
+        next_other[i] = if cands[i + 1].label != cands[i].label { Some(i + 1) } else { next_other[i + 1] };
+    }
+    let mut cited_items: Vec<&str> = cands.iter().filter(|c| c.cites).map(|c| c.label.as_str()).collect();
+    cited_items.sort_unstable();
+    cited_items.dedup();
+    for label in cited_items {
+        let mut headings: Vec<usize> = Vec::new();
+        let mut later_line: Option<usize> = None;
+        for (i, c) in cands.iter().enumerate() {
+            if c.label != label {
+                if later(&c.label, label) {
+                    later_line = Some(i);
+                } else {
+                    headings.clear();
+                    later_line = None;
+                }
+            } else if c.cites {
+                let Some(&h) = headings.iter().rev().find(|&&h| heading_of(c, &cands[h])) else { continue };
+                let last = later_line.filter(|&o| o > h).map_or(label, |o| cands[o].label.as_str());
+                after_heading[i] = next_other[i].is_none_or(|o| later(&cands[o].label, last));
+            } else if !c.bare {
+                headings.retain(|&h| cands[h].title != c.title);
+                headings.push(i);
+            }
+        }
+    }
     let cited: Vec<bool> = cands
         .iter()
         .enumerate()
@@ -1475,7 +1502,7 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                         o.label == c.label || place(&o.label).0.zip(last).is_none_or(|(other, cited)| other < cited)
                     })
                     .any(|o| o.label == c.label && heading_of(c, o))
-                    || after_heading(i, c))
+                    || after_heading[i])
         })
         .collect();
     let cands: Vec<Candidate> = cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect();
@@ -6465,6 +6492,38 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::EightK);
         assert_eq!(ids(&s), ["item_7.01", "item_8.01", "item_9.01"]);
         assert_eq!(s[0].heading, "Item 7.01 Regulation FD Disclosure");
+    }
+
+    #[test]
+    fn many_lines_that_cite_an_item_inside_a_later_item_take_little_time() {
+        // One Item 7 heading, then 2,000 Item 9A headings, each followed by a
+        // line that cites Item 7, or by the same words in a sentence that
+        // makes no candidate. Finding that each citing line sits inside a
+        // later Item must not walk back over all the lines before it, which
+        // took nine times as long as the plain text.
+        let filler = "The Company sells products and services to customers in several markets.\n";
+        let mdna = "Management's Discussion and Analysis of Financial Condition and Results of Operations";
+        let text = |line: &str| {
+            let block = format!(
+                "Item 9A. Controls and Procedures\n{filler}{line}Item 7. {mdna}, of our Annual Report \
+                 on Form 10-K for 2019 describes this.\n{filler}"
+            );
+            format!("Item 7. {mdna}\nText.\n{}", block.repeat(2000))
+        };
+        let (citing, plain) = (text(""), text("The text under "));
+        let time = |text: &str| {
+            (0..2)
+                .map(|_| {
+                    let start = std::time::Instant::now();
+                    let s = extract_sections(text, FormKind::TenK);
+                    assert_eq!(ids(&s), ["item_7", "item_9a"]);
+                    start.elapsed()
+                })
+                .min()
+                .unwrap()
+        };
+        let (citing, plain) = (time(&citing), time(&plain));
+        assert!(citing < plain * 4, "{citing:?} for the citing lines, {plain:?} for the plain text");
     }
 
     #[test]
