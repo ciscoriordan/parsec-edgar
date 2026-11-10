@@ -100,7 +100,11 @@
 //! as one does below a contents entry. So it never replaces an Item found with
 //! a number in digits, and of its copies (running headers) the first counts.
 //! The last Item ends at the signatures or where a separately paginated
-//! attached document (an annual report) begins. A power of attorney printed
+//! attached document (an annual report) begins. Without a signatures heading,
+//! the signatures start at the signature block's sentence ("Pursuant to the
+//! requirements of the Securities Exchange Act of 1934, the registrant has
+//! duly caused this report to be signed ..."), also when a plain-text filing
+//! wraps it before "duly caused". A power of attorney printed
 //! before the signatures under a "POWER OF ATTORNEY" line goes with them, so
 //! that line ends the last Item too, unless it is an exhibit's description in
 //! a list printed cell by cell ("24" on the line above). In a 10-Q or 10-QSB,
@@ -516,11 +520,17 @@ fn signature_lines(text: &str) -> Vec<usize> {
 }
 
 /// The signature block's opening sentence, for filings that print no
-/// signatures heading.
+/// signatures heading: "Pursuant to the requirements of Section 13 or 15(d)
+/// of the Securities Exchange Act of 1934, the registrant has duly caused
+/// this report to be signed ...". A plain-text filing wraps it: its opening
+/// words may break across lines, and the rest may wrap once, with "duly
+/// caused" within the first 100 characters of the next line ("... of 1934,
+/// the Bank" then "has duly caused this report ...").
 static SIGNATURE_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?m)^[ \t]*Pursuant to the requirements of (?:Section 13|the Securities Exchange Act)[^\n]*duly caused",
-    )
+    Regex::new(concat!(
+        r"(?m)^[ \t]*Pursuant\s+to\s+the\s+requirements\s+of\s+",
+        r"(?:Section\s+13|the\s+Securities\s+Exchange\s+Act)[^\n]*(?:\n[^\n]{0,100})?duly\s+caused",
+    ))
     .unwrap()
 });
 
@@ -3047,11 +3057,11 @@ mod tests {
                         caused this report to be signed.\n";
         // The line after the Item is the report's signatures heading, and an
         // exhibit repeats the Item's heading: the signature block's sentence
-        // comes between them; or, wrapped where the sentence test cannot read
+        // comes between them; or, worded so that the sentence test cannot read
         // it, no signatures follow the exhibit's copy; or the copy comes long
         // after.
-        let wrapped = "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has\n\
-                       duly caused this report to be signed.\n";
+        let wrapped = "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant\n\
+                       caused this report to be signed.\n";
         for text in [
             item_9_01(&format!("SIGNATURES\n{sentence}"), "") + "SIGNATURES\n",
             item_9_01(&format!("SIGNATURES\n{wrapped}"), ""),
@@ -3078,6 +3088,40 @@ mod tests {
                     this report to be signed.\nEXHIBIT INDEX\n99.1 Press release";
         let s = extract_sections(text, FormKind::EightK);
         assert_eq!(s[0].text, "Item 8.01 Other Events.\nWe did things.");
+    }
+
+    #[test]
+    fn wrapped_signature_sentence_ends_last_item_without_heading() {
+        // The sentence wrapped after the registrant's name, inside its
+        // opening words, and over three lines with "duly" and "caused" apart.
+        for sentence in [
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the Bank\n\
+             has duly caused this report to be signed on its behalf by the undersigned\n",
+            "Pursuant to the requirements of Section 13 or 15(d) of the Securities\n\
+             Exchange Act of 1934, the registrant has duly caused this report to\n",
+            "Pursuant to the  requirements of Section 13 or 15(d) of the Securities  Exchange\n\
+             Act of 1934, The Example Life Assurance Society of the United States has duly\n\
+             caused this report to be signed on its behalf by the undersigned, thereunto duly\n",
+        ] {
+            let text = format!(
+                "PART II  OTHER INFORMATION\nItem 1-5.   Not applicable.\nItem 6.     Exhibits and Reports on Form 8-K\n\
+                 None\n{sentence}thereunto duly authorized.\nEXAMPLE FINANCIAL CORPORATION\nDate: May 8, 2002\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_6"], "{sentence}");
+            assert_eq!(s[1].text, "Item 6.     Exhibits and Reports on Form 8-K\nNone", "{sentence}");
+        }
+        // A sentence that only starts like it, with "duly caused" two lines
+        // on or far into the next line, is the Item's text.
+        let far = format!("the Company files its reports.\nThe Board, {}duly caused it.", BODY.repeat(2));
+        for later in ["the Company\nfiles its reports.\nThe Board duly caused it.", far.as_str()] {
+            let text = format!(
+                "Item 8.01 Other Events.\nPursuant to the requirements of the Securities Exchange Act of 1934, {later}\n\
+                 More text.\n"
+            );
+            let s = extract_sections(&text, FormKind::EightK);
+            assert!(s[0].text.ends_with("More text."), "{later}");
+        }
     }
 
     #[test]
