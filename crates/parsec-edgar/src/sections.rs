@@ -103,7 +103,14 @@
 //! attached document (an annual report) begins. A power of attorney printed
 //! before the signatures under a "POWER OF ATTORNEY" line goes with them, so
 //! that line ends the last Item too, unless it is an exhibit's description in
-//! a list printed cell by cell ("24" on the line above).
+//! a list printed cell by cell ("24" on the line above). In a 10-Q or 10-QSB,
+//! a Part I Item ends at the first `PART II` line in it ("PART II. OTHER
+//! INFORMATION", with Part II's title or without) when text of Part II
+//! follows that line, such as a note on forward-looking statements printed
+//! before Part II's first heading: a line that is no page header (a line
+//! printed on its own more than once), no other `PART II` line and not Part
+//! II's title. A `PART II` line just above Part II's first heading stays in
+//! Part I's last Item.
 //!
 //! A titled sub-item with the standard title of a lettered Item the form
 //! defines is that Item ("Item 8(A)T. Controls and Procedures" in a 10-KSB,
@@ -1965,6 +1972,32 @@ fn page_headers_above(text: &str, body: usize, cut: usize, end: usize) -> usize 
     }
 }
 
+/// The line of Part II of a 10-Q or 10-QSB, with its title or without:
+/// `PART II. OTHER INFORMATION`, `Part II — Other Information`, `PART II`.
+static PART_TWO: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^[ \t]*part[ \t]+II(?:[ \t.:,\-–—]*other[ \t]+information)?[ \t.:,\-–—]*$").unwrap()
+});
+
+/// Where text of Part II begins in the section of a Part I Item from `start`
+/// to `end`, which is Part II's first heading when the Item is Part I's last:
+/// at the first `PART II` line after the section's heading, when a line
+/// follows it that is no page header (a line printed on its own more than
+/// once in the filing, such as the company's name), no Part II line and not
+/// Part II's title ("OTHER INFORMATION"), as a note on forward-looking
+/// statements is. A `PART II` line just above Part II's first heading stays
+/// in the section, as the labels have it.
+fn part_two_preamble(text: &str, start: usize, end: usize) -> Option<usize> {
+    let lines = item_lines(text, start, end);
+    let at = lines.iter().position(|&(_, l)| PART_TWO.is_match(l))?;
+    let own_text = lines[at + 1..].iter().any(|&(_, l)| {
+        l.contains(char::is_alphabetic)
+            && !PART_TWO.is_match(l)
+            && title_key(l) != "otherinformation"
+            && line_copies(text, l) < 2
+    });
+    own_text.then_some(lines[at].0)
+}
+
 /// How many lines of `text` hold `line` and nothing else but blanks.
 fn line_copies(text: &str, line: &str) -> usize {
     let blank = |s: &str| s.trim().is_empty();
@@ -2749,6 +2782,8 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             let start = cand.pos;
             let next = starts.get(i + 1).copied().unwrap_or(doc_end);
             let end = stops.iter().copied().find(|&p| p > start && p < next).unwrap_or(next).max(start);
+            // A 10-Q's Part I Item ends where text of Part II begins.
+            let end = if key.part == Some("I") { part_two_preamble(text, start, end).unwrap_or(end) } else { end };
             let last = i + 1 == picks.len();
             // A heading that opens text belonging to no Item, which ends the
             // section with the page headers printed above it.
@@ -4086,6 +4121,76 @@ Pursuant to ...
             let s = extract_sections(&text, FormKind::TenQ);
             let heading = s.iter().find(|s| s.item != "4" && s.item != "6").map(|s| s.heading.as_str());
             assert_eq!(heading, Some(first), "{first} / {second}");
+        }
+    }
+
+    #[test]
+    fn text_after_the_part_two_line_ends_part_one() {
+        // A note on forward-looking statements between "PART II. OTHER
+        // INFORMATION" and Part II's first heading, also after a title line
+        // or a running header of Part II; a 10-QSB whose Part II says it has
+        // nothing to report under its Items before its only heading; and a
+        // 10-Q whose Part II prints no Item heading.
+        let body = BODY.repeat(30);
+        for (part_two, after) in [
+            ("PART II. OTHER INFORMATION", "Special Note Regarding Forward-Looking Statements"),
+            ("PART II", "OTHER INFORMATION\nSpecial Note Regarding Forward-Looking Statements"),
+            ("Part II — Other Information", "Forward-Looking Statements\nPart II — Other Information"),
+        ] {
+            let text = format!(
+                "PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements.\n{body}\n\
+                 Item 4. Controls and Procedures.\n{body}\n{part_two}\n{after}\n{body}\n\
+                 Item 1. Legal Proceedings.\n{body}\nItem 6. Exhibits.\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1", "part_2_item_6"], "{part_two}");
+            assert_eq!(s[1].end, text.find(part_two).unwrap(), "{part_two}");
+            assert!(s[1].text.ends_with("tempor."), "{part_two}");
+        }
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 3. Controls and Procedures\n{body}\n\
+             PART II - OTHER INFORMATION\nThere is nothing to report under Items 1 through 5.\n\
+             Item 6. Exhibits and Reports on Form 8-K\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQsb);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_3", "part_2_item_6"]);
+        assert_eq!(s[1].end, text.find("PART II - OTHER").unwrap());
+        // Part II prints no Item heading at all.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II - OTHER INFORMATION\nLegal Proceedings. None.\nExhibits. See the exhibit index.\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2"]);
+        assert_eq!(s[1].end, text.find("PART II - OTHER").unwrap());
+    }
+
+    #[test]
+    fn part_two_line_just_above_its_first_heading_stays_in_part_one() {
+        // "PART II" just above Part II's first heading, or with only Part II's
+        // title, a page header printed on other pages, a line without letters
+        // or another Part II line after it; a cross-reference that starts with
+        // "Part II"; and Part II's running header above more text of Part II's
+        // first Item.
+        let body = BODY.repeat(30);
+        for between in [
+            "PART II. OTHER INFORMATION",
+            "PART II\nOTHER INFORMATION",
+            "PART II\nACME CORPORATION",
+            "PART II\n--------",
+            "PART II\nPart II. Other Information",
+            "Part II, Item 1A of the annual report lists our risk factors.\nOur controls are effective.\nPART II",
+        ] {
+            let text = format!(
+                "ACME CORPORATION\nPART I\nItem 1. Financial Statements\n{body}\nACME CORPORATION\n\
+                 Item 4. Controls and Procedures\n{body}\n{between}\nItem 1. Legal Proceedings\n{body}\n\
+                 PART II – OTHER INFORMATION\nThe second page of the legal proceedings.\n{body}\n\
+                 Item 6. Exhibits\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1", "part_2_item_6"], "{between}");
+            assert_eq!(s[1].end, s[2].start, "{between}");
+            assert_eq!(s[2].end, s[3].start, "{between}");
         }
     }
 
