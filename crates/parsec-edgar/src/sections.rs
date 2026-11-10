@@ -2301,13 +2301,16 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     let other_information =
         |ki: usize| matches!((kind, keys[ki].item), (FormKind::TenK, "9B") | (FormKind::TenKsb, "8B"));
     // Whether the statements Item was found and only refers to the
-    // statements: it prints no block heading.
-    let statements_elsewhere = picks.iter().enumerate().any(|(p, &(c, k))| {
-        Some(k) == statements_key && {
-            let next = starts.get(p + 1).copied().unwrap_or(doc_end);
-            heading_start(&BLOCK_HEADING, text, cands[c].pos, next).is_none()
-        }
-    });
+    // statements: it prints no block heading. Only the last exhibits Item
+    // asks, so the statements Item is not searched for other forms.
+    let statements_elsewhere = || {
+        picks.iter().enumerate().any(|(p, &(c, k))| {
+            Some(k) == statements_key && {
+                let next = starts.get(p + 1).copied().unwrap_or(doc_end);
+                heading_start(&BLOCK_HEADING, text, cands[c].pos, next).is_none()
+            }
+        })
+    };
     // A section that holds the next Item too keeps its block headings: its
     // heading names a second Item ("Items 9 and 9A."), or a heading with the
     // same number and another title follows ("ITEM 9 A – CONTROLS AND
@@ -2342,7 +2345,7 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
                 // Statements printed after all of its text, whatever their
                 // pages, and a glossary end it when no Item follows it.
                 let statements = separate_statements(text, start, end).or_else(|| {
-                    (last && statements_elsewhere)
+                    (last && statements_elsewhere())
                         .then(|| statements_after_items(text, start, body_start(text, cand, key, end), end))
                         .flatten()
                 });
