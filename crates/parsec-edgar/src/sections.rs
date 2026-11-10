@@ -14,14 +14,16 @@
 //!
 //! Before that, contents entries whose Item and title reappear in the body
 //! are dropped, and so is a bare page header ("Item 7") just above its
-//! titled heading. In a 10-Q or 10-QSB a `PART I` or `PART II` line just
-//! above a heading fixes its part, and without one a title that only one part
-//! uses for that Item number does. Such a line that starts with a Part I
-//! title and runs on as a sentence that cites the Item ("Item 1. Financial
-//! Statements, of this report") is a wrapped cross-reference, not a heading.
-//! In every form, so is an Item line that carries on a sentence from the line
-//! just above it, which ends with a comma or with a word such as "in", "see"
-//! or "to" ("as set forth in Part II,").
+//! titled heading. A list of one Item and "SIGNATURES", which an 8-K's cover
+//! can print just above the body, is such a contents list too. In a 10-Q or
+//! 10-QSB a `PART I` or `PART II` line just above a heading fixes its part,
+//! and without one a title that only one part uses for that Item number
+//! does. Such a line that starts with a Part I title and runs on as a
+//! sentence that cites the Item ("Item 1. Financial Statements, of this
+//! report") is a wrapped cross-reference, not a heading. In every form, so
+//! is an Item line that carries on a sentence from the line just above it,
+//! which ends with a comma or with a word such as "in", "see" or "to" ("as
+//! set forth in Part II,").
 //! A heading that names several Items ("Items 1 and 2.", "Items 1 through
 //! 5.", or with a dash, "Item 1-5.", but not "Item 1-2 of the Form") starts
 //! the first of them. One that puts a comma after the Item number, as
@@ -968,17 +970,19 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// Drop table-of-contents entries whose heading reappears in the body, and
 /// lists of Item headings printed again after the body.
 ///
-/// Two candidates are the same heading when they share Item and title and
-/// other Items come between them. The earlier copy is a contents entry when
-/// it starts the shorter stretch of text; the later copy is a listing when a
-/// signatures heading comes between them, at or after the first body heading
-/// (contents often list "Signatures" too). In a 10-Q this matters most: a
-/// contents entry for Part I Item 2 could otherwise be taken as Part I and the
-/// body heading as Part II. Entries just before a dropped contents entry
-/// belong to the same contents block and go too (an Item listed in the
-/// contents whose body has no heading). Body headings stay: an entry goes only
-/// when the candidate before it is a contents entry too, or when it comes
-/// before the first body heading that a contents entry names and no Item
+/// Two candidates are the same heading when they share Item and title and other
+/// Items come between them. The earlier copy is a contents entry when it starts
+/// the shorter stretch of text. With no other Item between them, it is one when
+/// a signatures line follows it and the later copy follows that line closely,
+/// before the signatures (a list of one Item and "SIGNATURES"). The later copy
+/// is a listing when a signatures heading comes between them, at or after the
+/// first body heading (contents often list "Signatures" too). In a 10-Q this
+/// matters most: a contents entry for Part I Item 2 could otherwise be taken as
+/// Part I and the body heading as Part II. Entries just before a dropped
+/// contents entry belong to the same contents block and go too (an Item listed
+/// in the contents whose body has no heading). Body headings stay: an entry
+/// goes only when the candidate before it is a contents entry too, or when it
+/// comes before the first body heading that a contents entry names and no Item
 /// earlier in the form's order with text of its own comes before it. It never
 /// goes when it is the later copy of a heading printed twice. Short entries
 /// just after a dropped listing entry go with it. The body headings of dropped
@@ -1011,6 +1015,20 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
                 paired[b] = true;
                 break;
             }
+        }
+    }
+    // A list of one Item and a signatures line, which an 8-K's cover can
+    // print, has no other Item between its entry and the body heading.
+    for a in 1..n {
+        let (entry, heading) = (&cands[a - 1], &cands[a]);
+        if heading.label == entry.label
+            && same_title(&entry.title, &heading.title)
+            && heading.pos - entry.pos <= SAME_BLOCK
+            && lists_signatures(text, entry.pos, heading.pos)
+        {
+            contents[a - 1] = true;
+            body[a] = true;
+            paired[a] = true;
         }
     }
     // A body heading is never a contents entry or reached by the spread below
@@ -1158,6 +1176,20 @@ fn signatures_after(text: &str, from: usize) -> Option<usize> {
         .first()
         .map(|&p| from + p)
         .or_else(|| SIGNATURE_BLOCK.find_at(text, from).map(|m| m.start()))
+}
+
+/// Whether the Item line at `entry` and the heading of the same Item at
+/// `heading` are a list's entry and the body heading it names, with
+/// "SIGNATURES" as the list's last entry: the line after the entry is a
+/// signatures heading, no signature block sentence comes before the heading,
+/// and the signatures come after it. Signatures between an Item's body
+/// heading and an exhibit that repeats it are followed by that sentence.
+fn lists_signatures(text: &str, entry: usize, heading: usize) -> bool {
+    let after_entry = text[entry..heading].find('\n').map_or(heading, |i| entry + i + 1);
+    let next = text[after_entry..heading].lines().find(|l| !l.trim().is_empty()).unwrap_or("");
+    SIGNATURES.is_match(next)
+        && !SIGNATURE_BLOCK.is_match(&text[after_entry..heading])
+        && signatures_after(text, heading + 1).is_some()
 }
 
 /// Start of the first line in a section, after its heading line, that `re`
@@ -1788,6 +1820,60 @@ mod tests {
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_1", "item_2", "item_3"]);
         assert!(s[0].text.starts_with("Item 1. Business\nLorem"));
+    }
+
+    #[test]
+    fn one_item_list_that_ends_with_signatures_is_a_contents_list() {
+        // An 8-K's cover lists its one Item and "SIGNATURES" (also with more
+        // entries after it), and the body heading follows.
+        let body = BODY.repeat(10);
+        for list_end in ["SIGNATURES\n", "Signature\n", "SIGNATURES\nEXHIBIT INDEX\nEXHIBIT 99.1\n"] {
+            let text = format!(
+                "FORM 8-K\nItem 7.01 Regulation FD Disclosure\n{list_end}Item 7.01 Regulation FD Disclosure.\n{body}\n\
+                 SIGNATURES\nPursuant to the requirements of the Securities Exchange Act of 1934, the registrant has \
+                 duly caused this report to be signed.\n"
+            );
+            let s = extract_sections(&text, FormKind::EightK);
+            assert_eq!(ids(&s), ["item_7.01"], "{list_end:?}");
+            assert_eq!(s[0].text, format!("Item 7.01 Regulation FD Disclosure.\n{}", body.trim()), "{list_end:?}");
+        }
+    }
+
+    #[test]
+    fn item_heading_just_before_the_signatures_stays() {
+        let body = BODY.repeat(10);
+        let item_9_01 = |signatures: &str, exhibit: &str| {
+            format!(
+                "Item 8.01 Other Events.\n{body}\nItem 9.01 Financial Statements and Exhibits.\n{signatures}\
+                 EXHIBIT 99.1\n{exhibit}Item 9.01 Financial Statements and Exhibits.\n{body}\n"
+            )
+        };
+        let sentence = "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly \
+                        caused this report to be signed.\n";
+        // The line after the Item is the report's signatures heading, and an
+        // exhibit repeats the Item's heading: the signature block's sentence
+        // comes between them; or, wrapped where the sentence test cannot read
+        // it, no signatures follow the exhibit's copy; or the copy comes long
+        // after.
+        let wrapped = "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has\n\
+                       duly caused this report to be signed.\n";
+        for text in [
+            item_9_01(&format!("SIGNATURES\n{sentence}"), "") + "SIGNATURES\n",
+            item_9_01(&format!("SIGNATURES\n{wrapped}"), ""),
+            item_9_01(&format!("SIGNATURES\n{wrapped}"), &format!("{}\n", BODY.repeat(30))) + "SIGNATURES\n",
+        ] {
+            let s = extract_sections(&text, FormKind::EightK);
+            assert_eq!(ids(&s), ["item_8.01", "item_9.01"], "{text}");
+            assert_eq!(s[1].text, "Item 9.01 Financial Statements and Exhibits.", "{text}");
+        }
+        // Text between the Item line and the heading of the same Item.
+        let text = format!(
+            "Item 7.01 Regulation FD Disclosure.\nThe Company presents at a conference.\n\
+             Item 7.01 Regulation FD Disclosure (continued)\n{body}\nSIGNATURES\n{sentence}"
+        );
+        let s = extract_sections(&text, FormKind::EightK);
+        assert_eq!(ids(&s), ["item_7.01"]);
+        assert_eq!(s[0].heading, "Item 7.01 Regulation FD Disclosure.");
     }
 
     #[test]
