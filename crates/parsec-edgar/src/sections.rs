@@ -24,14 +24,15 @@
 //!
 //! A titled sub-item with the standard title of a lettered Item the form
 //! defines is that Item ("Item 8(A)T. Controls and Procedures" in a 10-KSB,
-//! "ITEM 9(A). CONTROLS AND PROCEDURES" in a 10-K). A title may start with a
-//! form's name ("ITEM 16. 10-K SUMMARY"). Lettered headings of Items the form
-//! does not define stay out of the chain. When the chain has no Item of their
-//! number, the first one printed where that Item belongs starts it ("Item 5A"
-//! and "Item 5B" print Item 5); in a 10-Q a `PART` line or the title picks
-//! the part. Otherwise, in a 10-K or 10-KSB, a titled one ends the Item
-//! before it. The executive officers section of a 10-K or 10-KSB, numbered
-//! "Item 4A" or "Item 4(a)", never starts an Item.
+//! "ITEM 9(A). CONTROLS AND PROCEDURES" in a 10-K), also with the title on
+//! the next line ("ITEM 9(A)." then "CONTROLS AND PROCEDURES"). A title may
+//! start with a form's name ("ITEM 16. 10-K SUMMARY"). Lettered headings of
+//! Items the form does not define stay out of the chain. When the chain has
+//! no Item of their number, the first one printed where that Item belongs
+//! starts it ("Item 5A" and "Item 5B" print Item 5); in a 10-Q a `PART` line
+//! or the title picks the part. Otherwise, in a 10-K or 10-KSB, a titled one
+//! ends the Item before it. The executive officers section of a 10-K or
+//! 10-KSB, numbered "Item 4A" or "Item 4(a)", never starts an Item.
 //!
 //! Some annual report text has no Item heading of its own and belongs to no
 //! Item: financial statements printed with no Item 8 heading or after Item 9
@@ -515,26 +516,36 @@ fn officers_sub_item<'a>(label: &str, tail: &'a str, keys: &[Key]) -> (String, &
 /// PROCEDURES` in a 10-K: a titled sub-item whose title is the standard title
 /// of the lettered Item the form defines (`8A`, `9A`) is that Item. A `T`
 /// after the letter (`8(A)T`, `9(A)(T)`, from the temporary Items of 2007 to
-/// 2009) does not change that. Other titled sub-items keep their Item's
-/// number: `ITEM 1(a). GENERAL DEVELOPMENT OF BUSINESS` is not Item 1A, Risk
-/// Factors.
-fn lettered_sub_item<'a>(label: &str, tail: &'a str, keys: &[Key]) -> (String, &'a str) {
+/// 2009) does not change that, and neither does a title printed on the next
+/// line (`ITEM 9(A).` then `CONTROLS AND PROCEDURES`), in which case the
+/// returned title is empty and the caller reads the title from that line.
+/// Other titled sub-items keep their Item's number: `ITEM 1(a). GENERAL
+/// DEVELOPMENT OF BUSINESS` is not Item 1A, Risk Factors. Returns the
+/// lettered Item's number and title, or `None` when the heading is no such
+/// Item; `end` is the end of the heading line in `text`.
+fn lettered_sub_item<'a>(
+    label: &str,
+    tail: &'a str,
+    text: &str,
+    end: usize,
+    keys: &[Key],
+) -> Option<(String, &'a str)> {
     let b = tail.as_bytes();
-    if label.bytes().all(|d| d.is_ascii_digit())
-        && b.len() > 3
+    let sub_item = label.bytes().all(|d| d.is_ascii_digit())
+        && b.len() >= 3
         && b[0] == b'('
         && b[1].is_ascii_alphabetic()
-        && b[2] == b')'
-    {
-        let lettered = format!("{label}{}", b[1].to_ascii_uppercase() as char);
-        let rest = &tail[3..];
-        let rest = ["(T)", "(t)", "T"].iter().find_map(|t| rest.strip_prefix(t)).unwrap_or(rest);
-        let title = rest.trim_start_matches([' ', '\t', '.', ':', '-', '–', '—']);
-        if keys.iter().any(|k| k.item == lettered && same_title(&title_key(title), &title_key(k.title))) {
-            return (lettered, title);
-        }
+        && b[2] == b')';
+    if !sub_item {
+        return None;
     }
-    (label.to_owned(), tail)
+    let lettered = format!("{label}{}", b[1].to_ascii_uppercase() as char);
+    let rest = &tail[3..];
+    let rest = ["(T)", "(t)", "T"].iter().find_map(|t| rest.strip_prefix(t)).unwrap_or(rest);
+    let title = rest.trim_start_matches([' ', '\t', '.', ':', '-', '–', '—']);
+    let printed = if title.trim().is_empty() { next_line_title(text, end) } else { title };
+    let standard = keys.iter().any(|k| k.item == lettered && same_title(&title_key(printed), &title_key(k.title)));
+    standard.then_some((lettered, title))
 }
 
 fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
@@ -542,9 +553,14 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     let re = if kind == FormKind::EightK { &*CURRENT_HEADING } else { &*PERIODIC_HEADING };
     let mut cands: Vec<Candidate> = re
         .captures_iter(text)
-        .filter(|c| heading_tail_ok(after_dashes(&c[2])))
         .filter_map(|c| {
             let m = c.get(0).expect("group 0 always matches");
+            // A bare sub-item ("Item 9(a).") is a heading only as a lettered
+            // Item whose title is on the next line.
+            let tail_ok = heading_tail_ok(after_dashes(&c[2]));
+            if !tail_ok && (kind == FormKind::EightK || !c[2].starts_with('(')) {
+                return None;
+            }
             if continues_sentence(text, m.start()) {
                 return None;
             }
@@ -555,7 +571,11 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                 (label, tail.as_str())
             } else {
                 let (label, tail) = split_letter(&label, &text[number.end()..tail.start()], tail.as_str());
-                let (label, tail) = lettered_sub_item(&label, tail, keys);
+                let lettered = lettered_sub_item(&label, tail, text, m.end(), keys);
+                if !tail_ok && lettered.is_none() {
+                    return None;
+                }
+                let (label, tail) = lettered.unwrap_or((label, tail));
                 if kind.annual() { officers_sub_item(&label, tail, keys) } else { (label, tail) }
             };
             let bare = !tail.chars().any(char::is_alphabetic);
@@ -3364,5 +3384,39 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_15"]);
+    }
+
+    #[test]
+    fn lettered_sub_item_with_its_title_on_the_next_line() {
+        // "ITEM 9(A)." with Item 9A's standard title on the line below is
+        // Item 9A, as it is with the title on its own line.
+        let body = BODY.repeat(30);
+        let frame = |heading: &str| {
+            format!(
+                "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n{heading}\n{body}\n\
+                 Report of Independent Registered Public Accounting Firm\n{body}\nITEM 9B. OTHER INFORMATION\nNone.\n"
+            )
+        };
+        for heading in [
+            "ITEM 9(A).\nCONTROLS AND PROCEDURES",
+            "Item 9(a).\n\nControls and Procedures",
+            "ITEM 9(A)T\nCONTROLS AND PROCEDURES",
+        ] {
+            let text = frame(heading);
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_9", "item_9a", "item_9b"], "{heading}");
+            assert_eq!(s[0].text, "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.", "{heading}");
+            assert_eq!(s[1].end, text.find("ITEM 9B.").unwrap(), "{heading}");
+        }
+        // Another title below, a sub-item reference, or running text keep the
+        // line inside Item 9.
+        for heading in [
+            "ITEM 9(A).\nDISCLOSURE CONTROLS AND PROCEDURES",
+            "Item 9(a)(1)\nControls and Procedures",
+            "Item 9(a).\nThe Company's controls and procedures are described below.",
+        ] {
+            let s = extract_sections(&frame(heading), FormKind::TenK);
+            assert_eq!(ids(&s), ["item_9", "item_9b"], "{heading}");
+        }
     }
 }
