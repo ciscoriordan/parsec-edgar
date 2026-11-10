@@ -16,26 +16,32 @@
 //! are dropped, and so is a bare page header ("Item 7") just above its titled
 //! heading. A list of one Item and "SIGNATURES", which an 8-K's cover can
 //! print just above the body, is such a contents list too. So are rows that end
-//! with a page column among other Item lines (another Item's line follows
-//! closely, or the line above, a Part's line aside, ends with pages too): a
-//! page, a range of pages or a list of them ("Item 3. Quantitative and
-//! Qualitative Disclosures About Market Risk   10 - 11", "Item 1. Business
-//! 3-30, 64"). The Item line just before a row that names an earlier Item, and
-//! the one just after it that names a later Item and is followed closely by
-//! another Item's line, are rows too when their entries (the line and the
-//! wrapped title or the pages listed under it) end with a page column, as in a
-//! contents list; there the column may also say "cover", "N/A", "Not
-//! applicable", "None" or "*". Rows go also when the body prints no heading for
-//! them, and are never taken for a body heading. An Item line just after a row
-//! that names a later Item is a contents entry when its heading is printed
-//! again before any other Item heading: the last row of a cross-reference
-//! index, which prints no page, in a 10-K whose body prints no other Item
-//! heading. A heading printed with a footnote's number ("Item
-//! 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed by its
-//! text, and one followed by a running header of its own Item that prints the
-//! page, or by an index of Items after the body, is no such row. Item lines
-//! above a contents list that the list repeats, as a 10-Q/A's explanatory
-//! note prints the Items it amends, go with the list, with pages or without.
+//! with a page column among other rows (another Item's line follows closely,
+//! or the line above, a Part's line aside, or the next line ends with pages
+//! too, as "Signatures<TAB>5" does): a page, a range of pages or a list of
+//! them ("Item 3. Quantitative and Qualitative Disclosures About Market Risk
+//! 10 - 11", "Item 1. Business   3-30, 64"). The Item line just before a row
+//! that names an earlier Item, and the one just after it that names a later
+//! Item and is followed closely by another Item's line, are rows too when
+//! their entries (the line and the wrapped title or the pages listed under it)
+//! end with a page column, as in a contents list; there the column may also say
+//! "cover", "N/A", "Not applicable", "None" or "*", when at least two rows of
+//! the run print pages. Rows go also when the body prints no heading for them,
+//! and are never taken for a body heading. An Item line just after a row that
+//! names a later Item, or one that prints a page before the body with no other
+//! row next to it (the only row of an amendment's contents), is a contents
+//! entry when its heading is printed again, with its title in full, before any
+//! other Item heading: the last row of a cross-reference index, which prints
+//! no page, in a 10-K whose body prints no other Item heading. A running
+//! header that shortens the title or adds "(Continued)" is no such heading. A
+//! heading printed with a footnote's number ("Item 7.<TAB>Management's
+//! Discussion and Analysis ...<TAB>1") is followed by its text, and one
+//! followed by a running header of its own Item that prints the page, or by
+//! an index of Items after the body, is no such row; that running header
+//! ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   25") is one.
+//! Item lines above a contents list that the list repeats, as a 10-Q/A's
+//! explanatory note prints the Items it amends, go with the list, with pages
+//! or without.
 //! A copy printed after the signature block's sentence ("Pursuant to the
 //! requirements of ... duly caused"), such as an exhibit's, is no body
 //! heading: it goes, and the copy before the signatures stays when an Item
@@ -1699,7 +1705,11 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// closely, before the signatures (a list of one Item and "SIGNATURES"), or
 /// when it comes just after a page-numbered row and names a later Item (the
 /// last row of a cross-reference index, which prints no page, in a 10-K whose
-/// body prints no other Item heading). An earlier copy before the body whose
+/// body prints no other Item heading), or when it prints a page itself before
+/// the body (the only row of an amendment's contents, "Item 15.<TAB>Exhibits
+/// and Financial Statement Schedules<TAB>2"), and the later copy prints its
+/// title in full (`prints_title`), which a running header that shortens the
+/// title or adds "(continued)" does not. An earlier copy before the body whose
 /// later copy is itself a contents entry lists the Item too, as a 10-Q/A's
 /// explanatory note above a contents list without pages does. The later copy
 /// is a listing when a signatures heading comes between them, at or after the
@@ -1758,17 +1768,28 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // The last row of a cross-reference index can print no page ("Item 14.
     // Exhibits, Financial Statement Schedules, and Reports on Form 8-K"), and
     // when the body prints no other Item heading, no other Item comes between
-    // it and its body heading. An Item line just after a row, naming a later
-    // Item, is a contents entry when the heading is printed again before any
-    // other Item.
-    for a in 1..n {
-        let after_row = paged[a - 1] && cands[a].pos - cands[a - 1].pos <= SAME_BLOCK;
-        if contents[a] || !after_row || !comes_before(&cands[a - 1], &cands[a], keys) {
+    // it and its body heading. Nor does one come between the only row of an
+    // amendment's contents and its body heading. An Item line just after a
+    // row that names a later Item, or an Item line that prints a page but is
+    // no row by its neighbors and comes before the body (no Item earlier in
+    // the form's order with text of its own comes before it), is a contents
+    // entry when its heading is printed again, with its title in full, before
+    // any other Item. A body heading printed with a footnote's number comes
+    // after the body of an earlier Item.
+    for a in 0..n {
+        let after_row = a > 0
+            && paged[a - 1]
+            && cands[a].pos - cands[a - 1].pos <= SAME_BLOCK
+            && comes_before(&cands[a - 1], &cands[a], keys);
+        let lone_row = !paged[a]
+            && ROW_PAGES.is_match(line_at(text, cands[a].pos).trim_end())
+            && !follows_body_item(&cands, a, keys, SAME_BLOCK);
+        if contents[a] || !(after_row || lone_row) {
             continue;
         }
         let heading = (a + 1..n)
             .take_while(|&b| cands[b].label == cands[a].label)
-            .find(|&b| same_title(&cands[a].title, &cands[b].title));
+            .find(|&b| !paged[b] && prints_title(&cands[a], &cands[b]));
         if let Some(b) = heading {
             contents[a] = true;
             body[b] = true;
@@ -1863,6 +1884,20 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         .collect()
 }
 
+/// Whether `b`, a later line of the same Item as `a`, prints the title of `a`
+/// in full, as the body heading of a contents row does: the words of the
+/// title of `a`, without a page column, start the title of `b` (the row's
+/// title can be cut short where it wraps, "Item 14. Exhibits, Financial
+/// Statement Schedules,"), and `b` adds no "continued", as a running header
+/// does.
+fn prints_title(a: &Candidate, b: &Candidate) -> bool {
+    let printed = ENTRY_PAGES.find(&a.printed).map_or(a.printed.as_str(), |m| &a.printed[..m.start()]);
+    let (row, heading) = (title_words(printed), title_words(&b.printed));
+    same_title(&a.title, &b.title)
+        && heading.starts_with(&row)
+        && !heading[row.len()..].iter().any(|w| matches!(w.as_str(), "continued" | "cont'd" | "cont’d"))
+}
+
 /// Whether an Item earlier in the form's order than candidate `i`, with text
 /// of its own (more than `block` characters before the next Item), comes
 /// before it: then `i` is in the body, past any contents list.
@@ -1950,10 +1985,13 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 /// of pages, or a list of them (`Item 3. Quantitative and Qualitative
 /// Disclosures About Market Risk     10 - 11`, `Item 1.     Business     3-30,
 /// 64`), in a run of Item lines: a line of another Item follows it within
-/// `block` characters, or the line above it (a Part's line aside) ends with
-/// pages too, as the last row of a list does. A body heading printed with a
-/// footnote's number ("Item 7.<TAB>Management's Discussion and Analysis
-/// ...<TAB>1") is followed by its text.
+/// `block` characters, the line above it (a Part's line aside) ends with
+/// pages too, as the last row of a list does, or the next line does, as a
+/// list's row that names no Item does ("Item 9A.<TAB>Controls and
+/// Procedures<TAB>3", then "Signatures<TAB>5", the contents of an amendment
+/// of one Item). A body heading printed with a footnote's number ("Item
+/// 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed by its
+/// text.
 ///
 /// Going back from a row, the Item line before it is a row too when it is at
 /// most `block` characters before it, its entry ends with a page column, and
@@ -1967,11 +2005,19 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 /// after it, names a later Item, its entry ends with a page column, and a line
 /// of another Item follows it within `block` characters. Within such a run, a
 /// page column may also say "cover", "N/A", "Not applicable", "None" or "*"
-/// (`Security Holders     N/A`, `Matters     cover, 66, 68`). A heading
-/// followed by a running header of its own Item that prints the page ("ITEM 7.
-/// MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   5"), or by an index of
-/// Items printed after the body, which starts again at an earlier Item, is no
-/// row.
+/// (`Security Holders     N/A`, `Matters     cover, 66, 68`), when at least
+/// two rows of the run print pages: one row that prints a number in a 10-Q's
+/// table of answers ("Item 1A.<TAB>Risk Factors<TAB>28") does not make the
+/// rows around it ("Item 1.<TAB>Legal Proceedings<TAB>None") contents rows.
+/// A heading followed by a running header of its own Item that prints the
+/// page ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   5"), or
+/// by an index of Items printed after the body, which starts again at an
+/// earlier Item, is no row. That running header is a row: an Item line that
+/// prints a page after a line of its Item with the same title, which is no
+/// row, repeats that heading on a later page when it shortens the title or
+/// adds "(continued)" (`prints_title`). A body heading printed with a
+/// footnote's number after a contents list without pages prints the entry's
+/// title in full.
 fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Vec<bool> {
     let ends_with_pages = |l: &str| ROW_PAGES.is_match(l.trim_end());
     let ends_with_entry = |l: &str| ENTRY_PAGES.is_match(l.trim_end());
@@ -1983,15 +2029,23 @@ fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Ve
         let end = cands.get(i + 1).map_or(text.len(), |o| o.pos);
         last_entry_line(text, cands[i].pos, end).is_some_and(ends_with_entry)
     };
+    let own_pages = |i: usize| ends_with_pages(line_at(text, cands[i].pos));
+    // The first line after an Item's line, when it comes before the next Item
+    // line.
+    let next_line = |i: usize| {
+        let line_end = cands[i].pos + line_at(text, cands[i].pos).len();
+        let end = cands.get(i + 1).map_or(text.len(), |o| o.pos).max(line_end);
+        text[line_end..end].lines().find(|l| !l.trim().is_empty())
+    };
     let mut paged = vec![false; n];
     for i in (0..n).rev() {
         let start = cands[i].pos;
-        let line_end = text[start..].find('\n').map_or(text.len(), |e| start + e);
         let in_run = other_follows(i)
             || (i > 0
                 && close(i - 1, i)
-                && last_entry_line(text, cands[i - 1].pos, start).is_some_and(ends_with_pages));
-        let own = in_run && ends_with_pages(&text[start..line_end]);
+                && last_entry_line(text, cands[i - 1].pos, start).is_some_and(ends_with_pages))
+            || next_line(i).is_some_and(ends_with_pages);
+        let own = in_run && own_pages(i);
         let entry = i + 1 < n
             && paged[i + 1]
             && close(i, i + 1)
@@ -2005,7 +2059,43 @@ fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Ve
             paged[i] = true;
         }
     }
+    // A run of rows with fewer than two rows that print pages keeps the rows
+    // whose page column holds only words.
+    let prints_pages = |i: usize| {
+        let end = cands.get(i + 1).map_or(text.len(), |o| o.pos);
+        own_pages(i) || last_entry_line(text, cands[i].pos, end).is_some_and(ends_with_pages)
+    };
+    let mut first = 0;
+    while first < n {
+        let mut last = first;
+        while paged[first] && last + 1 < n && paged[last + 1] && close(last, last + 1) {
+            last += 1;
+        }
+        if paged[first] && (first..=last).filter(|&i| prints_pages(i)).count() < 2 {
+            for (i, row) in paged.iter_mut().enumerate().take(last + 1).skip(first) {
+                *row &= prints_pages(i);
+            }
+        }
+        first = last + 1;
+    }
+    for i in 0..n {
+        let repeats = |j: usize| {
+            cands[j].label == cands[i].label
+                && !paged[j]
+                && same_title(&cands[j].title, &cands[i].title)
+                && !prints_title(&cands[j], &cands[i])
+        };
+        if !paged[i] && own_pages(i) && (0..i).any(repeats) {
+            paged[i] = true;
+        }
+    }
     paged
+}
+
+/// The line that starts at `start`, without its line break.
+fn line_at(text: &str, start: usize) -> &str {
+    let rest = &text[start..];
+    &rest[..rest.find('\n').unwrap_or(rest.len())]
 }
 
 /// Whether `b` names another Item than `a`, one that can come after it in the
@@ -5145,7 +5235,8 @@ Pursuant to ...
         // tab or two spaces, as a contents row ends with its page, but its
         // text follows it, not the line of another Item, and the line above
         // it prints no page or is not near the previous Item line. Also when
-        // a running header of its own Item follows within the page.
+        // a running header of its own Item follows within the page, with or
+        // without a page, and after a contents list without pages.
         let body = BODY.repeat(30);
         let page = BODY.repeat(12);
         let mdna = "Item 7.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\t1";
@@ -5166,6 +5257,24 @@ Pursuant to ...
                 mdna,
                 String::new(),
             ),
+            // A running header that prints the title in full, with the page
+            // or without it.
+            (
+                "Item 6. [Reserved]\n",
+                mdna,
+                format!(
+                    "{page}\nItem 7.\tManagement's Discussion and Analysis of Financial Condition and Results of \
+                     Operations\t2\n"
+                ),
+            ),
+            (
+                "Item 6. [Reserved]\n",
+                mdna,
+                format!(
+                    "{page}\nItem 7. Management's Discussion and Analysis of Financial Condition and Results of \
+                     Operations\n"
+                ),
+            ),
         ] {
             let text = format!(
                 "Item 5. Market for Registrant's Common Equity\n{body}\n{before}{heading}\n{after}{body}\n\
@@ -5175,6 +5284,17 @@ Pursuant to ...
             assert_eq!(ids(&s), ["item_5", "item_6", "item_7", "item_8"], "{heading}");
             assert_eq!(s[2].heading, heading);
         }
+        // A contents list without pages before the body.
+        let text = format!(
+            "Item 5. Market for Registrant's Common Equity\nItem 6. [Reserved]\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             Item 8. Financial Statements and Supplementary Data\n\
+             Item 5. Market for Registrant's Common Equity\n{body}\nItem 6. [Reserved]\n{mdna}\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5", "item_6", "item_7", "item_8"]);
+        assert_eq!(s[2].heading, mdna);
     }
 
     #[test]
@@ -5354,6 +5474,139 @@ Pursuant to ...
                 "part_2_item_6"
             ]
         );
+    }
+
+    #[test]
+    fn contents_of_one_item_with_a_page_is_contents() {
+        // An amendment of one Item prints a contents list with that Item's
+        // row and a row that names no Item, such as "Signatures", or with that
+        // Item's row alone, and an explanatory note after it.
+        let body = BODY.repeat(30);
+        let note = "EXPLANATORY NOTE\nThis Amendment No. 1 is filed only to amend the Item below.\n";
+        // The row's next line prints a page too; the body's heading has
+        // another title, so only that line makes the row a row.
+        let text = format!(
+            "FORM 10-K/A\nPage\nPART II\nItem 9A.\tControls and Procedures\t3\nSignatures\t5\n{note}\
+             PART II\nItem 9A. Evaluation of Disclosure Controls\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9a"]);
+        assert!(s[0].text.starts_with("Item 9A. Evaluation of Disclosure Controls\nLorem"));
+        let text = format!(
+            "FORM 10-Q/A\nINDEX\nPART I - FINANCIAL INFORMATION\tPage\nItem 4.  Controls and Procedures\t2\n\n\
+             SIGNATURES\t3\n\n{note}PART I - FINANCIAL INFORMATION\nItem 4.  Evaluation of Disclosure Controls\n\
+             {body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_4"]);
+        assert!(s[0].text.starts_with("Item 4.  Evaluation of Disclosure Controls\nLorem"));
+        // The row alone, its title printed again by the body's heading.
+        for heading in [
+            "Item 15. Exhibits and Financial Statement Schedules",
+            "ITEM 15.  EXHIBITS AND FINANCIAL STATEMENT SCHEDULES.",
+            "ITEM 15.\nEXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+        ] {
+            let text = format!(
+                "FORM 10-K/A\nTABLE OF CONTENTS\nPage\nPART IV\n\
+                 Item 15.\tExhibits and Financial Statement Schedules\t2\n{note}PART IV\n{heading}\n{body}\n\
+                 SIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_15"], "{heading}");
+            assert!(s[0].text.starts_with(heading), "{heading}");
+        }
+    }
+
+    #[test]
+    fn one_page_number_in_a_table_of_answers_makes_no_contents_rows() {
+        // A 10-Q's Part II answers its Items in a table, and one cell holds a
+        // page number. The rows that say "None" stay headings.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             PART II - OTHER INFORMATION\n\
+             Item 1.\tLegal Proceedings\tNone\n\
+             Item 1A.\tRisk Factors\t28\n\
+             Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds\tNone\n\
+             Item 3.\tDefaults Upon Senior Securities\tNone\n\
+             Item 4.\tMine Safety Disclosures\tNot applicable\n\
+             Item 5.\tOther Information\tNone\n\
+             Item 6.\tExhibits\n31.1\tCertification of the Chief Executive Officer\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        for id in ["part_2_item_1", "part_2_item_2", "part_2_item_3", "part_2_item_4", "part_2_item_5"] {
+            assert!(ids(&s).contains(&id), "{id}");
+        }
+        // Two rows that print pages make a contents list of the rows between
+        // and around them.
+        let text = format!(
+            "PART II - OTHER INFORMATION\n\
+             Item 1.\tLegal Proceedings\tNone\n\
+             Item 1A.\tRisk Factors\t28\n\
+             Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds\tNone\n\
+             Item 6.\tExhibits\t30\n\
+             PART I\nItem 1. Financial Statements\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             PART II - OTHER INFORMATION\nItem 1A. Risk Factors\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1a", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn running_headers_of_an_item_take_no_heading_after_a_row() {
+        // Items 5 and 6 are incorporated with a table of pages in the body,
+        // and the full heading of Item 7 follows it. Its running headers
+        // shorten the title or add "(Continued)". Or a short Item's heading
+        // prints a footnote's number just before Item 7.
+        let body = BODY.repeat(30);
+        let page = BODY.repeat(40);
+        let mdna = "ITEM 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS";
+        let start = format!(
+            "PART I\nITEM 1.  BUSINESS\n{body}\nITEM 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\n\
+             None.\nPART II\n"
+        );
+        for (before, header) in [
+            (
+                "The information required by Items 5 and 6 is incorporated by reference to these pages:\n\
+                 Item 5.\tMarket for Registrant's Common Equity and Related Stockholder Matters\t37\n\
+                 Item 6.\tSelected Financial Data\t18\n",
+                "ITEM 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)",
+            ),
+            (
+                "Item 5.\tMarket for Registrant's Common Equity\t37\nItem 6.\tSelected Financial Data\t18\n",
+                &format!("{mdna} (Continued)"),
+            ),
+            ("Item 6.  [Reserved]  1\n", "Item 7.  Management's Discussion and Analysis (continued)"),
+        ] {
+            let text = format!(
+                "{start}{before}{mdna}\n{page}\n{header}\n{body}\n\
+                 ITEM 8.  FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            let item_7 = s.iter().find(|s| s.id == "item_7").expect("Item 7");
+            assert_eq!(item_7.heading, mdna, "{header}");
+            assert_eq!(&ids(&s)[..2], ["item_1", "item_4"], "{header}");
+        }
+    }
+
+    #[test]
+    fn running_header_that_prints_the_page_is_no_body_heading() {
+        // MD&A prints a line of Item 1A just after its heading, and its pages
+        // start with a running header that prints the page.
+        let body = BODY.repeat(30);
+        let page = BODY.repeat(30);
+        let mdna = "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS";
+        let text = format!(
+            "PART I\nITEM 1. BUSINESS\n{body}\nITEM 1A. RISK FACTORS\n{body}\nPART II\n{mdna}\n\
+             Our results depend on the risks that the annual report describes.\nItem 1A. Risk Factors\n{page}\n\
+             ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)    25\n{page}\n\
+             ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)    26\n{page}\n\
+             ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_7", "item_8"]);
+        assert_eq!(s[2].heading, mdna);
+        assert_eq!(s[1].end, s[2].start);
     }
 
     #[test]
