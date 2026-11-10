@@ -50,9 +50,11 @@
 //! the report on internal control (10-K Item 9A, 10-KSB Item 8A), and the
 //! statements and exhibit index of the exhibits Item (10-K Item 15, 10-KSB
 //! Item 13). The exhibits Item ends only where it prints statements whose
-//! pages are numbered apart from the report's (F-1, F-2, ...) after its own
-//! text: an index with such page numbers, then at least two of the statements
-//! it lists, and no exhibit index after them.
+//! pages are numbered apart from the report's (F-1, F-2, ...) after all of
+//! its own text: an index with such page numbers, then at least two of the
+//! statements it lists, and none of the Item's own text after them (an
+//! exhibit index, an exhibit list's caption or table header, or a caption
+//! such as "(b) Reports on Form 8-K").
 
 use std::sync::LazyLock;
 
@@ -369,6 +371,18 @@ static STATEMENTS_INDEX_HEADING: LazyLock<Regex> =
 /// An exhibit index at the start of a line.
 static EXHIBITS_INDEX_HEADING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(&format!(r"(?im)^[ \t]*(?:{EXHIBITS_INDEX})")).unwrap());
+
+/// A caption of one of the exhibits Item's own parts, on a trimmed line:
+/// `(a)(3) Exhibits:`, `3. Exhibits`, `(a)(2) Financial Statement Schedules`,
+/// `(b) Reports on Form 8-K`, numbered like that, or the lines `Exhibits`
+/// and `LIST OF EXHIBITS`, or an exhibit table's header (`Exhibit No.`,
+/// `Exhibit Number`).
+static EXHIBITS_ITEM_PART: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)^(?:(?:\([a-z]\)|\(\d{1,2}\)|\d{1,2}\.)[ \t]*)+(?:(?:list[ \t]+of[ \t]+)?exhibits\b|financial[ \t]+statement[ \t]+schedules?\b|reports?[ \t]+on[ \t]+form[ \t]+8-?k\b)|^(?:list[ \t]+of[ \t]+)?exhibits[ \t]*:?$|^exhibit[ \t]+(?:no\b|number\b)",
+    )
+    .unwrap()
+});
 
 /// A glossary's heading line: `GLOSSARY`, `Glossary of Terms and Acronyms`.
 static GLOSSARY: LazyLock<Regex> = LazyLock::new(|| {
@@ -1022,9 +1036,12 @@ fn heading_start(re: &Regex, text: &str, start: usize, end: usize) -> Option<usi
 /// two of its entries. The Item ends at the index when its heading ("Index to
 /// Financial Statements") opens it and the first statement follows its last
 /// entry, as on a page F-1, and otherwise at the first statement, so an index
-/// printed as the Item's list of statements stays in the Item. An exhibit
-/// index after the statements keeps them in the Item, which then prints them
-/// between its text and its exhibit index.
+/// printed as the Item's list of statements stays in the Item. The Item's own
+/// text after the statements keeps them in the Item, which then prints them
+/// in its middle: an exhibit index, an exhibit list's caption ("(a)(3)
+/// Exhibits:", "3. Exhibits", "LIST OF EXHIBITS") or table header ("Exhibit
+/// No."), or the caption of another of its parts ("(b) Reports on Form 8-K",
+/// "2. Financial Statement Schedules").
 fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     const MIN_ENTRIES: usize = 3;
     // Other lines allowed between two entries, or between an index and its
@@ -1070,7 +1087,14 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     printed.sort_unstable();
     printed.dedup();
     let &statements = printed.first()?;
-    if printed.len() < 2 || heading_start(&EXHIBITS_INDEX_HEADING, text, lines[statements].0, end).is_some() {
+    // The Item's own text after the statements keeps them in the Item, which
+    // then prints them in its middle: its exhibit index, its exhibit list's
+    // caption or header, or the caption of another of its parts.
+    let own_text_after = lines[statements + 1..].iter().any(|&(_, line)| {
+        EXHIBITS_ITEM_PART.is_match(line)
+            || (line.starts_with(char::is_uppercase) && EXHIBITS_INDEX_HEADING.is_match(line))
+    });
+    if printed.len() < 2 || own_text_after {
         return None;
     }
     let opens =
@@ -1255,7 +1279,8 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     // found: the statements after it are then Item 8's text without its
     // heading. A 10-KSB's statements (Item 7) follow MD&A (Item 6), which
     // keeps them like 10-K Item 7 does. The exhibits Item keeps its block
-    // headings but not statements with pages of their own numbering.
+    // headings but not statements with pages of their own numbering printed
+    // after all of its own text.
     let no_item_8 = !picks.iter().any(|&(_, k)| keys[k].item == "8");
     // The exhibits Item: 10-K Item 15, 10-KSB Item 13, or an Item printed
     // with a title that names the exhibits or the financial statements but
@@ -3418,5 +3443,48 @@ mod tests {
             let s = extract_sections(&frame(heading), FormKind::TenK);
             assert_eq!(ids(&s), ["item_9", "item_9b"], "{heading}");
         }
+    }
+
+    #[test]
+    fn statements_in_the_middle_of_the_exhibits_item_stay_in_it() {
+        // The exhibits Item prints its list of the statements, then the
+        // statements with pages of their own, then more of its own text: the
+        // schedules, its exhibit list under a caption or a table header, or
+        // its reports on Form 8-K. The statements stay in the Item.
+        let body = BODY.repeat(30);
+        let index = "INDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n\
+                     Report of Independent Registered Public Accounting Firm\tF-2\nConsolidated Balance Sheets\tF-3\n\
+                     Consolidated Statements of Operations\tF-4\nNotes to Consolidated Financial Statements\tF-5\n";
+        let printed = format!(
+            "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\nCONSOLIDATED BALANCE SHEETS\n{body}\n\
+             CONSOLIDATED STATEMENTS OF OPERATIONS\n{body}\nNOTES TO CONSOLIDATED FINANCIAL STATEMENTS\n\
+             1. Summary of Significant Accounting Policies\n(a) Basis of presentation\n{body}\n"
+        );
+        let frame = |after: &str| {
+            format!(
+                "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\n\
+                 ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n(a) 1. Financial Statements\n\
+                 {index}{printed}{after}SIGNATURES\n"
+            )
+        };
+        for after in [
+            "2. Financial Statement Schedules\nSchedules are omitted because they are not applicable.\n",
+            "3. Exhibits\nThe following exhibits are filed with this report:\n10.1\tCredit Agreement\n",
+            "(a)(3)  Exhibits:\n        10.1   Credit Agreement\n",
+            "(b) Reports on Form 8-K. None.\n",
+            "LIST OF EXHIBITS\n10.1\tCredit Agreement\n",
+            "Exhibits:\n10.1\tCredit Agreement\n",
+            "Exhibit No.\tDescription\n10.1\tCredit Agreement\n",
+        ] {
+            let text = frame(after);
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_14", "item_15"], "{after}");
+            assert_eq!(s[1].end, text.find("SIGNATURES").unwrap(), "{after}");
+        }
+        // Numbered notes and their lettered paragraphs are the statements'
+        // own text, so the statements still end the Item, at their index.
+        let text = frame("2. Inventories\n(b) Use of estimates\nExhibit 10.1 to the credit agreement sets the rate.\n");
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[1].end, text.find("INDEX TO CONSOLIDATED").unwrap());
     }
 }
