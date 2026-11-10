@@ -1,0 +1,102 @@
+{
+  "accession": "0000350644-98-000002",
+  "cik": 350644,
+  "company": "SCIENCE DYNAMICS CORP",
+  "form": "10KSB",
+  "filing_date": "1998-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/350644/000035064498000002/0000350644-98-000002.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "Form 10-KSB. The financial statements follow the signatures, with Item headings of their own ('Item 1. Financial Statements:'), and are in no Item.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. DESCRIPTION OF BUSINESS",
+      "occurrence": 0,
+      "next": "GENERAL OVERVIEW"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. DESCRIPTION OF PROPERTY",
+      "occurrence": 0,
+      "next": "The Company has leased for ten years com"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The Company is not now a party to any li"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "No matter was submitted, during the Four"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR THE COMMON EQUITY AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The Registrant's Common Stock is traded "
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND",
+      "occurrence": 0,
+      "next": "RESULTS OF OPERATIONS"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.  FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "The Financial Statements are listed at \"",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 0,
+      "next": "FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. DIRECTORS, EXECUTIVE OFFICERS, PROMOTERS AND CONTROL PERSONS;",
+      "occurrence": 0,
+      "next": "COMPLIANCE WITH SECTION 16(a) OF THE EXC"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. MANAGEMENT REMUNERATION AND TRANSACTIONS",
+      "occurrence": 0,
+      "next": "EXECUTIVE COMPENSATION"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM  11. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "The following table sets forth certain i"
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "During 1995 there were three transaction"
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. EXHIBITS AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a) The following documents are filed as"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with Section 13 or 15(d) o"
+  }
+}

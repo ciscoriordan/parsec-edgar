@@ -31,8 +31,10 @@ ITEM_KEY = re.compile(r"^(part_[12]_)?item_[0-9a-z.]+$", re.IGNORECASE)
 
 
 def base_form(form: str) -> str:
+    """10-K, 10-Q or 8-K for a form and its variants, also as EDGAR spells
+    some of them without the hyphen (10KSB, 10QSB)."""
     for f in ("10-K", "10-Q", "8-K"):
-        if form.startswith(f):
+        if form.startswith(f) or form.startswith(f.replace("-", "")):
             return f
     return form
 

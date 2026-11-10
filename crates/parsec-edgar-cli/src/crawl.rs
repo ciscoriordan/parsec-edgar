@@ -409,7 +409,7 @@ struct Split {
     sections: Vec<Section>,
     /// The form has no Item sections, or none was found: the text is the content.
     with_text: bool,
-    /// A 10-K, 10-Q or 8-K in which no Item section was found.
+    /// A form with Items (10-K, 10-Q, 8-K, 10-KSB or 10-QSB) in which no Item section was found.
     no_sections_found: bool,
 }
 

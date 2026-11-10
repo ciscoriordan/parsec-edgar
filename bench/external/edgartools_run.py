@@ -99,7 +99,9 @@ def main() -> None:
         acc = entry["accession"]
         start = time.perf_counter()
         try:
-            sections = run_one(raw / entry["full_submission"], entry["form"])
+            # EDGAR spells some forms without the hyphen: a 10KSB is read as a 10-K.
+            form = re.sub(r"^(10)(K|Q)", r"\1-\2", entry["form"])
+            sections = run_one(raw / entry["full_submission"], form)
             error = None
         except Exception as e:  # a crash is scored as no output
             sections, error = {}, f"{type(e).__name__}: {e}"

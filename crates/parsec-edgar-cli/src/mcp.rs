@@ -4,7 +4,8 @@
 //! agent can read an outline first and then only the sections it needs.
 
 use std::borrow::Cow;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -28,12 +29,18 @@ use crate::find_section;
 const DEFAULT_MAX_CHARS: usize = 20_000;
 const MAX_MAX_CHARS: usize = 100_000;
 const MIN_MAX_CHARS: usize = 200;
+/// read_tables needs more room than the text tools: the smallest part of a
+/// row also carries the grid column and span of its cells.
+const MIN_TABLE_CHARS: usize = 300;
 const DEFAULT_FILINGS: usize = 20;
 const MAX_FILINGS: usize = 200;
 const DEFAULT_HITS: usize = 20;
 const MAX_COMPANY_MATCHES: usize = 10;
 /// Parsed filings kept in memory, so paging through one filing parses it once.
 const DOC_CACHE_SIZE: usize = 6;
+/// Filings kept in memory by accession, and separately latest-filing lookups.
+/// Each entry is small, so there can be many more of them than documents.
+const FILING_CACHE_SIZE: usize = 1_000;
 /// How long "latest 10-K of X" stays resolved to one filing.
 const LATEST_TTL: Duration = Duration::from_secs(600);
 /// Longest line shown as the text just above a table.
@@ -203,35 +210,93 @@ struct Doc {
 /// Accession number, and the file name of an attachment or "" for the primary document.
 type DocKey = (String, String);
 
+/// What a running server keeps in memory. Each map is bounded, by a size limit
+/// or, for loads, by the calls in progress, so a long-running server does not
+/// keep growing.
 #[derive(Default)]
 struct Cache {
     /// (company, accession) to filing. Filings never change.
-    by_accession: HashMap<(String, String), Filing>,
+    by_accession: Lru<(String, String), Filing, FILING_CACHE_SIZE>,
     /// (company, form) to the latest filing, with the time it was looked up.
-    latest: HashMap<(String, String), (Instant, Filing)>,
-    /// Parsed documents, most recently used last.
-    docs: VecDeque<(DocKey, Arc<Doc>)>,
+    latest: Lru<(String, String), (Instant, Filing), FILING_CACHE_SIZE>,
+    /// Parsed documents.
+    docs: Lru<DocKey, Arc<Doc>, DOC_CACHE_SIZE>,
     /// Documents being loaded, so concurrent calls share one download and parse.
-    loading: HashMap<DocKey, Arc<OnceCell<Arc<Doc>>>>,
+    loading: HashMap<DocKey, Loading>,
 }
 
+/// A document being loaded. The entry goes when the load finishes, so that a
+/// call made after a failed load tries again, or when every call waiting for
+/// it is cancelled.
+#[derive(Default)]
+struct Loading {
+    /// Calls waiting for the outcome.
+    waiting: usize,
+    /// The document, or the error, that every call waiting for it gets.
+    outcome: Arc<LoadOutcome>,
+}
+
+type LoadOutcome = OnceCell<Result<Arc<Doc>, String>>;
+
 impl Cache {
-    /// A parsed document, which becomes the most recently used.
-    fn get_doc(&mut self, key: &DocKey) -> Option<Arc<Doc>> {
-        let i = self.docs.iter().position(|(k, _)| k == key)?;
-        let entry = self.docs.remove(i)?;
-        let doc = entry.1.clone();
-        self.docs.push_back(entry);
-        Some(doc)
+    /// Drop the entry of the load that `outcome` belongs to. A finished load's
+    /// entry may already have been replaced by a later load's, which stays.
+    fn end_load(&mut self, key: &DocKey, outcome: &Arc<LoadOutcome>) {
+        if self.loading.get(key).is_some_and(|loading| Arc::ptr_eq(&loading.outcome, outcome)) {
+            self.loading.remove(key);
+        }
     }
 
-    /// Keep a parsed document, dropping the least recently used beyond DOC_CACHE_SIZE.
-    fn put_doc(&mut self, key: DocKey, doc: Arc<Doc>) {
-        self.docs.retain(|(k, _)| *k != key);
-        self.docs.push_back((key, doc));
-        while self.docs.len() > DOC_CACHE_SIZE {
-            self.docs.pop_front();
+    /// The latest filing for `key` if it was looked up less than LATEST_TTL
+    /// before `now`. An older entry is dropped.
+    fn fresh_latest(&mut self, key: &(String, String), now: Instant) -> Option<Filing> {
+        if let Some((at, filing)) = self.latest.get(key)
+            && now.saturating_duration_since(*at) < LATEST_TTL
+        {
+            return Some(filing.clone());
         }
+        self.latest.remove(key);
+        None
+    }
+}
+
+/// A map that keeps at most `CAP` entries, dropping the least recently used.
+struct Lru<K, V, const CAP: usize> {
+    /// Each value with the clock reading of its last use.
+    entries: HashMap<K, (u64, V)>,
+    /// Counts lookups and inserts.
+    clock: u64,
+}
+
+impl<K, V, const CAP: usize> Default for Lru<K, V, CAP> {
+    fn default() -> Self {
+        Self { entries: HashMap::new(), clock: 0 }
+    }
+}
+
+impl<K: Eq + Hash + Clone, V, const CAP: usize> Lru<K, V, CAP> {
+    /// The value under `key`, which becomes the most recently used.
+    fn get(&mut self, key: &K) -> Option<&V> {
+        self.clock += 1;
+        let entry = self.entries.get_mut(key)?;
+        entry.0 = self.clock;
+        Some(&entry.1)
+    }
+
+    /// Keep `value` under `key`, replacing any value there, and drop the least
+    /// recently used entry beyond CAP.
+    fn put(&mut self, key: K, value: V) {
+        self.clock += 1;
+        self.entries.insert(key, (self.clock, value));
+        if self.entries.len() > CAP
+            && let Some(oldest) = self.entries.iter().min_by_key(|(_, (used, _))| *used).map(|(k, _)| k.clone())
+        {
+            self.entries.remove(&oldest);
+        }
+    }
+
+    fn remove(&mut self, key: &K) {
+        self.entries.remove(key);
     }
 }
 
@@ -440,13 +505,13 @@ impl EdgarServer {
 
     #[tool(
         description = "Outline of one filing without its text: filing metadata, the total character count, the \
-            number of tables and, for 10-K, 10-Q and 8-K (and amendments), the Item sections with ids, titles, \
-            character counts and table counts. Tables in no Item section, such as financial statements printed \
-            after the last Item, are counted in tables_outside_items, each run with first_index, the index to \
-            pass to read_tables as offset. Call this first, then read only the sections you need with \
-            read_section, or their tables with read_tables. Identify the filing by company plus accession, or \
-            company plus form for the latest filing of that form (default 10-K). For an exhibit hit from \
-            search_full_text, also pass its document.",
+            number of tables and, for a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB (or an amendment), the Item sections \
+            with ids, titles, character counts and table counts. Tables in no Item section, such as financial \
+            statements printed after the last Item, are counted in tables_outside_items, each run with \
+            first_index, the index to pass to read_tables as offset. Call this first, then read only the sections \
+            you need with read_section, or their tables with read_tables. Identify the filing by company plus \
+            accession, or company plus form for the latest filing of that form (default 10-K). For an exhibit hit \
+            from search_full_text, also pass its document.",
         annotations(title = "Filing outline", read_only_hint = true, open_world_hint = true)
     )]
     async fn get_filing_outline(&self, Parameters(p): Parameters<FilingParams>) -> Result<String, String> {
@@ -471,7 +536,8 @@ impl EdgarServer {
             ),
             (None, Some(_)) => "no Item headings were found in this filing; use read_filing_text".to_owned(),
             (None, None) => format!(
-                "Item sections are extracted for 10-K, 10-Q and 8-K only, not {}; use read_filing_text",
+                "Item sections are extracted only for a {} (or an amendment), not {}; use read_filing_text",
+                FormKind::FORMS,
                 filing.form
             ),
         };
@@ -505,11 +571,12 @@ impl EdgarServer {
     }
 
     #[tool(
-        description = "Read one Item section of a 10-K, 10-Q or 8-K as clean text, in pages. Get section ids from \
-            get_filing_outline (for example item_1a Risk Factors and item_7 MD&A in a 10-K, part_1_item_2 MD&A in \
-            a 10-Q, item_2.02 results in an 8-K). Returns a JSON header line, then up to max_chars characters \
-            starting at offset. When more remains, next_offset in the header is set: call again with \
-            offset=next_offset to continue.",
+        description = "Read one Item section of a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB as clean text, in pages. Get \
+            section ids and titles from get_filing_outline (for example item_1a Risk Factors and item_7 MD&A in a \
+            10-K, part_1_item_2 MD&A in a 10-Q, item_2.02 results in an 8-K, item_6 MD&A and item_7 financial \
+            statements in a 10-KSB, whose Items are numbered differently). Returns a JSON header line, then up to \
+            max_chars characters starting at offset. When more remains, next_offset in the header is set: call again \
+            with offset=next_offset to continue.",
         annotations(title = "Read section", read_only_hint = true, open_world_hint = true)
     )]
     async fn read_section(&self, Parameters(p): Parameters<ReadSectionParams>) -> Result<String, String> {
@@ -521,7 +588,7 @@ impl EdgarServer {
             return Err("no Item headings were found in this filing; use read_filing_text".into());
         }
         let section = find_section(sections, &p.section)?;
-        let page = paginate(&section.text, p.offset.unwrap_or(0), max_chars(p.max_chars))?;
+        let page = paginate(&section.text, p.offset.unwrap_or(0), max_chars(p.max_chars, MIN_MAX_CHARS))?;
         Ok(page_response(FilingMeta::new(&filing, &doc), Some(section), &page, "read_section"))
     }
 
@@ -530,13 +597,13 @@ impl EdgarServer {
             document, in pages: a JSON header line, then up to max_chars characters starting at offset, with \
             next_offset set when more remains. Use it for forms without Item sections (S-1, DEF 14A, 20-F, 6-K, \
             ...), when get_filing_outline finds none, and for exhibit hits from search_full_text (pass the hit's \
-            accession and document); for 10-K, 10-Q and 8-K prefer read_section.",
+            accession and document); for a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB prefer read_section.",
         annotations(title = "Read filing text", read_only_hint = true, open_world_hint = true)
     )]
     async fn read_filing_text(&self, Parameters(p): Parameters<ReadTextParams>) -> Result<String, String> {
         let (filing, doc) =
             self.doc(&p.company, p.accession.as_deref(), p.form.as_deref(), p.document.as_deref()).await?;
-        let page = paginate(&doc.text, p.offset.unwrap_or(0), max_chars(p.max_chars))?;
+        let page = paginate(&doc.text, p.offset.unwrap_or(0), max_chars(p.max_chars, MIN_MAX_CHARS))?;
         Ok(page_response(FilingMeta::new(&filing, &doc), None, &page, "read_filing_text"))
     }
 
@@ -545,12 +612,15 @@ impl EdgarServer {
             JSON rows of cells: financial statements, schedules and any other table, with `$`, `)` and `%` joined \
             to their numbers as in the text, and empty cells left out. Pass section (an id from \
             get_filing_outline) for only the tables of that Item. A 10-K's financial statements are often in \
-            item_8, but many filings print them after the last Item or in an attached annual report: \
-            get_filing_outline lists those tables under tables_outside_items, and you read them without section, \
-            from offset=first_index. Each table has its index (counting every table of the document), its \
-            section, text_before (the line just above it, often a title or units such as \"(in millions)\", when \
-            that line is short and not part of another table), text_offset (its character position for \
-            read_filing_text), header_rows when the filing marks them, and rows. Returns tables until their \
+            item_8 (item_7 in a 10-KSB), but many filings print them after the last Item or in an attached \
+            annual report: get_filing_outline lists those tables under tables_outside_items, and you read them \
+            without section, from offset=first_index. Each table has its index (counting every table of the \
+            document), its section, text_before (the line just above it, often a title or units such as \
+            \"(in millions)\", when that line is short and not part of another table), text_offset (its character \
+            position for read_filing_text), header_rows when the filing marks them, rows, and columns and spans: \
+            for each cell, its column in the table's grid (from 0, counting empty cells, colspan and rowspan; a cell \
+            joined from `$` and a number takes the number's column) and how many columns it covers, so that a \
+            value lines up with the header whose columns hold its column. Returns tables until their \
             JSON reaches max_chars characters; when more remain, call again with offset=next_offset, plus \
             row=next_row and char=next_char when they are set. A table longer than max_chars is split between \
             rows, and a row longer than max_chars alone is cut inside a cell: join the last cell of one part \
@@ -583,7 +653,7 @@ impl EdgarServer {
             },
         };
         let at = TableCursor { offset: p.offset.unwrap_or(0), row: p.row.unwrap_or(0), char: p.char.unwrap_or(0) };
-        let page = table_page(&doc, section, at, max_chars(p.max_chars))?;
+        let page = table_page(&doc, section, at, max_chars(p.max_chars, MIN_TABLE_CHARS))?;
         Ok(to_json(&TablePageResponse {
             filing: FilingMeta::new(&filing, &doc),
             section: section.map(|s| s.id.as_str()),
@@ -681,29 +751,38 @@ impl EdgarServer {
     }
 
     /// The parsed document for `key`, loading it with `load` unless it is cached.
-    /// Concurrent calls for one document share a single download and parse.
+    /// Concurrent calls for one document share a single download and parse, and
+    /// its error when it fails, so a throttled or failing SEC is not asked again
+    /// by each of them in turn. A call made after the load has failed loads again.
     async fn shared_doc(
         &self,
         key: DocKey,
         load: impl FnOnce() -> Result<Doc, String> + Send + 'static,
     ) -> Result<Arc<Doc>, String> {
-        let cell = {
+        let outcome = {
             let mut cache = self.lock();
-            if let Some(doc) = cache.get_doc(&key) {
-                return Ok(doc);
+            if let Some(doc) = cache.docs.get(&key) {
+                return Ok(doc.clone());
             }
-            cache.loading.entry(key.clone()).or_default().clone()
+            let loading = cache.loading.entry(key.clone()).or_default();
+            loading.waiting += 1;
+            loading.outcome.clone()
         };
-        let init = || async move { blocking(move || load().map(Arc::new)).await };
-        let loaded = cell.get_or_try_init(init).await.cloned();
-        let mut cache = self.lock();
-        if let Ok(doc) = &loaded {
-            cache.put_doc(key.clone(), doc.clone());
-        }
-        if cache.loading.get(&key).is_some_and(|c| Arc::ptr_eq(c, &cell)) {
-            cache.loading.remove(&key);
-        }
-        loaded
+        let _waiting = Waiting { server: self, key: key.clone(), outcome: outcome.clone() };
+        // One waiting call runs the load. Should that call be cancelled, another
+        // waiting call runs its own.
+        let init = || async {
+            let loaded = blocking(move || load().map(Arc::new)).await;
+            // Cache the document and end the load at once, so that a call made
+            // from now on finds the document, or after a failure loads again.
+            let mut cache = self.lock();
+            if let Ok(doc) = &loaded {
+                cache.docs.put(key.clone(), doc.clone());
+            }
+            cache.end_load(&key, &outcome);
+            loaded
+        };
+        outcome.get_or_init(init).await.clone()
     }
 
     async fn filing(&self, company: &str, accession: Option<&str>, form: Option<&str>) -> Result<Filing, String> {
@@ -717,23 +796,45 @@ impl EdgarServer {
             }
             let acc = acc.to_owned();
             let filing = blocking(move || client.filing(&company, &acc).map_err(explain)).await?;
-            self.lock().by_accession.insert(key, filing.clone());
+            self.lock().by_accession.put(key, filing.clone());
             return Ok(filing);
         }
         let form = form.map(str::trim).filter(|f| !f.is_empty()).unwrap_or("10-K").to_owned();
         let key = (company_key, form.to_ascii_uppercase());
-        if let Some((at, f)) = self.lock().latest.get(&key)
-            && at.elapsed() < LATEST_TTL
-        {
-            return Ok(f.clone());
+        if let Some(f) = self.lock().fresh_latest(&key, Instant::now()) {
+            return Ok(f);
         }
         let filing = blocking(move || client.latest(&company, &form).map_err(explain)).await?;
-        self.lock().latest.insert(key, (Instant::now(), filing.clone()));
+        self.lock().latest.put(key, (Instant::now(), filing.clone()));
         Ok(filing)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Cache> {
         self.cache.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+/// One call waiting for a document load. Dropping it, when the call returns or
+/// is cancelled, removes the load from `loading` once no other call waits for
+/// it, unless the load has finished and a later load has taken its place.
+struct Waiting<'a> {
+    server: &'a EdgarServer,
+    key: DocKey,
+    /// The outcome of the load waited for, which identifies it.
+    outcome: Arc<LoadOutcome>,
+}
+
+impl Drop for Waiting<'_> {
+    fn drop(&mut self) {
+        let mut cache = self.server.lock();
+        if let Some(loading) = cache.loading.get_mut(&self.key)
+            && Arc::ptr_eq(&loading.outcome, &self.outcome)
+        {
+            loading.waiting -= 1;
+            if loading.waiting == 0 {
+                cache.loading.remove(&self.key);
+            }
+        }
     }
 }
 
@@ -1202,6 +1303,11 @@ struct TableOut<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     first_char: Option<usize>,
     rows: Vec<Cow<'a, [String]>>,
+    /// The grid column of each cell of `rows`, from 0, counting empty cells
+    /// and colspans, as in `parsec_edgar::Table::columns`.
+    columns: Vec<Cow<'a, [usize]>>,
+    /// How many grid columns each cell of `rows` covers.
+    spans: Vec<Cow<'a, [usize]>>,
 }
 
 /// Where a page of tables starts: the index of a table in the document, a row
@@ -1226,7 +1332,7 @@ fn holds(section: &Section, table: &Table) -> bool {
 /// characters of JSON in the list of tables. A table that does not fit waits
 /// for the next page, unless it is the first one, which is then split after as
 /// many rows as fit. When not even one row fits, the row is cut inside a cell.
-/// With `max` of at least MIN_MAX_CHARS every page fits; below that a page
+/// With `max` of at least MIN_TABLE_CHARS every page fits; below that a page
 /// still shows one character, so that paging always moves on.
 fn table_page<'a>(
     doc: &'a Doc,
@@ -1304,30 +1410,28 @@ fn table_page<'a>(
             total_rows: partial.then_some(t.rows.len()),
             first_char: (skip > 0).then_some(skip),
             rows: Vec::new(),
+            columns: Vec::new(),
+            spans: Vec::new(),
         };
         // The rest of a row cut on the page before.
-        let first_part = (skip > 0).then(|| row_piece(&t.rows[first], skip, row_chars(&t.rows[first])));
-        let row_at = |k: usize| -> Cow<'a, [String]> {
+        let first_part = (skip > 0).then(|| row_part(t, first, skip, row_chars(&t.rows[first])));
+        let row_at = |k: usize| -> RowOut<'a> {
             match (&first_part, k) {
-                (Some(part), 0) => Cow::Owned(part.clone()),
-                _ => Cow::Borrowed(&t.rows[first + k]),
+                (Some(part), 0) => part.clone(),
+                _ => whole_row(t, first + k),
             }
         };
         let n = t.rows.len() - first;
         let header = |k: usize| t.header_rows.binary_search(&(first + k)).is_ok();
         let header_cost = |k: usize| if header(k) { digits(first + k) + 1 } else { 0 };
         // How many rows fit beside `meta` characters, and the characters they all take: each row
-        // adds its JSON and a comma, a header row its index and a comma, and the first header row
-        // the header_rows key. Stops at the first row that does not fit.
+        // adds its JSON and a comma to rows, columns and spans, a header row its index and a comma,
+        // and the first header row the header_rows key. Stops at the first row that does not fit.
         let fitting = |meta: usize, room: usize| {
             let (mut size, mut take, mut any_header) = (meta, 0, false);
             while take < n {
-                let row_json = match (&first_part, take) {
-                    (Some(part), 0) => json_chars(part),
-                    _ => json_chars(&t.rows[first + take]),
-                };
                 let key = if header(take) && !any_header { HEADER_ROWS_KEY } else { 0 };
-                let add = row_json + 1 + header_cost(take) + key;
+                let add = row_at(take).json_chars() + 3 + header_cost(take) + key;
                 if size + add > room {
                     break;
                 }
@@ -1342,7 +1446,7 @@ fn table_page<'a>(
         let (take, size) = fitting(json_chars(&out), left);
         if take == n {
             out.header_rows = (0..n).filter(|&k| header(k)).map(|k| first + k).collect();
-            out.rows = (0..n).map(row_at).collect();
+            out.show((0..n).map(row_at));
             page.tables.push(out);
             used += size + comma;
             continue;
@@ -1355,7 +1459,7 @@ fn table_page<'a>(
         out.total_rows = Some(t.rows.len());
         // The title gives way when the smallest part of a row would not fit beside it.
         let first_header = header_cost(0) + if header(0) { HEADER_ROWS_KEY } else { 0 };
-        let smallest = json_chars(&row_piece(&t.rows[first], skip, skip + 1)) + first_header;
+        let smallest = row_part(t, first, skip, skip + 1).json_chars() + first_header;
         if json_chars(&out) + smallest > left {
             out.text_before = None;
         }
@@ -1363,14 +1467,18 @@ fn table_page<'a>(
         let (take, _) = fitting(meta, left);
         let (next_row, next_char) = if take > 0 {
             out.header_rows = (0..take).filter(|&k| header(k)).map(|k| first + k).collect();
-            out.rows = (0..take).map(row_at).collect();
+            out.show((0..take).map(row_at));
             (first + take, 0)
         } else {
             // Not even one row fits: cut it inside a cell.
             let r = &t.rows[first];
-            let end = cut_row(r, skip, left.saturating_sub(meta + first_header));
+            let grid = |c: usize| match (grid_of(&t.columns, first).get(c), grid_of(&t.spans, first).get(c)) {
+                (Some(&column), Some(&span)) => digits(column) + digits(span),
+                _ => 0,
+            };
+            let end = cut_row(r, grid, skip, left.saturating_sub(meta + first_header));
             out.header_rows = if header(0) { vec![first] } else { Vec::new() };
-            out.rows = vec![Cow::Owned(row_piece(r, skip, end))];
+            out.show([row_part(t, first, skip, end)]);
             if end < row_chars(r) { (first, end) } else { (first + 1, 0) }
         };
         used += json_chars(&out);
@@ -1400,24 +1508,82 @@ fn row_chars(row: &[String]) -> usize {
     row.iter().map(|c| c.chars().count()).sum()
 }
 
+/// A row as read_tables shows it: its cells, and the grid column and span of each.
+#[derive(Clone, Debug)]
+struct RowOut<'a> {
+    cells: Cow<'a, [String]>,
+    columns: Cow<'a, [usize]>,
+    spans: Cow<'a, [usize]>,
+}
+
+impl RowOut<'_> {
+    /// Characters of JSON of the row's cells, columns and spans.
+    fn json_chars(&self) -> usize {
+        json_chars(&*self.cells) + json_chars(&*self.columns) + json_chars(&*self.spans)
+    }
+}
+
+impl<'a> TableOut<'a> {
+    /// Show `rows`, after the rows shown so far.
+    fn show(&mut self, rows: impl IntoIterator<Item = RowOut<'a>>) {
+        for row in rows {
+            self.rows.push(row.cells);
+            self.columns.push(row.columns);
+            self.spans.push(row.spans);
+        }
+    }
+}
+
+/// Row `r` of `Table::columns` or `Table::spans`, empty when the table has none.
+fn grid_of(lists: &[Vec<usize>], r: usize) -> &[usize] {
+    lists.get(r).map_or(&[], Vec::as_slice)
+}
+
+/// Row `r` of `t`, whole.
+fn whole_row(t: &Table, r: usize) -> RowOut<'_> {
+    RowOut {
+        cells: Cow::Borrowed(&t.rows[r]),
+        columns: Cow::Borrowed(grid_of(&t.columns, r)),
+        spans: Cow::Borrowed(grid_of(&t.spans, r)),
+    }
+}
+
+/// The part of row `r` of `t` from character `from` to `to` (see
+/// piece_cells), each cell with the grid column and span of the cell it
+/// comes from.
+fn row_part<'a>(t: &Table, r: usize, from: usize, to: usize) -> RowOut<'a> {
+    let (columns, spans) = (grid_of(&t.columns, r), grid_of(&t.spans, r));
+    let (mut part_cells, mut part_columns, mut part_spans) = (Vec::new(), Vec::new(), Vec::new());
+    for (i, cell) in piece_cells(&t.rows[r], from, to) {
+        part_cells.push(cell);
+        if let (Some(&column), Some(&span)) = (columns.get(i), spans.get(i)) {
+            part_columns.push(column);
+            part_spans.push(span);
+        }
+    }
+    RowOut { cells: Cow::Owned(part_cells), columns: Cow::Owned(part_columns), spans: Cow::Owned(part_spans) }
+}
+
 /// The part of `row` from character `from` to `to`, counting its cells one
-/// after another. A part that ends between two cells ends with an empty cell,
-/// so the last cell of one part always joins the first cell of the next.
-fn row_piece(row: &[String], from: usize, to: usize) -> Vec<String> {
+/// after another, with the index in `row` of the cell each part comes from.
+/// A part that ends between two cells ends with an empty cell, the start of
+/// the next one, so the last cell of one part always joins the first cell of
+/// the next.
+fn piece_cells(row: &[String], from: usize, to: usize) -> Vec<(usize, String)> {
     let total = row_chars(row);
     let mut piece = Vec::new();
     let mut at = 0;
-    for cell in row {
+    for (i, cell) in row.iter().enumerate() {
         let len = cell.chars().count();
         if from < at + len && at < to {
             let start = from.saturating_sub(at);
             let end = (to - at).min(len);
-            piece.push(cell.chars().skip(start).take(end - start).collect());
+            piece.push((i, cell.chars().skip(start).take(end - start).collect()));
         }
         at += len;
         if at >= to {
             if at == to && to < total {
-                piece.push(String::new());
+                piece.push((i + 1, String::new()));
             }
             break;
         }
@@ -1425,22 +1591,25 @@ fn row_piece(row: &[String], from: usize, to: usize) -> Vec<String> {
     piece
 }
 
-/// Where to cut `row`, from character `from`, so that the part takes at most
-/// `budget` characters of JSON. The part has at least one character.
-fn cut_row(row: &[String], from: usize, budget: usize) -> usize {
+/// Where to cut `row`, from character `from`, so that the part, with the
+/// grid column and span of each of its cells, takes at most `budget`
+/// characters of JSON. `grid` gives the digits of the column and the span of
+/// a cell of `row`. The part has at least one character.
+fn cut_row(row: &[String], grid: impl Fn(usize) -> usize, from: usize, budget: usize) -> usize {
     let total = row_chars(row);
     let mut best = from + 1;
-    // `[]`, then `""` for the first cell and `,""` for each other one.
-    let mut cost = 2;
+    // `[]` for the cells, the columns and the spans, then for each cell `""`,
+    // its column and its span, each after a comma but for the first cell.
+    let mut cost = 6;
     let mut started = false;
     let mut at = 0;
-    'cells: for cell in row {
+    'cells: for (i, cell) in row.iter().enumerate() {
         let len = cell.chars().count();
         if at + len <= from {
             at += len;
             continue;
         }
-        cost += if started { 3 } else { 2 };
+        cost += 2 + grid(i) + if started { 3 } else { 0 };
         started = true;
         for (k, c) in cell.chars().enumerate().skip(from.saturating_sub(at)) {
             cost += json_escaped_len(c);
@@ -1448,8 +1617,9 @@ fn cut_row(row: &[String], from: usize, budget: usize) -> usize {
                 break 'cells;
             }
             let to = at + k + 1;
-            // A cut between two cells adds the empty cell `,""`.
-            let end = if k + 1 == len && to < total { 3 } else { 0 };
+            // A cut between two cells adds the start of the next one: `,""`,
+            // its column and its span.
+            let end = if k + 1 == len && to < total { 5 + grid(i + 1) } else { 0 };
             if cost + end <= budget {
                 best = to;
             }
@@ -1498,8 +1668,8 @@ struct PageHeader<'a> {
     next_offset: Option<usize>,
 }
 
-fn max_chars(requested: Option<usize>) -> usize {
-    requested.unwrap_or(DEFAULT_MAX_CHARS).clamp(MIN_MAX_CHARS, MAX_MAX_CHARS)
+fn max_chars(requested: Option<usize>, min: usize) -> usize {
+    requested.unwrap_or(DEFAULT_MAX_CHARS).clamp(min, MAX_MAX_CHARS)
 }
 
 /// One page of a longer text. Offsets count characters, not bytes.
@@ -1579,6 +1749,8 @@ fn json_chars<T: Serialize + ?Sized>(v: &T) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::mpsc;
 
     #[test]
     fn pages_cover_text_exactly() {
@@ -1772,20 +1944,41 @@ mod tests {
 
     /// A table's index and its rows.
     type Rows = (usize, Vec<Vec<String>>);
+    /// The grid columns of a table's rows, or their spans.
+    type Grid = Vec<Vec<usize>>;
+
+    /// The cells of `row` from character `from` to `to`, as read_tables cuts them.
+    fn row_piece(row: &[String], from: usize, to: usize) -> Vec<String> {
+        piece_cells(row, from, to).into_iter().map(|(_, cell)| cell).collect()
+    }
 
     /// Every page from the start, following next_offset, next_row and
     /// next_char: each table's rows with the parts of cut rows joined again,
-    /// and the number of pages. Checks that each page keeps within `max`.
+    /// and the number of pages. Checks that each page keeps within `max`,
+    /// and that the grid columns and spans of the rows shown, joined in the
+    /// same way, are those of the table.
     fn all_pages(doc: &Doc, section: Option<&Section>, max: usize) -> (Vec<Rows>, usize) {
         let (mut tables, mut pages, mut cursor) = (Vec::<Rows>::new(), 0, at(0, 0, 0));
+        let mut grids: Vec<(Grid, Grid)> = Vec::new();
         loop {
             let page = table_page(doc, section, cursor, max).unwrap();
             pages += 1;
             assert!(json_chars(&page.tables) <= max, "{} > {max}: {page:?}", json_chars(&page.tables));
             for t in &page.tables {
+                assert_eq!(
+                    t.columns.iter().map(|c| c.len()).collect::<Vec<_>>(),
+                    t.rows.iter().map(|r| r.len()).collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    t.spans.iter().map(|c| c.len()).collect::<Vec<_>>(),
+                    t.rows.iter().map(|r| r.len()).collect::<Vec<_>>()
+                );
                 let mut rows = t.rows.iter().map(|r| r.to_vec());
+                let owned = |c: &Cow<'_, [usize]>| c.to_vec();
+                let (mut columns, mut spans) = (t.columns.iter().map(owned), t.spans.iter().map(owned));
                 if t.first_row.is_some_and(|r| r > 0) || t.first_char.is_some() {
                     let (index, so_far) = tables.last_mut().expect("a continued table");
+                    let (columns_so_far, spans_so_far) = grids.last_mut().unwrap();
                     assert_eq!(*index, t.index);
                     assert_eq!(so_far.len(), t.first_row.unwrap() + usize::from(t.first_char.is_some()));
                     if t.first_char.is_some() {
@@ -1794,10 +1987,20 @@ mod tests {
                         let cut = so_far.last_mut().unwrap();
                         cut.last_mut().unwrap().push_str(&rest.next().unwrap());
                         cut.extend(rest);
+                        for (so_far, part) in [(columns_so_far, &mut columns), (spans_so_far, &mut spans)] {
+                            let mut rest = part.next().unwrap().into_iter();
+                            let cut = so_far.last_mut().unwrap();
+                            assert_eq!(cut.last(), rest.next().as_ref());
+                            cut.extend(rest);
+                        }
                     }
                     so_far.extend(rows);
+                    let (columns_so_far, spans_so_far) = grids.last_mut().unwrap();
+                    columns_so_far.extend(columns);
+                    spans_so_far.extend(spans);
                 } else {
                     tables.push((t.index, rows.collect()));
+                    grids.push((columns.collect(), spans.collect()));
                 }
             }
             match page.next_offset {
@@ -1805,6 +2008,10 @@ mod tests {
                 None => break,
             }
             assert!(pages < 100_000, "paging does not end");
+        }
+        for ((index, _), (columns, spans)) in tables.iter().zip(&grids) {
+            assert_eq!(columns, &doc.tables[*index].columns);
+            assert_eq!(spans, &doc.tables[*index].spans);
         }
         (tables, pages)
     }
@@ -1843,7 +2050,7 @@ mod tests {
         let rows = rows_of(&tables);
         assert_eq!(rows.len(), 200);
         assert_eq!(rows[150], ["Row 50 of table 1", "$50,000"]);
-        for max in [MIN_MAX_CHARS, 250, 333] {
+        for max in [MIN_TABLE_CHARS, 350, 433] {
             assert_eq!(rows_of(&all_pages(&doc, None, max).0), rows, "{max}");
         }
     }
@@ -1864,7 +2071,7 @@ mod tests {
         let (long, longest) = (layout(60), layout(1500));
         assert!(json_chars(&longest.tables[0].rows[1]) > MAX_MAX_CHARS);
         for (doc, max) in
-            [(&long, MIN_MAX_CHARS), (&long, 1000), (&longest, DEFAULT_MAX_CHARS), (&longest, MAX_MAX_CHARS)]
+            [(&long, MIN_TABLE_CHARS), (&long, 1000), (&longest, DEFAULT_MAX_CHARS), (&longest, MAX_MAX_CHARS)]
         {
             let (tables, pages) = all_pages(doc, None, max);
             assert_eq!(tables, [(0, doc.tables[0].rows.clone())], "{max}");
@@ -1888,12 +2095,25 @@ mod tests {
                 .collect();
         let len = row_chars(&row);
         assert_eq!(row_piece(&row, 0, len), row);
+        // Grid columns of several digits, and spans over several columns.
+        let table = Table {
+            start: 0,
+            end: 0,
+            header_rows: Vec::new(),
+            rows: vec![row.clone()],
+            columns: vec![vec![0, 3, 12, 100, 101, 1000, 1001]],
+            spans: vec![vec![1, 9, 1, 1, 1, 1, 20]],
+        };
+        let grid = |c: usize| match (table.columns[0].get(c), table.spans[0].get(c)) {
+            (Some(&column), Some(&span)) => digits(column) + digits(span),
+            _ => 0,
+        };
         for from in 0..len {
-            for budget in 0..=json_chars(&row) + 3 {
-                let to = cut_row(&row, from, budget);
+            for budget in 0..=whole_row(&table, 0).json_chars() + 3 {
+                let to = cut_row(&row, grid, from, budget);
                 assert!(to > from && to <= len, "{from} {budget} {to}");
-                let piece = row_piece(&row, from, to);
-                assert!(to == from + 1 || json_chars(&piece) <= budget, "{from} {budget} {piece:?}");
+                let part = row_part(&table, 0, from, to);
+                assert!(to == from + 1 || part.json_chars() <= budget, "{from} {budget} {part:?}");
                 // The rest of the row joins this part to give the row back.
                 if to < len {
                     let mut joined = row_piece(&row, 0, to);
@@ -1901,6 +2121,9 @@ mod tests {
                     joined.last_mut().unwrap().push_str(&rest.next().unwrap());
                     joined.extend(rest);
                     assert_eq!(joined, row, "{to}");
+                    // The cell the rest starts in has the column of the last cell of the part.
+                    let rest = row_part(&table, 0, to, len);
+                    assert_eq!(part.columns.last(), rest.columns.first(), "{to}");
                 }
             }
         }
@@ -1914,8 +2137,15 @@ mod tests {
     /// row of a table whose numbers are as long as they get.
     #[test]
     fn smallest_pages_fit() {
-        let piece = row_piece(&["\u{1}".to_owned(), "x".to_owned()], 0, 1);
-        let out = TableOut {
+        let table = Table {
+            start: 0,
+            end: 0,
+            header_rows: Vec::new(),
+            rows: vec![vec!["\u{1}".to_owned(), "x".to_owned()]],
+            columns: vec![vec![999_998, 999_999]],
+            spans: vec![vec![1000, 1000]],
+        };
+        let mut out = TableOut {
             index: 99_999,
             section: Some("part_2_item_1a"),
             text_offset: 999_999_999,
@@ -1924,10 +2154,14 @@ mod tests {
             first_row: Some(999_999),
             total_rows: Some(999_999),
             first_char: Some(999_999_999),
-            rows: vec![Cow::Owned(piece)],
+            rows: Vec::new(),
+            columns: Vec::new(),
+            spans: Vec::new(),
         };
+        out.show([row_part(&table, 0, 0, 1)]);
+        assert_eq!(out.columns, [Cow::Borrowed(&[999_998, 999_999][..])]);
         let size = json_chars(&[out]);
-        assert!(size <= MIN_MAX_CHARS, "{size}");
+        assert!(size <= MIN_TABLE_CHARS, "{size}");
     }
 
     /// Continuation pages list only the header rows they show, so a table of
@@ -2036,7 +2270,7 @@ mod tests {
         let mut no_8 = ten_k_with_tables();
         no_8.tables.remove(2);
         let server = pbf_server();
-        server.lock().put_doc(key(PBF, ""), Arc::new(no_8));
+        server.lock().docs.put(key(PBF, ""), Arc::new(no_8));
         let out = json(server.read_tables(Parameters(tables_params(Some("item_8")))).await);
         assert_eq!(out["total_tables"], 0);
         let note = out["note"].as_str().unwrap();
@@ -2064,7 +2298,7 @@ mod tests {
         let mut doc = table_doc(3, 2);
         doc.sections = Some(Vec::new());
         let server = pbf_server();
-        server.lock().put_doc(key(PBF, ""), Arc::new(doc));
+        server.lock().docs.put(key(PBF, ""), Arc::new(doc));
         let err = server.read_tables(Parameters(tables_params(Some("item_8")))).await.unwrap_err();
         assert_eq!(err, "no Item headings were found in this filing; leave out section to read all 3 tables");
         let out = json(server.read_tables(Parameters(tables_params(None))).await);
@@ -2097,7 +2331,7 @@ mod tests {
             assert_eq!(page.note.as_deref(), Some(PLAIN_TEXT_NOTE));
         }
         let server = pbf_server();
-        server.lock().put_doc(key(PBF, ""), Arc::new(doc));
+        server.lock().docs.put(key(PBF, ""), Arc::new(doc));
         let out = json(server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), None))).await);
         assert!(out["next"].as_str().unwrap().contains("plain-text document"), "{out}");
         // An HTML document says nothing of the kind.
@@ -2160,7 +2394,7 @@ mod tests {
     #[tokio::test]
     async fn read_tables_tool() {
         let server = pbf_server();
-        server.lock().put_doc(key(PBF, ""), Arc::new(table_doc(4, 2)));
+        server.lock().docs.put(key(PBF, ""), Arc::new(table_doc(4, 2)));
         let out = json(server.read_tables(Parameters(tables_params(Some("8")))).await);
         assert_eq!((out["section"].as_str(), out["total_tables"].as_u64()), (Some("item_8"), Some(2)));
         assert_eq!(out["tables"][0]["rows"][1], serde_json::json!(["Row 1 of table 2", "$1,000"]));
@@ -2203,10 +2437,10 @@ mod tests {
         let mut cache = server.lock();
         let holding = filing_of(1566011, "PBF Holding Co LLC", PBF, "pbfh-20241231.htm");
         let finance = filing_of(1566097, "PBF Finance Corp", PBF, "pbfh-20241231.htm");
-        cache.by_accession.insert(("1566011".into(), PBF.replace('-', "")), holding);
-        cache.by_accession.insert(("1566097".into(), PBF.replace('-', "")), finance);
-        cache.put_doc(key(PBF, ""), doc("Item 1. Business\n\nWe refine oil.\n", None));
-        cache.put_doc(key(PBF, "ex211.htm"), doc("Subsidiaries of PBF Holding\n", Some("ex211.htm")));
+        cache.by_accession.put(("1566011".into(), PBF.replace('-', "")), holding);
+        cache.by_accession.put(("1566097".into(), PBF.replace('-', "")), finance);
+        cache.docs.put(key(PBF, ""), doc("Item 1. Business\n\nWe refine oil.\n", None));
+        cache.docs.put(key(PBF, "ex211.htm"), doc("Subsidiaries of PBF Holding\n", Some("ex211.htm")));
         drop(cache);
         server
     }
@@ -2307,7 +2541,7 @@ mod tests {
         assert!(docs.iter().all(|d| Arc::ptr_eq(d, &docs[0])));
         let cache = server.lock();
         assert!(cache.loading.is_empty());
-        assert_eq!(cache.docs.len(), 1);
+        assert_eq!(cache.docs.entries.len(), 1);
     }
 
     async fn futures_join<T>(handles: impl Iterator<Item = tokio::task::JoinHandle<Result<T, String>>>) -> Vec<T> {
@@ -2332,25 +2566,244 @@ mod tests {
         assert!(server.lock().loading.is_empty());
     }
 
+    /// A load that counts itself in `loads`.
+    fn counted_load(loads: Arc<AtomicUsize>) -> impl FnOnce() -> Result<Doc, String> + Send + 'static {
+        move || {
+            loads.fetch_add(1, Ordering::SeqCst);
+            let text = "text".to_owned();
+            Ok(Doc { document: None, text, total_chars: 4, sections: None, tables: Vec::new(), html: true })
+        }
+    }
+
+    /// A counted load that says when it has started, then waits until `release` sends.
+    fn held_load(
+        loads: Arc<AtomicUsize>,
+        started: mpsc::Sender<()>,
+        release: mpsc::Receiver<()>,
+    ) -> impl FnOnce() -> Result<Doc, String> + Send + 'static {
+        let load = counted_load(loads);
+        move || {
+            started.send(()).unwrap();
+            release.recv().map_err(|e| e.to_string())?;
+            load()
+        }
+    }
+
+    /// Wait until `n` calls wait for the load of `key`.
+    fn wait_for_waiting(server: &EdgarServer, key: &DocKey, n: usize) {
+        for _ in 0..500 {
+            if server.lock().loading.get(key).map(|loading| loading.waiting) == Some(n) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("{n} calls never waited for {key:?}");
+    }
+
+    /// A call cancelled during its load leaves nothing behind in `loading`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelled_loads_leave_no_entry() {
+        let server = offline_server();
+        let loads = Arc::new(AtomicUsize::new(0));
+        let (started_tx, started) = mpsc::channel();
+        let (release, release_rx) = mpsc::channel();
+        let load = held_load(loads.clone(), started_tx, release_rx);
+        let call = tokio::spawn({
+            let server = server.clone();
+            async move { server.shared_doc(key("acc", ""), load).await }
+        });
+        started.recv().unwrap();
+        call.abort();
+        assert!(matches!(call.await, Err(e) if e.is_cancelled()));
+        assert!(server.lock().loading.is_empty());
+        release.send(()).unwrap();
+    }
+
+    /// A cancelled call does not end a load that other calls still wait for.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelled_waiters_leave_the_load_shared() {
+        let server = offline_server();
+        let loads = Arc::new(AtomicUsize::new(0));
+        let call = |load: Box<dyn FnOnce() -> Result<Doc, String> + Send>| {
+            let server = server.clone();
+            tokio::spawn(async move { server.shared_doc(key("acc", ""), load).await })
+        };
+        let (started_tx, started) = mpsc::channel();
+        let (release, release_rx) = mpsc::channel();
+        let first = call(Box::new(held_load(loads.clone(), started_tx, release_rx)));
+        started.recv().unwrap();
+
+        let cancelled = call(Box::new(counted_load(loads.clone())));
+        wait_for_waiting(&server, &key("acc", ""), 2);
+        cancelled.abort();
+        assert!(matches!(cancelled.await, Err(e) if e.is_cancelled()));
+        wait_for_waiting(&server, &key("acc", ""), 1);
+
+        // A new call joins the first load instead of starting another.
+        let last = call(Box::new(counted_load(loads.clone())));
+        wait_for_waiting(&server, &key("acc", ""), 2);
+        release.send(()).unwrap();
+        let docs: Vec<Arc<Doc>> = futures_join([first, last].into_iter()).await;
+        assert!(Arc::ptr_eq(&docs[0], &docs[1]));
+        assert_eq!(loads.load(Ordering::SeqCst), 1);
+        assert!(server.lock().loading.is_empty());
+    }
+
+    /// A failing load that counts itself in `loads`.
+    fn failing_load(loads: Arc<AtomicUsize>) -> impl FnOnce() -> Result<Doc, String> + Send + 'static {
+        move || {
+            loads.fetch_add(1, Ordering::SeqCst);
+            Err("HTTP 503".to_owned())
+        }
+    }
+
+    /// The calls that joined a load that fails all get its error, without
+    /// loading again one after another, and a call made after the failure
+    /// starts a new load.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn failed_loads_are_shared_by_their_waiters() {
+        let server = offline_server();
+        let loads = Arc::new(AtomicUsize::new(0));
+        let call = |load: Box<dyn FnOnce() -> Result<Doc, String> + Send>| {
+            let server = server.clone();
+            tokio::spawn(async move { server.shared_doc(key("acc", ""), load).await })
+        };
+        let (started_tx, started) = mpsc::channel();
+        let (release, release_rx) = mpsc::channel::<()>();
+        let first = failing_load(loads.clone());
+        let first = call(Box::new(move || {
+            started_tx.send(()).unwrap();
+            release_rx.recv().map_err(|e| e.to_string())?;
+            first()
+        }));
+        started.recv().unwrap();
+        let mut calls = vec![first];
+        calls.extend((0..3).map(|_| call(Box::new(failing_load(loads.clone())))));
+        wait_for_waiting(&server, &key("acc", ""), 4);
+        release.send(()).unwrap();
+        for c in calls {
+            assert_eq!(c.await.unwrap().err().as_deref(), Some("HTTP 503"));
+        }
+        assert_eq!(loads.load(Ordering::SeqCst), 1);
+        assert!(server.lock().loading.is_empty());
+        assert!(server.shared_doc(key("acc", ""), counted_load(loads.clone())).await.is_ok());
+        assert_eq!(loads.load(Ordering::SeqCst), 2);
+    }
+
+    /// A call that waited for a finished load, leaving after a later load for
+    /// the same document has started, leaves the later load's entry alone.
+    #[test]
+    fn waiters_of_a_finished_load_leave_a_later_load_alone() {
+        let server = offline_server();
+        let finished: Arc<LoadOutcome> = Arc::new(OnceCell::new());
+        let later = Loading { waiting: 1, ..Loading::default() };
+        server.lock().loading.insert(key("acc", ""), later);
+        drop(Waiting { server: &server, key: key("acc", ""), outcome: finished.clone() });
+        assert_eq!(server.lock().loading.get(&key("acc", "")).map(|l| l.waiting), Some(1));
+        server.lock().end_load(&key("acc", ""), &finished);
+        assert!(server.lock().loading.contains_key(&key("acc", "")));
+    }
+
+    /// The tools that read Item sections name every form that has them, and
+    /// the outline of another form says which forms those are.
+    #[tokio::test]
+    async fn tools_name_the_forms_with_items() {
+        for tool in EdgarServer::tool_router().list_all() {
+            let description = tool.description.as_deref().unwrap_or_default();
+            if ["get_filing_outline", "read_section", "read_filing_text"].contains(&tool.name.as_ref()) {
+                assert!(description.contains(FormKind::FORMS), "{}: {description}", tool.name);
+            }
+            if ["read_section", "read_tables"].contains(&tool.name.as_ref()) {
+                assert!(description.contains("in a 10-KSB"), "{}: {description}", tool.name);
+            }
+        }
+        let server = offline_server();
+        let mut s1 = filing_of(1566011, "PBF Holding Co LLC", PBF, "s1.htm");
+        s1.form = "S-1".into();
+        server.lock().by_accession.put(("1566011".into(), PBF.replace('-', "")), s1);
+        let text = "Prospectus\n".to_owned();
+        let prospectus = Doc { document: None, total_chars: 11, text, sections: None, tables: Vec::new(), html: true };
+        server.lock().docs.put(key(PBF, ""), Arc::new(prospectus));
+        let out = json(server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), None))).await);
+        let next = out["next"].as_str().unwrap();
+        assert!(next.contains(FormKind::FORMS) && next.contains("not S-1"), "{next}");
+    }
+
     #[test]
     fn doc_cache_keeps_the_most_recently_used() {
         let mut cache = Cache::default();
         for i in 0..DOC_CACHE_SIZE {
-            cache.put_doc(key(&i.to_string(), ""), doc("x", None));
+            cache.docs.put(key(&i.to_string(), ""), doc("x", None));
         }
         // Reading 0 makes 1 the least recently used.
-        assert!(cache.get_doc(&key("0", "")).is_some());
-        cache.put_doc(key("new", ""), doc("x", None));
-        assert_eq!(cache.docs.len(), DOC_CACHE_SIZE);
-        assert!(cache.get_doc(&key("1", "")).is_none());
-        assert!(cache.get_doc(&key("0", "")).is_some());
+        assert!(cache.docs.get(&key("0", "")).is_some());
+        cache.docs.put(key("new", ""), doc("x", None));
+        assert_eq!(cache.docs.entries.len(), DOC_CACHE_SIZE);
+        assert!(cache.docs.get(&key("1", "")).is_none());
+        assert!(cache.docs.get(&key("0", "")).is_some());
         // An attachment is cached apart from the primary document of its filing.
-        cache.put_doc(key("0", "ex99-1.htm"), doc("y", Some("ex99-1.htm")));
-        assert_eq!(cache.get_doc(&key("0", "")).unwrap().text, "x");
-        assert_eq!(cache.get_doc(&key("0", "ex99-1.htm")).unwrap().text, "y");
+        cache.docs.put(key("0", "ex99-1.htm"), doc("y", Some("ex99-1.htm")));
+        assert_eq!(cache.docs.get(&key("0", "")).unwrap().text, "x");
+        assert_eq!(cache.docs.get(&key("0", "ex99-1.htm")).unwrap().text, "y");
         // Putting a key again replaces it instead of adding a second copy.
-        cache.put_doc(key("0", ""), doc("z", None));
-        assert_eq!(cache.docs.iter().filter(|(k, _)| *k == key("0", "")).count(), 1);
+        cache.docs.put(key("0", ""), doc("z", None));
+        assert_eq!(cache.docs.entries.len(), DOC_CACHE_SIZE);
+        assert_eq!(cache.docs.get(&key("0", "")).unwrap().text, "z");
+    }
+
+    #[test]
+    fn lru_drops_the_least_recently_used() {
+        let mut lru = Lru::<u32, &str, 2>::default();
+        lru.put(1, "a");
+        lru.put(2, "b");
+        // Reading 1 makes 2 the least recently used.
+        assert_eq!(lru.get(&1), Some(&"a"));
+        lru.put(3, "c");
+        assert_eq!(lru.entries.len(), 2);
+        assert_eq!([1, 2, 3].map(|k| lru.get(&k).copied()), [Some("a"), None, Some("c")]);
+        // A key put again keeps one entry, and nothing else is dropped.
+        lru.put(3, "d");
+        assert_eq!(lru.entries.len(), 2);
+        assert_eq!([1, 3].map(|k| lru.get(&k).copied()), [Some("a"), Some("d")]);
+        assert_eq!(lru.get(&4), None);
+        lru.remove(&1);
+        assert_eq!((lru.get(&1).copied(), lru.entries.len()), (None, 1));
+    }
+
+    /// Filings by accession and latest-filing lookups stop at FILING_CACHE_SIZE.
+    #[test]
+    fn filing_caches_are_bounded() {
+        let mut cache = Cache::default();
+        let now = Instant::now();
+        let accession = |i: usize| ("1".to_owned(), format!("{i:018}"));
+        let latest = |i: usize| (i.to_string(), "10-K".to_owned());
+        for i in 0..FILING_CACHE_SIZE + 5 {
+            if i == FILING_CACHE_SIZE {
+                // Read again, the first filing becomes the most recently used.
+                assert!(cache.by_accession.get(&accession(0)).is_some());
+            }
+            let filing = filing_of(1, "A", &accession(i).1, "a.htm");
+            cache.by_accession.put(accession(i), filing.clone());
+            cache.latest.put(latest(i), (now, filing));
+        }
+        assert_eq!(cache.by_accession.entries.len(), FILING_CACHE_SIZE);
+        assert_eq!(cache.latest.entries.len(), FILING_CACHE_SIZE);
+        let kept = |i| cache.by_accession.entries.contains_key(&accession(i));
+        assert_eq!((kept(0), kept(1), kept(5), kept(6)), (true, false, false, true));
+        let kept = |i| cache.latest.entries.contains_key(&latest(i));
+        assert_eq!((kept(0), kept(4), kept(5)), (false, false, true));
+    }
+
+    /// A latest filing is reused for LATEST_TTL, then dropped from the cache.
+    #[test]
+    fn latest_filings_expire() {
+        let mut cache = Cache::default();
+        let key = ("AAPL".to_owned(), "10-K".to_owned());
+        let at = Instant::now();
+        cache.latest.put(key.clone(), (at, filing_of(320193, "Apple Inc.", "0000320193-25-000079", "a.htm")));
+        assert!(cache.fresh_latest(&key, at + LATEST_TTL - Duration::from_secs(1)).is_some());
+        assert!(cache.fresh_latest(&key, at + LATEST_TTL).is_none());
+        assert!(cache.latest.entries.is_empty());
     }
 
     #[test]

@@ -23,6 +23,27 @@ def test_extract_sections():
     assert sections[1]["text"].startswith("Item 1A. Risk Factors\nWe make")
 
 
+def test_extract_sections_of_a_10ksb():
+    # Form 10-KSB numbers its Items differently from Form 10-K: Item 7 is the
+    # financial statements, and Item 8A controls and procedures.
+    text = (
+        f"Item 6. Management's Discussion and Analysis or Plan of Operation\n{BODY}\n"
+        f"Item 7. Financial Statements\n{BODY}\nItem 8A. Controls and Procedures\n{BODY}\n"
+    )
+    sections = pe.extract_sections(text, "10KSB")
+    assert [(s["id"], s["title"]) for s in sections] == [
+        ("item_6", "Management's Discussion and Analysis or Plan of Operation"),
+        ("item_7", "Financial Statements"),
+        ("item_8a", "Controls and Procedures"),
+    ]
+
+
+def test_extract_sections_names_the_forms_with_items():
+    with pytest.raises(ValueError, match="10-K, 10-Q, 8-K, 10-KSB or 10-QSB.*not S-1"):
+        pe.extract_sections("Item 1. Business\n", "S-1")
+    assert "10-KSB" in pe.Client.sections.__doc__
+
+
 def test_html_to_text():
     html = "<table><tr><td>Net sales</td><td>$</td><td>391,035</td></tr></table><p>Second <b>line</b>.</p>"
     assert pe.html_to_text(html) == "Net sales\t$391,035\nSecond line.\n"
@@ -30,7 +51,7 @@ def test_html_to_text():
 
 def test_html_to_text_and_tables():
     html = (
-        "<p>Résultats</p><table><tr><th></th><th>2024</th></tr>"
+        "<p>Résultats</p><table><tr><th></th><th colspan=2>2024</th></tr>"
         "<tr><td>Net sales</td><td>$</td><td>391,035</td></tr></table><p>After the table.</p>"
     )
     text, tables = pe.html_to_text_and_tables(html)
@@ -38,6 +59,9 @@ def test_html_to_text_and_tables():
     [t] = tables
     assert t["rows"] == [["2024"], ["Net sales", "$391,035"]]
     assert t["header_rows"] == [0]
+    # "2024" covers the "$" and number columns; "$391,035" sits in the number's column.
+    assert t["columns"] == [[1], [0, 2]]
+    assert t["spans"] == [[2], [1, 1]]
     # Offsets count bytes of the UTF-8 text, like section offsets.
     assert text.encode()[t["start"] : t["end"]].decode() == "2024\nNet sales\t$391,035\n"
     assert pe.html_to_text_and_tables("A plain-text filing.\n") == ("A plain-text filing.\n", [])
