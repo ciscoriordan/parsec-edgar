@@ -715,14 +715,16 @@ static PART_LABEL: LazyLock<Regex> =
 /// its line that way ("The information set forth in Part II," then "Item 7.
 /// Management's Discussion and Analysis, of the Company's Annual Report ...").
 /// A heading comes after the end of a paragraph, a page header, a blank line
-/// or a PART label, also one printed with a comma ("PART II,").
+/// or a PART label, also one printed with a comma ("PART II,"). A line that
+/// holds only a joining word links two headings ("Item 1. Business." then
+/// "and" then "Item 2. Properties."), so the heading after it stands.
 fn continues_sentence(text: &str, line_start: usize) -> bool {
     let Some(above) = text[..line_start].strip_suffix('\n') else {
         return false;
     };
     let above = above.strip_suffix('\r').unwrap_or(above);
     let line = &above[above.rfind('\n').map_or(0, |i| i + 1)..];
-    if PART_LABEL.is_match(line) {
+    if PART_LABEL.is_match(line) || JOINING_WORDS.contains(&line.trim()) {
         return false;
     }
     let last = line.trim_end().rsplit([' ', '\t']).next().unwrap_or("");
@@ -2521,10 +2523,39 @@ mod tests {
         for above in ["described in", "see", "(see", "as discussed under", "in Part II,", "in Part II,\r", "a, b and"] {
             assert!(after(above), "{above:?}");
         }
-        for above in ["", "None", "Not applicable", "ends here.", "PART II,", "Part I -", "AND", "In", "in\n"] {
+        for above in [
+            "",
+            "None",
+            "Not applicable",
+            "ends here.",
+            "PART II,",
+            "Part I -",
+            "AND",
+            "In",
+            "in\n",
+            "and",
+            "  and\t",
+            "or",
+        ] {
             assert!(!after(above), "{above:?}");
         }
         assert!(!continues_sentence("Item 7. Title", 0));
+    }
+
+    #[test]
+    fn headings_joined_by_a_line_with_only_and_are_both_items() {
+        // Norfolk Southern 2002 underlines two headings and prints "and"
+        // between them, for Items 1 and 2 and again for Items 12 and 13.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1.\tBusiness.\n------\t--------\nand\nItem 2.\tProperties.\n------\t----------\n{body}\n\
+             Item 3.\tLegal Proceedings.\n{body}\nPART III\n\
+             Item 12.    Security Ownership of Certain Beneficial Owners and\n-------     ------------\nManagement.\n\
+             ----------\nand\nItem 13.    Certain Relationships and Related Transactions.\n-------     ----------\n{body}\n\
+             PART IV\nItem 14.    Exhibits, Financial Statement Schedules, and Reports on Form 8-K.\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3", "item_12", "item_13", "item_14"]);
     }
 
     #[test]
