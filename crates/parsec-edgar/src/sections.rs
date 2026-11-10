@@ -18,8 +18,11 @@
 //! print just above the body, is such a contents list too. So are rows that
 //! end with a page number or a range of pages ("Item 3. Quantitative and
 //! Qualitative Disclosures About Market Risk   10 - 11"), with the rows just
-//! before them whose entries end with one, also when the body prints no
-//! heading for them; such a row is never taken for a body heading. In a 10-Q
+//! before them whose entries end with one and that name an earlier Item, as
+//! a contents list does, also when the body prints no heading for them; such
+//! a row is never taken for a body heading. A heading followed by a running
+//! header of its own Item that prints the page, or by an index of Items
+//! after the body, is no such row. In a 10-Q
 //! or 10-QSB a `PART I` or `PART II` line just above a heading fixes its
 //! part, and without one a title that only one part uses for that Item number
 //! does. Such a line that starts with a Part I title and runs on as a
@@ -1313,7 +1316,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     let mut later_copies: Vec<(usize, usize)> = Vec::new();
     // Rows that print a page number are contents rows, also when no body
     // heading repeats them, and never the body copy of a pair.
-    let paged = paged_rows(&cands, text, SAME_BLOCK);
+    let paged = paged_rows(&cands, text, keys, SAME_BLOCK);
     for a in 0..n {
         if cands[a].title.chars().count() < 5 {
             continue;
@@ -1460,27 +1463,34 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key]) -> Vec<Candidate> {
 /// Contents rows found by their page numbers. A row is an Item line that ends
 /// with a page number or a range of pages, after a tab, two spaces or dot
 /// leaders (`Item 3. Quantitative and Qualitative Disclosures About Market
-/// Risk     10 - 11`). Going back from such a row, the Item line before it is
-/// a row too when it is at most `block` characters before it and the last
-/// line between them ends with a page number: its entry lists pages under it
-/// ("Item 1. Financial Statements", then "Balance Sheets   1", ...), or its
-/// title wraps onto a line with the page ("Item 2. Management's Discussion
-/// and Analysis of Financial", then "Condition and Results of Operations
-/// 9 - 10").
-fn paged_rows(cands: &[Candidate], text: &str, block: usize) -> Vec<bool> {
+/// Risk     10 - 11`). Going back from a row, the Item line before it is a
+/// row too when it is at most `block` characters before it, the last line
+/// between them ends with a page number, and it names an Item that comes
+/// earlier in the form, as the entries of a contents list do. Its entry lists
+/// pages under it ("Item 1. Financial Statements", then "Balance Sheets   1",
+/// ...), or its title wraps onto a line with the page ("Item 2. Management's
+/// Discussion and Analysis of Financial", then "Condition and Results of
+/// Operations   9 - 10"). A heading followed by a running header of its own
+/// Item that prints the page ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS
+/// (Continued)   5"), or by an index of Items printed after the body, which
+/// starts again at an earlier Item, is no row.
+fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Vec<bool> {
+    let ends_with_page = |l: &str| PAGE_REFERENCE.is_match(l.trim_end());
     let n = cands.len();
     let mut paged = vec![false; n];
     for i in (0..n).rev() {
         let start = cands[i].pos;
         let line_end = text[start..].find('\n').map_or(text.len(), |e| start + e);
-        let own = PAGE_REFERENCE.is_match(text[start..line_end].trim_end());
+        let own = ends_with_page(&text[start..line_end]);
         let entry = i + 1 < n
             && paged[i + 1]
             && cands[i + 1].pos - start <= block
-            && text[line_end..cands[i + 1].pos]
-                .lines()
-                .rfind(|l| !l.trim().is_empty())
-                .is_some_and(|l| PAGE_REFERENCE.is_match(l.trim_end()));
+            && text[line_end..cands[i + 1].pos].lines().rfind(|l| !l.trim().is_empty()).is_some_and(ends_with_page)
+            && cands[i].label != cands[i + 1].label
+            && form_places(&cands[i], keys)
+                .next()
+                .zip(form_places(&cands[i + 1], keys).next_back())
+                .is_some_and(|(this, next)| this < next);
         paged[i] = own || entry;
     }
     paged
@@ -3560,6 +3570,49 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
         assert!(s[2].text.starts_with("Item 6. Exhibits\n10.1\t"));
+    }
+
+    #[test]
+    fn page_numbers_on_a_running_header_or_an_index_after_the_body_keep_the_heading() {
+        // A page-numbered row makes the Item line before it a contents entry
+        // only when that line names an earlier Item, as a contents list does.
+        let body = BODY.repeat(30);
+        let page = BODY.repeat(12);
+        // Item 7's first page ends with a table row, and the next pages start
+        // with a running header that prints the page.
+        let text = format!(
+            "Item 6. [Reserved]\n\
+             ITEM 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS\n\
+             {page}\nNumber of stores   214   198   176\n\
+             ITEM 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)      5\n{page}\n\
+             ITEM 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)      6\n{page}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_6", "item_7", "item_8"]);
+        assert!(s[1].heading.starts_with("ITEM 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS OF"));
+        // The same in a 10-Q, with a title that names neither part.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Results of Operations and Financial Condition\n\
+             {page}\nNumber of branches   21   19   18\n\
+             Item 2. Results of Operations and Financial Condition (Continued)   15\n{page}\n\
+             PART II\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(s[1].heading, "Item 2. Results of Operations and Financial Condition");
+        // A 10-Q's Item 6 lists its exhibits with their pages, and an index of
+        // the Items with their pages follows with no heading of its own.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n\
+             31.1\tCertification of the Chief Executive Officer\t25\n32\tSection 906 Certifications\t27\n\
+             Item 1. Financial Statements\t3\nItem 2. Management's Discussion and Analysis\t30\n\
+             Item 1. Legal Proceedings\t47\nItem 6. Exhibits\t48\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+        assert!(s[3].text.starts_with("Item 6. Exhibits\n31.1\t"));
     }
 
     #[test]
