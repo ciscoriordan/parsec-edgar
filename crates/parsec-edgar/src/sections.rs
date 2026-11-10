@@ -81,11 +81,16 @@
 //! number of one Item, as running text also puts it ("Item 8, which ..."),
 //! counts only when the line ends where the Item's standard title ends ("Item
 //! 8, Financial Statements and Supplementary Data"). In a 10-K or 10-KSB whose
-//! first Item found is Item 1A or Item 2, a line that holds only Item 1's
-//! standard title after the last `PART I` line before it ("PART I." and then
-//! "BUSINESS") starts Item 1, unless an Item line comes between them, or the
+//! first Item found is Item 1A or Item 2, and whose last Part line before that
+//! heading is a `PART I` line that comes after every Item line before it, a
+//! line that holds only Item 1's standard title starts Item 1: the first one
+//! right after a `PART I` line ("PART I." and then "BUSINESS"), unless another
+//! Part's line comes after it, as in a contents list printed without Item
+//! numbers. It may come before the last `PART I` line, since Item 1's pages
+//! may print "PART I" and "Business" again as page headers. Without one, the
+//! first such line after the last `PART I` line starts Item 1, unless the
 //! title line is printed more than once after the last Item line before the
-//! heading (Item 1's pages print "PART I" and "Business" as page headers).
+//! heading.
 //! A heading that writes the Item number in roman numerals ("ITEM I.
 //! BUSINESS", with the letter I for 1) starts that Item when its title starts
 //! like one of the Item's standard titles, current or former, and it sits
@@ -2303,17 +2308,19 @@ fn add_lettered(cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize
 
 /// Item 1 printed with no number in a 10-K or 10-KSB: "PART I." and then
 /// "BUSINESS" on a line of its own, while the other Items have numbered
-/// headings. When the first Item of the chain is Item 1A or Item 2, the first
-/// line that holds only Item 1's standard title ("Business", "Description of
-/// Business"), between the last `PART I` line before that Item's heading and
-/// the heading, starts Item 1, unless an Item line comes between that `PART
-/// I` line and the heading. A Part I printed with no Item numbers at all has
-/// its first numbered heading in Part II, so it gets no Item 1. Neither does
-/// one whose title line is printed more than once after the last Item line
-/// before the heading: Item 1's pages then print "PART I" and "Business" as
-/// page headers, the `PART I` line nearest the heading is one of them, and
-/// the first copy of the title, which may be the heading, may also be a
-/// contents entry. Returns the title line as a candidate.
+/// headings. It is looked for when the first Item of the chain is Item 1A or
+/// Item 2, and the last Part line before that Item's heading is a `PART I`
+/// line that comes after every Item line before it: a Part I printed with no
+/// Item numbers at all has its first numbered heading in Part II, so it gets
+/// no Item 1. The first line that holds only Item 1's standard title
+/// ("Business", "Description of Business") right after a `PART I` line starts
+/// Item 1, unless another Part's line comes after it, as in a contents list
+/// printed without Item numbers ("PART I", "Business", "Risk Factors", ...,
+/// "PART II", ...). It may come before the last `PART I` line, since Item 1's
+/// pages may print "PART I" and "Business" as page headers. Without such a
+/// line, the first title line between the last `PART I` line and the heading
+/// starts Item 1, unless the title line is printed more than once after the
+/// last Item line before the heading. Returns the title line as a candidate.
 fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(usize, usize)]) -> Option<Candidate> {
     let &(first, key) = picks.first()?;
     let item_1 = keys.iter().find(|k| k.item == "1")?;
@@ -2345,10 +2352,25 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
         let line = line.trim();
         line.starts_with(char::is_uppercase) && title_key(line) == letters && title_words(line) == words
     };
-    let (pos, line) = lines.into_iter().rev().find(|&(_, line)| title_line(line))?;
-    if text[..heading].lines().rev().take_while(|l| !is_item_line(l)).filter(|l| title_line(l)).count() > 1 {
-        return None;
+    // The first title line right after a PART I line, unless another Part's
+    // line comes after it.
+    let part_one = |l: &str| PART_LABEL.is_match(l) && PART_MARK.captures(l).is_some_and(|c| &c[1] == "I");
+    let mut first: Option<(usize, &str)> = None;
+    let mut above = "";
+    for (start, line) in lines_in(text, 0, heading).into_iter().filter(|(_, l)| !l.is_empty()) {
+        if PART_LABEL.is_match(line) && !part_one(line) {
+            first = None;
+        } else if first.is_none() && part_one(above) && title_line(line) {
+            first = Some((start, line));
+        }
+        above = line;
     }
+    let copies = text[..heading].lines().rev().take_while(|l| !is_item_line(l)).filter(|l| title_line(l)).count();
+    let (pos, line) = match first {
+        Some(first) => first,
+        None if copies > 1 => return None,
+        None => lines.into_iter().rev().find(|&(_, line)| title_line(line))?,
+    };
     Some(added_candidate(text, pos, item_1.item, line))
 }
 
@@ -3833,12 +3855,46 @@ Pursuant to ...
     }
 
     #[test]
+    fn unnumbered_business_heading_with_page_headers_starts_item_one() {
+        // Item 1's pages print "PART I" and "Business" again as page headers,
+        // with no contents list before, a contents list with Item numbers and
+        // pages, one without pages, or one without Item numbers or pages; also
+        // with an Item line between the copies. And a contents list without
+        // Item numbers or pages before a body that prints the pair once.
+        let body = BODY.repeat(30);
+        let pages = format!("4\nPART I\nBusiness\n{body}\n5\nPART I\nBusiness\n{body}\n");
+        let item_line = format!("Item 7 of this report describes our results.\n{body}\n{pages}");
+        let no_numbers = "PART I\nBusiness\nRisk Factors\nProperties\nPART II\nMarket\nPART III\nPART IV\n";
+        let mut layouts: Vec<(&str, &str)> = Vec::new();
+        for contents in [
+            "",
+            "PART I\nItem 1.\tBusiness\t4\nItem 1A.\tRisk Factors\t13\nItem 2.\tProperties\t20\n\
+             PART II\nItem 5.\tMarket\t21\n",
+            "PART I\nItem 1. Business\nItem 1A. Risk Factors\nItem 2. Properties\nPART II\nItem 5. Market\n",
+            no_numbers,
+        ] {
+            layouts.extend([(contents, pages.as_str()), (contents, item_line.as_str())]);
+        }
+        layouts.push((no_numbers, ""));
+        let rest =
+            format!("ITEM 1A. RISK FACTORS\n{body}\nITEM 2. PROPERTIES\n{body}\nPART II\nITEM 5. MARKET\n{body}\n");
+        for (contents, after) in layouts {
+            let text = format!("{contents}FORWARD-LOOKING STATEMENTS\n{body}\nPART I\nBUSINESS\n{body}\n{after}{rest}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_1a", "item_2", "item_5"], "{contents:.30} / {after:.30}");
+            assert_eq!(s[0].start, text.find("PART I\nBUSINESS").unwrap() + 7, "{contents:.30} / {after:.30}");
+        }
+    }
+
+    #[test]
     fn unnumbered_business_heading_starts_no_item_elsewhere() {
         // A Part I with no Item numbers at all, an Item line between PART I
         // and the first numbered heading, another title, no PART I line or
         // another PART line, a first numbered heading after Item 1A, a
-        // numbered Item 1, "PART I" and "Business" printed again as page
-        // headers, and a 10-Q whose Part I prints its title without a number.
+        // numbered Item 1, the title printed twice and never right after
+        // PART I, a contents list without Item numbers whose copy has PART II
+        // after it while the body's has no PART I line above it, and a 10-Q
+        // whose Part I prints its title without a number.
         let body = BODY.repeat(30);
         let annual = |text: &str| ids(&extract_sections(text, FormKind::TenK)).join(" ");
         for (text, items) in [
@@ -3864,9 +3920,13 @@ Pursuant to ...
             ),
             (format!("PART I\nBUSINESS\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\n"), "item_1 item_2"),
             (
+                format!("PART I\nOverview\nBusiness\n{body}\nBusiness\n{body}\nITEM 1A. RISK FACTORS\n{body}\n"),
+                "item_1a",
+            ),
+            (
                 format!(
-                    "PART I\nBUSINESS\n{body}\n4\nPART I\nBusiness\n{body}\n5\nPART I\nBusiness\n{body}\n\
-                     ITEM 1A. RISK FACTORS\n{body}\n"
+                    "PART I\nBusiness\nRisk Factors\nPART II\nMarket for Registrant's Common Equity\n\
+                     Business\n{body}\nPART I\n{body}\nITEM 1A. RISK FACTORS\n{body}\n"
                 ),
                 "item_1a",
             ),
