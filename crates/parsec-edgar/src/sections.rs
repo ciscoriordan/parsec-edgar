@@ -515,20 +515,26 @@ fn title_key(tail: &str) -> String {
 
 /// `Item 9 A. Controls` and `Item 1.A. Risk Factors`: a letter set apart from
 /// the number by spaces only, or by a separator with no space after it,
-/// belongs to it (in `ITEM 1. A. GENERAL` it starts the title). Done here
-/// rather than in the heading regex, which stays fast that way.
+/// belongs to it (in `ITEM 1. A. GENERAL` it starts the title) when a
+/// separator follows the letter, or the `(T)` of the temporary Items of 2007
+/// to 2009 (`Item 9 A (T). Controls`). Done here rather than in the heading
+/// regex, which stays fast that way.
 fn split_letter<'a>(label: &str, between: &str, tail: &'a str) -> (String, &'a str) {
-    let b = tail.as_bytes();
-    if label.bytes().all(|d| d.is_ascii_digit())
-        && (between.trim().is_empty() || !between.ends_with(char::is_whitespace))
-        && b.len() >= 2
-        && matches!(b[0], b'A'..=b'C')
-        && matches!(b[1], b'.' | b':')
-    {
-        (format!("{label}{}", b[0] as char), tail[2..].trim_start())
+    let joins = label.bytes().all(|d| d.is_ascii_digit())
+        && (between.trim().is_empty() || !between.ends_with(char::is_whitespace));
+    let (Some(letter @ b'A'..=b'C'), true) = (tail.as_bytes().first().copied(), joins) else {
+        return (label.to_owned(), tail);
+    };
+    let after = &tail[1..];
+    let temporary = after.trim_start_matches([' ', '\t']);
+    let title = if let Some(rest) = after.strip_prefix(['.', ':']) {
+        rest.trim_start()
+    } else if let Some(rest) = temporary.strip_prefix("(T)").or_else(|| temporary.strip_prefix("(t)")) {
+        rest.trim_start_matches([' ', '\t', '.', ':', '-', '–', '—'])
     } else {
-        (label.to_owned(), tail)
-    }
+        return (label.to_owned(), tail);
+    };
+    (format!("{label}{}", letter as char), title)
 }
 
 /// `ITEM 4(a). EXECUTIVE OFFICERS OF THE REGISTRANT` in a 10-K or 10-KSB: the
@@ -1835,6 +1841,39 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_1", "item_1a", "item_1b"]);
+    }
+
+    #[test]
+    fn temporary_item_mark_after_a_spaced_letter_joins_it_to_the_number() {
+        // "Item 9 A (T)." prints the letter apart from the number, then the
+        // "(T)" of the temporary Items: the letter belongs to the number.
+        let body = BODY.repeat(30);
+        for heading in [
+            "Item 9 A (T). Controls and Procedures.",
+            "Item 9 A(T) Controls and Procedures",
+            "ITEM 9 A (t) – CONTROLS AND PROCEDURES",
+        ] {
+            let text = format!(
+                "Item 8. Financial Statements and Supplementary Data\n{body}\n\
+                 Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure\nNone\n\
+                 {heading}\n{body}\nItem 9 B. Other Information\nNone.\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_9a", "item_9b"], "{heading}");
+            assert_eq!(s[2].heading, heading);
+        }
+        // Without "(T)" or a separator after it, the letter starts the title.
+        let text = format!(
+            "Item 8. Financial Statements and Supplementary Data\n{body}\n\
+             Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure\nNone\n\
+             Item 9 A Controls and Procedures\n{body}\nItem 9 B. Other Information\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_9", "item_9b"]);
+        assert!(s[1].text.contains("\nItem 9 A Controls and Procedures\n"));
+        assert_eq!(split_letter("9", " ", "A (T). Controls"), ("9A".to_owned(), "Controls"));
+        assert_eq!(split_letter("1", ". ", "A (T). General"), ("1".to_owned(), "A (T). General"));
+        assert_eq!(split_letter("9", " ", "A (Tax) Matters"), ("9".to_owned(), "A (Tax) Matters"));
     }
 
     #[test]
