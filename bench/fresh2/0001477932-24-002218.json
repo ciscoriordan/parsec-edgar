@@ -1,0 +1,161 @@
+{
+  "accession": "0001477932-24-002218",
+  "cik": 1848861,
+  "company": "Healthcare AI Acquisition Corp.",
+  "form": "10-K",
+  "filing_date": "2024-04-17",
+  "url": "https://www.sec.gov/Archives/edgar/data/1848861/000147793224002218/haia_10k.htm",
+  "agent": "",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Blank-check company (SPAC), smaller reporting company. Item 6 is printed '[RESESRVED]' (sic) with 'Not applicable.'. Item 7A says a smaller reporting company need not answer it. Item 8 points to the financial statements, which follow the signatures and belong to no Item. The exhibit list is inside Item 15, before Item 16. No Item 9C heading anywhere, including the contents. Items 1B, 9 and 9B say only 'None.', which is an answer, so they are not marked incorporated, as in the existing label sets.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 0,
+      "next": "Introduction"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "You should consider carefully all of the"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_1c",
+      "text": "Item 1C. Cybersecurity",
+      "occurrence": 0,
+      "next": "We are a SPAC with no business operation"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "Our executive offices are located at 8 T"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "To the knowledge of our management, ther"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "(a) Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. [RESESRVED]",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "References in this Report to “we,” “us” "
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "We are a smaller reporting company as de",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "This information appears following Item ",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "Officers and Directors"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "Officer and Director Compensation"
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The following table sets forth informati"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions and Director Independence",
+      "occurrence": 0,
+      "next": "Founder Shares"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The following is a summary of fees paid "
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statements Schedules",
+      "occurrence": 0,
+      "next": "(a)\tThe following documents are filed as"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. Form 10-K Summary",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    }
+  ],
+  "absent": [
+    "item_9c"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

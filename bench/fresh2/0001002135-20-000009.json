@@ -1,0 +1,40 @@
+{
+  "accession": "0001002135-20-000009",
+  "cik": 1002135,
+  "company": "WESTELL TECHNOLOGIES INC",
+  "form": "8-K",
+  "filing_date": "2020-04-20",
+  "url": "https://www.sec.gov/Archives/edgar/data/1002135/000100213520000009/a2004148kppploan.htm",
+  "agent": "self",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Paycheck Protection Program loan. Item 2.03 only incorporates the Item 1.01 disclosure by reference. The promissory note is listed under Item 9.01 as Exhibit 10.1 and is not part of this document.",
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "Item 1.01\tEntry Into a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "On April 8, 2020, Westell, Inc. (the \"Bo"
+    },
+    {
+      "id": "item_2.03",
+      "text": "Item 2.03\tCreation of a Direct Financial Obligation or an Obligation Under an Off-Balance Sheet Arrangement of a Registrant.",
+      "occurrence": 0,
+      "next": "The disclosure in Item 1.01 of this repo",
+      "incorporated": true
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01\tFinancial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

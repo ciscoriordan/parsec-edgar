@@ -1,0 +1,168 @@
+{
+  "accession": "0001704711-26-000020",
+  "cik": 1704711,
+  "company": "Funko, Inc.",
+  "form": "10-K",
+  "filing_date": "2026-03-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/1704711/000170471126000020/fnko-20251231.htm",
+  "agent": "self",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Every Item from 1 to 16 has a body heading. The exhibit index is printed inside Item 15 (under '3. List of Exhibits'), and Item 16 follows it, so the filing ends at SIGNATURES after Item 16. Item 3 only points to Note 14; Items 1B, 9 and 16 say 'None.'; Items 4 and 9C say 'Not applicable.'; Items 11, 13 and 14 incorporate the proxy statement. Item 6 is '[RESERVED.]' with no body and is not marked incorporated. Items 10 and 12 have their own text (code of ethics, equity compensation plan table) besides the proxy reference.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "Our business faces significant risks and"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_1c",
+      "text": "ITEM 1C. CYBERSECURITY",
+      "occurrence": 0,
+      "next": "Cybersecurity Risk Management and Strate"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "As of December 31, 2025, our leased prop"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "See Note 14 \"Commitments and Contingenci",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. [RESERVED.]",
+      "occurrence": 0,
+      "next": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANAL"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "You should read the following discussion"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK.",
+      "occurrence": 0,
+      "next": "We are exposed to market risk from chang"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "FUNKO, INC. AND SUBSIDIARIES"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "(a)On March 11, 2026, the Funko, Inc. 20"
+    },
+    {
+      "id": "item_9c",
+      "text": "Item 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "Code of Ethics"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "Securities Authorized for Issuance Under"
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "(a) Documents filed as part of this repo"
+    },
+    {
+      "id": "item_16",
+      "text": "ITEM 16. FORM 10-K SUMMARY",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

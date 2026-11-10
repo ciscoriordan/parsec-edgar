@@ -1,0 +1,88 @@
+{
+  "accession": "0000097216-07-000138",
+  "cik": 97216,
+  "company": "TEREX CORP",
+  "form": "10-Q",
+  "filing_date": "2007-05-04",
+  "url": "https://www.sec.gov/Archives/edgar/data/97216/000009721607000138/f10q03312007.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Part II Item 1A only refers to the risk factors in the 2006 Form 10-K and is marked incorporated. Part II Item 5 says 'Not applicable.', but the unnumbered 'Forward-Looking Information' section follows it before Item 6 and stays in Item 5, so Item 5 is not marked. The exhibit index follows the signatures.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1.\tCONDENSED CONSOLIDATED FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "TEREX CORPORATION AND SUBSIDIARIES"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL",
+      "occurrence": 0,
+      "next": "CONDITION AND RESULTS OF OPERATIONS"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3.\tQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "We are exposed to certain market risks t"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4.\tCONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "(a)\tEvaluation of Disclosure Controls an"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "We are involved in certain claims and li"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "There have been no material changes in t",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "(a)\tNot applicable"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3.\tDefaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.\tSubmission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5.\tOther Information",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.\tExhibits",
+      "occurrence": 0,
+      "next": "The exhibits set forth on the accompanyi"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

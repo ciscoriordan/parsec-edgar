@@ -1,0 +1,73 @@
+{
+  "accession": "0000796343-11-000015",
+  "cik": 796343,
+  "company": "ADOBE INC.",
+  "form": "10-Q",
+  "filing_date": "2011-10-07",
+  "url": "https://www.sec.gov/Archives/edgar/data/796343/000079634311000015/adbe10qq311.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Part II has only Items 1, 1A, 2 and 6; Part II Item 4 was '(Removed and Reserved)' in this era and is listed as absent with Items 3 and 5. Part I Item 3 states that market risk has not changed significantly since the annual report; that is an answer, not a reference, so it is not marked incorporated (as in the blind label 0000040545-09-000071). Part II Item 6 points to the index to exhibits filed with this report, which prior labels do not mark. A summary of trademarks and the index to exhibits follow the signature.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1. CONDENSED CONSOLIDATED FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "ADOBE SYSTEMS INCORPORATED"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion should be read "
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "We believe that there have been no signi"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Based on their evaluation as of Septembe"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "See Note 14 “Commitments and Contingenci",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "ITEM 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "As previously discussed, our actual resu"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "ITEM 2. UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS",
+      "occurrence": 0,
+      "next": "Below is a summary of stock repurchases "
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6. EXHIBITS",
+      "occurrence": 0,
+      "next": "The exhibits listed in the accompanying "
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

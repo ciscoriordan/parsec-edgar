@@ -1,0 +1,147 @@
+{
+  "accession": "0001047469-13-006422",
+  "cik": 1520262,
+  "company": "Alkermes plc.",
+  "form": "10-K",
+  "filing_date": "2013-05-23",
+  "url": "https://www.sec.gov/Archives/edgar/data/1520262/000104746913006422/a2215335z10-k.htm",
+  "agent": "Toppan Merrill",
+  "tags": [],
+  "labeled": true,
+  "notes": "Fiscal year ended March 31, 2013. Item 8 holds the quarterly data and a pointer to the financial statements, so it is not marked incorporated. The financial statements follow the signatures and the exhibit index and are in no Item; the filing ends at 'SIGNATURES'.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 0,
+      "next": "The following discussion contains forwar"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "Investing in our company involves a high"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "We lease approximately 8,500 square feet"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "From time to time, we may be subject to "
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not Applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "Market and shareholder information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "The selected historical financial data s"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "The following should be read in conjunct"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "We hold securities in our investment por"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "Selected Quarterly Financial Data"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures and I"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "On May 21, 2013, with such authority del"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions and Director Independence",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accounting Fees and Services",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(a)(1)\tConsolidated Financial Statements"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

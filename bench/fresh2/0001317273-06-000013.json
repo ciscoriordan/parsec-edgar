@@ -1,0 +1,128 @@
+{
+  "accession": "0001317273-06-000013",
+  "cik": 721447,
+  "company": "CCA INDUSTRIES INC",
+  "form": "10-K",
+  "filing_date": "2006-02-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/721447/000131727306000013/ccanovk6.htm",
+  "agent": "",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Fiscal year ended November 30, 2005, one day before Items 1A and 1B became required (fiscal years ending on or after December 1, 2005). The form in force at filing (February 2006) defines them and the filing has no heading for them, so they are listed as absent, as earlier labels do for Items a smaller company was not required to give; Item 9B has no heading either. A cross-reference sheet and a page-numbered contents list precede Part I; the body has real Item headings. Headings for Items 5, 7A, 9 and 15 wrap onto a second line and are labeled at the first line. Item 8 gives quarterly data and points to Item 15 for the statements, so it is not marked incorporated. The audited financial statements and Schedule II follow the signatures with no Item heading, so the filing ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. BUSINESS",
+      "occurrence": 0,
+      "next": "(a) General"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. PROPERTY",
+      "occurrence": 0,
+      "next": "The principal executive offices of the C"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The only material legal proceedings outs"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "On June 15, 2005, the Company held its a"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. MARKET FOR THE COMPANY'S COMMON STOCK",
+      "occurrence": 0,
+      "next": "AND RELATED SHAREHOLDER MATTERS"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "Year Ended November 30,"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "Except for historical information contai"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. QUANTITATIVE AND QUALITATIVE",
+      "occurrence": 0,
+      "next": "DISCLOSURE ABOUT MARKET RISK"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "The Financial Statements are listed unde"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS",
+      "occurrence": 0,
+      "next": "ON ACCOUNTING AND FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "With the participation of our Chief Exec"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "We have a code of ethics that applies to"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "i. Summary Compensation Table"
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The following table sets forth certain i"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "During fiscal 2005, several related part"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "KGS LLP (“KGS”) (formerly known as Sheft"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. EXHIBITS, FINANCIAL STATEMENTS,",
+      "occurrence": 0,
+      "next": "SCHEDULES AND REPORTS ON FORM 8‑K"
+    }
+  ],
+  "absent": [
+    "item_1a",
+    "item_1b",
+    "item_9b"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

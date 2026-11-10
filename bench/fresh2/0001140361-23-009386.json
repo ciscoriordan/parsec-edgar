@@ -1,0 +1,167 @@
+{
+  "accession": "0001140361-23-009386",
+  "cik": 357301,
+  "company": "TRUSTCO BANK CORP N Y",
+  "form": "10-K",
+  "filing_date": "2023-03-01",
+  "url": "https://www.sec.gov/Archives/edgar/data/357301/000114036123009386/brhc10048869_10k.htm",
+  "agent": "EdgarFilings",
+  "tags": [
+    "bank",
+    "exhibit-13"
+  ],
+  "labeled": true,
+  "notes": "Items 7, 7A and 8 point to the annual report filed as Exhibit 13, which is a separate document. Item 1C did not yet apply to fiscal 2022, so it is not listed as absent. Item 4 says 'Not applicable.', but the unnumbered 'Information about our Executive Officers' section follows it and stays in Item 4, so Item 4 is not marked incorporated. Item 6 '[Removed and reserved]' has no body and is not marked, as in earlier sets. Item 14 is kept as incorporated although its span also holds one line naming the auditor (Crowe LLP, PCAOB Firm ID 173) after the page link; Item 10 likewise adds a code-of-conduct sentence. Lines reading 'Index' are page navigation links, not headings. The exhibit list is inside Item 15, and Item 16 follows it. The filing ends at the first 'SIGNATURES'.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "The following are general risk factors a"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B\tUnresolved Staff Comments",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties",
+      "occurrence": 0,
+      "next": "TrustCo’s executive offices are located "
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "The nature of TrustCo’s business generat"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tMine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for the Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "TrustCo’s common stock is traded on The "
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\t[Removed and reserved]",
+      "occurrence": 0,
+      "next": "Item 7.\tManagement’s Discussion and Anal"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "The information required by this this It",
+      "incorporated": true
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "The information required by this Item 7A",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The consolidated financial statements, t",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "An evaluation was carried out under the "
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9c",
+      "text": "Item 9C.\tDisclosure Regarding Foreign Jurisdictions that Prevent Inspections",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "The information required by this Item 10",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "The information required by this Item 11",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information required by this Item 12",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships, Related Transactions and Director Independence",
+      "occurrence": 0,
+      "next": "The information required by this Item 13",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPrincipal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The information required by this Item 14",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits, Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "The following financial statements of Tr"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16.\tForm 10-K Summary",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

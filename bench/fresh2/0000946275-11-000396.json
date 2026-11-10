@@ -1,0 +1,154 @@
+{
+  "accession": "0000946275-11-000396",
+  "cik": 1374783,
+  "company": "MSB FINANCIAL CORP.",
+  "form": "10-K",
+  "filing_date": "2011-09-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/1374783/000094627511000396/f10k_063011-5468.htm",
+  "agent": "Malizia Spidi & Fisch",
+  "tags": [
+    "bank",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Smaller reporting company: Items 1A, 1B and 6 say not applicable. A forward-looking statements section between 'PART I' and Item 1 belongs to no Item. Item 4 is '[Removed and Reserved]' with no body and is not marked. Item 8 only says the financial statements follow Item 15. The statements (from 'REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM' through the notes) follow Item 15's exhibit list with no Item heading and belong to no Item, so Item 15 ends there; the filing ends at SIGNATURES. Hard call: Item 10 incorporates the proxy statement and adds one sentence saying a code of ethics exists and is posted on the website; it is marked incorporated, as in the Apple 2016, Visa 2017 and BTCS 2025 labels. Item 12 prints an equity compensation plan table and is not marked.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "Not applicable as the Company is a “smal",
+      "incorporated": true
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "At June 30, 2011, our investment in prop"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "The Bank, from time to time, is a party "
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. [Removed and Reserved]",
+      "occurrence": 0,
+      "next": "PART II"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Common Equity, Related Stockholder Matters and Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "(a) Market Information. The Company’s co"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "Not applicable as the Company is a small",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "This discussion and analysis reflects th"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Management of Interest Rate Risk and Mar"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The Company’s consolidated financial sta",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "(a) Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "The information that appears under the h",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation",
+      "occurrence": 0,
+      "next": "The information that appears under the h",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "(a)\tSecurity Ownership of Certain Benefi"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+      "occurrence": 0,
+      "next": "No directors, executive officers or thei"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The information relating to this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(1) The following financial statements a",
+      "end": {
+        "text": "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM",
+        "occurrence": 0,
+        "next": "To the Board of Directors and Stockholde"
+      }
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

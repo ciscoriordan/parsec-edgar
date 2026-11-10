@@ -1,0 +1,155 @@
+{
+  "accession": "0001079973-20-000487",
+  "cik": 930775,
+  "company": "ENCISION INC",
+  "form": "10-K",
+  "filing_date": "2020-06-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/930775/000107997320000487/ecia_10k-033020.htm",
+  "agent": "",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Smaller reporting company. Item 9A is printed as 'Item 9 A (T). Controls and Procedures.' and Item 9B as 'Item 9 B. Other Information'. Items 1B, 6 and 7A say 'Not required' and Item 4 says 'Not applicable'; Items 10, 11, 13 and 14 incorporate the proxy statement. Item 12 also incorporates the proxy statement but prints the equity compensation plan table, so it is not marked incorporated. Items 3, 9, 9B and 16 say 'None', which is an answer, so they are not marked incorporated. The filing ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business",
+      "occurrence": 0,
+      "next": "Company Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "You should carefully consider the risk f"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments",
+      "occurrence": 0,
+      "next": "Not required for small reporting compani",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties",
+      "occurrence": 0,
+      "next": "We lease 28,696 square feet of office an"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings",
+      "occurrence": 0,
+      "next": "None at March 31, 2020."
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "During our fiscal years 2020 and 2019, o"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "Not required for smaller reporting compa",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Certain statements contained in this sec"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Not required.",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "The following financial statements are i"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes In and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9 A (T). Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Management’s Evaluation of Disclosures C"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9 B. Other Information",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "Information in response to this item is ",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation.",
+      "occurrence": 0,
+      "next": "Information in response to this item is ",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Shareholder Matters.",
+      "occurrence": 0,
+      "next": "Information in response to this item is "
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "Information in response to this item is ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accounting Fees and Services.",
+      "occurrence": 0,
+      "next": "Information in response to this item is ",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(b) Exhibits - The following exhibits ar"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16. Form 10-K Summary.",
+      "occurrence": 0,
+      "next": "None."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

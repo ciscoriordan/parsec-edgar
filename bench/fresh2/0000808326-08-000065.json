@@ -1,0 +1,147 @@
+{
+  "accession": "0000808326-08-000065",
+  "cik": 808326,
+  "company": "EMCORE CORP",
+  "form": "10-K",
+  "filing_date": "2008-12-30",
+  "url": "https://www.sec.gov/Archives/edgar/data/808326/000080832608000065/form10k.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "One body heading per Item; the contents entries carry page numbers. Item 15 holds the exhibit list and ends at SIGNATURES. Items 1B, 4, 9 and 9B are marked incorporated because their whole body is a nil answer (Not Applicable, no matters submitted, None), following the field definition in bench/src/labels.rs. Items 11 to 14 only refer to the proxy statement. Item 10 is not marked because it adds a code of ethics paragraph. An auditor's report on internal control sits inside Item 9A.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.\tBusiness",
+      "occurrence": 0,
+      "next": "Company Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "Our disclosure and analysis in this 2008"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B.\tUnresolved Staff Comments",
+      "occurrence": 0,
+      "next": "Not Applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.\tProperties",
+      "occurrence": 0,
+      "next": "The following chart contains certain inf"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "The Company is subject to various legal "
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.\tSubmission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of s",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.\tMarket for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "occurrence": 0,
+      "next": "The Company’s common stock is traded on "
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.\tSelected Financial Data",
+      "occurrence": 0,
+      "next": "The following selected consolidated fina"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Business Overview"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A.\tQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "We are exposed to financial market risks"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8.\tFINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "EMCORE CORPORATION AND SUBSIDIARIES"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B.\tOther Information",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.\tDirectors, Executive Officers and Corporate Governance",
+      "occurrence": 0,
+      "next": "Information regarding our executive offi"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "Information required by this Item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "Information regarding security ownership",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.\tCertain Relationships, Related Transactions and Director Independence",
+      "occurrence": 0,
+      "next": "Information regarding required by this I",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14.\tPrincipal Accounting Fees and Services",
+      "occurrence": 0,
+      "next": "Information required by this Item is inc",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15.\tExhibits and Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(a)(1)\tFinancial Statements"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

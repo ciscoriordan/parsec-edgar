@@ -1,0 +1,116 @@
+{
+  "accession": "0000950150-00-000202",
+  "cik": 92116,
+  "company": "Golden State Water CO",
+  "form": "10-K",
+  "filing_date": "2000-03-21",
+  "url": "https://www.sec.gov/Archives/edgar/data/92116/000095015000000202/0000950150-00-000202.txt",
+  "agent": "Bowne",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Combined 10-K of American States Water Company and its subsidiary Southern California Water Company (CIK 92116, later Golden State Water). Pre-2003 numbering: Item 14 is exhibits. Contents entries use 'Item N:' and are not labeled; body headings mix 'ITEM 1.' and 'ITEM 2 -'. Item 7A says the disclosure is not applicable; Items 10-13 incorporate the proxy statement. Item 14 says the required schedules appear 'at the conclusion of this Item', so it runs through the auditors' report on the supplemental schedule and Schedule I to SIGNATURES.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "This annual report on Form 10-K is a com"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2 - PROPERTIES",
+      "occurrence": 0,
+      "next": "FRANCHISES AND CONDEMNATION OF PROPERTIE"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3 - LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "WATER QUALITY-RELATED LITIGATION"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "No matter was submitted during the fourt"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR REGISTRANT'S COMMON EQUITY AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "(a)  MARKET INFORMATION RELATING TO COMM"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.   SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "1999           1998           1997      "
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS",
+      "occurrence": 0,
+      "next": "OF OPERATION"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Registrant has no derivative financial i",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "American States Water Company"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 0,
+      "next": "FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "Information responsive to Part III, Item",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "Information responsive to Part III, Item",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "Information responsive to Part III, Item",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "Information responsive to Part III, Item",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a) 1.  Reference is made to the Financi"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "accession": "0000950123-10-034174",
+  "cik": 1323715,
+  "company": "Superior Well Services, INC",
+  "form": "8-K",
+  "filing_date": "2010-04-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/1323715/000095012310034174/l39392e8vk.htm",
+  "agent": "Bowne",
+  "tags": [],
+  "labeled": true,
+  "notes": "A short contents list ('Item 7.01 Regulation FD Disclosure', 'SIGNATURES') precedes the body; only the body heading, the second 'Item 7.01' line, is labeled, and the end is the second 'SIGNATURES'. The filing has no exhibits and no Item 9.01.",
+  "items": [
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01 Regulation FD Disclosure.",
+      "occurrence": 0,
+      "next": "Superior Well Services, Inc. (the “Compa"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 1,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "accession": "0000950124-05-000062",
+  "cik": 62996,
+  "company": "MASCO CORP /DE/",
+  "form": "8-K",
+  "filing_date": "2005-01-06",
+  "url": "https://www.sec.gov/Archives/edgar/data/62996/000095012405000062/k90951e8vk.txt",
+  "agent": "Bowne",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Short 8-K: Item 1.01 (revised vesting schedule for restricted stock awards) and Item 9.01 (Exhibits 10.1 and 10.2). Item headings use a colon ('ITEM 1.01:'). The exhibit index follows the signature.",
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "ITEM 1.01:        ENTRY INTO A MATERIAL DEFINITIVE AGREEMENT",
+      "occurrence": 0,
+      "next": "Effective January 1, 2005, the vesting s"
+    },
+    {
+      "id": "item_9.01",
+      "text": "ITEM 9.01:        FINANCIAL STATEMENTS AND EXHIBITS",
+      "occurrence": 0,
+      "next": "(c) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

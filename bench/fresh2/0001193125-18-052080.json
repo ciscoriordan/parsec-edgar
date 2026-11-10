@@ -1,0 +1,152 @@
+{
+  "accession": "0001193125-18-052080",
+  "cik": 775368,
+  "company": "ALLEGHANY CORP /DE",
+  "form": "10-K",
+  "filing_date": "2018-02-21",
+  "url": "https://www.sec.gov/Archives/edgar/data/775368/000119312518052080/d469642d10k.htm",
+  "agent": "DFIN",
+  "tags": [
+    "insurer"
+  ],
+  "labeled": true,
+  "notes": "Item 15's short text ends with 'See the Exhibit Index', and the EXHIBIT INDEX heading follows directly, then SIGNATURES, then financial statement schedules I to VI. The index is kept inside Item 15 and the last Item ends at SIGNATURES, as in bench/labels Berkshire Hathaway 2025 (Item 15, EXHIBIT INDEX, SIGNATURES) and bench/fresh Capital One 2020 10-Q; the Patriot National 2025 label ends at the exhibit index only because its last Item is Item 16. The schedules after the signatures belong to no Item. No Item 16 heading. Items 1B, 9 and 9B ('None.') are marked incorporated following the field definition in bench/src/labels.rs; Item 4 only points to Exhibit 95; Items 10, 11, 13 and 14 only refer to the proxy statement. Item 12 is not marked because it prints an equity compensation plan table.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business.",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "Our operating businesses and investments"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties.",
+      "occurrence": 0,
+      "next": "The principal executive offices of Alleg"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "Certain of our subsidiaries are parties "
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. Mine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "The information concerning mine safety v",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Market Information, Holders and Dividend"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data.",
+      "occurrence": 0,
+      "next": "Alleghany Corporation and Subsidiaries(1"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "The following is a discussion and analys"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures about Market Risk.",
+      "occurrence": 0,
+      "next": "Market risk is the risk of loss from adv"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "Index to Consolidated Financial Statemen"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "The information required by this Item 10",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation.",
+      "occurrence": 0,
+      "next": "The information required by this Item 11",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "The information required by this Item 12"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "The information required by this Item 13",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services.",
+      "occurrence": 0,
+      "next": "The information required by this Item 14",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits and Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(a) 1. Financial Statements."
+    }
+  ],
+  "absent": [
+    "item_16"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

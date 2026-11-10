@@ -1,0 +1,89 @@
+{
+  "accession": "0001579684-16-000004",
+  "cik": 1579684,
+  "company": "USA TODAY Co., Inc.",
+  "form": "10-Q",
+  "filing_date": "2016-04-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/1579684/000157968416000004/newm_10-qx03272016xdoc.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "Filed as New Media Investment Group Inc. The contents list repeats every Item heading; the body Part I Item 1 heading is the second 'Item 1. Financial Statements'. There is no body 'PART I' line; 'Part II. — OTHER INFORMATION' precedes Part II Item 1. Part II Items 3, 4 and 5 say 'Not applicable' and Item 6 only points to the exhibit index, which follows the signatures, so the filing ends at SIGNATURES. Part I Item 3 and Part II Item 1 state that nothing changed materially since the annual report; they are not marked incorporated, as with every such body in the earlier label sets.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1.\tFinancial Statements",
+      "occurrence": 1,
+      "next": "NEW MEDIA INVESTMENT GROUP INC. AND SUBS"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "Management’s discussion and analysis of "
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3.\tQuantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "During the three month period ended Marc"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4.\tControls and Procedures",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "There have been no material changes to t"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A.\tRisk Factors",
+      "occurrence": 0,
+      "next": "You should carefully consider the follow"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "Issuer Purchases of Equity Securities"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3.\tDefaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "Not applicable",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.\tMine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5.\tOther Information",
+      "occurrence": 0,
+      "next": "Not applicable",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.\tExhibits",
+      "occurrence": 0,
+      "next": "See Index to Exhibits on page 59 of this",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

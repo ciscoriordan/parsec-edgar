@@ -1,0 +1,33 @@
+{
+  "accession": "0000730000-14-000002",
+  "cik": 730000,
+  "company": "SUPERTEX INC",
+  "form": "8-K",
+  "filing_date": "2014-01-21",
+  "url": "https://www.sec.gov/Archives/edgar/data/730000/000073000014000002/supx-20140121x8k.htm",
+  "agent": "self",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Lines 21 to 23 list the Item headings and 'Signatures' after the cover page, as a contents block; the body headings are the second occurrences. An exhibit index follows the signatures; the press release (Exhibit 99.1) is a separate document.",
+  "items": [
+    {
+      "id": "item_2.02",
+      "text": "Item 2.02. Results of Operations and Financial Condition.",
+      "occurrence": 1,
+      "next": "On January 21, 2014, Supertex, Inc. (the"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01. Financial Statements and Exhibits.",
+      "occurrence": 1,
+      "next": "(d) Exhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 1,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

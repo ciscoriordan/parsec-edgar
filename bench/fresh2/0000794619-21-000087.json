@@ -1,0 +1,68 @@
+{
+  "accession": "0000794619-21-000087",
+  "cik": 794619,
+  "company": "AMERICAN WOODMARK CORP",
+  "form": "10-Q",
+  "filing_date": "2021-11-23",
+  "url": "https://www.sec.gov/Archives/edgar/data/794619/000079461921000087/amwd-20211031.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "The index near the top lists the same Items with page numbers; each body heading appears once. Part II has headings only for Items 1, 1A and 6. Part II Item 1A only points to the annual report's risk factors and says there are no material changes, so it is marked incorporated. Item 6's exhibit list ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "AMERICAN WOODMARK CORPORATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "The following discussion should be read "
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "The costs of the Company's products are "
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Senior management, including the Chief E"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "The Company is involved in various suits"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "Risk factors that may affect the Company",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit Number\tDescription"
+    }
+  ],
+  "absent": [
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

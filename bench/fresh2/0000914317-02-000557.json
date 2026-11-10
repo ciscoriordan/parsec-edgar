@@ -1,0 +1,46 @@
+{
+  "accession": "0000914317-02-000557",
+  "cik": 1107160,
+  "company": "HARLEYSVILLE SAVINGS FINANCIAL CORP",
+  "form": "10-Q",
+  "filing_date": "2002-05-14",
+  "url": "https://www.sec.gov/Archives/edgar/data/1107160/000091431702000557/form10q-45189.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "bank",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Part I has no Item headings in the body: the financial statements follow the index directly, and MD&A ('MANAGEMENT'S DISCUSSION AND ANALYSIS ...') and 'Quantitative and Qualitative Disclosures About Market Risk' have unnumbered headings; only the index names Items 1-3, so they are absent, as in bench/fresh/0000093410-99-000045. Form 10-Q had no Part I Item 4 before August 2002. Uncertain: Part II prints one combined line, 'Item 1-5. Not applicable.'; it is labeled as Part II Item 1 (incorporated) and Items 2-5, which have no heading of their own, are absent. No SIGNATURES heading: the filing ends where the signature text 'Pursuant to the requirements ...' starts.",
+  "items": [
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1-5.   Not applicable.",
+      "occurrence": 0,
+      "next": "Item 6.     Exhibits and Reports on Form",
+      "incorporated": true,
+      "uncertain": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.     Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "None"
+    }
+  ],
+  "absent": [
+    "part_1_item_1",
+    "part_1_item_2",
+    "part_1_item_3",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "Pursuant to the requirements of the Securities Exchange Act of 1934, the Bank",
+    "occurrence": 0,
+    "next": "has duly caused this report to be signed"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "accession": "0000916641-97-000452",
+  "cik": 5009,
+  "company": "AMERICAN FILTRONA CORP",
+  "form": "10-Q",
+  "filing_date": "1997-05-07",
+  "url": "https://www.sec.gov/Archives/edgar/data/5009/000091664197000452/0000916641-97-000452.txt",
+  "agent": "",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Short plain-text 10-Q. Part I has no Item headings in the body: the financial statements follow 'PART I. FINANCIAL INFORMATION' directly and MD&A has the unnumbered heading 'MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL STATEMENTS' (line 181). That text belongs to no Item, so Part I Items 1 and 2 are listed absent rather than labeled at unnumbered headings, as in fresh/0000093410-99-000045. The contents list no Item numbers. Part II has only Item 6. Part I Item 3 (market risk) is not listed absent because it did not yet apply to a quarter ended March 31, 1997.",
+  "items": [
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.  Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(b) Reports on Form 8-K -- The Company f"
+    }
+  ],
+  "absent": [
+    "part_1_item_1",
+    "part_1_item_2",
+    "part_2_item_1",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

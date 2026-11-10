@@ -1,0 +1,89 @@
+{
+  "accession": "0001102993-26-000084",
+  "cik": 1102993,
+  "company": "LIVEPERSON INC",
+  "form": "10-Q",
+  "filing_date": "2026-08-07",
+  "url": "https://www.sec.gov/Archives/edgar/data/1102993/000110299326000084/lpsn-20260630.htm",
+  "agent": "self",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "Inline XBRL 10-Q with every Item heading in the body. Part II Item 1 refers to Note 13 (Legal Matters) and Part II Item 4 says 'Not applicable.', so both are marked incorporated. Part II Item 3 says 'None.', which is an answer, so it is not marked. Part II Item 5 answers (a) and (b) with 'None' but makes the Rule 10b5-1 statement in (c), so it is not marked either. The filing ends at SIGNATURES after the exhibit list in Item 6. The cover page checks Smaller Reporting Company.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "LIVEPERSON, INC."
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "You should read the following discussion"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Foreign Currency Exchange Risks"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "The information called for by this Item ",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "Our operations and financial results are"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "Unregistered Sales of Equity Securities"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Mine Safety Disclosures",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information",
+      "occurrence": 0,
+      "next": "(a) None."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6. EXHIBITS",
+      "occurrence": 0,
+      "next": "2.1\tMerger Agreement, dated as of April "
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

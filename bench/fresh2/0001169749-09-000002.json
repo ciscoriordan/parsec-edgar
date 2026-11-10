@@ -1,0 +1,143 @@
+{
+  "accession": "0001169749-09-000002",
+  "cik": 914747,
+  "company": "MORGAN STANLEY SMITH BARNEY CHARTER ASPECT L.P.",
+  "form": "10-K",
+  "filing_date": "2009-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/914747/000116974909000002/mscd.txt",
+  "agent": "Demeter Management",
+  "tags": [
+    "plain-text",
+    "annual-report-attached"
+  ],
+  "labeled": true,
+  "notes": "Plain-text 10-K of a commodity pool. Item 9A has two headings: 'Item 9A. CONTROLS AND PROCEDURES' (line 1224) with the full disclosure, then 'Item 9A(T). CONTROLS AND PROCEDURES' (line 1284) with only 'Not applicable.'. There is no id for 9A(T), so Item 9A is labeled at the first heading and the 9A(T) heading stays inside it. Item 8 incorporates the financial statements from Exhibit 13.01 but prints the quarterly supplementary data, and Item 13 cites the annual report but also states the brokerage fees, so neither is marked incorporated. Items 3, 4, 9 and 9B say 'None.', which is an answer, so they are not marked incorporated. The line 'Items 6 and 8.' inside Item 1 is a wrapped cross-reference, not a heading. The filing ends at SIGNATURES; the exhibit index and the attached Charter Series annual report to limited partners (Exhibit 13.01) follow it.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.  BUSINESS",
+      "occurrence": 0,
+      "next": "(a) General Development of Business.  Mo"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.  RISK FACTORS",
+      "occurrence": 0,
+      "next": "Current limited partners of the Partners"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.  UNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.  PROPERTIES",
+      "occurrence": 0,
+      "next": "The Partnership?s executive and administ"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.  LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.  MARKET FOR REGISTRANT'S COMMON EQUITY, RELATED",
+      "occurrence": 1,
+      "next": "STOCKHOLDER MATTERS AND ISSUER PURCHASES"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.  SELECTED FINANCIAL DATA (in dollars)",
+      "occurrence": 0,
+      "next": "For the Years Ended December 31,"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tMANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL",
+      "occurrence": 1,
+      "next": "CONDITION AND RESULTS OF OPERATIONS"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Introduction"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.  FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "The Financial Statements are incorporate"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING",
+      "occurrence": 0,
+      "next": "AND FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.  CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "As of the end of the period covered by t"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.  OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.  DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "There are no directors or executive offi"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.  EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The Partnership has no directors and exe"
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND",
+      "occurrence": 0,
+      "next": "MANAGEMENT AND RELATED STOCKHOLDER MATTE"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND",
+      "occurrence": 0,
+      "next": "DIRECTOR INDEPENDENCE"
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.  PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "MS&Co., on behalf of the Partnership, pa"
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.  EXHIBITS, FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "1. Listing of Financial Statements"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Sections"
+  }
+}

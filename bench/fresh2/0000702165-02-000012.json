@@ -1,0 +1,119 @@
+{
+  "accession": "0000702165-02-000012",
+  "cik": 702165,
+  "company": "NORFOLK SOUTHERN CORP",
+  "form": "10-K",
+  "filing_date": "2002-02-21",
+  "url": "https://www.sec.gov/Archives/edgar/data/702165/000070216502000012/corp10k01.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text",
+    "running-headers"
+  ],
+  "labeled": true,
+  "notes": "Pre-2003 numbering: Item 14 is exhibits. Items 1 and 2 share one heading block ('Item 1. Business.', 'and', 'Item 2. Properties.'); each heading is labeled, so Item 1 holds only the word 'and' and the shared text falls under Item 2. Items 10 to 13 are stacked the same way, and one paragraph under Item 13 incorporates the proxy statement for all of Part III. Every page repeats its Item heading as a header (Items 6, 7, 8 and 14); the first occurrence is the heading. Line 329 'Item 7, ...' is a cross-reference inside Item 2, not a heading. The unnumbered 'Executive Officers of the Registrant.' section stays in Item 4. Item 7A only points to Item 7; Items 3 and 9 say 'None.' Hard call: the filing ends at 'POWER OF ATTORNEY', which sits between Item 14 and 'SIGNATURES', is listed apart from Item 14 in the contents and introduces the signatures, so it belongs to no Item. Schedule II and the exhibit index follow the signatures.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness.",
+      "occurrence": 0,
+      "next": "------\t--------"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties.",
+      "occurrence": 0,
+      "next": "------\t----------"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings.",
+      "occurrence": 0,
+      "next": "------\t-----------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tSubmission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "------\t---------------------------------"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.     Market for Registrant's Common Stock and Related",
+      "occurrence": 0,
+      "next": "------      ----------------------------"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Financial Data.",
+      "occurrence": 0,
+      "next": "------\t-----------------------"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.     Management's Discussion and Analysis of Financial",
+      "occurrence": 0,
+      "next": "------      ----------------------------"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures about Market Risk.",
+      "occurrence": 0,
+      "next": "-------\t--------------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "------\t---------------------------------"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.    Changes in and Disagreements with Accountants on Accounting",
+      "occurrence": 0,
+      "next": "------     -----------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.    Directors and Executive Officers of the Registrant.",
+      "occurrence": 0,
+      "next": "-------     ----------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.    Executive Compensation.",
+      "occurrence": 0,
+      "next": "-------     ----------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.    Security Ownership of Certain Beneficial Owners and",
+      "occurrence": 0,
+      "next": "-------     ----------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.    Certain Relationships and Related Transactions.",
+      "occurrence": 0,
+      "next": "-------     ----------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.    Exhibits, Financial Statement Schedule and",
+      "occurrence": 0,
+      "next": "-------     ----------------------------"
+    }
+  ],
+  "end": {
+    "text": "POWER OF ATTORNEY",
+    "occurrence": 0,
+    "next": "-----------------"
+  }
+}

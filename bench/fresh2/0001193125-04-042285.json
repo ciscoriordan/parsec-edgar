@@ -1,0 +1,136 @@
+{
+  "accession": "0001193125-04-042285",
+  "cik": 1069822,
+  "company": "MONY GROUP INC",
+  "form": "10-K",
+  "filing_date": "2004-03-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/1069822/000119312504042285/d10k.htm",
+  "agent": "DFIN",
+  "tags": [
+    "insurer"
+  ],
+  "labeled": true,
+  "notes": "Filed in 2004, before the form defined Item 1A: the executive officers section is printed as 'ITEM 1A. Executive Officers of the Registrant' between Items 1 and 2, and Item 10 cites it as 'Item 1A of this Report', so it is labeled by its printed number, as the holdout label for Caterpillar's 'Item 1C. Executive Officers' was (uncertain: the alternative ends Item 1 at that heading and leaves the list in no Item, as with Item 4A). Item 3 points to Note 18 but adds its own statement, so it is not marked incorporated. Item 15 says the exhibits are listed in the Exhibit Index, which follows it directly and comes before the signatures, so the index stays in Item 15 and the filing ends at the signatures, as in the label for 0001193125-13-096241.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1.\tBusiness",
+      "occurrence": 0,
+      "next": "Organization and Business"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "The names of the executive officers of t",
+      "uncertain": true
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.\tProperties",
+      "occurrence": 0,
+      "next": "The Company leases its headquarters buil"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.\tLegal Proceedings",
+      "occurrence": 0,
+      "next": "See Note 18 to the Consolidated Financia"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.\tSubmission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "No matters were submitted to a vote of s"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.\tMarket for the Registrant’s Common Equity and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The MONY Group’s common stock is traded "
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.\tSelected Financial Data",
+      "occurrence": 0,
+      "next": "The following table sets forth selected "
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.\tMANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion and analysis ad"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A.\tQuantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "Set forth below is a discussion regardin"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8.\tFinancial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "THE MONY GROUP INC. AND SUBSIDIARIES"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. Controls and Procedures",
+      "occurrence": 0,
+      "next": "An evaluation was carried out under the "
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.\tDirectors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "The information required by Item 10 is s",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.\tExecutive Compensation",
+      "occurrence": 0,
+      "next": "The information required by Item 11 is s",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "The information required by Item 12 is s",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.\tCertain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "The information required by Item 13 is s",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14.\tPrincipal Accountant Fees and Services",
+      "occurrence": 0,
+      "next": "The information required by Item 14 is s",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15.\tExhibits, Financial Statements Schedules, and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a) The following documents are filed as"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

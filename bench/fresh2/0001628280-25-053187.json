@@ -1,0 +1,31 @@
+{
+  "accession": "0001628280-25-053187",
+  "cik": 10456,
+  "company": "BAXTER INTERNATIONAL INC",
+  "form": "8-K",
+  "filing_date": "2025-11-19",
+  "url": "https://www.sec.gov/Archives/edgar/data/10456/000162828025053187/bax-20251119.htm",
+  "agent": "Workiva",
+  "tags": [],
+  "labeled": true,
+  "notes": "Short 8-K: Item 8.01 reports a larger cap on a cash tender offer for notes due 2027 and describes the event itself, so it is not marked incorporated. The press release (Exhibit 99.1) is not in the primary document. Item 9.01 lists the exhibits and ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01 Other Events.",
+      "occurrence": 0,
+      "next": "On November 19, 2025, Baxter Internation"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01 Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}
