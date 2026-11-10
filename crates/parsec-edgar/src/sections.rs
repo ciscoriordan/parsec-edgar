@@ -91,7 +91,11 @@
 //! after it. An exhibit index printed after such statements does not keep them
 //! in the Item, and the Item ends at an index to them printed after its own
 //! text, or else at the report. Statements printed before another Item are
-//! inside the exhibits Item.
+//! inside the exhibits Item. Page headers printed just above any of these
+//! headings go with the text after it: up to three lines, each printed again
+//! on a line of its own at least twice after the heading and more often than
+//! before it (the company name at the top of each statement page), but never
+//! the Item's first line of text.
 
 use std::sync::LazyLock;
 
@@ -1313,6 +1317,47 @@ fn glossary_start(text: &str, start: usize, end: usize) -> Option<usize> {
     heading_starts(&GLOSSARY, text, start, end).find(|&p| !exhibit_cell(text, p))
 }
 
+/// Start of the page headers printed just above a heading at `cut` that ends
+/// the section starting at `start`: up to three lines, each printed again as
+/// a whole line at least twice after the cut and more often after it than
+/// before it, such as the company name at the top of each page of the
+/// statements that follow. A header line has a letter and at most 100
+/// characters, and the section's first line of text after its heading always
+/// stays.
+fn page_headers_above(text: &str, start: usize, cut: usize) -> usize {
+    const MAX_LINES: usize = 3;
+    const MIN_COPIES: usize = 2;
+    const MAX_CHARS: usize = 100;
+    let lines = item_lines(text, start, cut);
+    let Some(first) = lines.iter().position(|(_, l)| !l.is_empty()) else {
+        return cut;
+    };
+    let (mut header, mut moved) = (cut, 0);
+    for &(pos, line) in lines[first + 1..].iter().rev().filter(|(_, l)| !l.is_empty()) {
+        if moved == MAX_LINES || line.len() > MAX_CHARS || !line.contains(char::is_alphabetic) {
+            break;
+        }
+        // A line printed as often before it ("None.") is text, not a header.
+        let after = line_copies(&text[cut..], line);
+        if after < MIN_COPIES || after <= line_copies(&text[..pos], line) {
+            break;
+        }
+        (header, moved) = (pos, moved + 1);
+    }
+    header
+}
+
+/// How many lines of `text` hold `line` and nothing else but blanks.
+fn line_copies(text: &str, line: &str) -> usize {
+    let blank = |s: &str| s.trim().is_empty();
+    text.match_indices(line)
+        .filter(|&(i, _)| {
+            blank(text[..i].rsplit('\n').next().unwrap_or(""))
+                && blank(text[i + line.len()..].split('\n').next().unwrap_or(""))
+        })
+        .count()
+}
+
 /// Start of a power of attorney printed after the last Item's text and
 /// before the signatures, under a heading of its own.
 fn power_of_attorney(text: &str, start: usize, end: usize) -> Option<usize> {
@@ -1796,12 +1841,14 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             let next = starts.get(i + 1).copied().unwrap_or(doc_end);
             let end = stops.iter().copied().find(|&p| p > start && p < next).unwrap_or(next).max(start);
             let last = i + 1 == picks.len();
-            let end = if ends_at_block(ki, cand) && !holds_more(ci, end) {
+            // A heading that opens text belonging to no Item, which ends the
+            // section with the page headers printed above it.
+            let cut = if ends_at_block(ki, cand) && !holds_more(ci, end) {
                 let block = heading_start(&BLOCK_HEADING, text, start, end);
                 let glossary = after_exhibits(ki, cand).then(|| glossary_start(text, start, end)).flatten();
-                block.into_iter().chain(glossary).min().unwrap_or(end)
+                block.into_iter().chain(glossary).min()
             } else if other_information(ki) {
-                heading_start(&CONTROLS_REPORT, text, start, end).unwrap_or(end)
+                heading_start(&CONTROLS_REPORT, text, start, end)
             } else if exhibits_item(ki, cand) {
                 // Statements printed after all of its text, whatever their
                 // pages, and a glossary end it when no Item follows it.
@@ -1809,10 +1856,11 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
                     (last && statements_elsewhere).then(|| statements_after_items(text, start, end)).flatten()
                 });
                 let glossary = last.then(|| glossary_start(text, start, end)).flatten();
-                statements.into_iter().chain(glossary).min().unwrap_or(end)
+                statements.into_iter().chain(glossary).min()
             } else {
-                end
+                None
             };
+            let end = cut.map_or(end, |c| page_headers_above(text, start, c));
             let item_id = key.item.to_ascii_lowercase();
             let id = match key.part {
                 Some(part) => format!("part_{}_item_{item_id}", if part == "I" { 1 } else { 2 }),
@@ -3806,6 +3854,72 @@ mod tests {
     }
 
     #[test]
+    fn page_headers_above_a_cut_go_with_the_text_after_it() {
+        // The company name heads the index and each page of the statements
+        // after Item 16, and two header lines head the statements after an
+        // old Item 14; the cover title above them is printed once and stays.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 15.\tExhibits, Financial Statement Schedules\n{body}\nItem 16.\tForm 10-K Summary\nNone.\n\
+             EXAMPLE CORP\nINDEX TO FINANCIAL STATEMENTS\nPage\nReport of Independent Registered Public Accounting Firm\t39\n\
+             REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\nEXAMPLE CORP\n\
+             CONSOLIDATED STATEMENTS OF OPERATIONS\n{body}\nEXAMPLE CORP\nCONSOLIDATED BALANCE SHEETS\n{body}\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[1].text, "Item 16.\tForm 10-K Summary\nNone.");
+        let headers = "EXAMPLE OIL INTERNATIONAL, INC.\n(A DEVELOPMENT STAGE ENTERPRISE)\n";
+        let text = format!(
+            "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNot applicable.\n\
+             ITEM 14. EXHIBITS, FINANCIAL STATEMENTS, SCHEDULES AND REPORTS ON FORM 8-K\n(a)(1) Financial Statements:\n\
+             Report of Independent Auditors..............   F-2\nConsolidated Balance Sheets.................   F-3\n\
+             Consolidated Statements of Loss.............   F-4\n(b) Exhibits\n3.1    Articles of Incorporation (1)\n\
+             Consolidated Financial Statements\n{headers}REPORT OF INDEPENDENT AUDITORS\n{body}\n\
+             {headers}CONSOLIDATED BALANCE SHEETS\n{body}\n{headers}CONSOLIDATED STATEMENTS OF LOSS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9", "item_14"]);
+        assert!(s[1].text.ends_with("Articles of Incorporation (1)\nConsolidated Financial Statements"));
+    }
+
+    #[test]
+    fn lines_above_a_cut_that_are_not_page_headers_stay() {
+        // The Item's first line of text, a letterhead printed once, numbers,
+        // long lines, and header lines past the third all stay.
+        let body = BODY.repeat(30);
+        let long = "The Company had no disagreements with its former accountants on any matter of accounting principles \
+                    or practices.";
+        let cases = [
+            ("None.\n", "None.\nNone.\n"),
+            ("None.\nExample Auditors LLP\n", "/s/\nExample Auditors LLP\n"),
+            ("None.\n2024\n", "2024\n2024\n"),
+            (&format!("{long} None.\n{long}\n"), &format!("{long}\n{long}\n")),
+            ("None.\nA\nB CORP\nC CORP\nD CORP\n", "A\nB CORP\nC CORP\nD CORP\nA\nB CORP\nC CORP\nD CORP\n"),
+        ];
+        let kept = ["None.", "None.\nExample Auditors LLP", "2024", long, "None.\nA"];
+        for ((item, after), kept) in cases.iter().zip(kept) {
+            let text = format!(
+                "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\n{item}\
+                 INDEPENDENT AUDITORS' REPORT\n{body}\n{after}{body}\nITEM 9A. CONTROLS AND PROCEDURES\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_9", "item_9a"], "{item}");
+            assert!(s[0].text.ends_with(kept), "{item}");
+        }
+        // "None." after a heading printed on two lines is printed twice after
+        // the cut, but as often before the section.
+        let text = format!(
+            "ITEM 1B. UNRESOLVED STAFF COMMENTS\nNone.\nITEM 3. LEGAL PROCEEDINGS\nNone.\n\
+             ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING\nAND FINANCIAL DISCLOSURE\nNone.\n\
+             INDEPENDENT AUDITORS' REPORT\n{body}\nITEM 9A. CONTROLS AND PROCEDURES\n{body}\n\
+             ITEM 9B. OTHER INFORMATION\nNone.\nITEM 16. FORM 10-K SUMMARY\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1b", "item_3", "item_9", "item_9a", "item_9b", "item_16"]);
+        assert!(s[2].text.ends_with("AND FINANCIAL DISCLOSURE\nNone."));
+    }
+
+    #[test]
     fn item_16_titled_as_the_exhibits_item_keeps_its_statements_and_exhibit_index() {
         // Some 10-Ks for 2003 kept the numbering of 2002: Item 14 Controls and
         // Procedures, Item 15 Accountant Fees and Item 16 Exhibits, whose list
@@ -3832,7 +3946,8 @@ mod tests {
     fn statements_with_pages_of_their_own_end_the_exhibits_item() {
         // The statement pages, numbered F-1, F-2, ..., follow Item 15's text
         // with their own index and no Item heading. The Item ends at the
-        // index; the company name printed above it as a page header stays.
+        // index, and the company name printed above it, as on each page of
+        // the statements, goes with it.
         let body = BODY.repeat(30);
         let text = format!(
             "Item 14.\tControls and Procedures\n{body}\nPART IV\n\
@@ -3849,7 +3964,7 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_14", "item_15"]);
-        assert_eq!(s[1].end, text.find("INDEX TO FINANCIAL STATEMENTS").unwrap());
+        assert_eq!(s[1].end, text.find("EXAMPLE CORP\nINDEX TO FINANCIAL STATEMENTS").unwrap());
         // The Item lists the statements with their pages as its own text and
         // prints them after its exhibit list, so it keeps the list and ends at
         // the first statement. Pages alone on a line below wrapped titles
