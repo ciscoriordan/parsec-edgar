@@ -96,6 +96,12 @@
 //! on a line of its own at least twice after the heading and more often than
 //! before it (the company name at the top of each statement page), but never
 //! the Item's first line of text.
+//!
+//! A section's title is the standard title of its Item. Where the form has
+//! renamed the Item, the printed heading picks the title among those it has
+//! had ("Selected Financial Data" or "[Reserved]" for 10-K Item 6), and the
+//! current title is kept when the heading fits none of the earlier ones
+//! better. The titles never decide which lines are headings.
 
 use std::sync::LazyLock;
 
@@ -184,7 +190,10 @@ pub struct Section {
     pub part: Option<String>,
     /// Item number as printed on the form, e.g. `1A`, `2.02`.
     pub item: String,
-    /// Standard title of the Item.
+    /// Standard title of the Item: its title in the current version of the
+    /// form, or an earlier title of the Item when the heading prints that one
+    /// ("Submission of Matters to a Vote of Security Holders" for Item 4 of a
+    /// 10-K before 2010).
     pub title: String,
     /// The heading line as it appears in the filing.
     pub heading: String,
@@ -198,16 +207,38 @@ pub struct Section {
 struct Key {
     part: Option<&'static str>,
     item: &'static str,
+    /// The Item's title in the current version of the form, which the
+    /// headings are matched with.
     title: &'static str,
+    /// Titles of the Item in earlier versions of the form, newest first. They
+    /// name a section whose heading prints one of them (`printed_title`), but
+    /// are not used to find headings.
+    former: &'static [&'static str],
 }
 
 const fn k(item: &'static str, title: &'static str) -> Key {
-    Key { part: None, item, title }
+    Key { part: None, item, title, former: &[] }
 }
 
 const fn q(part: &'static str, item: &'static str, title: &'static str) -> Key {
-    Key { part: Some(part), item, title }
+    Key { part: Some(part), item, title, former: &[] }
 }
+
+impl Key {
+    /// The same Item with the titles it had in earlier versions of the form.
+    const fn was(self, former: &'static [&'static str]) -> Key {
+        Key { former, ..self }
+    }
+}
+
+/// The title of the exhibits Item from 1980 to the early 2000s: 10-K Item 14,
+/// then Item 15, and Item 16 in 2003.
+const OLD_EXHIBITS: &str = "Exhibits, Financial Statement Schedules, and Reports on Form 8-K";
+
+/// Item 4 of Form 10-K and Part II Item 4 of Form 10-Q: removed in 2010, when
+/// the vote results moved to Form 8-K, and used again for mine safety from
+/// 2012.
+const OLD_ITEM_4: &[&str] = &["(Removed and Reserved)", "Submission of Matters to a Vote of Security Holders"];
 
 const TEN_K: &[Key] = &[
     k("1", "Business"),
@@ -216,12 +247,13 @@ const TEN_K: &[Key] = &[
     k("1C", "Cybersecurity"),
     k("2", "Properties"),
     k("3", "Legal Proceedings"),
-    k("4", "Mine Safety Disclosures"),
+    k("4", "Mine Safety Disclosures").was(OLD_ITEM_4),
     k(
         "5",
         "Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
-    ),
-    k("6", "[Reserved]"),
+    )
+    .was(&["Market for Registrant's Common Equity and Related Stockholder Matters"]),
+    k("6", "[Reserved]").was(&["Selected Financial Data"]),
     k("7", "Management's Discussion and Analysis of Financial Condition and Results of Operations"),
     k("7A", "Quantitative and Qualitative Disclosures About Market Risk"),
     k("8", "Financial Statements and Supplementary Data"),
@@ -229,13 +261,17 @@ const TEN_K: &[Key] = &[
     k("9A", "Controls and Procedures"),
     k("9B", "Other Information"),
     k("9C", "Disclosure Regarding Foreign Jurisdictions that Prevent Inspections"),
-    k("10", "Directors, Executive Officers and Corporate Governance"),
+    k("10", "Directors, Executive Officers and Corporate Governance")
+        .was(&["Directors and Executive Officers of the Registrant"]),
     k("11", "Executive Compensation"),
-    k("12", "Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters"),
-    k("13", "Certain Relationships and Related Transactions, and Director Independence"),
-    k("14", "Principal Accountant Fees and Services"),
-    k("15", "Exhibits and Financial Statement Schedules"),
-    k("16", "Form 10-K Summary"),
+    k("12", "Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters")
+        .was(&["Security Ownership of Certain Beneficial Owners and Management"]),
+    k("13", "Certain Relationships and Related Transactions, and Director Independence")
+        .was(&["Certain Relationships and Related Transactions"]),
+    k("14", "Principal Accountant Fees and Services").was(&["Controls and Procedures", OLD_EXHIBITS]),
+    k("15", "Exhibits and Financial Statement Schedules")
+        .was(&["Principal Accountant Fees and Services", OLD_EXHIBITS]),
+    k("16", "Form 10-K Summary").was(&[OLD_EXHIBITS]),
 ];
 
 const TEN_Q: &[Key] = &[
@@ -245,11 +281,15 @@ const TEN_Q: &[Key] = &[
     q("I", "4", "Controls and Procedures"),
     q("II", "1", "Legal Proceedings"),
     q("II", "1A", "Risk Factors"),
-    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds"),
+    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds").was(&[
+        "Changes in Securities, Use of Proceeds and Issuer Purchases of Equity Securities",
+        "Changes in Securities and Use of Proceeds",
+        "Changes in Securities",
+    ]),
     q("II", "3", "Defaults Upon Senior Securities"),
-    q("II", "4", "Mine Safety Disclosures"),
+    q("II", "4", "Mine Safety Disclosures").was(OLD_ITEM_4),
     q("II", "5", "Other Information"),
-    q("II", "6", "Exhibits"),
+    q("II", "6", "Exhibits").was(&["Exhibits and Reports on Form 8-K"]),
 ];
 
 const EIGHT_K: &[Key] = &[
@@ -282,7 +322,8 @@ const EIGHT_K: &[Key] = &[
     k(
         "5.02",
         "Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers",
-    ),
+    )
+    .was(&["Departure of Directors or Principal Officers; Election of Directors; Appointment of Principal Officers"]),
     k("5.03", "Amendments to Articles of Incorporation or Bylaws; Change in Fiscal Year"),
     k("5.04", "Temporary Suspension of Trading Under Registrant's Employee Benefit Plans"),
     k("5.05", "Amendments to the Registrant's Code of Ethics, or Waiver of a Provision of the Code of Ethics"),
@@ -313,7 +354,8 @@ const TEN_KSB: &[Key] = &[
     k(
         "5",
         "Market for Common Equity and Related Stockholder Matters and Small Business Issuer Purchases of Equity Securities",
-    ),
+    )
+    .was(&["Market for Common Equity and Related Stockholder Matters"]),
     k("6", "Management's Discussion and Analysis or Plan of Operation"),
     k("7", "Financial Statements"),
     k("8", "Changes in and Disagreements with Accountants on Accounting and Financial Disclosure"),
@@ -322,12 +364,15 @@ const TEN_KSB: &[Key] = &[
     k(
         "9",
         "Directors, Executive Officers, Promoters, Control Persons and Corporate Governance; Compliance with Section 16(a) of the Exchange Act",
-    ),
+    )
+    .was(&["Directors, Executive Officers, Promoters and Control Persons; Compliance with Section 16(a) of the Exchange Act"]),
     k("10", "Executive Compensation"),
-    k("11", "Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters"),
-    k("12", "Certain Relationships and Related Transactions, and Director Independence"),
-    k("13", "Exhibits"),
-    k("14", "Principal Accountant Fees and Services"),
+    k("11", "Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters")
+        .was(&["Security Ownership of Certain Beneficial Owners and Management"]),
+    k("12", "Certain Relationships and Related Transactions, and Director Independence")
+        .was(&["Certain Relationships and Related Transactions"]),
+    k("13", "Exhibits").was(&["Exhibits and Reports on Form 8-K"]),
+    k("14", "Principal Accountant Fees and Services").was(&["Controls and Procedures"]),
     k("15", "Principal Accountant Fees and Services"),
 ];
 
@@ -339,11 +384,11 @@ const TEN_QSB: &[Key] = &[
     q("I", "3", "Controls and Procedures"),
     q("II", "1", "Legal Proceedings"),
     q("II", "1A", "Risk Factors"),
-    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds"),
+    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds").was(&["Changes in Securities"]),
     q("II", "3", "Defaults Upon Senior Securities"),
     q("II", "4", "Submission of Matters to a Vote of Security Holders"),
     q("II", "5", "Other Information"),
-    q("II", "6", "Exhibits"),
+    q("II", "6", "Exhibits").was(&["Exhibits and Reports on Form 8-K"]),
 ];
 
 fn keys_for(kind: FormKind) -> &'static [Key] {
@@ -523,6 +568,10 @@ struct Candidate {
     /// heading), for matching a table-of-contents entry with its heading in
     /// the body.
     title: String,
+    /// The title as printed (from the next line for a bare heading), and the
+    /// lines just after it, for naming the section (`printed_title`).
+    printed: String,
+    printed_next: String,
     /// 10-Q part fixed by a `PART I` or `PART II` line just above the heading
     /// or at its start.
     part: Option<&'static str>,
@@ -793,7 +842,7 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                 (label, tail, JOINED.is_match(after_dashes(tail).trim_start()))
             };
             let bare = !tail.chars().any(char::is_alphabetic);
-            let title_text = if bare { next_line_title(text, m.end()) } else { tail };
+            let (title_text, title_end) = if bare { next_line_title_at(text, m.end()) } else { (tail, m.end()) };
             let title = title_key(title_text);
             // "Item 4A" is the usual number of an annual report's executive
             // officers caption, also when its title says only "Officers" or is
@@ -815,6 +864,8 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                 heading,
                 bare,
                 title,
+                printed: title_text.trim().chars().take(300).collect(),
+                printed_next: lines_after(text, title_end).chars().take(300).collect(),
                 part,
                 title_part,
                 listed: false,
@@ -856,9 +907,31 @@ fn same_title(a: &str, b: &str) -> bool {
 /// The line after a bare heading ("Item 1." then "Financial Statements"),
 /// unless it is another Item.
 fn next_line_title(text: &str, end: usize) -> &str {
+    next_line_title_at(text, end).0
+}
+
+/// `next_line_title`, and the end of its line in `text`.
+fn next_line_title_at(text: &str, end: usize) -> (&str, usize) {
     let rest = text[end..].trim_start_matches(['\n', '\r']);
-    let line = rest.split('\n').next().unwrap_or("").trim();
-    if is_item_line(line) { "" } else { line }
+    let line = rest.split('\n').next().unwrap_or("");
+    let line_end = text.len() - rest.len() + line.len();
+    let line = line.trim();
+    (if is_item_line(line) { "" } else { line }, line_end)
+}
+
+/// Up to three lines just after the line that ends at `end`, up to a blank
+/// line or an Item line.
+fn lines_after(text: &str, end: usize) -> &str {
+    let rest = &text[end..];
+    let rest = rest.strip_prefix("\r\n").or_else(|| rest.strip_prefix('\n')).unwrap_or("");
+    let mut len = 0;
+    for line in rest.split('\n').take(3) {
+        if line.trim().is_empty() || is_item_line(line) {
+            break;
+        }
+        len += line.len() + 1;
+    }
+    rest[..len.min(rest.len())].trim_end()
 }
 
 /// Words that qualify the financial statements in a 10-Q Part I Item 1 title:
@@ -1640,6 +1713,8 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
         heading: line.trim().to_owned(),
         bare: false,
         title: title_key(line),
+        printed: line.trim().to_owned(),
+        printed_next: String::new(),
         part: None,
         title_part: None,
         listed: false,
@@ -1648,6 +1723,59 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
         gap: heading - pos,
         score: 0.0,
     })
+}
+
+/// The title the heading prints, of the titles the form has given its Item
+/// (`key.title`, then `key.former`), so that a 10-K for 2005 names its Item
+/// 4 "Submission of Matters to a Vote of Security Holders". The words
+/// (`title_words`) of the printed title are compared with each title's: the
+/// title must hold the first of them, and the one with the most words in
+/// common, in order, wins, counted over as many of the printed words as the
+/// title has and two more; then one that is printed whole. A former title
+/// also needs at least half of its words printed. On a tie, and when no
+/// title fits, the current title stays. The lines after the printed title go
+/// on with it while they hold only words of the title, as a heading printed
+/// over several lines does ("SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS
+/// AND MANAGEMENT" then "AND RELATED STOCKHOLDER MATTERS").
+fn printed_title(key: &Key, printed: &str, next: &str) -> &'static str {
+    if key.former.is_empty() {
+        return key.title;
+    }
+    let printed = title_words(printed);
+    let next: Vec<Vec<String>> = next.lines().map(title_words).collect();
+    let mut best = (key.title, 0, false);
+    for (i, &title) in std::iter::once(&key.title).chain(key.former).enumerate() {
+        let words = title_words(title);
+        if !printed.first().is_some_and(|w| words.contains(w)) {
+            continue;
+        }
+        let mut seq: Vec<&String> = printed.iter().collect();
+        for line in next.iter().take_while(|l| !l.is_empty() && l.iter().all(|w| words.contains(w))) {
+            seq.extend(line);
+        }
+        seq.truncate(words.len() + 2);
+        let common = common_in_order(&seq, &words);
+        let fit = (common, common == words.len());
+        if fit > (best.1, best.2) && (i == 0 || 2 * common >= words.len()) {
+            best = (title, fit.0, fit.1);
+        }
+    }
+    best.0
+}
+
+/// How many words two lists have in common in the same order: the length of
+/// their longest common subsequence.
+fn common_in_order(a: &[&String], b: &[String]) -> usize {
+    let mut row = vec![0; b.len() + 1];
+    for x in a {
+        let mut diagonal = 0;
+        for (j, y) in b.iter().enumerate() {
+            let above = row[j + 1];
+            row[j + 1] = if *x == y { diagonal + 1 } else { above.max(row[j]) };
+            diagonal = above;
+        }
+    }
+    row[b.len()]
 }
 
 /// Order chain states by total score. On a tie the earlier Item wins, so an
@@ -1870,7 +1998,7 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
                 id,
                 part: key.part.map(str::to_owned),
                 item: key.item.to_owned(),
-                title: key.title.to_owned(),
+                title: printed_title(key, &cand.printed, &cand.printed_next).to_owned(),
                 heading: cand.heading.clone(),
                 start,
                 end,
@@ -4509,8 +4637,7 @@ mod tests {
             [
                 "Description of Business",
                 "Description of Property",
-                "Market for Common Equity and Related Stockholder Matters and Small Business Issuer Purchases of Equity \
-                 Securities",
+                "Market for Common Equity and Related Stockholder Matters",
                 "Management's Discussion and Analysis or Plan of Operation",
                 "Financial Statements",
                 "Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
@@ -4679,7 +4806,8 @@ mod tests {
         // Part I has three Items, Item 3 being controls and procedures. With
         // no PART lines, the titles put "Item 3. Controls and Procedures" in
         // Part I and "Item 1. Legal Proceedings" in Part II, and a wrapped
-        // cross-reference to Part I Item 3 is not a heading.
+        // cross-reference to Part I Item 3 is not a heading. Part II Items 2
+        // and 6 keep the earlier titles they print.
         let body = BODY.repeat(30);
         let text = format!(
             "Item 1. Financial Statements\n{body}{body}\n\
@@ -4701,8 +4829,8 @@ mod tests {
                 "Management's Discussion and Analysis or Plan of Operation",
                 "Controls and Procedures",
                 "Legal Proceedings",
-                "Unregistered Sales of Equity Securities and Use of Proceeds",
-                "Exhibits",
+                "Changes in Securities",
+                "Exhibits and Reports on Form 8-K",
             ]
         );
         assert!(s[1].text.contains("\nItem 3. Controls and Procedures, of this report"));
@@ -4989,7 +5117,8 @@ mod tests {
         // "Submission of Matters to a Vote of Security Holders" is 10-KSB
         // Item 4's title, and 10-Ks printed it as Item 4 before 2010. Both
         // forms' lists title Item 14 "Principal Accountant Fees and
-        // Services". Neither moves a 10-K to the 10-KSB's Items.
+        // Services". Neither moves a 10-K to the 10-KSB's Items: Item 5 has
+        // the 10-K's title.
         let body = BODY.repeat(30);
         let text = format!(
             "ITEM 3. LEGAL PROCEEDINGS\n{body}\nITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNone.\n\
@@ -4998,7 +5127,8 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_3", "item_4", "item_5", "item_14"]);
-        assert_eq!(s[1].title, "Mine Safety Disclosures");
+        assert_eq!(s[1].title, "Submission of Matters to a Vote of Security Holders");
+        assert_eq!(s[2].title, TEN_K[7].title);
         // Nor does a 10-Q's Part II "Item 4. Submission of Matters ..." move
         // it to the 10-QSB's Items when Part I Item 4 is printed as "Item 4T".
         let text = format!(
@@ -5011,6 +5141,159 @@ mod tests {
             ids(&s),
             ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_4", "part_2_item_6"]
         );
-        assert_eq!(s[4].title, "Mine Safety Disclosures");
+        assert_eq!(s[4].title, "Submission of Matters to a Vote of Security Holders");
+    }
+
+    #[test]
+    fn headings_that_print_an_earlier_title_get_it() {
+        // A 10-K for 2002: Item 4 before 2010, Items 5, 10, 12 and 13 before
+        // their titles grew, Item 6 before 2021, Item 14 controls and
+        // procedures, Item 15 the old exhibits Item. Titles printed over two
+        // lines count whole, and a next line with other words is not read.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nItem 4. Submission of Matters to a Vote of Security Holders\nNone.\n\
+             PART II\nItem 5. Market for Registrant's Common Equity and Related Stockholder Matters\n{body}\n\
+             Item 6. Selected Financial Data\n{body}\n\
+             PART III\nItem 10. Directors and Executive Officers of the Registrant\n{body}\n\
+             Item 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND\nMANAGEMENT\n{body}\n\
+             Item 13. Certain Relationships and Related Transactions\nDirector independence is set forth in Item 10.\n\
+             Item 14. Controls and Procedures\n{body}\n\
+             PART IV\nItem 15. Exhibits, Financial Statement Schedules,\nand Reports on Form 8-K\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(
+            ids(&s),
+            ["item_1", "item_4", "item_5", "item_6", "item_10", "item_12", "item_13", "item_14", "item_15"]
+        );
+        assert_eq!(
+            titles(&s),
+            [
+                "Business",
+                "Submission of Matters to a Vote of Security Holders",
+                "Market for Registrant's Common Equity and Related Stockholder Matters",
+                "Selected Financial Data",
+                "Directors and Executive Officers of the Registrant",
+                "Security Ownership of Certain Beneficial Owners and Management",
+                "Certain Relationships and Related Transactions",
+                "Controls and Procedures",
+                "Exhibits, Financial Statement Schedules, and Reports on Form 8-K",
+            ]
+        );
+        // 2010 and 2011, and the old Item 14 and Item 4 printed with other
+        // words: the title with the most words in common.
+        let text = format!("ITEM 3. LEGAL PROCEEDINGS\n{body}\nITEM 4. RESERVED.\nPART II\nITEM 5. MARKET\n{body}\n");
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].title, "(Removed and Reserved)");
+        let text = format!(
+            "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SHAREHOLDERS\nNone.\nITEM 5. MARKET\n{body}\n\
+             ITEM 14. EXHIBITS, LIST AND REPORTS ON FORM 8-K\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[0].title, "Submission of Matters to a Vote of Security Holders");
+        assert_eq!(s[2].title, "Exhibits, Financial Statement Schedules, and Reports on Form 8-K");
+        // A 10-K for 2003 with Item 14 controls, Item 15 fees and Item 16
+        // the exhibits.
+        let text = format!(
+            "Item 9. Changes in and Disagreements with Accountants\nNone.\nItem 14. Controls and Procedures\n{body}\n\
+             Item 15. Principal Accountant Fees and Services\n{body}\n\
+             Item 16. Exhibits, Financial Statement Schedules and Reports on Form 8-K\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9", "item_14", "item_15", "item_16"]);
+        assert_eq!(
+            titles(&s)[1..],
+            [
+                "Controls and Procedures",
+                "Principal Accountant Fees and Services",
+                "Exhibits, Financial Statement Schedules, and Reports on Form 8-K"
+            ]
+        );
+        // A 10-KSB for 2003, whose Item 14 was controls and procedures.
+        let text = format!(
+            "ITEM 13. EXHIBITS AND REPORTS ON FORM 8-K\n{body}\nITEM 14. CONTROLS AND PROCEDURES\n{body}\n\
+             ITEM 15. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(
+            titles(&s),
+            ["Exhibits and Reports on Form 8-K", "Controls and Procedures", "Principal Accountant Fees and Services"]
+        );
+        // A 10-Q before 2004, and an 8-K of 2005.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nPART II\nItem 1. Legal Proceedings\nNone.\n\
+             Item 2. Changes in Securities and Use of Proceeds\nNone.\n\
+             Item 4. Submission of Matters to a Vote of Security Holders\nNone.\n\
+             Item 6. Exhibits and Reports on Form 8-K\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(
+            titles(&extract_sections(&text, FormKind::TenQ))[2..],
+            [
+                "Changes in Securities and Use of Proceeds",
+                "Submission of Matters to a Vote of Security Holders",
+                "Exhibits and Reports on Form 8-K"
+            ]
+        );
+        let text = format!(
+            "Item 5.02 Departure of Directors or Principal Officers; Election of Directors; Appointment of \
+             Principal Officers.\n{body}\nItem 9.01 Financial Statements and Exhibits.\n{body}\n"
+        );
+        assert_eq!(
+            extract_sections(&text, FormKind::EightK)[0].title,
+            "Departure of Directors or Principal Officers; Election of Directors; Appointment of Principal Officers"
+        );
+    }
+
+    #[test]
+    fn headings_that_print_the_current_title_or_no_earlier_one_keep_it() {
+        // The current titles, also printed over three lines, with other words
+        // ("Shareholder"), cut short by the end of the line, or followed by a
+        // run-in sentence that names words of an earlier title.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nItem 4. Mine Safety Disclosures\nNot applicable.\n\
+             PART II\nItem 5. MARKET FOR REGISTRANT'S COMMON EQUITY, RELATED\n\
+             STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES\n{body}\n\
+             Item 6. [Reserved]\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             PART III\nItem 10. Directors and Executive Officers\n{body}\n\
+             Item 12. Security Ownership of Certain\nBeneficial Owners and Management and\n\
+             Related Stockholder Matters\n{body}\n\
+             Item 13. Certain Relationships and Related Transactions, and Director Independence\n{body}\n\
+             Item 14. Principal Accounting Fees and Services\n{body}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules The following documents are filed as \
+             part of this report, with the reports on Form 8-K listed in (b).\n{body}\n\
+             Item 16. Form 10-K Summary\nNone.\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(
+            ids(&s),
+            [
+                "item_1", "item_4", "item_5", "item_6", "item_7", "item_10", "item_12", "item_13", "item_14",
+                "item_15", "item_16"
+            ]
+        );
+        let current: Vec<&str> = s.iter().map(|x| TEN_K.iter().find(|k| k.item == x.item).unwrap().title).collect();
+        assert_eq!(titles(&s), current);
+        let text = format!(
+            "Item 11. Executive Compensation\n{body}\n\
+             Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Shareholder Matters\n\
+             {body}\nSIGNATURES\n"
+        );
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].title, TEN_K[18].title);
+        // A bare heading whose next line is text, not a title, and a
+        // heading that shares only a few words with an earlier title.
+        let text = format!(
+            "Item 5. Market\n{body}\nItem 6.\nNot required; selected financial data was eliminated in 2021.\n\
+             Item 7. Management's Discussion and Analysis\n{body}\n"
+        );
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].title, "[Reserved]");
+        let text = format!(
+            "PART II\nItem 1. Legal Proceedings\nNone.\n\
+             Item 2. Purchases of Equity Securities by the Issuer and Affiliated Purchasers\n{body}\n\
+             Item 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(
+            titles(&extract_sections(&text, FormKind::TenQ)),
+            ["Legal Proceedings", "Unregistered Sales of Equity Securities and Use of Proceeds", "Exhibits"]
+        );
     }
 }
