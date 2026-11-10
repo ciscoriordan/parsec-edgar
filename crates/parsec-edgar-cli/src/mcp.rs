@@ -4,7 +4,8 @@
 //! agent can read an outline first and then only the sections it needs.
 
 use std::borrow::Cow;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -34,6 +35,9 @@ const DEFAULT_HITS: usize = 20;
 const MAX_COMPANY_MATCHES: usize = 10;
 /// Parsed filings kept in memory, so paging through one filing parses it once.
 const DOC_CACHE_SIZE: usize = 6;
+/// Filings kept in memory by accession, and separately latest-filing lookups.
+/// Each entry is small, so there can be many more of them than documents.
+const FILING_CACHE_SIZE: usize = 1_000;
 /// How long "latest 10-K of X" stays resolved to one filing.
 const LATEST_TTL: Duration = Duration::from_secs(600);
 /// Longest line shown as the text just above a table.
@@ -203,35 +207,80 @@ struct Doc {
 /// Accession number, and the file name of an attachment or "" for the primary document.
 type DocKey = (String, String);
 
+/// What a running server keeps in memory. Each map is bounded, by a size limit
+/// or, for loads, by the calls in progress, so a long-running server does not
+/// keep growing.
 #[derive(Default)]
 struct Cache {
     /// (company, accession) to filing. Filings never change.
-    by_accession: HashMap<(String, String), Filing>,
+    by_accession: Lru<(String, String), Filing, FILING_CACHE_SIZE>,
     /// (company, form) to the latest filing, with the time it was looked up.
-    latest: HashMap<(String, String), (Instant, Filing)>,
-    /// Parsed documents, most recently used last.
-    docs: VecDeque<(DocKey, Arc<Doc>)>,
+    latest: Lru<(String, String), (Instant, Filing), FILING_CACHE_SIZE>,
+    /// Parsed documents.
+    docs: Lru<DocKey, Arc<Doc>, DOC_CACHE_SIZE>,
     /// Documents being loaded, so concurrent calls share one download and parse.
-    loading: HashMap<DocKey, Arc<OnceCell<Arc<Doc>>>>,
+    loading: HashMap<DocKey, Loading>,
+}
+
+/// A document being loaded. The entry goes when its last call returns or is cancelled.
+#[derive(Default)]
+struct Loading {
+    /// Calls waiting for the document.
+    waiting: usize,
+    doc: Arc<OnceCell<Arc<Doc>>>,
 }
 
 impl Cache {
-    /// A parsed document, which becomes the most recently used.
-    fn get_doc(&mut self, key: &DocKey) -> Option<Arc<Doc>> {
-        let i = self.docs.iter().position(|(k, _)| k == key)?;
-        let entry = self.docs.remove(i)?;
-        let doc = entry.1.clone();
-        self.docs.push_back(entry);
-        Some(doc)
+    /// The latest filing for `key` if it was looked up less than LATEST_TTL
+    /// before `now`. An older entry is dropped.
+    fn fresh_latest(&mut self, key: &(String, String), now: Instant) -> Option<Filing> {
+        if let Some((at, filing)) = self.latest.get(key)
+            && now.saturating_duration_since(*at) < LATEST_TTL
+        {
+            return Some(filing.clone());
+        }
+        self.latest.remove(key);
+        None
+    }
+}
+
+/// A map that keeps at most `CAP` entries, dropping the least recently used.
+struct Lru<K, V, const CAP: usize> {
+    /// Each value with the clock reading of its last use.
+    entries: HashMap<K, (u64, V)>,
+    /// Counts lookups and inserts.
+    clock: u64,
+}
+
+impl<K, V, const CAP: usize> Default for Lru<K, V, CAP> {
+    fn default() -> Self {
+        Self { entries: HashMap::new(), clock: 0 }
+    }
+}
+
+impl<K: Eq + Hash + Clone, V, const CAP: usize> Lru<K, V, CAP> {
+    /// The value under `key`, which becomes the most recently used.
+    fn get(&mut self, key: &K) -> Option<&V> {
+        self.clock += 1;
+        let entry = self.entries.get_mut(key)?;
+        entry.0 = self.clock;
+        Some(&entry.1)
     }
 
-    /// Keep a parsed document, dropping the least recently used beyond DOC_CACHE_SIZE.
-    fn put_doc(&mut self, key: DocKey, doc: Arc<Doc>) {
-        self.docs.retain(|(k, _)| *k != key);
-        self.docs.push_back((key, doc));
-        while self.docs.len() > DOC_CACHE_SIZE {
-            self.docs.pop_front();
+    /// Keep `value` under `key`, replacing any value there, and drop the least
+    /// recently used entry beyond CAP.
+    fn put(&mut self, key: K, value: V) {
+        self.clock += 1;
+        self.entries.insert(key, (self.clock, value));
+        if self.entries.len() > CAP
+            && let Some(oldest) = self.entries.iter().min_by_key(|(_, (used, _))| *used).map(|(k, _)| k.clone())
+        {
+            self.entries.remove(&oldest);
         }
+    }
+
+    fn remove(&mut self, key: &K) {
+        self.entries.remove(key);
     }
 }
 
@@ -689,19 +738,18 @@ impl EdgarServer {
     ) -> Result<Arc<Doc>, String> {
         let cell = {
             let mut cache = self.lock();
-            if let Some(doc) = cache.get_doc(&key) {
-                return Ok(doc);
+            if let Some(doc) = cache.docs.get(&key) {
+                return Ok(doc.clone());
             }
-            cache.loading.entry(key.clone()).or_default().clone()
+            let loading = cache.loading.entry(key.clone()).or_default();
+            loading.waiting += 1;
+            loading.doc.clone()
         };
+        let _waiting = Waiting { server: self, key: key.clone() };
         let init = || async move { blocking(move || load().map(Arc::new)).await };
         let loaded = cell.get_or_try_init(init).await.cloned();
-        let mut cache = self.lock();
         if let Ok(doc) = &loaded {
-            cache.put_doc(key.clone(), doc.clone());
-        }
-        if cache.loading.get(&key).is_some_and(|c| Arc::ptr_eq(c, &cell)) {
-            cache.loading.remove(&key);
+            self.lock().docs.put(key, doc.clone());
         }
         loaded
     }
@@ -717,23 +765,40 @@ impl EdgarServer {
             }
             let acc = acc.to_owned();
             let filing = blocking(move || client.filing(&company, &acc).map_err(explain)).await?;
-            self.lock().by_accession.insert(key, filing.clone());
+            self.lock().by_accession.put(key, filing.clone());
             return Ok(filing);
         }
         let form = form.map(str::trim).filter(|f| !f.is_empty()).unwrap_or("10-K").to_owned();
         let key = (company_key, form.to_ascii_uppercase());
-        if let Some((at, f)) = self.lock().latest.get(&key)
-            && at.elapsed() < LATEST_TTL
-        {
-            return Ok(f.clone());
+        if let Some(f) = self.lock().fresh_latest(&key, Instant::now()) {
+            return Ok(f);
         }
         let filing = blocking(move || client.latest(&company, &form).map_err(explain)).await?;
-        self.lock().latest.insert(key, (Instant::now(), filing.clone()));
+        self.lock().latest.put(key, (Instant::now(), filing.clone()));
         Ok(filing)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Cache> {
         self.cache.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+/// One call waiting for a document load. Dropping it, when the call returns or
+/// is cancelled, removes the load from `loading` once no other call waits for it.
+struct Waiting<'a> {
+    server: &'a EdgarServer,
+    key: DocKey,
+}
+
+impl Drop for Waiting<'_> {
+    fn drop(&mut self) {
+        let mut cache = self.server.lock();
+        if let Some(loading) = cache.loading.get_mut(&self.key) {
+            loading.waiting -= 1;
+            if loading.waiting == 0 {
+                cache.loading.remove(&self.key);
+            }
+        }
     }
 }
 
@@ -1579,6 +1644,8 @@ fn json_chars<T: Serialize + ?Sized>(v: &T) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::mpsc;
 
     #[test]
     fn pages_cover_text_exactly() {
@@ -2036,7 +2103,7 @@ mod tests {
         let mut no_8 = ten_k_with_tables();
         no_8.tables.remove(2);
         let server = pbf_server();
-        server.lock().put_doc(key(PBF, ""), Arc::new(no_8));
+        server.lock().docs.put(key(PBF, ""), Arc::new(no_8));
         let out = json(server.read_tables(Parameters(tables_params(Some("item_8")))).await);
         assert_eq!(out["total_tables"], 0);
         let note = out["note"].as_str().unwrap();
@@ -2064,7 +2131,7 @@ mod tests {
         let mut doc = table_doc(3, 2);
         doc.sections = Some(Vec::new());
         let server = pbf_server();
-        server.lock().put_doc(key(PBF, ""), Arc::new(doc));
+        server.lock().docs.put(key(PBF, ""), Arc::new(doc));
         let err = server.read_tables(Parameters(tables_params(Some("item_8")))).await.unwrap_err();
         assert_eq!(err, "no Item headings were found in this filing; leave out section to read all 3 tables");
         let out = json(server.read_tables(Parameters(tables_params(None))).await);
@@ -2097,7 +2164,7 @@ mod tests {
             assert_eq!(page.note.as_deref(), Some(PLAIN_TEXT_NOTE));
         }
         let server = pbf_server();
-        server.lock().put_doc(key(PBF, ""), Arc::new(doc));
+        server.lock().docs.put(key(PBF, ""), Arc::new(doc));
         let out = json(server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), None))).await);
         assert!(out["next"].as_str().unwrap().contains("plain-text document"), "{out}");
         // An HTML document says nothing of the kind.
@@ -2160,7 +2227,7 @@ mod tests {
     #[tokio::test]
     async fn read_tables_tool() {
         let server = pbf_server();
-        server.lock().put_doc(key(PBF, ""), Arc::new(table_doc(4, 2)));
+        server.lock().docs.put(key(PBF, ""), Arc::new(table_doc(4, 2)));
         let out = json(server.read_tables(Parameters(tables_params(Some("8")))).await);
         assert_eq!((out["section"].as_str(), out["total_tables"].as_u64()), (Some("item_8"), Some(2)));
         assert_eq!(out["tables"][0]["rows"][1], serde_json::json!(["Row 1 of table 2", "$1,000"]));
@@ -2203,10 +2270,10 @@ mod tests {
         let mut cache = server.lock();
         let holding = filing_of(1566011, "PBF Holding Co LLC", PBF, "pbfh-20241231.htm");
         let finance = filing_of(1566097, "PBF Finance Corp", PBF, "pbfh-20241231.htm");
-        cache.by_accession.insert(("1566011".into(), PBF.replace('-', "")), holding);
-        cache.by_accession.insert(("1566097".into(), PBF.replace('-', "")), finance);
-        cache.put_doc(key(PBF, ""), doc("Item 1. Business\n\nWe refine oil.\n", None));
-        cache.put_doc(key(PBF, "ex211.htm"), doc("Subsidiaries of PBF Holding\n", Some("ex211.htm")));
+        cache.by_accession.put(("1566011".into(), PBF.replace('-', "")), holding);
+        cache.by_accession.put(("1566097".into(), PBF.replace('-', "")), finance);
+        cache.docs.put(key(PBF, ""), doc("Item 1. Business\n\nWe refine oil.\n", None));
+        cache.docs.put(key(PBF, "ex211.htm"), doc("Subsidiaries of PBF Holding\n", Some("ex211.htm")));
         drop(cache);
         server
     }
@@ -2307,7 +2374,7 @@ mod tests {
         assert!(docs.iter().all(|d| Arc::ptr_eq(d, &docs[0])));
         let cache = server.lock();
         assert!(cache.loading.is_empty());
-        assert_eq!(cache.docs.len(), 1);
+        assert_eq!(cache.docs.entries.len(), 1);
     }
 
     async fn futures_join<T>(handles: impl Iterator<Item = tokio::task::JoinHandle<Result<T, String>>>) -> Vec<T> {
@@ -2332,25 +2399,164 @@ mod tests {
         assert!(server.lock().loading.is_empty());
     }
 
+    /// A load that counts itself in `loads`.
+    fn counted_load(loads: Arc<AtomicUsize>) -> impl FnOnce() -> Result<Doc, String> + Send + 'static {
+        move || {
+            loads.fetch_add(1, Ordering::SeqCst);
+            let text = "text".to_owned();
+            Ok(Doc { document: None, text, total_chars: 4, sections: None, tables: Vec::new(), html: true })
+        }
+    }
+
+    /// A counted load that says when it has started, then waits until `release` sends.
+    fn held_load(
+        loads: Arc<AtomicUsize>,
+        started: mpsc::Sender<()>,
+        release: mpsc::Receiver<()>,
+    ) -> impl FnOnce() -> Result<Doc, String> + Send + 'static {
+        let load = counted_load(loads);
+        move || {
+            started.send(()).unwrap();
+            release.recv().map_err(|e| e.to_string())?;
+            load()
+        }
+    }
+
+    /// Wait until `n` calls wait for the load of `key`.
+    fn wait_for_waiting(server: &EdgarServer, key: &DocKey, n: usize) {
+        for _ in 0..500 {
+            if server.lock().loading.get(key).map(|loading| loading.waiting) == Some(n) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("{n} calls never waited for {key:?}");
+    }
+
+    /// A call cancelled during its load leaves nothing behind in `loading`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelled_loads_leave_no_entry() {
+        let server = offline_server();
+        let loads = Arc::new(AtomicUsize::new(0));
+        let (started_tx, started) = mpsc::channel();
+        let (release, release_rx) = mpsc::channel();
+        let load = held_load(loads.clone(), started_tx, release_rx);
+        let call = tokio::spawn({
+            let server = server.clone();
+            async move { server.shared_doc(key("acc", ""), load).await }
+        });
+        started.recv().unwrap();
+        call.abort();
+        assert!(matches!(call.await, Err(e) if e.is_cancelled()));
+        assert!(server.lock().loading.is_empty());
+        release.send(()).unwrap();
+    }
+
+    /// A cancelled call does not end a load that other calls still wait for.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelled_waiters_leave_the_load_shared() {
+        let server = offline_server();
+        let loads = Arc::new(AtomicUsize::new(0));
+        let call = |load: Box<dyn FnOnce() -> Result<Doc, String> + Send>| {
+            let server = server.clone();
+            tokio::spawn(async move { server.shared_doc(key("acc", ""), load).await })
+        };
+        let (started_tx, started) = mpsc::channel();
+        let (release, release_rx) = mpsc::channel();
+        let first = call(Box::new(held_load(loads.clone(), started_tx, release_rx)));
+        started.recv().unwrap();
+
+        let cancelled = call(Box::new(counted_load(loads.clone())));
+        wait_for_waiting(&server, &key("acc", ""), 2);
+        cancelled.abort();
+        assert!(matches!(cancelled.await, Err(e) if e.is_cancelled()));
+        wait_for_waiting(&server, &key("acc", ""), 1);
+
+        // A new call joins the first load instead of starting another.
+        let last = call(Box::new(counted_load(loads.clone())));
+        wait_for_waiting(&server, &key("acc", ""), 2);
+        release.send(()).unwrap();
+        let docs: Vec<Arc<Doc>> = futures_join([first, last].into_iter()).await;
+        assert!(Arc::ptr_eq(&docs[0], &docs[1]));
+        assert_eq!(loads.load(Ordering::SeqCst), 1);
+        assert!(server.lock().loading.is_empty());
+    }
+
     #[test]
     fn doc_cache_keeps_the_most_recently_used() {
         let mut cache = Cache::default();
         for i in 0..DOC_CACHE_SIZE {
-            cache.put_doc(key(&i.to_string(), ""), doc("x", None));
+            cache.docs.put(key(&i.to_string(), ""), doc("x", None));
         }
         // Reading 0 makes 1 the least recently used.
-        assert!(cache.get_doc(&key("0", "")).is_some());
-        cache.put_doc(key("new", ""), doc("x", None));
-        assert_eq!(cache.docs.len(), DOC_CACHE_SIZE);
-        assert!(cache.get_doc(&key("1", "")).is_none());
-        assert!(cache.get_doc(&key("0", "")).is_some());
+        assert!(cache.docs.get(&key("0", "")).is_some());
+        cache.docs.put(key("new", ""), doc("x", None));
+        assert_eq!(cache.docs.entries.len(), DOC_CACHE_SIZE);
+        assert!(cache.docs.get(&key("1", "")).is_none());
+        assert!(cache.docs.get(&key("0", "")).is_some());
         // An attachment is cached apart from the primary document of its filing.
-        cache.put_doc(key("0", "ex99-1.htm"), doc("y", Some("ex99-1.htm")));
-        assert_eq!(cache.get_doc(&key("0", "")).unwrap().text, "x");
-        assert_eq!(cache.get_doc(&key("0", "ex99-1.htm")).unwrap().text, "y");
+        cache.docs.put(key("0", "ex99-1.htm"), doc("y", Some("ex99-1.htm")));
+        assert_eq!(cache.docs.get(&key("0", "")).unwrap().text, "x");
+        assert_eq!(cache.docs.get(&key("0", "ex99-1.htm")).unwrap().text, "y");
         // Putting a key again replaces it instead of adding a second copy.
-        cache.put_doc(key("0", ""), doc("z", None));
-        assert_eq!(cache.docs.iter().filter(|(k, _)| *k == key("0", "")).count(), 1);
+        cache.docs.put(key("0", ""), doc("z", None));
+        assert_eq!(cache.docs.entries.len(), DOC_CACHE_SIZE);
+        assert_eq!(cache.docs.get(&key("0", "")).unwrap().text, "z");
+    }
+
+    #[test]
+    fn lru_drops_the_least_recently_used() {
+        let mut lru = Lru::<u32, &str, 2>::default();
+        lru.put(1, "a");
+        lru.put(2, "b");
+        // Reading 1 makes 2 the least recently used.
+        assert_eq!(lru.get(&1), Some(&"a"));
+        lru.put(3, "c");
+        assert_eq!(lru.entries.len(), 2);
+        assert_eq!([1, 2, 3].map(|k| lru.get(&k).copied()), [Some("a"), None, Some("c")]);
+        // A key put again keeps one entry, and nothing else is dropped.
+        lru.put(3, "d");
+        assert_eq!(lru.entries.len(), 2);
+        assert_eq!([1, 3].map(|k| lru.get(&k).copied()), [Some("a"), Some("d")]);
+        assert_eq!(lru.get(&4), None);
+        lru.remove(&1);
+        assert_eq!((lru.get(&1).copied(), lru.entries.len()), (None, 1));
+    }
+
+    /// Filings by accession and latest-filing lookups stop at FILING_CACHE_SIZE.
+    #[test]
+    fn filing_caches_are_bounded() {
+        let mut cache = Cache::default();
+        let now = Instant::now();
+        let accession = |i: usize| ("1".to_owned(), format!("{i:018}"));
+        let latest = |i: usize| (i.to_string(), "10-K".to_owned());
+        for i in 0..FILING_CACHE_SIZE + 5 {
+            if i == FILING_CACHE_SIZE {
+                // Read again, the first filing becomes the most recently used.
+                assert!(cache.by_accession.get(&accession(0)).is_some());
+            }
+            let filing = filing_of(1, "A", &accession(i).1, "a.htm");
+            cache.by_accession.put(accession(i), filing.clone());
+            cache.latest.put(latest(i), (now, filing));
+        }
+        assert_eq!(cache.by_accession.entries.len(), FILING_CACHE_SIZE);
+        assert_eq!(cache.latest.entries.len(), FILING_CACHE_SIZE);
+        let kept = |i| cache.by_accession.entries.contains_key(&accession(i));
+        assert_eq!((kept(0), kept(1), kept(5), kept(6)), (true, false, false, true));
+        let kept = |i| cache.latest.entries.contains_key(&latest(i));
+        assert_eq!((kept(0), kept(4), kept(5)), (false, false, true));
+    }
+
+    /// A latest filing is reused for LATEST_TTL, then dropped from the cache.
+    #[test]
+    fn latest_filings_expire() {
+        let mut cache = Cache::default();
+        let key = ("AAPL".to_owned(), "10-K".to_owned());
+        let at = Instant::now();
+        cache.latest.put(key.clone(), (at, filing_of(320193, "Apple Inc.", "0000320193-25-000079", "a.htm")));
+        assert!(cache.fresh_latest(&key, at + LATEST_TTL - Duration::from_secs(1)).is_some());
+        assert!(cache.fresh_latest(&key, at + LATEST_TTL).is_none());
+        assert!(cache.latest.entries.is_empty());
     }
 
     #[test]
