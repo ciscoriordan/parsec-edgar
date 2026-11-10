@@ -24,13 +24,14 @@
 //!
 //! A titled sub-item with the standard title of a lettered Item the form
 //! defines is that Item ("Item 8(A)T. Controls and Procedures" in a 10-KSB,
-//! "ITEM 9(A). CONTROLS AND PROCEDURES" in a 10-K). Lettered headings of Items
-//! the form does not define stay out of the chain. When the chain has no Item
-//! of their number, the first one printed where that Item belongs starts it
-//! ("Item 5A" and "Item 5B" print Item 5); in a 10-Q a `PART` line or the
-//! title picks the part. Otherwise, in a 10-K or 10-KSB, a titled one ends the
-//! Item before it. The executive officers section of a 10-K or 10-KSB,
-//! numbered "Item 4A" or "Item 4(a)", never starts an Item.
+//! "ITEM 9(A). CONTROLS AND PROCEDURES" in a 10-K). A title may start with a
+//! form's name ("ITEM 16. 10-K SUMMARY"). Lettered headings of Items the form
+//! does not define stay out of the chain. When the chain has no Item of their
+//! number, the first one printed where that Item belongs starts it ("Item 5A"
+//! and "Item 5B" print Item 5); in a 10-Q a `PART` line or the title picks
+//! the part. Otherwise, in a 10-K or 10-KSB, a titled one ends the Item
+//! before it. The executive officers section of a 10-K or 10-KSB, numbered
+//! "Item 4A" or "Item 4(a)", never starts an Item.
 //!
 //! Some annual report text has no Item heading of its own and belongs to no
 //! Item: financial statements printed with no Item 8 heading or after Item 9
@@ -426,9 +427,14 @@ struct Candidate {
     score: f64,
 }
 
-/// A real heading is followed by a capitalized title, nothing, or a joined Item
-/// ("Items 1 and 2."). Cross-references ("Item 7 of this report") and
-/// sub-items ("Item 14(d)") are not.
+/// A title that starts with a form's name, then a capitalized word: `10-K
+/// SUMMARY` (Item 16 of a 10-K), `10-Q Summary`.
+static FORM_NAME_TITLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(?:10-[KQ](?:SB)?|8-K)[ \t]+\p{Lu}").unwrap());
+
+/// A real heading is followed by a capitalized title (also one that starts
+/// with a form's name, "ITEM 16. 10-K SUMMARY"), nothing, or a joined Item
+/// ("Items 1 and 2."). Cross-references ("Item 7 of this report"), numbers
+/// ("Item 5 10,000 shares") and sub-items ("Item 14(d)") are not.
 fn heading_tail_ok(tail: &str) -> bool {
     let t = tail.trim_start();
     match t.chars().next() {
@@ -438,7 +444,8 @@ fn heading_tail_ok(tail: &str) -> bool {
                 || matches!(c, '"' | '“' | '\'' | '‘' | '(' | '[')
                 || t.starts_with("and ")
                 || t.starts_with("& ")
-                || t.starts_with("through "))
+                || t.starts_with("through ")
+                || FORM_NAME_TITLE.is_match(t))
                 && !SUB_ITEM.is_match(t)
         }
     }
@@ -3335,5 +3342,27 @@ mod tests {
         );
         let s = extract_sections(&text, FormKind::TenQsb);
         assert_eq!(ids(&s), ["part_1_item_2", "part_1_item_3", "part_1_item_1", "part_2_item_1", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn titles_that_start_with_a_form_name_are_headings() {
+        // "ITEM 16. 10-K SUMMARY" starts Item 16, which then ends at the
+        // auditors' report printed after it.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\nITEM 16. 10-K SUMMARY\nNone.\n\
+             Report of Independent Registered Public Accounting Firm\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_15", "item_16"]);
+        assert_eq!(s[1].text, "ITEM 16. 10-K SUMMARY\nNone.");
+        // Numbers, and a form name followed by a lowercase word or by more
+        // digits, start no heading.
+        let text = format!(
+            "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\nItem 16 10,000 shares were issued.\n\
+             Item 16 10-K filed in 1998.\nItem 16 10-K405 Annual Report\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_15"]);
     }
 }
