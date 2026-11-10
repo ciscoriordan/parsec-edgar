@@ -229,7 +229,7 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use regex::Regex;
+use regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
@@ -745,6 +745,41 @@ static PERIODIC_HEADING: LazyLock<Regex> = LazyLock::new(|| {
 /// `Item 2.02 Results of Operations and Financial Condition`
 static CURRENT_HEADING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[ \t]*(?i:item)[ \t]*(\d{1,2}\.\d{2})[ \t]*[.:\-–—]?[ \t]*([^\n]*)$").unwrap());
+
+/// "item" in any case. Every line that an Item heading pattern
+/// (`PERIODIC_HEADING`, `CURRENT_HEADING`, `ROMAN_HEADING`) matches holds it.
+static ITEM_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i:item)").unwrap());
+
+/// The lines of `text` that hold "item" in any case, as the start and end
+/// (before the line break) of each, in order. A heading pattern starts with
+/// `^` and spaces, so a search for it in the whole text has no word to look
+/// for and tests every position of a long filing; a search for "item" finds
+/// the few lines worth testing much faster.
+fn item_word_lines(text: &str) -> Vec<(usize, usize)> {
+    let mut lines = Vec::new();
+    let mut from = 0;
+    while let Some(m) = ITEM_WORD.find_at(text, from) {
+        let start = text[..m.start()].rfind('\n').map_or(0, |i| i + 1);
+        let end = text[m.end()..].find('\n').map_or(text.len(), |i| m.end() + i);
+        lines.push((start, end));
+        from = end;
+    }
+    lines
+}
+
+/// The matches of `heading`, a pattern of one whole line (`(?m)^...$`, with
+/// no part that matches a line break) that holds "item", in `text`, in
+/// order: the same as `heading.captures_iter(text)`, with `lines` from
+/// `item_word_lines`. Each line is searched from its start up to its end,
+/// where `^` and `$` match as they do in the whole text, and the positions
+/// are the same.
+fn heading_matches<'t>(
+    heading: &'t Regex,
+    text: &'t str,
+    lines: &'t [(usize, usize)],
+) -> impl Iterator<Item = Captures<'t>> + 't {
+    lines.iter().filter_map(move |&(start, end)| heading.captures_at(&text[..end], start))
+}
 
 /// `SIGNATURES`, `Signature`, `Signature(s)`, `S I G N A T U R E S`
 static SIGNATURES: LazyLock<Regex> = LazyLock::new(|| {
@@ -1394,11 +1429,12 @@ fn cover_row(text: &str, start: usize, end: usize, label: &str, keys: &[Key]) ->
     false
 }
 
-fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
+/// The candidates for the Item headings of `text`, read from `lines`, the
+/// lines that hold "item" (`item_word_lines`).
+fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)]) -> Vec<Candidate> {
     let keys = keys_for(kind);
     let re = if kind == FormKind::EightK { &*CURRENT_HEADING } else { &*PERIODIC_HEADING };
-    let cands: Vec<Candidate> = re
-        .captures_iter(text)
+    let cands: Vec<Candidate> = heading_matches(re, text, lines)
         .filter_map(|c| {
             let m = c.get(0).expect("group 0 always matches");
             let (number, tail) = (c.get(1).expect("Item number"), c.get(2).expect("tail"));
@@ -1490,13 +1526,19 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     // later Item (`after_heading`).
     // The first and the last place of an Item number in the form's order (a
     // 10-Q numbers Items 1 to 4 in both parts).
-    let place = |label: &str| {
+    type Place = (Option<usize>, Option<usize>);
+    let place = |label: &str| -> Place {
         let mut at = keys.iter().enumerate().filter(|(_, k)| k.item == label).map(|(i, _)| i);
         let first = at.next();
         (first, at.next_back().or(first))
     };
-    // Whether Item `a` comes after Item `b` in every numbering of the form.
-    let later = |a: &str, b: &str| place(a).0.zip(place(b).1).is_some_and(|(a, b)| a > b);
+    // The place of each line's Item, found once when a line cites an Item,
+    // since the loops below compare places many times.
+    let places: Vec<Place> =
+        if cands.iter().any(|c| c.cites) { cands.iter().map(|c| place(&c.label)).collect() } else { Vec::new() };
+    // Whether the Item at place `a` comes after the Item at place `b` in every
+    // numbering of the form.
+    let later = |a: Place, b: Place| a.0.zip(b.1).is_some_and(|(a, b)| a > b);
     let heading_of = |c: &Candidate, o: &Candidate| !o.cites && !o.bare && same_title(&o.title, &c.title);
     // Nor is such a line after the Item's heading, inside a later Item: a
     // heading of the Item with the same title comes before it, with lines of
@@ -1519,11 +1561,12 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     cited_items.sort_unstable();
     cited_items.dedup();
     for label in cited_items {
+        let label_place = place(label);
         let mut headings: Vec<usize> = Vec::new();
         let mut later_line: Option<usize> = None;
         for (i, c) in cands.iter().enumerate() {
             if c.label != label {
-                if later(&c.label, label) {
+                if later(places[i], label_place) {
                     later_line = Some(i);
                 } else {
                     headings.clear();
@@ -1531,8 +1574,8 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                 }
             } else if c.cites {
                 let Some(&h) = headings.iter().rev().find(|&&h| heading_of(c, &cands[h])) else { continue };
-                let last = later_line.filter(|&o| o > h).map_or(label, |o| cands[o].label.as_str());
-                after_heading[i] = next_other[i].is_none_or(|o| later(&cands[o].label, last));
+                let last = later_line.filter(|&o| o > h).map_or(label_place, |o| places[o]);
+                after_heading[i] = next_other[i].is_none_or(|o| later(places[o], last));
             } else if !c.bare {
                 headings.retain(|&h| cands[h].title != c.title);
                 headings.push(i);
@@ -1543,15 +1586,15 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
         .iter()
         .enumerate()
         .map(|(i, c)| {
-            let last = place(&c.label).1;
-            c.cites
-                && (cands[i + 1..]
-                    .iter()
-                    .take_while(|o| {
-                        o.label == c.label || place(&o.label).0.zip(last).is_none_or(|(other, cited)| other < cited)
+            c.cites && {
+                let last = places[i].1;
+                (i + 1..cands.len())
+                    .take_while(|&j| {
+                        cands[j].label == c.label || places[j].0.zip(last).is_none_or(|(other, cited)| other < cited)
                     })
-                    .any(|o| o.label == c.label && heading_of(c, o))
-                    || after_heading[i])
+                    .any(|j| cands[j].label == c.label && heading_of(c, &cands[j]))
+                    || after_heading[i]
+            }
         })
         .collect();
     let cands: Vec<Candidate> = cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect();
@@ -1602,8 +1645,15 @@ fn part_title_over_heading(text: &str, c: &Candidate, next: &Candidate, keys: &[
 }
 
 fn set_gaps(cands: &mut [Candidate], text_len: usize) {
-    for i in 0..cands.len() {
-        let next = cands[i + 1..].iter().find(|c| c.label != cands[i].label).map_or(text_len, |c| c.pos);
+    // From the last candidate back: the next heading of a different Item is
+    // the next candidate, or when that is of the same Item, the one after it.
+    let mut next = text_len;
+    for i in (0..cands.len()).rev() {
+        if let Some(after) = cands.get(i + 1)
+            && after.label != cands[i].label
+        {
+            next = after.pos;
+        }
         cands[i].gap = next - cands[i].pos;
     }
 }
@@ -3139,17 +3189,28 @@ fn added_candidate(text: &str, pos: usize, label: &str, printed: &str) -> Candid
 /// found, as one does below an entry of a contents list; copies of the
 /// heading (running headers) may, and the first copy starts the Item.
 /// Returns the headings as candidates, with their keys, in document order.
-fn roman_items(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(usize, usize)]) -> Vec<(Candidate, usize)> {
+fn roman_items(
+    text: &str,
+    lines: &[(usize, usize)],
+    cands: &[Candidate],
+    keys: &[Key],
+    picks: &[(usize, usize)],
+) -> Vec<(Candidate, usize)> {
     let Some(&(last, _)) = picks.last() else { return Vec::new() };
     let limit = signatures_after(text, cands[last].pos).unwrap_or(text.len());
     // Roman headings with a title of the Item of their number, with its key.
     let mut headings: Vec<(Candidate, usize, &str)> = Vec::new();
-    for c in ROMAN_HEADING.captures_iter(text) {
+    for c in heading_matches(&ROMAN_HEADING, text, lines) {
         let (m, numeral) = (c.get(0).expect("group 0 always matches"), c.get(1).expect("numeral").as_str());
+        // The lines come in order, so none after this one is before the
+        // signatures either.
+        if m.start() >= limit {
+            break;
+        }
         let Some(number) = roman_number(numeral) else { continue };
         let label = number.to_string();
         let tail = after_dashes(c.get(2).expect("tail").as_str()).trim();
-        if m.start() >= limit || !heading_tail_ok(tail) || continues_sentence(text, m.start()) {
+        if !heading_tail_ok(tail) || continues_sentence(text, m.start()) {
             continue;
         }
         let printed = if tail.chars().any(char::is_alphabetic) { tail } else { next_line_title(text, m.end()) };
@@ -3333,18 +3394,21 @@ fn better(a_total: f64, a_key: usize, b_total: f64, b_key: usize) -> std::cmp::O
 /// 10-Ks for 2003 printed too. Each Item counts once, however often it is
 /// printed.
 fn numbering_fit(cands: &[Candidate], keys: &[Key], other: &[Key]) -> usize {
+    // The title keys of both lists, made once rather than for each Item.
+    let ours: Vec<String> = keys.iter().map(|k| title_key(k.title)).collect();
+    let others: Vec<String> = other.iter().map(|k| title_key(k.title)).collect();
     keys.iter()
-        .filter(|k| {
-            let title = title_key(k.title);
+        .zip(&ours)
+        .filter(|&(k, title)| {
             // The numbers a list gives this title to.
-            let numbers = |list: &[Key]| -> Vec<&'static str> {
-                list.iter().filter(|o| same_title(&title, &title_key(o.title))).map(|o| o.item).collect()
+            let numbers = |list: &[Key], titles: &[String]| -> Vec<&'static str> {
+                list.iter().zip(titles).filter(|(_, t)| same_title(title, t)).map(|(o, _)| o.item).collect()
             };
-            let theirs = numbers(other);
-            numbers(keys).iter().all(|&n| n == k.item)
+            let theirs = numbers(other, &others);
+            numbers(keys, &ours).iter().all(|&n| n == k.item)
                 && theirs.iter().any(|&n| n != k.item)
                 && !theirs.contains(&k.item)
-                && cands.iter().any(|c| c.label == k.item && same_title(&c.title, &title))
+                && cands.iter().any(|c| c.label == k.item && same_title(&c.title, title))
         })
         .count()
 }
@@ -3431,7 +3495,9 @@ fn report_dates<'a>(filing_date: &'a str, report_date: Option<&'a str>) -> Resul
 
 /// Item sections, titled for the report's dates when they are given.
 fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Section> {
-    let cands = candidates(text, kind);
+    // The lines worth testing for an Item heading, found once.
+    let lines = item_word_lines(text);
+    let cands = candidates(text, kind, &lines);
     // A filing that prints the Items of the form its kind replaced or was
     // replaced by (a 10-KSB numbered as a 10-K, a 10-Q numbered as a 10-QSB)
     // is split with that form's Items when its headings fit them better.
@@ -3440,7 +3506,7 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
             if numbering_fit(&cands, keys_for(other), keys_for(kind))
                 > numbering_fit(&cands, keys_for(kind), keys_for(other)) =>
         {
-            (other, candidates(text, other))
+            (other, candidates(text, other, &lines))
         }
         _ => (kind, cands),
     };
@@ -3454,22 +3520,37 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
         prev: Option<usize>,
     }
     let mut states: Vec<State> = Vec::new();
+    // The best state of each key so far (by `better`, and the last of equal
+    // ones, as `max_by` picks), from the candidates before the current one.
+    // The best state of an earlier candidate and an earlier key is the best
+    // of these for the keys before it, since states of different keys are
+    // never equal: a candidate compares one state for each key rather than
+    // every state before it.
+    let mut best_of_key: Vec<Option<usize>> = vec![None; keys.len()];
     for (ci, cand) in cands.iter().enumerate() {
         // A PART line fixes the part; otherwise a title that names one part does.
         let part = cand.part.or(cand.title_part);
         let fits = |key: &Key| key.item == cand.label && (part.is_none() || key.part == part);
+        let first = states.len();
         for (ki, _) in keys.iter().enumerate().filter(|(_, key)| fits(key)) {
-            let best = states
+            let best = best_of_key[..ki]
                 .iter()
-                .enumerate()
-                .filter(|(_, s)| s.cand < ci && s.key < ki)
-                .max_by(|(_, a), (_, b)| better(a.total, a.key, b.total, b.key));
+                .flatten()
+                .copied()
+                .max_by(|&a, &b| better(states[a].total, states[a].key, states[b].total, states[b].key));
             states.push(State {
                 cand: ci,
                 key: ki,
-                total: cand.score + best.map_or(0.0, |(_, s)| s.total),
-                prev: best.map(|(i, _)| i),
+                total: cand.score + best.map_or(0.0, |s| states[s].total),
+                prev: best,
             });
+        }
+        // Only now, so that a candidate's states do not follow each other.
+        for (s, state) in states.iter().enumerate().skip(first) {
+            let k = state.key;
+            if best_of_key[k].is_none_or(|b| better(state.total, k, states[b].total, k).is_ge()) {
+                best_of_key[k] = Some(s);
+            }
         }
     }
     let Some(mut cur) =
@@ -3491,7 +3572,7 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
     let filled = add_lettered(&cands, keys, &mut picks);
     let mut cands = cands;
     if kind != FormKind::EightK {
-        for (cand, ki) in roman_items(text, &cands, keys, &picks) {
+        for (cand, ki) in roman_items(text, &lines, &cands, keys, &picks) {
             let at = picks.partition_point(|&(p, _)| cands[p].pos < cand.pos);
             cands.push(cand);
             picks.insert(at, (cands.len() - 1, ki));
