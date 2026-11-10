@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use parsec_edgar as pe;
 use pyo3::create_exception;
-use pyo3::exceptions::{PyException, PyLookupError, PyValueError};
+use pyo3::exceptions::{PyException, PyLookupError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pythonize::{depythonize, pythonize};
 
@@ -122,8 +122,8 @@ impl Client {
         py.detach(|| self.inner.filing_text(&f)).map_err(err)
     }
 
-    /// Item sections of a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB filing dict, as a list of dicts.
-    /// Other forms raise ValueError.
+    /// Item sections of a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB filing dict, as a list of dicts,
+    /// titled as of the filing's "filing_date". Other forms raise ValueError.
     fn sections<'py>(&self, py: Python<'py>, filing: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let f: pe::Filing = depythonize(filing)?;
         let sections = py.detach(|| self.inner.filing_sections(&f)).map_err(err)?;
@@ -159,14 +159,40 @@ fn html_to_text_and_tables<'py>(py: Python<'py>, html: &str) -> PyResult<(String
 }
 
 /// Split filing text into Item sections. `form` is "10-K", "10-Q", "8-K", "10-KSB" or "10-QSB"
-/// (variants and amendments accepted, also without the hyphen, as in "10KSB").
+/// (variants and amendments accepted, also without the hyphen, as in "10KSB"). With
+/// `filing_date` (a datetime.date or a "YYYY-MM-DD" string), each section is titled as the form
+/// titled its Item on that date, unless its heading prints another of the Item's titles.
 #[pyfunction]
-fn extract_sections<'py>(py: Python<'py>, text: &str, form: &str) -> PyResult<Bound<'py, PyAny>> {
+#[pyo3(signature = (text, form, *, filing_date=None))]
+fn extract_sections<'py>(
+    py: Python<'py>,
+    text: &str,
+    form: &str,
+    filing_date: Option<&Bound<'py, PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
     let kind = pe::FormKind::from_form(form).ok_or_else(|| {
         PyValueError::new_err(format!("sections are supported for a {} filing, not {form}", pe::FormKind::FORMS))
     })?;
-    let sections = py.detach(|| pe::extract_sections(text, kind));
+    let date = filing_date.map(iso_date).transpose()?;
+    let sections = py.detach(|| match &date {
+        Some(date) => pe::extract_sections_dated(text, kind, date),
+        None => pe::extract_sections(text, kind),
+    });
     Ok(pythonize(py, &sections)?)
+}
+
+/// A datetime.date, or a "YYYY-MM-DD" string read as one, written "YYYY-MM-DD".
+fn iso_date(value: &Bound<'_, PyAny>) -> PyResult<String> {
+    let date_type = value.py().import("datetime")?.getattr("date")?;
+    let date = if value.is_instance_of::<pyo3::types::PyString>() {
+        date_type.call_method1("fromisoformat", (value,))?
+    } else if value.is_instance(&date_type)? {
+        value.clone()
+    } else {
+        return Err(PyTypeError::new_err("filing_date must be a datetime.date or a \"YYYY-MM-DD\" string"));
+    };
+    let part = |name: &str| -> PyResult<i32> { date.getattr(name)?.extract() };
+    Ok(format!("{:04}-{:02}-{:02}", part("year")?, part("month")?, part("day")?))
 }
 
 /// Run the `parsec-edgar` command line with these arguments (the first is the

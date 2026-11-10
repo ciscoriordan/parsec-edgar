@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use parsec_edgar::{
-    Client, Error, Filing, FilingQuery, FormKind, Section, Table, document_to_text_and_tables, extract_sections,
+    Client, Error, Filing, FilingQuery, FormKind, Section, Table, document_to_text_and_tables, extract_sections_dated,
 };
 
 /// Fast SEC EDGAR client: companies, filings, clean text, and Item sections and tables as JSON.
@@ -182,7 +182,7 @@ fn run(cli: Cli) -> Result<(), Error> {
         Command::Tables { company, which, items } => {
             let filing = pick(&client, &company, &which)?;
             let (text, tables) = document_to_text_and_tables(&client.primary_document(&filing)?);
-            let sections = table_sections(&text, &filing.form, &items)?;
+            let sections = table_sections(&text, &filing.form, &filing.filing_date, &items)?;
             let wanted = if items.is_empty() {
                 Vec::new()
             } else if sections.is_empty() {
@@ -218,11 +218,12 @@ struct TableIn<'a> {
     table: &'a Table,
 }
 
-/// The Item sections of a filing's text for the tables command: none for a
-/// form without Items, which `--item` cannot be used with.
-fn table_sections(text: &str, form: &str, items: &[String]) -> Result<Vec<Section>, Error> {
+/// The Item sections of a filing's text for the tables command, titled as of
+/// the filing date: none for a form without Items, which `--item` cannot be
+/// used with.
+fn table_sections(text: &str, form: &str, filing_date: &str, items: &[String]) -> Result<Vec<Section>, Error> {
     match FormKind::from_form(form) {
-        Some(kind) => Ok(extract_sections(text, kind)),
+        Some(kind) => Ok(extract_sections_dated(text, kind, filing_date)),
         None if items.is_empty() => Ok(Vec::new()),
         None => Err(Error::Invalid(format!(
             "--item needs a {} filing, which have Item sections, not {form}",
@@ -322,6 +323,7 @@ fn write_stdout(text: &str) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use parsec_edgar::extract_sections;
 
     #[test]
     fn tables_get_their_sections() {
@@ -436,10 +438,21 @@ mod tests {
         let about = cli.find_subcommand("sections").and_then(|c| c.get_about()).unwrap().to_string();
         assert!(about.contains(FormKind::FORMS), "{about}");
         let text = format!("Item 7. Financial Statements\n{}", "We make things. ".repeat(100));
-        let err = table_sections(&text, "S-1", &["7".into()]).unwrap_err().to_string();
+        let err = table_sections(&text, "S-1", "", &["7".into()]).unwrap_err().to_string();
         assert!(err.contains(FormKind::FORMS) && err.ends_with("not S-1"), "{err}");
-        assert!(table_sections(&text, "S-1", &[]).unwrap().is_empty());
-        let sections = table_sections(&text, "10KSB", &["7".into()]).unwrap();
+        assert!(table_sections(&text, "S-1", "", &[]).unwrap().is_empty());
+        let sections = table_sections(&text, "10KSB", "", &["7".into()]).unwrap();
         assert_eq!((sections[0].id.as_str(), sections[0].title.as_str()), ("item_7", "Financial Statements"));
+    }
+
+    /// The tables command titles the sections as of the filing date: a bare
+    /// "Item 6." is "Selected Financial Data" in 2019 and "[Reserved]" in 2022.
+    #[test]
+    fn table_sections_are_titled_by_the_filing_date() {
+        let body = "We make things. ".repeat(100);
+        let text = format!("Item 5. Market\n{body}\nItem 6.\n{body}\nItem 7. Management's Discussion\n{body}\n");
+        let title = |date: &str| table_sections(&text, "10-K", date, &[]).unwrap()[1].title.clone();
+        assert_eq!(title("2019-03-01"), "Selected Financial Data");
+        assert_eq!(title("2022-03-01"), "[Reserved]");
     }
 }

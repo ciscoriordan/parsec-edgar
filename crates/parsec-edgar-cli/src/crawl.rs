@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use clap::Args;
 use parsec_edgar::{
-    Client, CompanyProfile, CrawlQuery, Error, Filing, FormKind, IndexEntry, Quarter, Section, extract_sections,
+    Client, CompanyProfile, CrawlQuery, Error, Filing, FormKind, IndexEntry, Quarter, Section, extract_sections_dated,
 };
 use serde::Serialize;
 use serde::ser::SerializeMap;
@@ -351,7 +351,7 @@ fn crawl_one(client: &Client, job: &Job, output: &Output, stats: &Stats) -> Resu
     let doc = client.fetch_primary_document(&filing).map_err(|e| (filing_url(&filing), e))?;
     stats.bytes.fetch_add(doc.bytes.len() as u64, Ordering::Relaxed);
     let text = doc.text();
-    let split = split_sections(&text, &filing.form, &output.items);
+    let split = split_sections(&text, &filing.form, &filing.filing_date, &output.items);
     if split.no_sections_found {
         stats.no_sections.fetch_add(1, Ordering::Relaxed);
     }
@@ -413,9 +413,10 @@ struct Split {
     no_sections_found: bool,
 }
 
-fn split_sections(text: &str, form: &str, items: &[String]) -> Split {
+/// The Item sections of a filing's text, titled as of its filing date.
+fn split_sections(text: &str, form: &str, filing_date: &str, items: &[String]) -> Split {
     let kind = FormKind::from_form(form);
-    let mut sections = kind.map(|k| extract_sections(text, k)).unwrap_or_default();
+    let mut sections = kind.map(|k| extract_sections_dated(text, k, filing_date)).unwrap_or_default();
     let with_text = sections.is_empty();
     // --item narrows the sections a filing has; it does not bring back the full text.
     if !items.is_empty() {
@@ -1080,20 +1081,31 @@ mod tests {
         // A 10-K/A that only adds the auditor's name has no Item headings.
         let amendment = "AMENDMENT NO. 1\n\nThis amendment adds the name of our auditor, Example LLP, \
                          to the cover page. No other change is made.\n";
-        let split = split_sections(amendment, "10-K/A", &items_none);
+        let split = split_sections(amendment, "10-K/A", "", &items_none);
         assert!(split.sections.is_empty() && split.with_text && split.no_sections_found);
 
         // Forms without Item sections always carry the text.
-        let split = split_sections("Prospectus text", "S-1", &items_none);
+        let split = split_sections("Prospectus text", "S-1", "", &items_none);
         assert!(split.with_text && !split.no_sections_found);
 
         let eight_k = "Item 2.02 Results of Operations and Financial Condition\n\nRevenue rose.\n\n\
                        Item 9.01 Financial Statements and Exhibits\n\nExhibit 99.1 Press release.\n";
-        let split = split_sections(eight_k, "8-K", &items_none);
+        let split = split_sections(eight_k, "8-K", "", &items_none);
         assert!(!split.sections.is_empty() && !split.with_text);
         // --item narrows the sections and does not bring back the text.
-        let split = split_sections(eight_k, "8-K", &["item_5.02".to_owned()]);
+        let split = split_sections(eight_k, "8-K", "", &["item_5.02".to_owned()]);
         assert!(split.sections.is_empty() && !split.with_text && !split.no_sections_found);
+    }
+
+    /// Records title their sections as of the filing date: 8-K Item 5.02
+    /// had a shorter title until November 2006.
+    #[test]
+    fn sections_are_titled_by_the_filing_date() {
+        let eight_k = "Item 5.02 Departure of Directors\n\nThe director resigned.\n\n\
+                       Item 9.01 Financial Statements and Exhibits\n\nExhibit 99.1 Press release.\n";
+        let title = |date: &str| split_sections(eight_k, "8-K", date, &[]).sections[0].title.clone();
+        assert!(title("2005-06-01").starts_with("Departure of Directors or Principal Officers;"));
+        assert!(title("2010-06-01").starts_with("Departure of Directors or Certain Officers;"));
     }
 
     #[test]

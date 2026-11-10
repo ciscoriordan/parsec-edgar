@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::html::{Table, document_to_text, document_to_text_and_tables};
 use crate::index::parse_date;
 use crate::profile::{SubmissionsProfile, text_or_empty, text_or_none};
-use crate::sections::{FormKind, Section, extract_sections};
+use crate::sections::{FormKind, Section, extract_sections_dated};
 
 /// One EDGAR filing, as listed by the SEC submissions API.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -409,12 +409,13 @@ impl Client {
     }
 
     /// Item sections of a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB filing (and their
-    /// amendments and variants). Other forms are an [`Error::Invalid`].
+    /// amendments and variants), titled as of the filing date
+    /// ([`extract_sections_dated`]). Other forms are an [`Error::Invalid`].
     pub fn filing_sections(&self, filing: &Filing) -> Result<Vec<Section>> {
         let kind = FormKind::from_form(&filing.form).ok_or_else(|| {
             Error::Invalid(format!("sections are supported for a {} filing, not {}", FormKind::FORMS, filing.form))
         })?;
-        Ok(extract_sections(&self.filing_text(filing)?, kind))
+        Ok(extract_sections_dated(&self.filing_text(filing)?, kind, &filing.filing_date))
     }
 
     /// Tables of a filing's primary document, with offsets into the text that

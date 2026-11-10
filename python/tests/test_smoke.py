@@ -1,5 +1,6 @@
 """Offline checks of the installed package and its `parsec-edgar` command. No SEC requests."""
 
+import datetime
 import os
 import shutil
 import subprocess
@@ -36,6 +37,24 @@ def test_extract_sections_of_a_10ksb():
         ("item_7", "Financial Statements"),
         ("item_8a", "Controls and Procedures"),
     ]
+
+
+def test_extract_sections_titles_by_filing_date():
+    # A bare "Item 6." in a 10-K: "Selected Financial Data" until 2021,
+    # "[Reserved]" since, and the current title without a date.
+    text = f"Item 5. Market\n{BODY}\nItem 6.\n{BODY}\nItem 7. Management's Discussion\n{BODY}\n"
+
+    def title(**date):
+        return pe.extract_sections(text, "10-K", **date)[1]["title"]
+
+    assert title() == "[Reserved]"
+    assert title(filing_date="2019-03-01") == "Selected Financial Data"
+    assert title(filing_date=datetime.date(2019, 3, 1)) == "Selected Financial Data"
+    assert title(filing_date=datetime.date(2022, 3, 1)) == "[Reserved]"
+    with pytest.raises(ValueError):
+        pe.extract_sections(text, "10-K", filing_date="2019-02-30")
+    with pytest.raises(TypeError):
+        pe.extract_sections(text, "10-K", filing_date=20190301)
 
 
 def test_extract_sections_names_the_forms_with_items():
