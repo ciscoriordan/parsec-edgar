@@ -1,0 +1,71 @@
+{
+  "accession": "0001050502-01-000372",
+  "cik": 754921,
+  "company": "PAK MAIL CENTERS OF AMERICA INC",
+  "form": "10QSB",
+  "filing_date": "2001-04-16",
+  "url": "https://www.sec.gov/Archives/edgar/data/754921/000105050201000372/0001050502-01-000372.txt",
+  "agent": "",
+  "tags": [
+    "small-cap",
+    "10-qsb",
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Plain-text Form 10-QSB for the quarter ended February 28, 2001, filed before Part I Item 3 (controls and procedures) was added to the form, so that Item is not listed absent, and neither is Part II Item 1A. There is no contents list, and each Item heading appears once. Notes 1 and 2 to the financial statements are printed on the page before 'PART I - FINANCIAL INFORMATION' and 'Item 1. Financial Statements.' (lines 33 to 59), so they come before the first heading and are in no Item. Part II Items 1 to 5 each say 'None', which is an answer, so none is marked incorporated. Item 6 lists the articles and bylaws filed with earlier reports and says no Form 8-K was filed; the filing ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements.",
+      "occurrence": 0,
+      "next": "PAK MAIL CENTERS OF AMERICA, INC. AND SU"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's Discussion and Analysis or Plan of Operation",
+      "occurrence": 0,
+      "next": "- --------------------------------------"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Changes in Securities.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults Upon Senior Securities.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits and Reports on Form 8-K.",
+      "occurrence": 0,
+      "next": "(a) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

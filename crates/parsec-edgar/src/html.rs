@@ -79,7 +79,7 @@ pub fn html_to_text(html: &str) -> String {
     let doc = Html::parse_document(html);
     let mut out = Out::default();
     render(doc.tree.root(), &mut out);
-    join_lines(&kept_lines(&out.buf, &out.cell_lines, &out.cell_rows))
+    join_lines(&kept_lines(&out.buf, &out.cell_lines, &out.cell_rows, &out.breaks))
 }
 
 /// Convert an HTML document to clean plain text, exactly as [`html_to_text`]
@@ -97,7 +97,7 @@ pub fn html_to_text_and_tables(html: &str) -> (String, Vec<Table>) {
     let doc = Html::parse_document(html);
     let mut out = Out { rows: Some(Vec::new()), ..Out::default() };
     render(doc.tree.root(), &mut out);
-    let lines = kept_lines(&out.buf, &out.cell_lines, &out.cell_rows);
+    let lines = kept_lines(&out.buf, &out.cell_lines, &out.cell_rows, &out.breaks);
     let text = join_lines(&lines);
     let tables = locate_tables(&out.buf, &lines, &text, out.rows.unwrap_or_default());
     (text, tables)
@@ -147,11 +147,24 @@ fn looks_like_html(s: &str) -> bool {
 }
 
 /// Old plain-text filings: drop SGML layout tags, then the same line cleanup
-/// as HTML. Some filers number the page tags, as in "<Page 2>".
+/// as HTML. Some filers number the page tags, as in "<Page 2>". A page tag
+/// starts a printed page, so it is where the page before it ends.
 fn plain_text(s: &str) -> String {
     static TAGS: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(?i)</?(?:PAGE(?:[ \t]+\d{1,3})?|S|C|CAPTION|TABLE|FN)>").unwrap());
-    finish(&TAGS.replace_all(s, ""))
+        LazyLock::new(|| Regex::new(r"(?i)</?(?:(PAGE)(?:[ \t]+\d{1,3})?|S|C|CAPTION|TABLE|FN)>").unwrap());
+    let mut text = String::with_capacity(s.len());
+    let mut breaks = Vec::new();
+    let mut last = 0;
+    for tag in TAGS.captures_iter(s) {
+        let all = tag.get(0).expect("group 0 is the whole match");
+        text.push_str(&s[last..all.start()]);
+        if tag.get(1).is_some() {
+            breaks.push(text.len());
+        }
+        last = all.end();
+    }
+    text.push_str(&s[last..]);
+    join_lines(&kept_lines(&text, &[], &[], &breaks))
 }
 
 #[derive(Default)]
@@ -173,6 +186,9 @@ struct Out {
     /// at most 1,000 characters is, in order. Such a row is removed as a whole
     /// when it repeats on several pages as a running header or footer.
     cell_rows: Vec<Range<usize>>,
+    /// Where in `buf` a printed page ends, in order: before or after each
+    /// element styled to break the page there.
+    breaks: Vec<usize>,
     /// Table rows rendered into `buf`, recorded only when tables are wanted.
     rows: Option<Vec<RowRecord>>,
     /// For each row group (`<tbody>`, `<thead>` or `<tfoot>`) whose rows are
@@ -282,18 +298,38 @@ fn is_skipped(el: &Element) -> bool {
     })
 }
 
+/// Whether an element's style starts a printed page before it and whether it
+/// ends one after it: `page-break-before: always` or `break-before: page`,
+/// and the same with "after".
+fn page_breaks(el: &Element) -> (bool, bool) {
+    let style = el.attr("style").unwrap_or_default();
+    if !style.as_bytes().windows(5).any(|w| w.eq_ignore_ascii_case(b"break")) {
+        return (false, false);
+    }
+    let s: String = style.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_ascii_lowercase();
+    let before = s.contains("page-break-before:always") || s.contains("break-before:page");
+    let after = s.contains("page-break-after:always") || s.contains("break-after:page");
+    (before, after)
+}
+
 /// Depth-first render with an explicit stack: some filings nest tags thousands
 /// deep, which would overflow the call stack with naive recursion.
 fn render(root: NodeRef<Node>, out: &mut Out) {
     enum Step<'a> {
         Enter(NodeRef<'a, Node>),
         Exit,
+        /// The end of an element styled to break the page after it.
+        Break,
     }
     let mut stack = vec![Step::Enter(root)];
     while let Some(step) = stack.pop() {
         let node = match step {
             Step::Exit => {
                 out.newline();
+                continue;
+            }
+            Step::Break => {
+                out.breaks.push(out.buf.len());
                 continue;
             }
             Step::Enter(node) => node,
@@ -303,6 +339,14 @@ fn render(root: NodeRef<Node>, out: &mut Out) {
             Node::Element(el) => {
                 if is_skipped(el) {
                     continue;
+                }
+                let (before, after) = page_breaks(el);
+                if before {
+                    out.breaks.push(out.buf.len());
+                }
+                // Pushed before the element's own steps, so it is taken after them.
+                if after {
+                    stack.push(Step::Break);
                 }
                 match el.name() {
                     "br" => out.newline(),
@@ -406,9 +450,12 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
             out.buf.push_str(text);
             one_line &= !text.contains('\n');
             // Tables inside the cells of a row printed as one line are part of
-            // its cells. Otherwise the lines and rows inside a cell move with its text.
+            // its cells. Otherwise the lines, rows and page breaks inside a
+            // cell move with its text.
             if !data_row {
                 let moved = |p: usize| p - cell.text.start + shift;
+                let within = |p: usize| p.clamp(cell.text.start, cell.text.end);
+                out.breaks.extend(cell.out.breaks.iter().map(|&p| moved(within(p))));
                 if !all_lines {
                     out.cell_lines.extend(cell.out.cell_lines.iter().map(|&p| moved(p)));
                     out.cell_rows.extend(cell.out.cell_rows.iter().map(|r| moved(r.start)..moved(r.end)));
@@ -591,12 +638,6 @@ fn ends_like_number(cell: &str) -> bool {
     rest.ends_with(|c: char| c.is_ascii_digit() || DASHES.contains(&c))
 }
 
-/// Trim lines and drop empty lines, bare page numbers, "Table of Contents"
-/// links and running page headers and footers.
-fn finish(text: &str) -> String {
-    join_lines(&kept_lines(text, &[], &[]))
-}
-
 /// A bare page number, such as "12", "Page 12", "F-3", "F - 3", "- 7 -" or
 /// "ii", with the number in the first group that matched. Old text filings
 /// escape a line that starts with a dash as "- -", so "- -7-" is one too.
@@ -615,14 +656,18 @@ static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
 static PAGE_LABEL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:([A-Z]{1,3})|(\d{1,2}))?\s*[-‐‑‒–—−]\s*(\d{1,3})\.?$").unwrap());
 
-/// The lines [`finish`] keeps, trimmed, as slices of `text` in order. The
-/// lines starting at the sorted offsets `cell_lines` belong to table cells
-/// (see `Out::cell_lines`) and are not dropped as page numbers or page
-/// furniture on their own, but those of a row of `cell_rows` (byte ranges of
-/// `text`, see `Out::cell_rows`) are dropped together when the row is.
-fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>]) -> Vec<&'a str> {
+/// Trim the lines of `text` and drop empty lines, bare page numbers, "Table
+/// of Contents" links and running page headers and footers. Returns the lines
+/// kept, as slices of `text` in order. The lines starting at the sorted
+/// offsets `cell_lines` belong to table cells (see `Out::cell_lines`) and are
+/// not dropped as page numbers or page furniture on their own, but those of a
+/// row of `cell_rows` (byte ranges of `text`, see `Out::cell_rows`) are
+/// dropped together when the row is. A printed page ends at each of the
+/// sorted offsets `breaks`.
+fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>], breaks: &[usize]) -> Vec<&'a str> {
     debug_assert!(cell_lines.is_sorted(), "cell lines are recorded in text order");
     debug_assert!(cell_rows.is_sorted_by_key(|r| r.start), "cell rows are recorded in text order");
+    debug_assert!(breaks.is_sorted(), "page breaks are recorded in text order");
     let mut cell_lines = cell_lines.iter().copied().peekable();
     let mut lines = Vec::new();
     let mut is_cell = Vec::new();
@@ -644,7 +689,15 @@ fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>
         .map(|r| starts.partition_point(|&s| s < r.start)..starts.partition_point(|&s| s < r.end))
         .filter(|r| !r.is_empty())
         .collect();
-    let furniture = page_furniture(&lines, &is_cell, &rows);
+    // Whether a page ends after a line and before the next kept line.
+    let ends_page: Vec<bool> = (0..lines.len())
+        .map(|i| {
+            let next = starts.get(i + 1).copied().unwrap_or(text.len());
+            let after = breaks.partition_point(|&b| b < starts[i] + lines[i].len());
+            breaks.get(after).is_some_and(|&b| b <= next)
+        })
+        .collect();
+    let furniture = page_furniture(&lines, &is_cell, &rows, &ends_page);
     lines.into_iter().enumerate().filter(|(i, _)| !furniture.contains(i)).map(|(_, l)| l).collect()
 }
 
@@ -659,10 +712,10 @@ fn join_lines(lines: &[&str]) -> String {
 }
 
 /// Turn the rows recorded while rendering `raw` into tables of `text`.
-/// `lines` are the lines of `raw` that [`finish`] kept, as slices of `raw`,
-/// and `text` is those lines joined. Each cell becomes what its own lines
-/// became in `text`, so lines that `finish` dropped, for whatever reason,
-/// leave the cells and rows they were in.
+/// `lines` are the lines of `raw` that [`kept_lines`] kept, as slices of
+/// `raw`, and `text` is those lines joined. Each cell becomes what its own
+/// lines became in `text`, so lines that `kept_lines` dropped, for whatever
+/// reason, leave the cells and rows they were in.
 fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) -> Vec<Table> {
     // Start of each kept line in `raw` and in `text`, and its length.
     let mut spans = Vec::with_capacity(lines.len());
@@ -756,13 +809,19 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
 /// pages after the copy before (see `page_steps`), as page numbers do and
 /// lists of exhibits ("EX-21", "EX-23", "EX-31") do not.
 ///
+/// A page number in parentheses or followed by a period alone on its line
+/// ("(12)", "12.") counts only where it ends a printed page (`ends_page`),
+/// as the last line before a page break, and its copies must pass the same
+/// two tests. Numbered footnotes ("(1)" over the footnote) and notes ("3."
+/// over the note's title) look the same, but do not end the pages.
+///
 /// Lines of table cells (`is_cell`) are data and never count on their own.
 /// A short row printed cell by cell (`rows`, as ranges of `lines`) counts as
 /// one copy: its lines, with the page number taken out of one of them, must
 /// repeat as the text of a line does, as in a footer with the company name
 /// over the report name and the page number in the next cell. Its copies
 /// must also mostly not be next to each other, as the rows of a table are.
-fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> HashSet<usize> {
+fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>], ends_page: &[bool]) -> HashSet<usize> {
     const MIN_REPEATS: usize = 5;
     const MIN_LETTERS: usize = 10;
     const MAX_LEN: usize = 120;
@@ -781,7 +840,9 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> Ha
             continue;
         }
         for page in page_numbers(line).into_iter().flatten() {
-            families.entry(page.key).or_default().push((i, page));
+            if page.key.2 != Place::Alone || ends_page[i] {
+                families.entry(page.key).or_default().push((i, page));
+            }
         }
     }
     for (&(before, after, place), seen) in &families {
@@ -791,7 +852,7 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> Ha
         }
         let apart = mostly(seen.windows(2).filter(|w| w[1].0 > w[0].0 + 1).count(), n - 1);
         let furniture = match place {
-            Place::Label | Place::Chapter => apart && mostly(page_steps(seen), n - 1),
+            Place::Label | Place::Chapter | Place::Alone => apart && mostly(page_steps(seen), n - 1),
             Place::Edge | Place::PageOf | Place::Middle => {
                 let short = letters(before) + letters(after) < MIN_LETTERS;
                 let spaced = before.contains(' ') || after.contains(' ');
@@ -817,7 +878,7 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>]) -> Ha
             continue;
         }
         for (j, line) in row.iter().enumerate() {
-            for page in page_numbers(line).into_iter().flatten() {
+            for page in page_numbers(line).into_iter().flatten().filter(|p| p.key.2 != Place::Alone) {
                 let (before, after, place) = page.key;
                 let mut key = String::new();
                 for (k, l) in row.iter().enumerate() {
@@ -892,6 +953,8 @@ enum Place {
     Label,
     /// Alone after a chapter number and a dash: "7-3".
     Chapter,
+    /// Alone in parentheses or followed by a period: "(12)", "12.".
+    Alone,
 }
 
 /// The text before and after a page number, and where it sits. A number at
@@ -927,7 +990,8 @@ impl<'a> PageNumber<'a> {
 
 /// The page numbers of a line that may be a running header or footer, with
 /// the text around them: a bare page number, or one with a prefix alone on
-/// the line (`PAGE_LABEL`), or one at the start or end of the line, in a
+/// the line (`PAGE_LABEL`), or one alone in parentheses or followed by a
+/// period ("(12)", "12."), or one at the start or end of the line, in a
 /// leading "Page N of M", or in the middle cell of a row of three cells, in
 /// digits or, in the front matter, in roman numerals. A line can have both of
 /// the last two, as "2021 Annual Report<TAB>61<TAB>Part II, Item 8" does.
@@ -962,6 +1026,11 @@ fn page_numbers<'a>(line: &'a str) -> [Option<PageNumber<'a>>; 2] {
             None => PageNumber::new(number, (c.get(1).map_or("", |m| m.as_str()), "", Place::Label)),
         };
         return [Some(page), None];
+    }
+    let (open, close) = if line.starts_with('(') { ("(", ")") } else { ("", ".") };
+    let alone = line.strip_prefix(open).and_then(|rest| rest.strip_suffix(close));
+    if let Some(digits) = alone.filter(|d| (1..=3).contains(&d.len()) && d.bytes().all(|b| b.is_ascii_digit())) {
+        return [digits.parse().ok().map(|number| PageNumber::new(number, (open, close, Place::Alone))), None];
     }
     let numeral = |c: char| c.is_ascii_digit() || matches!(c, 'i' | 'v' | 'x' | 'l' | 'c');
     let edge = line.starts_with(numeral)
@@ -1205,6 +1274,55 @@ mod tests {
         // Pages past the count are not page numbers, so too few copies are left.
         let (html, _) = paged("Page {} of 2", numbered(1..9));
         assert_eq!(html_to_text(&html).matches(" of 2").count(), 8);
+    }
+
+    /// Page numbers alone on their line in parentheses or followed by a
+    /// period go when each ends a printed page: before a page break that a
+    /// style sets, also inside the cell of a layout table, or before the page
+    /// tag of a text filing.
+    #[test]
+    fn page_numbers_ending_printed_pages_dropped() {
+        let want: String = (1..7).map(|n| format!("Text of page {n}.\n")).collect();
+        for page in [
+            "<p>Text of page {}.</p><div style=\"PAGE-BREAK-AFTER: always\"><p>({})</p><hr></div>",
+            "<p>Text of page {}.</p><p>{}.</p><div style=\"break-after: page\"></div>",
+            "<p>Text of page {}.</p><p>({})</p><p style=\"page-break-before:always\"></p>",
+        ] {
+            let pages: String = (1..7).map(|n| page.replace("{}", &n.to_string())).collect();
+            assert_eq!(tables_of(&pages).0, want, "{page}");
+            let layout = format!("<table><tr><td>{pages}</td></tr></table>");
+            assert_eq!(tables_of(&layout).0, want, "{page} in a layout table");
+        }
+        let pages: String = (1..7).map(|n| format!("Text of page {n}.\n\n{:>40}.\n<PAGE>\n", n)).collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{pages}</TEXT>")), want);
+    }
+
+    /// Lines that are only a number in parentheses or followed by a period
+    /// stay when they do not end the printed pages, as footnote markers over
+    /// their footnotes and numbered notes that each start a page do, or when
+    /// too few end pages, or their numbers do not step like pages, or they
+    /// are cells of a table row.
+    #[test]
+    fn numbers_alone_that_do_not_end_pages_stay() {
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        let new_page = "<div style=\"page-break-before: always\">";
+        let row = "<table><tr><td>Claims<br>resolved</td>";
+        let cases = [
+            ((1..9).map(|n| format!("<p>({n})</p><p>Text of footnote {n}.</p>")).collect::<String>(), "(", 8),
+            ((1..9).map(|n| format!("{new_page}<p>{n}.</p><p>Title of note {n}</p></div>")).collect(), ".", 8),
+            ((20..24).map(|n| format!("<p>Text.</p><p>({n})</p>{page_break}")).collect(), "(", 4),
+            ([12, 9, 14, 3, 20, 1].map(|n| format!("<p>Text.</p><p>{n}.</p>{page_break}")).concat(), ".", 6),
+            ((30..36).map(|n| format!("{row}<td>({n})</td></tr></table>{page_break}")).collect(), "(", 6),
+        ];
+        for (html, mark, copies) in cases {
+            let (text, _) = tables_of(&html);
+            let alone = |l: &&str| l.len() <= 4 && (l.starts_with('(') || l.ends_with('.')) && l.contains(mark);
+            assert_eq!(text.lines().filter(alone).count(), copies, "{html}");
+        }
+        // A numbered list in a text filing, with the page tag after the last item's text.
+        let list: String = (1..7).map(|n| format!("{n}.\nItem {n} of the list.\n")).collect();
+        let text = document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{list}<PAGE>\nMore.\n</TEXT>"));
+        assert_eq!(text, format!("{list}More.\n"));
     }
 
     /// Old text filings that number their page tags, as in "<Page 2>".

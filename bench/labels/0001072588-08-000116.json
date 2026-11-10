@@ -1,0 +1,77 @@
+{
+  "accession": "0001072588-08-000116",
+  "cik": 1381341,
+  "company": "ecoTECH Energy Group Inc.",
+  "form": "10QSB",
+  "filing_date": "2008-04-11",
+  "url": "https://www.sec.gov/Archives/edgar/data/1381341/000107258808000116/s2s10q2-08.txt",
+  "agent": "Jodie L. Ball",
+  "tags": [
+    "small-cap",
+    "10-qsb",
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Plain-text Form 10-QSB for the quarter ended February 29, 2008, filed as Sea 2 Sky Corporation shortly before small companies moved to Form 10-Q. It keeps the 10-QSB numbering: Part I Item 3 is Controls and Procedures and there is no Part I Item 4. A contents list after the cover names every Item with page numbers and calls Part II Items 1 to 5 'Not Applicable'; each body heading appears once after it, and the body answers those Items 'None', which is an answer, so none is marked incorporated. Item 1 holds F-paged financial statements with their own index and runs to Item 2. Part II Item 2 has the older title 'Changes in Securities and Use of Proceeds'. Part II Item 1A is not listed absent: the form did not have it. Item 6 lists the certification exhibits and ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1.  FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "SEA 2 SKY CORPORATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2.  MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The  following  discussion  should  be r"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3.  CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "As of the end of the period covered by t"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.  Legal Proceedings",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.           Changes in Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "None"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3.  DEFAULTS UPON SENIOR SECURITIES",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.  Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5.  Other Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.           Exhibits",
+      "occurrence": 0,
+      "next": "(a) Pursuant to Rule 601 of Regulation S"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the  requirements of Section"
+  }
+}
