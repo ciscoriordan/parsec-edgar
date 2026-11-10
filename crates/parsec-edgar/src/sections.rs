@@ -505,6 +505,58 @@ static CONTROLS_REPORT: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// Lowercase words that the heading of a report on internal control or of an
+/// auditors' report goes on with after its first words, besides joining
+/// words: "Report of independent registered public accounting firm",
+/// "Management's report on internal control over financial reporting".
+const REPORT_TITLE_WORDS: &[&str] = &[
+    "over",
+    "internal",
+    "control",
+    "financial",
+    "reporting",
+    "independent",
+    "registered",
+    "public",
+    "accounting",
+    "firm",
+    "auditors",
+    "accountants",
+    "report",
+    "consolidated",
+    "statements",
+];
+
+/// Whether the line at `pos`, which `CONTROLS_REPORT` matches, is the
+/// report's heading rather than a sentence that starts with its title: up to
+/// a period, colon, dash, bracket or tab, the words after the title's first
+/// words start with a capital letter or are words of such a title
+/// ("Management's report on internal control over financial reporting, set
+/// forth in Item 9A, identified ..." is a sentence). When the line ends
+/// before any of these and the next line starts with a lowercase letter,
+/// that line goes on with the title the same way ("... internal control
+/// over" then "financial reporting is included in Item 9A." is a sentence).
+fn report_heading(text: &str, pos: usize) -> bool {
+    const ENDS: [char; 7] = ['.', ':', '—', '–', '(', '[', '\t'];
+    let title_only = |s: &str| {
+        let words = s.split(ENDS).next().unwrap_or("");
+        TITLE_WORD.find_iter(words).all(|w| {
+            let w = w.as_str();
+            !w.starts_with(char::is_lowercase) || JOINING_WORDS.contains(&w) || REPORT_TITLE_WORDS.contains(&w)
+        })
+    };
+    let line = text[pos..].split('\n').next().unwrap_or("");
+    let Some(m) = CONTROLS_REPORT.find(line) else {
+        return false;
+    };
+    let rest = &line[m.end()..];
+    if !title_only(rest) {
+        return false;
+    }
+    let next = text[pos + line.len()..].lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+    rest.contains(ENDS) || !next.starts_with(char::is_lowercase) || title_only(next)
+}
+
 /// An auditors' report at the start of a line.
 static AUDITORS_REPORT_HEADING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(&format!(r"(?i)^[ \t]*(?:{AUDITORS_REPORT})")).unwrap());
@@ -2000,8 +2052,9 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     // block headings but not statements printed after all of its own text,
     // with pages of their own numbering or, when no Item follows it and the
     // statements Item only refers to them, with any. The other information
-    // Item (10-K Item 9B, 10-KSB Item 8B) ends at a report on internal
-    // control printed after it, which belongs to the controls Item before it.
+    // Item (10-K Item 9B, 10-KSB Item 8B) ends at the heading of a report on
+    // internal control printed after it (`report_heading`), which belongs to
+    // the controls Item before it.
     let no_item_8 = !picks.iter().any(|&(_, k)| keys[k].item == "8");
     // The Item that holds the financial statements: 10-K Item 8, 10-KSB Item 7.
     let statements_key = keys.iter().position(|k| k.title.starts_with("Financial Statements"));
@@ -2064,7 +2117,7 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
                 let glossary = after_exhibits(ki, cand).then(|| glossary_start(text, start, end)).flatten();
                 block.into_iter().chain(glossary).min()
             } else if other_information(ki) {
-                heading_start(&CONTROLS_REPORT, text, start, end)
+                heading_starts(&CONTROLS_REPORT, text, start, end).find(|&p| report_heading(text, p))
             } else if exhibits_item(ki, cand) {
                 // Statements printed after all of its text, whatever their
                 // pages, and a glossary end it when no Item follows it.
@@ -4816,6 +4869,47 @@ mod tests {
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_2_item_5", "part_2_item_6"]);
         assert_eq!(s[0].end, s[1].start);
+    }
+
+    #[test]
+    fn sentences_that_start_with_a_reports_title_stay_in_the_other_information_item() {
+        // Item 9B's text starts with a sentence that names a report, on one
+        // line or broken after the title; the disclosures after it are Item
+        // 9B's. Headings, also in lowercase, with the company's name, with
+        // the addressee run in, or broken over two lines, still end it.
+        let body = BODY.repeat(30);
+        let disclosures = "Amendment to Bylaws. On February 20, the Board amended the bylaws.\n\
+                           Approval of Incentive Plan. On February 21, the Committee approved the plan.\n";
+        for sentence in [
+            "Management's report on internal control over financial reporting, set forth in Item 9A, identified a \
+             material weakness in the Company's controls over revenue recognition.",
+            "Management’s annual report on internal control over financial reporting is included in Item 9A.",
+            "Report of Independent Registered Public Accounting Firm appears on page 45.",
+            "Management's report on internal control over\nfinancial reporting is included in Item 9A.",
+        ] {
+            let text = format!(
+                "ITEM 9A. CONTROLS AND PROCEDURES\n{body}\nITEM 9B. OTHER INFORMATION\n{sentence}\n{disclosures}\
+                 PART III\nITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_9a", "item_9b", "item_10"], "{sentence}");
+            assert_eq!(s[1].end, s[2].start, "{sentence}");
+        }
+        for heading in [
+            "Management's report on internal control over financial reporting",
+            "Management’s Report on Internal Control Over Financial Reporting—Example Corp and Subsidiaries",
+            "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM To the Board of Directors of Example Corp",
+            "Management's Report on Internal Control over\nFinancial Reporting",
+            "Management’s Annual Report on Internal Control Over Financial Reporting. Management is responsible for \
+             establishing and maintaining adequate internal control.",
+        ] {
+            let text = format!(
+                "ITEM 9A. CONTROLS AND PROCEDURES\n{body}\nITEM 9B. OTHER INFORMATION\nNone.\n{heading}\n{body}\n\
+                 PART III\nITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[1].text, "ITEM 9B. OTHER INFORMATION\nNone.", "{heading}");
+        }
     }
 
     /// Titles of the sections, in order.
