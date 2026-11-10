@@ -29,7 +29,10 @@
 //! ends where the Item's standard title ends ("Item 8, Financial Statements
 //! and Supplementary Data"), or where the numbers of more Items in form
 //! order, the last after "and", or the standard titles of all of them end
-//! ("ITEMS 9, 9A AND 9B.").
+//! ("ITEMS 9, 9A AND 9B."). In a 10-K or 10-KSB whose first Item found is
+//! Item 1A or Item 2, a line that holds only Item 1's standard title after
+//! the last `PART I` line before it ("PART I." and then "BUSINESS") starts
+//! Item 1, unless an Item line comes between them.
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins.
 //!
@@ -1336,6 +1339,62 @@ fn add_lettered(cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize
     filled.into_iter().map(|(item, _)| item).collect()
 }
 
+/// Item 1 printed with no number in a 10-K or 10-KSB: "PART I." and then
+/// "BUSINESS" on a line of its own, while the other Items have numbered
+/// headings. When the first Item of the chain is Item 1A or Item 2, the first
+/// line that holds only Item 1's standard title ("Business", "Description of
+/// Business"), between the last `PART I` line before that Item's heading and
+/// the heading, starts Item 1, unless an Item line comes between that `PART
+/// I` line and the heading. A Part I printed with no Item numbers at all has
+/// its first numbered heading in Part II, so it gets no Item 1. Returns the
+/// title line as a candidate.
+fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(usize, usize)]) -> Option<Candidate> {
+    let &(first, key) = picks.first()?;
+    let item_1 = keys.iter().find(|k| k.item == "1")?;
+    if !matches!(keys[key].item, "1A" | "2") {
+        return None;
+    }
+    let heading = cands[first].pos;
+    // The lines before the heading, back to the PART I line, in document order.
+    let mut lines: Vec<(usize, &str)> = Vec::new();
+    let mut end = text[..heading].strip_suffix('\n')?.len();
+    loop {
+        let start = text[..end].rfind('\n').map_or(0, |i| i + 1);
+        let line = text[start..end].trim_end_matches('\r');
+        if PART_LABEL.is_match(line) {
+            if PART_MARK.captures(line).is_none_or(|c| &c[1] != "I") {
+                return None;
+            }
+            break;
+        }
+        if is_item_line(line) || start == 0 {
+            return None;
+        }
+        lines.push((start, line));
+        end = start - 1;
+    }
+    // The same letters, and no number such as a page.
+    let (letters, words) = (title_key(item_1.title), title_words(item_1.title));
+    let (pos, line) = lines.into_iter().rev().find(|&(_, line)| {
+        let line = line.trim();
+        line.starts_with(char::is_uppercase) && title_key(line) == letters && title_words(line) == words
+    })?;
+    Some(Candidate {
+        pos,
+        label: item_1.item.to_owned(),
+        heading: line.trim().to_owned(),
+        bare: false,
+        title: title_key(line),
+        part: None,
+        title_part: None,
+        listed: false,
+        officers: false,
+        joined: false,
+        gap: heading - pos,
+        score: 0.0,
+    })
+}
+
 /// Order chain states by total score. On a tie the earlier Item wins, so an
 /// unmarked 10-Q "Item 2" between Part I Item 1 and Part II Item 6 stays in Part I.
 fn better(a_total: f64, a_key: usize, b_total: f64, b_key: usize) -> std::cmp::Ordering {
@@ -1429,6 +1488,14 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
         add_out_of_order(text, &cands, keys, &mut picks);
     }
     let filled = add_lettered(&cands, keys, &mut picks);
+    let mut cands = cands;
+    if kind.annual()
+        && let Some(item_1) = unnumbered_item_1(text, &cands, keys, &picks)
+    {
+        cands.push(item_1);
+        let ki = keys.iter().position(|k| k.item == "1").expect("an annual form has Item 1");
+        picks.insert(0, (cands.len() - 1, ki));
+    }
 
     let starts: Vec<usize> = picks.iter().map(|&(c, _)| cands[c].pos).collect();
     let last_start = *starts.last().expect("chain is non-empty");
@@ -2108,6 +2175,74 @@ mod tests {
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_7", "item_15", "item_16"]);
         assert!(s[0].text.contains("\nItem 1-2 of the Form requires this.\nItem 7 - 2005 compared with 2004\n"));
+    }
+
+    #[test]
+    fn unnumbered_business_heading_after_part_one_starts_item_one() {
+        // "PART I." and then "BUSINESS" with no Item number, before the
+        // numbered Item 1A, or Item 2 in a 10-K or 10-KSB with no Item 1A.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1.\tBusiness\t4\nItem 1A.\tRisk Factors\t13\nItem 2.\tProperties\t39\n\
+             FORWARD-LOOKING STATEMENTS\n{body}\nPART I.\nBUSINESS\nOverview\n{body}\n\
+             ITEM 1A. RISK FACTORS\n{body}\nITEM 2. PROPERTIES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2"]);
+        assert_eq!(s[0].heading, "BUSINESS");
+        assert!(s[0].text.starts_with("BUSINESS\nOverview\nLorem"));
+        let text = format!("PART I\nBusiness.\n{body}\nItem 2. Properties\n{body}\nSIGNATURES\n");
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2"]);
+        let text = format!(
+            "PART I\nDESCRIPTION OF BUSINESS\n{body}\nItem 2. Description of Property\n{body}\n\
+             Item 3. Legal Proceedings\nNone.\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3"]);
+        assert_eq!(s[0].title, "Description of Business");
+    }
+
+    #[test]
+    fn unnumbered_business_heading_starts_no_item_elsewhere() {
+        // A Part I with no Item numbers at all, an Item line between PART I
+        // and the first numbered heading, another title, no PART I line or
+        // another PART line, a first numbered heading after Item 1A, a
+        // numbered Item 1, and a 10-Q whose Part I prints its title without a
+        // number.
+        let body = BODY.repeat(30);
+        let annual = |text: &str| ids(&extract_sections(text, FormKind::TenK)).join(" ");
+        for (text, items) in [
+            (
+                format!(
+                    "PART I\nBUSINESS\n{body}\nPROPERTIES\n{body}\nPART II\nItem 5. Market for Common Equity\n{body}\n"
+                ),
+                "item_5",
+            ),
+            (
+                format!("PART I\nBUSINESS\n{body}\nItem 1 is answered below.\n{body}\nItem 2. Properties\n{body}\n"),
+                "item_2",
+            ),
+            (format!("PART I\nOUR BUSINESS\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (format!("PART I\nTHE BUSINESS\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (format!("PART I\nBusiness\t3\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (format!("PART I\nBusiness Overview\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (format!("BUSINESS\n{body}\nItem 1A. Risk Factors\n{body}\n"), "item_1a"),
+            (format!("PART II\nBUSINESS\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (
+                format!("PART I\nBUSINESS\n{body}\nRISK FACTORS\n{body}\nItem 1B. Unresolved Staff Comments\nNone.\n"),
+                "item_1b",
+            ),
+            (format!("PART I\nBUSINESS\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\n"), "item_1 item_2"),
+        ] {
+            assert_eq!(annual(&text), items, "{text:.60}");
+        }
+        let text = format!(
+            "PART I\nFINANCIAL STATEMENTS\n{body}{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_2", "part_2_item_1", "part_2_item_6"]);
     }
 
     #[test]
