@@ -1,5 +1,8 @@
 //! Item sections of 10-K, 10-Q and 8-K filings, and of the small business
-//! forms 10-KSB and 10-QSB, which number their Items differently.
+//! forms 10-KSB and 10-QSB, which number their Items differently. A filing
+//! whose Item headings fit the other numbering better (a 10-KSB that prints
+//! "Item 8. Financial Statements", a 10-K that prints "Item 7. Financial
+//! Statements" and "Item 8A(T)") is split with the other form's Items.
 //!
 //! Every line that looks like an Item heading becomes a candidate. Tables of
 //! contents and running page headers also produce candidates, so the extractor
@@ -40,21 +43,22 @@
 //! glossary printed after the last Item. A block heading (an auditors' report,
 //! an index to the financial statements, a financial statement schedule, an
 //! exhibit index or an accountants' consent) ends the Items that never hold
-//! such text: changes in accountants (10-K Item 9, 10-KSB Item 8) and the Item
-//! after the exhibits (10-K Item 16, 10-KSB Item 14), which a glossary heading
-//! ends too. It ends 10-K Item 7A too when no Item 8 heading was found. It
-//! does not when the section also holds the next Item ("Items 9 and 9A.", or
-//! "ITEM 9 A" after "ITEM 9."), or when the Item after the exhibits is titled
-//! as the exhibits Item (Item 16 of some 2003 10-Ks). In other Items these
-//! headings are part of the Item: the statements (10-K Item 8, 10-KSB Item 7),
-//! the report on internal control (10-K Item 9A, 10-KSB Item 8A), and the
-//! statements and exhibit index of the exhibits Item (10-K Item 15, 10-KSB
-//! Item 13). The exhibits Item ends only where it prints statements whose
-//! pages are numbered apart from the report's (F-1, F-2, ...) after all of
-//! its own text: an index with such page numbers, then at least two of the
-//! statements it lists, and none of the Item's own text after them (an
-//! exhibit index, an exhibit list's caption or table header, or a caption
-//! such as "(b) Reports on Form 8-K").
+//! such text: changes in accountants (10-K Item 9, 10-KSB Item 8) and the
+//! Items after the exhibits (10-K Item 16, 10-KSB Items 14 and 15), which a
+//! glossary heading ends too. It ends 10-K Item 7A too when no Item 8 heading
+//! was found. It does not when the section also holds the next Item ("Items 9
+//! and 9A.", or "ITEM 9 A" after "ITEM 9."), or when the Item after the
+//! exhibits is titled as the exhibits Item (Item 16 of some 2003 10-Ks). In
+//! other Items these headings are part of the Item: the statements (10-K Item
+//! 8, 10-KSB Item 7), the report on internal control (10-K Item 9A, 10-KSB
+//! Item 8A), and the statements and exhibit index of the exhibits Item (10-K
+//! Item 15, 10-KSB Item 13, or an Item after the statements Item that is
+//! titled as the exhibits Item). The exhibits Item ends only where it prints
+//! statements whose pages are numbered apart from the report's (F-1, F-2,
+//! ...) after all of its own text: an index with such page numbers, then at
+//! least two of the statements it lists, and none of the Item's own text
+//! after them (an exhibit index, an exhibit list's caption or table header,
+//! or a caption such as "(b) Reports on Form 8-K").
 
 use std::sync::LazyLock;
 
@@ -112,6 +116,20 @@ impl FormKind {
     /// A quarterly report, whose Items are in two parts: 10-Q or 10-QSB.
     fn quarterly(self) -> bool {
         matches!(self, Self::TenQ | Self::TenQsb)
+    }
+
+    /// The form whose Item numbers a filing of this kind may print instead.
+    /// Small business issuers moved from Forms 10-KSB and 10-QSB to Forms
+    /// 10-K and 10-Q in 2008 and 2009, and around the change some filed one
+    /// form with the other's Items.
+    fn other_numbering(self) -> Option<Self> {
+        match self {
+            Self::TenK => Some(Self::TenKsb),
+            Self::TenKsb => Some(Self::TenK),
+            Self::TenQ => Some(Self::TenQsb),
+            Self::TenQsb => Some(Self::TenQ),
+            Self::EightK => None,
+        }
     }
 }
 
@@ -240,9 +258,13 @@ const EIGHT_K: &[Key] = &[
     k("9.01", "Financial Statements and Exhibits"),
 ];
 
-/// Form 10-KSB's Items, with the titles of its last version (2008).
+/// Form 10-KSB's Items, with the titles of its last version (2008), and two
+/// Items that 10-KSBs print outside that list: Item 1A, Risk Factors, as in
+/// Form 10-K, and Item 15, Principal Accountant Fees and Services, of the
+/// 10-KSBs for 2003, whose Item 14 was Controls and Procedures.
 const TEN_KSB: &[Key] = &[
     k("1", "Description of Business"),
+    k("1A", "Risk Factors"),
     k("2", "Description of Property"),
     k("3", "Legal Proceedings"),
     k("4", "Submission of Matters to a Vote of Security Holders"),
@@ -264,14 +286,17 @@ const TEN_KSB: &[Key] = &[
     k("12", "Certain Relationships and Related Transactions, and Director Independence"),
     k("13", "Exhibits"),
     k("14", "Principal Accountant Fees and Services"),
+    k("15", "Principal Accountant Fees and Services"),
 ];
 
-/// Form 10-QSB's Items, with the titles of its last version (2008).
+/// Form 10-QSB's Items, with the titles of its last version (2008), and Part
+/// II Item 1A, Risk Factors, which 10-QSBs print as 10-Qs do.
 const TEN_QSB: &[Key] = &[
     q("I", "1", "Financial Statements"),
     q("I", "2", "Management's Discussion and Analysis or Plan of Operation"),
     q("I", "3", "Controls and Procedures"),
     q("II", "1", "Legal Proceedings"),
+    q("II", "1A", "Risk Factors"),
     q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds"),
     q("II", "3", "Defaults Upon Senior Securities"),
     q("II", "4", "Submission of Matters to a Vote of Security Holders"),
@@ -1202,10 +1227,49 @@ fn better(a_total: f64, a_key: usize, b_total: f64, b_key: usize) -> std::cmp::O
     a_total.total_cmp(&b_total).then(b_key.cmp(&a_key))
 }
 
+/// How many of the Items in `keys` the candidates print with a number and
+/// title that fit `keys` and not `other`: the title is the standard title
+/// that `keys` gives to that number and to no other, and that `other` gives
+/// to another number and not to this one. "Item 7. Financial Statements"
+/// fits Form 10-KSB and "Item 8. Financial Statements" Form 10-K. "Item 3.
+/// Legal Proceedings" fits both, and these tell nothing either: "Item 4.
+/// Submission of Matters to a Vote of Security Holders", which 10-Ks printed
+/// before 2010, and "Item 15. Principal Accountant Fees and Services", which
+/// 10-Ks for 2003 printed too. Each Item counts once, however often it is
+/// printed.
+fn numbering_fit(cands: &[Candidate], keys: &[Key], other: &[Key]) -> usize {
+    keys.iter()
+        .filter(|k| {
+            let title = title_key(k.title);
+            // The numbers a list gives this title to.
+            let numbers = |list: &[Key]| -> Vec<&'static str> {
+                list.iter().filter(|o| same_title(&title, &title_key(o.title))).map(|o| o.item).collect()
+            };
+            let theirs = numbers(other);
+            numbers(keys).iter().all(|&n| n == k.item)
+                && theirs.iter().any(|&n| n != k.item)
+                && !theirs.contains(&k.item)
+                && cands.iter().any(|c| c.label == k.item && same_title(&c.title, &title))
+        })
+        .count()
+}
+
 /// Split filing text (from [`crate::html_to_text`]) into Item sections, in document order.
 pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
-    let keys = keys_for(kind);
     let cands = candidates(text, kind);
+    // A filing that prints the Items of the form its kind replaced or was
+    // replaced by (a 10-KSB numbered as a 10-K, a 10-Q numbered as a 10-QSB)
+    // is split with that form's Items when its headings fit them better.
+    let (kind, cands) = match kind.other_numbering() {
+        Some(other)
+            if numbering_fit(&cands, keys_for(other), keys_for(kind))
+                > numbering_fit(&cands, keys_for(kind), keys_for(other)) =>
+        {
+            (other, candidates(text, other))
+        }
+        _ => (kind, cands),
+    };
+    let keys = keys_for(kind);
 
     // Best chain where both candidate position and Item order increase.
     struct State {
@@ -1273,32 +1337,36 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     };
     // Text with no Item heading of its own belongs to no Item. A block heading
     // ends the Items that never hold financial statements or an exhibit
-    // index: changes in accountants (10-K Item 9, 10-KSB Item 8) and the Item
-    // after the exhibits (10-K Item 16, 10-KSB Item 14), which a glossary
-    // heading ends too. It also ends 10-K Item 7A when no Item 8 heading was
-    // found: the statements after it are then Item 8's text without its
-    // heading. A 10-KSB's statements (Item 7) follow MD&A (Item 6), which
-    // keeps them like 10-K Item 7 does. The exhibits Item keeps its block
-    // headings but not statements with pages of their own numbering printed
-    // after all of its own text.
+    // index: changes in accountants (10-K Item 9, 10-KSB Item 8) and the Items
+    // after the exhibits (10-K Item 16, 10-KSB Items 14 and 15), which a
+    // glossary heading ends too. It also ends 10-K Item 7A when no Item 8
+    // heading was found: the statements after it are then Item 8's text
+    // without its heading. A 10-KSB's statements (Item 7) follow MD&A (Item
+    // 6), which keeps them like 10-K Item 7 does. The exhibits Item keeps its
+    // block headings but not statements with pages of their own numbering
+    // printed after all of its own text.
     let no_item_8 = !picks.iter().any(|&(_, k)| keys[k].item == "8");
-    // The exhibits Item: 10-K Item 15, 10-KSB Item 13, or an Item printed
-    // with a title that names the exhibits or the financial statements but
-    // whose standard title does not name the statements (Item 14 of 10-Ks
-    // before 2003, Item 16 of some for 2003).
-    let exhibits_item = |key: &Key, cand: &Candidate| {
+    // The Item that holds the financial statements: 10-K Item 8, 10-KSB Item 7.
+    let statements_key = keys.iter().position(|k| k.title.starts_with("Financial Statements"));
+    // The exhibits Item: 10-K Item 15, 10-KSB Item 13, or an Item after the
+    // statements Item printed with a title that names the exhibits or the
+    // financial statements (Item 14 of 10-Ks before 2003, Item 16 of some for
+    // 2003). An Item before it is never the exhibits Item, also when printed
+    // as "Financial Statements" (Item 7 of a 10-K numbered as a 10-KSB).
+    let exhibits_item = |ki: usize, cand: &Candidate| {
         kind.annual()
-            && (key.title.contains("Exhibits")
-                || (!key.title.contains("Financial Statements")
+            && (keys[ki].title.contains("Exhibits")
+                || (statements_key.is_some_and(|s| ki > s)
                     && (cand.title.contains("exhibit") || cand.title.contains("financialstatement"))))
     };
-    let after_exhibits = |key: &Key, cand: &Candidate| {
-        matches!((kind, key.item), (FormKind::TenK, "16") | (FormKind::TenKsb, "14")) && !exhibits_item(key, cand)
+    let after_exhibits = |ki: usize, cand: &Candidate| {
+        matches!((kind, keys[ki].item), (FormKind::TenK, "16") | (FormKind::TenKsb, "14" | "15"))
+            && !exhibits_item(ki, cand)
     };
-    let ends_at_block = |key: &Key, cand: &Candidate| match (kind, key.item) {
+    let ends_at_block = |ki: usize, cand: &Candidate| match (kind, keys[ki].item) {
         (FormKind::TenK, "9") | (FormKind::TenKsb, "8") => true,
         (FormKind::TenK, "7A") => no_item_8,
-        _ => after_exhibits(key, cand),
+        _ => after_exhibits(ki, cand),
     };
     // A section that holds the next Item too keeps its block headings: its
     // heading names a second Item ("Items 9 and 9A."), or a heading with the
@@ -1321,11 +1389,11 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             let start = cand.pos;
             let next = starts.get(i + 1).copied().unwrap_or(doc_end);
             let end = stops.iter().copied().find(|&p| p > start && p < next).unwrap_or(next).max(start);
-            let end = if ends_at_block(key, cand) && !holds_more(ci, end) {
+            let end = if ends_at_block(ki, cand) && !holds_more(ci, end) {
                 let block = heading_start(&BLOCK_HEADING, text, start, end);
-                let glossary = after_exhibits(key, cand).then(|| heading_start(&GLOSSARY, text, start, end)).flatten();
+                let glossary = after_exhibits(ki, cand).then(|| heading_start(&GLOSSARY, text, start, end)).flatten();
                 block.into_iter().chain(glossary).min().unwrap_or(end)
-            } else if exhibits_item(key, cand) {
+            } else if exhibits_item(ki, cand) {
                 separate_statements(text, start, end).unwrap_or(end)
             } else {
                 end
@@ -3486,5 +3554,203 @@ mod tests {
         let text = frame("2. Inventories\n(b) Use of estimates\nExhibit 10.1 to the credit agreement sets the rate.\n");
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(s[1].end, text.find("INDEX TO CONSOLIDATED").unwrap());
+    }
+
+    /// Asserts that each section runs to the next one, and the last one to
+    /// `last_end`.
+    fn assert_contiguous(s: &[Section], last_end: usize) {
+        for (i, sec) in s.iter().enumerate() {
+            let next = s.get(i + 1).map_or(last_end, |n| n.start);
+            assert_eq!(sec.end, next, "{}", sec.id);
+        }
+    }
+
+    #[test]
+    fn ten_k_numbered_as_a_ten_ksb_is_split_with_its_items() {
+        // Some small companies' first 10-Ks, for 2008, kept the 10-KSB's
+        // Items: Item 7 holds the statements, here with pages of their own,
+        // and Items 8A and 8B follow Item 8. Read with the 10-K Items, Item 7
+        // would be MD&A, cut at its statements as if it were the exhibits
+        // Item, and Item 8A's text would be in no section.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 1. DESCRIPTION OF BUSINESS\n{body}\n\
+             ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION\n{body}\n\
+             ITEM 7. FINANCIAL STATEMENTS\nINDEX TO FINANCIAL STATEMENTS\n\
+             Report of Independent Registered Public Accounting Firm\tF-1\nBalance Sheets\tF-2\n\
+             Statements of Operations\tF-3\nNotes to Financial Statements\tF-4\n\
+             REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\nBALANCE SHEETS\n{body}\n\
+             STATEMENTS OF OPERATIONS\n{body}\nNOTES TO FINANCIAL STATEMENTS\n{body}\n\
+             ITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE\nNone.\n\
+             ITEM 8A(T). CONTROLS AND PROCEDURES\n{body}\nITEM 8B. OTHER INFORMATION\nNone.\n\
+             ITEM 10. EXECUTIVE COMPENSATION\n{body}\nITEM 13. EXHIBITS\n3.1\tArticles of Incorporation\n\
+             ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(
+            ids(&s),
+            ["item_1", "item_6", "item_7", "item_8", "item_8a", "item_8b", "item_10", "item_13", "item_14"]
+        );
+        assert_eq!(s[2].title, "Financial Statements");
+        assert_eq!(s[7].title, "Exhibits");
+        assert_contiguous(&s, text.find("SIGNATURES").unwrap());
+        // An amendment that prints only Item 8A(T) and Item 14, which both
+        // forms number 14.
+        let text = format!(
+            "ITEM 8A(T). CONTROLS AND PROCEDURES\n{body}\nITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::from_form("10-K/A").expect("a 10-K/A has Items"));
+        assert_eq!(ids(&s), ["item_8a", "item_14"]);
+    }
+
+    #[test]
+    fn items_before_the_statements_item_are_never_the_exhibits_item() {
+        // Headings that fit the 10-K and the 10-KSB numbering equally keep
+        // the 10-K's Items. Item 7 printed as "Financial Statements" comes
+        // before the 10-K's statements Item, so it is not the exhibits Item
+        // and keeps statements whose pages are numbered apart.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION\n{body}\n\
+             ITEM 7. FINANCIAL STATEMENTS\nINDEX TO FINANCIAL STATEMENTS\n\
+             Report of Independent Registered Public Accounting Firm\tF-1\nBalance Sheets\tF-2\n\
+             Statements of Operations\tF-3\nREPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\n\
+             BALANCE SHEETS\n{body}\nSTATEMENTS OF OPERATIONS\n{body}\n\
+             ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE\nNone.\n\
+             ITEM 9A. CONTROLS AND PROCEDURES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_6", "item_7", "item_9", "item_9a"]);
+        assert_eq!(s[1].title, "Management's Discussion and Analysis of Financial Condition and Results of Operations");
+        assert_contiguous(&s, text.find("SIGNATURES").unwrap());
+    }
+
+    #[test]
+    fn ten_ksb_numbered_as_a_ten_k_is_split_with_its_items() {
+        // A 10-KSB printed with Form 10-K's Items: the statements are Item 8,
+        // and Items 1A, 9A, 9B and 15 are Items. Read with the 10-KSB Items,
+        // Item 8 would end at the auditors' report and Items 9A, 9B and 15
+        // would end the Items before them, leaving their text in no section.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 1. BUSINESS\n{body}\nITEM 1A. RISK FACTORS\n{body}\nITEM 2. PROPERTIES\n{body}\n\
+             ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS\n{body}\n\
+             ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n\
+             Report of Independent Registered Public Accounting Firm\n{body}\nBALANCE SHEETS\n{body}\n\
+             ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE\nNone.\n\
+             ITEM 9A(T). CONTROLS AND PROCEDURES\n{body}\nITEM 9B. OTHER INFORMATION\nNone.\n\
+             ITEM 11. EXECUTIVE COMPENSATION\n{body}\nITEM 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES\n\
+             3.1\tArticles of Incorporation\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(
+            ids(&s),
+            ["item_1", "item_1a", "item_2", "item_7", "item_8", "item_9", "item_9a", "item_9b", "item_11", "item_15"]
+        );
+        assert_eq!(s[4].title, "Financial Statements and Supplementary Data");
+        assert_eq!(s[9].title, "Exhibits and Financial Statement Schedules");
+        assert_contiguous(&s, text.find("SIGNATURES").unwrap());
+    }
+
+    #[test]
+    fn ten_ksb_risk_factors_and_item_15_are_items() {
+        // 10-KSBs print Item 1A, Risk Factors, as 10-Ks do, and those for
+        // 2003 Item 14, Controls and Procedures, then Item 15, Principal
+        // Accountant Fees and Services. Item 15 comes after the exhibits, so
+        // statements printed after it belong to no Item, as after Item 14.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 1. DESCRIPTION OF BUSINESS\n{body}\nITEM 1A. RISK FACTORS\n{body}\n\
+             ITEM 2. DESCRIPTION OF PROPERTY\n{body}\n\
+             ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION\n{body}\n\
+             ITEM 7. FINANCIAL STATEMENTS\n{body}\nITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n\
+             ITEM 13. EXHIBITS AND REPORTS ON FORM 8-K\n3.1\tArticles of Incorporation\n\
+             ITEM 14. CONTROLS AND PROCEDURES\n{body}\nITEM 15. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\n\
+             INDEPENDENT AUDITORS' REPORT\n{body}\nBALANCE SHEETS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(
+            ids(&s),
+            ["item_1", "item_1a", "item_2", "item_6", "item_7", "item_8", "item_13", "item_14", "item_15"]
+        );
+        assert_eq!(s[1].title, "Risk Factors");
+        assert_eq!(s[4].title, "Financial Statements");
+        assert_eq!(s[8].title, "Principal Accountant Fees and Services");
+        assert_contiguous(&s, text.find("INDEPENDENT AUDITORS' REPORT").unwrap());
+    }
+
+    #[test]
+    fn ten_qsb_risk_factors_and_ten_q_numbering() {
+        // A 10-QSB's Part II Item 1A, Risk Factors, is an Item, as in a 10-Q.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\n\
+             Item 2. Management's Discussion and Analysis or Plan of Operation\n{body}\n\
+             Item 3. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\nNone.\n\
+             Item 1A. Risk Factors\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQsb);
+        assert_eq!(
+            ids(&s),
+            ["part_1_item_1", "part_1_item_2", "part_1_item_3", "part_2_item_1", "part_2_item_1a", "part_2_item_6"]
+        );
+        assert_eq!(s[2].title, "Controls and Procedures");
+        assert_eq!(s[3].text, "Item 1. Legal Proceedings\nNone.");
+        // A 10-QSB numbered as a 10-Q, with market risk as Part I Item 3 and
+        // controls as Item 4, is split with the 10-Q's Items.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot applicable.\n\
+             Item 4. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\nNone.\n\
+             Item 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQsb);
+        assert_eq!(
+            ids(&s),
+            ["part_1_item_1", "part_1_item_2", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"]
+        );
+        assert_eq!(s[2].text, "Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot applicable.");
+        assert_eq!(s[3].title, "Controls and Procedures");
+        // And a 10-Q numbered as a 10-QSB with the 10-QSB's.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\n\
+             Item 2. Management's Discussion and Analysis or Plan of Operation\n{body}\n\
+             Item 3. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\nNone.\n\
+             Item 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_3", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(s[2].title, "Controls and Procedures");
+    }
+
+    #[test]
+    fn titles_that_both_numberings_print_keep_the_form_items() {
+        // "Submission of Matters to a Vote of Security Holders" is 10-KSB
+        // Item 4's title, and 10-Ks printed it as Item 4 before 2010. Both
+        // forms' lists title Item 14 "Principal Accountant Fees and
+        // Services". Neither moves a 10-K to the 10-KSB's Items.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 3. LEGAL PROCEEDINGS\n{body}\nITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNone.\n\
+             ITEM 5. MARKET FOR REGISTRANT'S COMMON EQUITY\n{body}\n\
+             ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_3", "item_4", "item_5", "item_14"]);
+        assert_eq!(s[1].title, "Mine Safety Disclosures");
+        // Nor does a 10-Q's Part II "Item 4. Submission of Matters ..." move
+        // it to the 10-QSB's Items when Part I Item 4 is printed as "Item 4T".
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             Item 4T. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\nNone.\n\
+             Item 4. Submission of Matters to a Vote of Security Holders\nNone.\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_4", "part_2_item_6"]
+        );
+        assert_eq!(s[4].title, "Mine Safety Disclosures");
     }
 }
