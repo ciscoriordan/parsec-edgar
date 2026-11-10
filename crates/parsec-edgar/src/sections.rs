@@ -41,12 +41,17 @@
 //! ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   25") is one.
 //! Item lines above a contents list that the list repeats, as a 10-Q/A's
 //! explanatory note prints the Items it amends, go with the list, with pages
-//! or without.
+//! or without, when no Item line with text of its own comes before them.
 //! A copy printed after the signature block's sentence ("Pursuant to the
-//! requirements of ... duly caused"), such as an exhibit's, is no body
-//! heading: it goes, and the copy before the signatures stays when an Item
-//! earlier in the form's order with text of its own comes before it, however
-//! short its own text.
+//! requirements of ... duly caused this report"), such as an exhibit's, is no
+//! body heading when the copy before the signatures sits where the Item's
+//! heading belongs, however short its own text: the nearest Item with text of
+//! its own before it comes earlier in the form's order, and the Item lines
+//! after it, up to the next one with text of its own, come later, the first
+//! of them no contents row. The later copy goes then. A line inside another
+//! Item's text, a row of an index of Items printed after the body and a
+//! contents row stay out of this, and the copy after the signatures starts
+//! the Item, as when the report prints Part IV after its signatures.
 //! In a 10-Q or 10-QSB a `PART I` or `PART II` line just above a heading fixes
 //! its part, and without one a title that only one part uses for that Item
 //! number does. Such a line that starts with a Part I title and runs on as a
@@ -121,11 +126,15 @@
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins, with the index headings
 //! ("Index to Financial Statements") and notes that a page is intentionally
-//! left blank printed just above its contents. Without a signatures heading,
-//! the signatures start at the signature block's sentence ("Pursuant to the
+//! left blank printed just above its contents. The signatures start at the
+//! signatures heading or at the signature block's sentence ("Pursuant to the
 //! requirements of the Securities Exchange Act of 1934, the registrant has
-//! duly caused this report to be signed ..."), also when a plain-text filing
-//! wraps it before "duly caused". A power of attorney printed before the
+//! duly caused this report to be signed ...", or the 10-KSB and 10-QSB
+//! wording "In accordance with Section 13 or 15(d) of the Exchange Act, the
+//! registrant caused this report ..."), whichever comes first, so that a
+//! signatures heading inside an attached document does not end the report's
+//! last Item. The sentence counts also when a plain-text filing wraps it
+//! twice before "caused". A power of attorney printed before the
 //! signatures under a "POWER OF ATTORNEY" line goes with them, so that line
 //! ends the last Item too, unless it is an exhibit's description in a list
 //! printed cell by cell ("24" on the line above). In a 10-Q or 10-QSB,
@@ -191,7 +200,9 @@
 //! the Item's first line of text. So does the auditors' letterhead above an
 //! auditors' report heading: the firm's name, which the report prints again
 //! where the firm signs it, and up to three lines of its address, the last
-//! with a city, a state and a ZIP code ("Allentown, PA 18104").
+//! with a city, a state and a ZIP code ("Allentown, PA 18104"), below a line
+//! of the Item that ends a sentence. An address that the Item's text leads
+//! into ("Our auditors may be contacted at:") stays in the Item.
 //!
 //! A section's title is the standard title of its Item. Where the form has
 //! renamed the Item, the printed heading picks the title among those it has
@@ -758,20 +769,58 @@ fn signature_lines(text: &str) -> Vec<usize> {
     found
 }
 
-/// The signature block's opening sentence, for filings that print no
-/// signatures heading: "Pursuant to the requirements of Section 13 or 15(d)
-/// of the Securities Exchange Act of 1934, the registrant has duly caused
-/// this report to be signed ...". A plain-text filing wraps it: its opening
-/// words may break across lines, and the rest may wrap once, with "duly
-/// caused" within the first 100 characters of the next line ("... of 1934,
-/// the Bank" then "has duly caused this report ...").
-static SIGNATURE_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
+/// The opening words of the signature block's sentence, for filings that
+/// print no signatures heading: "Pursuant to the requirements of Section 13
+/// or 15(d) of the Securities Exchange Act of 1934, the registrant has duly
+/// caused this report to be signed ...", and the wordings of Forms 10-KSB and
+/// 10-QSB ("In accordance with Section 13 or 15(d) of the Exchange Act, the
+/// registrant caused this report to be signed ...", "In accordance with the
+/// requirements of the Exchange Act, ..."). Filers also write "Sections 13",
+/// "the Section 13", "requirement of" and "the Securities Act of 1934", in any
+/// case. The words may break across lines.
+static SIGNATURE_OPENING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
-        r"(?m)^[ \t]*Pursuant\s+to\s+the\s+requirements\s+of\s+",
-        r"(?:Section\s+13|the\s+Securities\s+Exchange\s+Act)[^\n]*(?:\n[^\n]{0,100})?duly\s+caused",
+        r"(?i)^[ \t]*(?:pursuant\s+to|in\s+accordance\s+with)\s+(?:(?:the\s+)?requirements?\s+of\s+)?",
+        r"(?:the\s+)?(?:sections?\s+13|(?:securities\s+)?exchange\s+act|securities\s+act\s+of\s+1934)",
     ))
     .unwrap()
 });
+
+/// What the registrant caused, in the signature block's sentence: "caused
+/// this report", "has duly caused this Annual Report", "caused its annual
+/// report".
+static SIGNATURE_CAUSED: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:caused|Caused|CAUSED)\s+(?i:this|its)\b").unwrap());
+
+/// Starts and ends of the signature block's sentences in `text`, from their
+/// opening words (`SIGNATURE_OPENING`) at the start of a line to "caused
+/// this" or "caused its" (`SIGNATURE_CAUSED`). A plain-text filing wraps the
+/// sentence: the text after the opening words may break over two more lines,
+/// each holding at most 250 characters before "caused" ("... of 1934, the"
+/// then "registrant, Example Life Insurance Company of New York, has" then
+/// "duly caused this report ..."). "caused" is rare, so the search starts
+/// there and looks up for the opening words.
+fn signature_sentences(text: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
+    const MAX_LINE: usize = 250;
+    const MAX_BREAKS: usize = 2;
+    let line_start = |pos: usize| text[..pos].rfind('\n').map_or(0, |n| n + 1);
+    SIGNATURE_CAUSED.find_iter(text).filter_map(move |caused| {
+        // The opening words can wrap too, so look one line further up.
+        let mut start = line_start(caused.start());
+        for _ in 0..=MAX_BREAKS + 1 {
+            if let Some(opening) = SIGNATURE_OPENING.find(&text[start..caused.start()]) {
+                let rest = &text[start + opening.end()..caused.start()];
+                let fits = rest.split('\n').all(|l| l.chars().count() <= MAX_LINE);
+                return (fits && rest.matches('\n').count() <= MAX_BREAKS).then_some((start, caused.end()));
+            }
+            if start == 0 {
+                break;
+            }
+            start = line_start(start - 1);
+        }
+        None
+    })
+}
 
 /// `POWER OF ATTORNEY` on a line of its own: the heading of a power of
 /// attorney, which goes with the signatures.
@@ -1824,8 +1873,8 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// Items come between them. The earlier copy is a contents entry when it starts
 /// the shorter stretch of text, unless the signature block's sentence comes
 /// between the two (a signatures line alone does not count, since contents
-/// list "Signatures" too) and an Item earlier in the form's order with text
-/// of its own comes before the earlier copy: that copy is then a body
+/// list "Signatures" too), the earlier copy prints no page and it sits where
+/// the Item's heading belongs (`in_body_order`): that copy is then a body
 /// heading, and the later one (an exhibit's, or the heading over statements
 /// printed after the signatures) goes. With no other Item between them, it is
 /// one when a signatures line follows it and the later copy follows that line
@@ -1837,8 +1886,9 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// and Financial Statement Schedules<TAB>2"), and the later copy prints its
 /// title in full (`prints_title`), which a running header that shortens the
 /// title or adds "(continued)" does not. An earlier copy before the body whose
-/// later copy is itself a contents entry lists the Item too, as a 10-Q/A's
-/// explanatory note above a contents list without pages does. The later copy
+/// later copy is itself a row of a contents list lists the Item too, as a
+/// 10-Q/A's explanatory note above a contents list without pages does, when
+/// no Item line with text of its own comes before it. The later copy
 /// is a listing when a signatures heading comes between them, at or after the
 /// first body heading (contents often list "Signatures" too). In a 10-Q this
 /// matters most: a contents entry for Part I Item 2 could otherwise be taken as
@@ -1863,9 +1913,10 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // The later copy of any matched pair, which the spread below must not take.
     let mut paired = vec![false; n];
     let mut later_copies: Vec<(usize, usize)> = Vec::new();
-    // Later copies printed after the report's signatures, such as an
-    // exhibit's, of a body heading.
-    let mut signed_copies: Vec<usize> = Vec::new();
+    // Pairs whose later copy comes after the signature block's sentence, which
+    // starts at the third value.
+    let mut signed_pairs: Vec<(usize, usize, usize)> = Vec::new();
+    let mut sentences: Option<Vec<(usize, usize)>> = None;
     // Rows that print a page number are contents rows, also when no body
     // heading repeats them, and never the body copy of a pair.
     let paged = paged_rows(&cands, text, keys, SAME_BLOCK);
@@ -1878,18 +1929,39 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
             if cands[b].label != cands[a].label {
                 other_between = true;
             } else if other_between && !paged[b] && same_title(&cands[a].title, &cands[b].title) {
-                let signed = SIGNATURE_BLOCK.is_match(&text[cands[a].pos..cands[b].pos]);
-                if signed && follows_body_item(&cands, a, keys, SAME_BLOCK) {
-                    signed_copies.push(b);
-                } else if cands[b].gap > cands[a].gap {
-                    contents[a] = true;
-                    body[b] = true;
-                } else {
-                    later_copies.push((a, b));
+                let sentences = sentences.get_or_insert_with(|| signature_sentences(text).collect());
+                let signed = sentences.iter().find(|&&(start, end)| start >= cands[a].pos && end <= cands[b].pos);
+                match signed {
+                    Some(&(start, _)) if !paged[a] => signed_pairs.push((a, b, start)),
+                    _ if cands[b].gap > cands[a].gap => {
+                        contents[a] = true;
+                        body[b] = true;
+                    }
+                    _ => later_copies.push((a, b)),
                 }
                 paired[b] = true;
                 break;
             }
+        }
+    }
+    // The earlier copy of a pair that the signatures split is a body heading
+    // when it sits where the Item's heading belongs (`in_body_order`), and the
+    // later copy (an exhibit's, or the heading over statements printed after
+    // the signatures) goes. Otherwise the pair is read as any other.
+    let rows: Vec<bool> = (0..n).map(|i| contents[i] || paged[i]).collect();
+    let mut repeats = vec![false; n];
+    for &(_, b) in &later_copies {
+        repeats[b] = true;
+    }
+    let mut signed_copies: Vec<usize> = Vec::new();
+    for (a, b, signed) in signed_pairs {
+        if in_body_order(&cands, a, signed, keys, SAME_BLOCK, &rows, &repeats) {
+            signed_copies.push(b);
+        } else if cands[b].gap > cands[a].gap {
+            contents[a] = true;
+            body[b] = true;
+        } else {
+            later_copies.push((a, b));
         }
     }
     // The last row of a cross-reference index can print no page ("Item 14.
@@ -1945,11 +2017,19 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     let body_start = (0..n).find(|&i| body[i] && !contents[i]).map(|i| cands[i].pos);
     // Spread to the other entries of a contents block: mark the runs of close
     // candidates that lead up to a contents entry. An earlier copy before the
-    // body whose later copy is a contents entry lists the Item too, as a
-    // 10-Q/A's explanatory note above a contents list without pages does.
+    // body whose later copy is a row of a contents list (a contents entry
+    // next to another one) lists the Item too, as a 10-Q/A's explanatory note
+    // above a contents list without pages does, when no Item line with text
+    // of its own comes before it. Without a contents list the body can seem
+    // to start late, at a later Item, and a line inside an earlier Item's text
+    // that starts with an Item's heading (a cross-reference) is no such note.
     let mut leads = contents.clone();
+    let first_text = (0..n).find(|&i| cands[i].gap > SAME_BLOCK).unwrap_or(n);
+    let close = |i: usize, j: usize| cands[j].pos - cands[i].pos <= SAME_BLOCK;
+    let in_list =
+        |i: usize| (i > 0 && contents[i - 1] && close(i - 1, i)) || (i + 1 < n && contents[i + 1] && close(i, i + 1));
     for &(a, b) in &later_copies {
-        leads[a] |= contents[b] && body_start.is_some_and(|s| cands[a].pos < s);
+        leads[a] |= contents[b] && in_list(b) && a <= first_text && body_start.is_some_and(|s| cands[a].pos < s);
     }
     for i in (0..n.saturating_sub(1)).rev() {
         if leads[i + 1] && !paired[i] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
@@ -2023,6 +2103,57 @@ fn prints_title(a: &Candidate, b: &Candidate) -> bool {
     same_title(&a.title, &b.title)
         && heading.starts_with(&row)
         && !heading[row.len()..].iter().any(|w| matches!(w.as_str(), "continued" | "cont'd" | "cont’d"))
+}
+
+/// Whether candidate `a` sits where its Item's body heading belongs among the
+/// Items with text of their own (more than `block` characters before the
+/// next Item), before the signatures at `signed`: the nearest one of another
+/// Item before it, if any, names an earlier Item in the form's order, and the
+/// lines of other Items after it, up to and including the first one with
+/// text of its own before `signed`, name later Items, the first of them no
+/// contents row (`rows`: an earlier copy of a heading that the body prints
+/// again, or a row that prints a page). A line inside another Item's text
+/// that starts with the Item's heading (a cross-reference), a row of an index
+/// of Items printed after the body, and a contents row above the body
+/// headings do not. Lines of its own Item (running headers, an explanatory
+/// note's line) and lines that repeat an earlier line of their Item with no
+/// longer text after them (`repeats`: running headers, cross-references) do
+/// not count.
+fn in_body_order(
+    cands: &[Candidate],
+    a: usize,
+    signed: usize,
+    keys: &[Key],
+    block: usize,
+    rows: &[bool],
+    repeats: &[bool],
+) -> bool {
+    let has_text = |c: &Candidate| c.gap > block;
+    // Items of one number in both parts of a 10-Q come in order when their
+    // parts are known ("Item 2" of Part I, then of Part II).
+    let precedes = |x: &Candidate, y: &Candidate| {
+        let parts_apart = form_places(x, keys).next_back().zip(form_places(y, keys).next()).is_some_and(|(x, y)| x < y);
+        comes_before(x, y, keys) || parts_apart
+    };
+    let part = |c: &Candidate| c.part.or(c.title_part);
+    let other = |c: &Candidate| c.label != cands[a].label || part(c) != part(&cands[a]);
+    if cands[..a].iter().rev().find(|c| other(c) && has_text(c)).is_some_and(|c| !precedes(c, &cands[a])) {
+        return false;
+    }
+    let after =
+        (a + 1..cands.len()).take_while(|&i| cands[i].pos < signed).filter(|&i| other(&cands[i]) && !repeats[i]);
+    if after.clone().next().is_some_and(|i| rows[i]) {
+        return false;
+    }
+    for i in after {
+        if !precedes(&cands[a], &cands[i]) {
+            return false;
+        }
+        if has_text(&cands[i]) {
+            break;
+        }
+    }
+    true
 }
 
 /// Whether an Item earlier in the form's order than candidate `i`, with text
@@ -2344,13 +2475,14 @@ fn opens_attached_pages(line: &str) -> bool {
     (statement_heading(line) && STATEMENTS_INDEX_HEADING.is_match(line) && title_words()) || BLANK_PAGE.is_match(line)
 }
 
-/// Where the signatures start after `from`: a signatures heading, or the
-/// signature block's opening sentence when there is no heading.
+/// Where the signatures start after `from`: the first signatures heading or
+/// signature block's opening sentence, whichever comes first. A report that
+/// prints no heading of its own can carry an attached document that does (an
+/// 11-K annual report filed as an exhibit), after the report's sentence.
 fn signatures_after(text: &str, from: usize) -> Option<usize> {
-    signature_lines(&text[from..])
-        .first()
-        .map(|&p| from + p)
-        .or_else(|| SIGNATURE_BLOCK.find_at(text, from).map(|m| m.start()))
+    let heading = signature_lines(&text[from..]).first().map(|&p| from + p);
+    let before = heading.unwrap_or(text.len());
+    signature_sentences(&text[from..before]).next().map(|(start, _)| from + start).or(heading)
 }
 
 /// Whether the Item line at `entry` and the heading of the same Item at
@@ -2363,7 +2495,7 @@ fn lists_signatures(text: &str, entry: usize, heading: usize) -> bool {
     let after_entry = text[entry..heading].find('\n').map_or(heading, |i| entry + i + 1);
     let next = text[after_entry..heading].lines().find(|l| !l.trim().is_empty()).unwrap_or("");
     SIGNATURES.is_match(next)
-        && !SIGNATURE_BLOCK.is_match(&text[after_entry..heading])
+        && signature_sentences(&text[after_entry..heading]).next().is_none()
         && signatures_after(text, heading + 1).is_some()
 }
 
@@ -2461,8 +2593,10 @@ static CITY_STATE_ZIP: LazyLock<Regex> = LazyLock::new(|| {
 /// at `body`: the firm's name, which the report prints again on a line of its
 /// own where the firm signs it (in the text cut off, up to `end`), and up to
 /// three short lines of its address below it, the last of them with a city,
-/// a state and a ZIP code, just above the heading. The section's first line
-/// of text always stays.
+/// a state and a ZIP code, just above the heading, below a line of the
+/// section that ends a sentence. The section's first line of text always
+/// stays, and so does an address that its text leads into ("Our auditors may
+/// be contacted at:").
 fn letterhead_above(text: &str, body: usize, cut: usize, end: usize) -> Option<usize> {
     const MAX_ADDRESS_LINES: usize = 3;
     const MAX_CHARS: usize = 60;
@@ -2477,12 +2611,16 @@ fn letterhead_above(text: &str, body: usize, cut: usize, end: usize) -> Option<u
     }
     let cut_off = &text[cut..end];
     let mut address = 1;
-    for &(pos, line) in above.iter().rev() {
+    for (i, &(pos, line)) in above.iter().enumerate().rev() {
         if line.len() > MAX_CHARS {
             return None;
         }
         if line.contains(char::is_alphabetic) && line_copies(cut_off, line) > 0 {
-            return (pos > body).then_some(pos);
+            // The Item's text above ends a sentence; one that leads into the
+            // block ("may be reached at:", "by writing to:") or a line that
+            // ends no sentence ("Investor Relations") keeps it in the Item.
+            let ends_sentence = i.checked_sub(1).is_some_and(|j| above[j].1.trim_end().ends_with('.'));
+            return (pos > body && ends_sentence).then_some(pos);
         }
         address += 1;
         if address > MAX_ADDRESS_LINES {
@@ -3781,10 +3919,16 @@ mod tests {
             assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_6"], "{sentence}");
             assert_eq!(s[1].text, "Item 6.     Exhibits and Reports on Form 8-K\nNone", "{sentence}");
         }
-        // A sentence that only starts like it, with "duly caused" two lines
-        // on or far into the next line, is the Item's text.
-        let far = format!("the Company files its reports.\nThe Board, {}duly caused it.", BODY.repeat(2));
-        for later in ["the Company\nfiles its reports.\nThe Board duly caused it.", far.as_str()] {
+        // A sentence that only starts like it is the Item's text when what
+        // the registrant caused is no report ("duly caused it"), or when
+        // "caused this" comes three lines on or far into a line.
+        let far = format!("the Company files its reports.\nThe Board, {}duly caused this.", BODY.repeat(4));
+        let later = [
+            "the Company\nfiles its reports.\nThe Board duly caused it.",
+            "the Company\nfiles its reports.\nThe Board\nduly caused this change.",
+            far.as_str(),
+        ];
+        for later in later {
             let text = format!(
                 "Item 8.01 Other Events.\nPursuant to the requirements of the Securities Exchange Act of 1934, {later}\n\
                  More text.\n"
@@ -3792,6 +3936,81 @@ mod tests {
             let s = extract_sections(&text, FormKind::EightK);
             assert!(s[0].text.ends_with("More text."), "{later}");
         }
+    }
+
+    #[test]
+    fn signature_sentences_of_other_wordings_or_wrapped_twice_end_the_last_item() {
+        // Forms 10-KSB and 10-QSB prescribe "In accordance with ..." and
+        // "caused" without "duly", and filers write "Sections 13", "the
+        // Section 13", lowercase or capitals, "the Exchange Act", "the
+        // Securities Act of 1934", "requirement of" and "caused its annual
+        // report". A long registrant name or a narrow column puts "duly
+        // caused" on a third line.
+        for sentence in [
+            "In accordance with the requirements of the Exchange Act, the registrant caused this report to be signed\n",
+            "In accordance with Section 13 or 15(d) of the Exchange Act, the registrant caused this report to be\n",
+            "In accordance with Section 13 or 15(d) of the Securities Exchange\nAct of 1934, the registrant caused \
+             this report to be signed\n",
+            "Pursuant to the requirements of Sections 13 or 15(d) of the Securities\nExchange Act of 1934, the \
+             registrant has duly caused this report to be\n",
+            "Pursuant to the requirements of section 13 or 15(d) of the Securities Exchange Act of 1934, the \
+             registrant has duly caused this report to be signed\n",
+            "PURSUANT TO THE REQUIREMENTS OF THE SECTION 13 OF THE SECURITIES EXCHANGE ACT\nOF 1934, THE BANK HAS \
+             DULY CAUSED THIS REPORT TO BE SIGNED\n",
+            "Pursuant to the requirements of the Securities Act of 1934, the registrant has duly caused this report\n",
+            "Pursuant to the requirement of the Securities Exchange Act of 1934, the\nregistrant has caused its \
+             annual report to be signed\n",
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the\nregistrant, Example American \
+             Life Insurance Company of New York, has\nduly caused this report to be signed on its behalf by the \
+             undersigned\n",
+            "Pursuant to the requirements of Section 13 or 15(d) of\nthe Securities Exchange Act of 1934, the \
+             registrant has\nduly caused this report to be signed\n",
+        ] {
+            let text = format!(
+                "PART II  OTHER INFORMATION\nItem 1.     Legal Proceedings\nNone.\nItem 6.     Exhibits\nNone\n\
+                 {sentence}thereunto duly authorized.\nEXAMPLE FINANCIAL CORPORATION\nDate: May 8, 2002\n\
+                 EXHIBIT INDEX\n31.1 Certification\n{}\n",
+                BODY.repeat(30)
+            );
+            for kind in [FormKind::TenQ, FormKind::TenQsb] {
+                let s = extract_sections(&text, kind);
+                assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_6"], "{sentence}");
+                assert_eq!(s[1].text, "Item 6.     Exhibits\nNone", "{sentence}");
+            }
+        }
+    }
+
+    #[test]
+    fn signature_sentence_before_an_attached_documents_signatures_heading_ends_the_last_item() {
+        // The report prints no signatures heading of its own, and the plan's
+        // annual report filed as an exhibit prints one.
+        for sentence in [
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this \
+             report to be signed on its behalf.\n",
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the\nregistrant has duly caused this \
+             report to be signed on its behalf.\n",
+        ] {
+            let text = format!(
+                "PART II.  OTHER INFORMATION\nItem 1.  Legal Proceedings\nNone.\nItem 6.  Exhibits and Reports on Form 8-K\n\
+                 (a) Exhibits\n99  Annual report of the Savings Plan on Form 11-K\n{sentence}ACME CORPORATION\n\
+                 Date: May 14, 1999          By: /s/ John Doe\nEXHIBIT 99\nACME SAVINGS PLAN\n{}\nSIGNATURES\n\
+                 The Plan. Pursuant to the requirements of the Securities Exchange Act of 1934, the trustees have duly \
+                 caused this annual report to be signed.\n",
+                BODY.repeat(30)
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_6"], "{sentence}");
+            assert_eq!(
+                s[1].text,
+                "Item 6.  Exhibits and Reports on Form 8-K\n(a) Exhibits\n99  Annual report of the Savings Plan on Form 11-K",
+                "{sentence}"
+            );
+        }
+        // A signatures heading above the sentence still ends the Item there.
+        let text = "Item 8.01 Other Events.\nWe did things.\nSIGNATURES\nPursuant to the requirements of the Securities \
+                    Exchange Act of 1934, the registrant has duly caused this report to be signed.\n";
+        let s = extract_sections(text, FormKind::EightK);
+        assert_eq!(s[0].text, "Item 8.01 Other Events.\nWe did things.");
     }
 
     #[test]
@@ -5308,6 +5527,106 @@ Pursuant to ...
     }
 
     #[test]
+    fn copies_before_the_signatures_out_of_the_bodys_order_are_no_body_headings() {
+        // The report prints Item 8's heading only after its signatures, over
+        // the statements. A line inside MD&A that starts with Item 8's
+        // heading, a row of an index of Items printed just before the
+        // signatures, and a contents row below an explanatory note with text
+        // of its own do not sit where Item 8's heading belongs: the copy
+        // after the signatures starts Item 8, and the Items around stay whole.
+        let body = BODY.repeat(30);
+        let signed = "SIGNATURES\nPursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of \
+                      1934, the registrant has duly caused this report to be signed.\nACME CORP.\n";
+        let statements = format!(
+            "Item 8. Financial Statements and Supplementary Data\nINDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n{body}{body}\n"
+        );
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             Our lease commitments are described in the notes to the consolidated financial statements.\n\
+             Item 8. Financial Statements and Supplementary Data, Note 12, describes them in more detail.\n{body}\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+             Item 9. Changes in and Disagreements with Accountants\nNone.\nItem 9A. Controls and Procedures\n{body}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\n{signed}{statements}"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_7a", "item_9", "item_9a", "item_15"]);
+        assert!(s[1].text.ends_with(&format!("Note 12, describes them in more detail.\n{}", body.trim())));
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+             Item 9. Changes in and Disagreements with Accountants\nNone.\nItem 9A. Controls and Procedures\n{body}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nINDEX OF ITEMS\nItem 1. Business\n\
+             Item 7. Management's Discussion and Analysis\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n\
+             Item 8. Financial Statements and Supplementary Data\n\
+             Item 9. Changes in and Disagreements with Accountants\nItem 9A. Controls and Procedures\n\
+             Item 15. Exhibits and Financial Statement Schedules\n{signed}{statements}"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_7a", "item_9", "item_9a", "item_15"]);
+        assert!(!s[4].text.contains("Item 15."));
+        let item_15 = format!("Item 15. Exhibits and Financial Statement Schedules\n{}", body.trim());
+        assert_eq!(s[5].start, text.find(&item_15).unwrap());
+        // The amendment's note cites Item 1 with text of its own, and the
+        // report prints Item 14 after its signatures.
+        let text = format!(
+            "FORM 10-K/A\nEXPLANATORY NOTE\nThis amendment amends the following Item of the original report:\n\
+             Item 1. Business\n{body}\nTABLE OF CONTENTS\nPART I\nItem 1. Business\nItem 2. Properties\nPART II\n\
+             Item 8. Financial Statements and Supplementary Data\nPART IV\n\
+             Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\nSignatures\nPART I\n\
+             Item 1. Business\n{body}\nItem 2. Properties\n{body}\nPART II\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\n{signed}PART IV\n\
+             Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_8", "item_14"]);
+        let heading = "Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\nLorem";
+        assert_eq!(s[3].start, text.find(heading).unwrap());
+    }
+
+    #[test]
+    fn copy_of_the_first_item_after_the_signatures_is_no_body_heading() {
+        // An exhibit after the signatures prints the statements of a
+        // guarantor under the heading of Part I Item 1 again, with more
+        // text, with a contents list or without one, and in either wording
+        // of the signature sentence.
+        let body = BODY.repeat(30);
+        let contents = "INDEX\nPART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n\
+                        Item 2. Management's Discussion and Analysis\nItem 4. Controls and Procedures\n\
+                        PART II. OTHER INFORMATION\nItem 1. Legal Proceedings\nItem 6. Exhibits\nSignatures\n";
+        let sentences = [
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this \
+             report to be signed on its behalf by the undersigned.\n",
+            "In accordance with the requirements of the Exchange Act, the registrant caused this report to be signed \
+             on its behalf by the undersigned.\n",
+        ];
+        for (toc, sentence) in ["", contents].into_iter().flat_map(|toc| sentences.map(|s| (toc, s))) {
+            let text = format!(
+                "ACME CORP\nFORM 10-Q\n{toc}PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n{body}\n\
+                 Item 2. Management's Discussion and Analysis\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+                 PART II. OTHER INFORMATION\nItem 1. Legal Proceedings\nNone.\nItem 6. Exhibits\n\
+                 99.1 Financial statements of the guarantor subsidiary\nSIGNATURES\n{sentence}ACME CORP\n\
+                 EXHIBIT 99.1\nACME GUARANTOR LLC\nPART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n\
+                 {body}{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            let all = ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"];
+            assert_eq!(ids(&s), all, "{toc}{sentence}");
+            assert_eq!(s[0].start, text.find(&format!("Item 1. Financial Statements\n{}", body.trim())).unwrap());
+            assert!(s[0].text.ends_with(body.trim()));
+        }
+        // A 10-K's Item 1, short, which an exhibit repeats.
+        let text = format!(
+            "PART I\nItem 1. Business\nWe make widgets.\nItem 1A. Risk Factors\n{body}\nItem 2. Properties\n{body}\n\
+             SIGNATURES\nPursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of 1934, the \
+             registrant has duly caused this report to be signed.\nEXHIBIT 99.1\nItem 1. Business\n{body}{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2"]);
+        assert_eq!(s[0].text, "Item 1. Business\nWe make widgets.");
+    }
+
+    #[test]
     fn contents_rows_with_page_numbers_go_without_a_body_heading_to_match() {
         // The body prints no Part I Item headings, so no body heading names
         // the contents rows. Item 3's row prints its pages; Item 1 lists the
@@ -5427,6 +5746,55 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s)[0], "part_1_item_1");
         assert_eq!(s[0].start, text.find("Item 1. Financial Statements").unwrap());
+    }
+
+    #[test]
+    fn cross_references_inside_early_items_list_no_items_without_a_contents_list() {
+        // No contents list: lines inside Part I Items 1 and 2 that start with
+        // Part II Item 1's heading are cross-references, not an explanatory
+        // note's lines, so Part I's headings near them stay.
+        let xref = "The claims are summarized in the commitments note.\n\
+                    Item 1. Legal Proceedings, in Part II, describes them further.\n";
+        let text = format!(
+            "PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n{}\n{xref}{}\n\
+             Item 2. Management's Discussion and Analysis\n{}\n{xref}{}\nItem 4. Controls and Procedures\n{}\n\
+             PART II. OTHER INFORMATION\nItem 1. Legal Proceedings\n{}\nItem 6. Exhibits\n31.1 Certification\n\
+             SIGNATURES\nPursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly \
+             caused this report to be signed.\n",
+            BODY.repeat(6),
+            BODY.repeat(36),
+            BODY.repeat(20),
+            BODY.repeat(10),
+            BODY.repeat(10),
+            BODY.repeat(30),
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        let all = ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"];
+        assert_eq!(ids(&s), all);
+        assert_eq!(s[0].start, text.find("Item 1. Financial Statements").unwrap());
+        // Short Items, and a line inside MD&A that starts with Item 8's
+        // heading, which the report repeats after its signatures: Items 1
+        // and 7 stay.
+        let short = BODY.repeat(20);
+        let text = format!(
+            "PART I\nItem 1. Business\n{short}\nPART II\nItem 7. Management's Discussion and Analysis\n{short}\n\
+             Our commitments are described in the notes to the consolidated financial statements.\n\
+             Item 8. Financial Statements and Supplementary Data, Note 12, describes the leases in detail.\n{}\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{short}\n\
+             Item 8. Financial Statements and Supplementary Data\n\
+             Our audited consolidated financial statements begin on page F-1 of this annual report.\n\
+             Item 9. Changes in and Disagreements with Accountants\nNone.\nItem 9A. Controls and Procedures\n{short}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{short}\nSIGNATURES\n\
+             Pursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of 1934, the registrant \
+             has duly caused this report to be signed.\nACME CORP.\n\
+             Item 8. Financial Statements and Supplementary Data\nINDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n{}\n",
+            BODY.repeat(60),
+            BODY.repeat(80),
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s)[..2], ["item_1", "item_7"]);
+        assert!(s[0].text.starts_with("Item 1. Business\nLorem") && !s[0].text.contains("Item 7."));
+        assert_eq!(s[1].start, text.find("Item 7. Management's Discussion and Analysis").unwrap());
     }
 
     #[test]
@@ -7177,6 +7545,26 @@ Pursuant to ...
             .replace("Accountants\nNone.\n", "Accountants\n");
         let s = extract_sections(&text, FormKind::TenK);
         assert!(s[1].text.ends_with("Allentown, PA 18104"));
+        // An address that the Item's text leads into stays, also when the
+        // report prints the firm's name or the company's again: the line
+        // above it ends no sentence.
+        let leads = [
+            (
+                "The new accountants may be reached at:\n",
+                "KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA 18104\n",
+            ),
+            (
+                "Shareholders may obtain the letter by writing to:\nInvestor Relations\n",
+                "Allen Organ Company\n150 Locust Street\nMacungie, PA 18062\n",
+            ),
+        ];
+        for (lead, address) in leads {
+            let text = item_9(&format!("{lead}{address}"), report)
+                .replace("The Board of Directors:\n", "The Board of Directors\nAllen Organ Company\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_10"], "{lead}");
+            assert!(s[1].text.ends_with(&format!("None.\n{lead}{}", address.trim())), "{lead}");
+        }
     }
 
     #[test]
