@@ -47,15 +47,23 @@
 //! II – Items 7, 8 and 9A" does. Nor is a range or a list with nothing after
 //! it on a line that starts with a Part ("Part III – Items 10, 11, 12, 13
 //! and 14", as a cover's list of documents incorporated by reference prints
-//! it). A comma after the number of one Item, as running text also puts it
-//! ("Item 8, which ..."), counts only when the line ends where the Item's
-//! standard title ends ("Item 8, Financial Statements and Supplementary
-//! Data"). In a 10-K or 10-KSB whose first Item found is Item 1A or Item 2, a
-//! line that holds only Item 1's standard title after the last `PART I` line
-//! before it ("PART I." and then "BUSINESS") starts Item 1, unless an Item
-//! line comes between them, or the title line is printed more than once
-//! after the last Item line before the heading (Item 1's pages print "PART
-//! I" and "Business" as page headers).
+//! it). In a 10-K or 10-KSB, nor is such a list or range without the Part
+//! ("Items 10, 11, 12, 13 and 14", "Items 10 - 13"), none of whose Items is
+//! Item 1, when only such lines come before it and no heading of another
+//! Item it names comes next: in a filing that prints no Item headings, the
+//! cover's row would start Item 10 and run to the signatures. A body's
+//! heading of several later Items ("ITEMS 10 - 13.") follows the heading of
+//! an earlier Item. Two Items joined with "and" and a range with "through"
+//! stay, as they can start a 10-K/A that amends only those Items ("ITEMS 7
+//! AND 7A."). A comma after the number of one Item, as running text also
+//! puts it ("Item 8, which ..."), counts only when the line ends where the
+//! Item's standard title ends ("Item 8, Financial Statements and
+//! Supplementary Data"). In a 10-K or 10-KSB whose first Item found is Item
+//! 1A or Item 2, a line that holds only Item 1's standard title after the
+//! last `PART I` line before it ("PART I." and then "BUSINESS") starts Item
+//! 1, unless an Item line comes between them, or the title line is printed
+//! more than once after the last Item line before the heading (Item 1's pages
+//! print "PART I" and "Business" as page headers).
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins. A power of attorney printed
 //! before the signatures under a "POWER OF ATTORNEY" line goes with them, so
@@ -692,6 +700,10 @@ struct Candidate {
     /// 9A.`, `8` in `ITEM 7A & 8.`, `9B` in `ITEMS 9, 9A AND 9B.`, `5` in
     /// `Item 1-5.`
     joined: Option<String>,
+    /// The line lists several Items with commas, or a range of them with a
+    /// dash, and nothing after their numbers: `Items 10, 11, 12, 13 and 14`,
+    /// `ITEMS 10 - 13.`
+    bare_list: bool,
     /// The line cites the Item and a document (`cites_document`).
     cites: bool,
     /// Distance to the next heading of a different Item.
@@ -937,8 +949,9 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                 return None;
             }
             let heading: String = m.as_str().trim().chars().take(300).collect();
-            let (label, tail, joined) = if let Some((title, last)) = listed {
-                (label, title, last)
+            let (label, tail, joined, bare_list) = if let Some((title, last)) = listed {
+                let bare_list = last.is_some() && !title.chars().any(char::is_alphabetic);
+                (label, title, last, bare_list)
             } else {
                 let (label, tail) = if kind == FormKind::EightK {
                     (label, tail.as_str())
@@ -952,7 +965,7 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                     if kind.annual() { officers_sub_item(&label, tail, keys) } else { (label, tail) }
                 };
                 let joined = JOINED.captures(after_dashes(tail).trim_start()).map(|c| c[1].to_ascii_uppercase());
-                (label, tail, joined)
+                (label, tail, joined, false)
             };
             let bare = !tail.chars().any(char::is_alphabetic);
             let (title_text, title_end) = if bare { next_line_title_at(text, m.end()) } else { (tail, m.end()) };
@@ -985,6 +998,7 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                 listed: false,
                 officers,
                 joined,
+                bare_list,
                 cites,
                 gap: 0,
                 score: 0.0,
@@ -1021,7 +1035,8 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
         .collect();
     let mut cands: Vec<Candidate> = cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect();
     set_gaps(&mut cands, text.len());
-    let mut cands = drop_running_headers(drop_item_references(drop_contents_entries(cands, text, keys), keys), keys);
+    let cands = drop_item_references(drop_contents_entries(cands, text, keys), keys, kind.annual());
+    let mut cands = drop_running_headers(cands, keys);
     // Score by the gap to the next heading of a different Item, so repeated
     // running headers of one Item do not split its score.
     set_gaps(&mut cands, text.len());
@@ -1440,31 +1455,62 @@ fn form_places<'a>(c: &'a Candidate, keys: &'a [Key]) -> impl DoubleEndedIterato
 /// heading of several Items is not followed by a heading of its first Item
 /// again: a heading of one of the others can follow it ("ITEMS 7 AND 7A." with
 /// "Item 7A." inside). One that a contents entry names stays.
-fn drop_item_references(cands: Vec<Candidate>, keys: &[Key]) -> Vec<Candidate> {
+///
+/// In an annual report, also drop the lines that list several Items with
+/// commas or a dash and nothing after their numbers (`bare_list`), none of
+/// them the form's first Item, when only such lines come before them, unless
+/// a heading of one of the other Items they name comes next. A cover's list of
+/// documents incorporated by reference names the Items each document answers
+/// ("Items 10, 11, 12, 13 and 14" for the proxy statement, after "Items 5, 6,
+/// 7, 7A and 8" for the annual report), and when the body prints no Item
+/// headings such a row would start its first Item and run to the signatures.
+/// The body of a 10-K starts at Item 1, and its headings that list several
+/// later Items ("ITEMS 10 - 13.") follow the heading of an earlier Item. A
+/// 10-K/A that amends only some Items starts with a later one: with a heading
+/// of that Item alone, one that prints a title, or one followed by the
+/// heading of another Item it names ("ITEMS 9, 9A AND 9B.", then "Item 9A.").
+/// Two Items joined with "and" and a range with "through" stay, as such a
+/// heading can start the 10-K/A with nothing after it ("ITEMS 7 AND 7A.",
+/// then the title on the next line). One that a contents entry names stays
+/// here too.
+fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Vec<Candidate> {
     let mut parts: Vec<Option<&str>> = keys.iter().map(|k| k.part).collect();
     parts.dedup();
+    // The stretch of the form a line names, up to `last`, in each part that
+    // has both of its ends in order (a 10-Q has Items 1 to 4 in both).
+    let named = |c: &Candidate, last: &str| -> Vec<(usize, usize)> {
+        let first: Vec<usize> = form_places(c, keys).collect();
+        parts
+            .iter()
+            .filter_map(|&p| {
+                let from = first.iter().copied().find(|&k| keys[k].part == p)?;
+                let to = (from..keys.len()).rfind(|&k| keys[k].part == p && keys[k].item == last)?;
+                (from < to).then_some((from, to))
+            })
+            .collect()
+    };
+    let inside = |o: &Candidate, stretch: &[(usize, usize)]| {
+        form_places(o, keys).any(|k| stretch.iter().any(|&(from, to)| from <= k && k <= to))
+    };
     let keep: Vec<bool> = (0..cands.len())
         .map(|i| {
             let c = &cands[i];
             let Some(last) = c.joined.as_deref().filter(|_| !c.listed) else { return true };
-            // The stretch of the form the line names, in each part that has
-            // both of its ends in order (a 10-Q has Items 1 to 4 in both).
-            let first: Vec<usize> = form_places(c, keys).collect();
-            let named: Vec<(usize, usize)> = parts
-                .iter()
-                .filter_map(|&p| {
-                    let from = first.iter().copied().find(|&k| keys[k].part == p)?;
-                    let to = (from..keys.len()).rfind(|&k| keys[k].part == p && keys[k].item == last)?;
-                    (from < to).then_some((from, to))
-                })
-                .collect();
-            !cands[i + 1..]
-                .iter()
-                .take_while(|o| form_places(o, keys).any(|k| named.iter().any(|&(from, to)| from <= k && k <= to)))
-                .any(|o| o.label == c.label && o.joined.is_none())
+            let stretch = named(c, last);
+            !cands[i + 1..].iter().take_while(|o| inside(o, &stretch)).any(|o| o.label == c.label && o.joined.is_none())
         })
         .collect();
-    cands.into_iter().zip(keep).filter(|(_, k)| *k).map(|(c, _)| c).collect()
+    let cands: Vec<Candidate> = cands.into_iter().zip(keep).filter(|(_, k)| *k).map(|(c, _)| c).collect();
+    let mut cover_rows = 0;
+    while let Some(c) = cands.get(cover_rows) {
+        let row = annual && c.bare_list && !c.listed && c.label != keys[0].item;
+        let Some(last) = c.joined.as_deref().filter(|_| row) else { break };
+        if cands.get(cover_rows + 1).is_some_and(|o| inside(o, &named(c, last))) {
+            break;
+        }
+        cover_rows += 1;
+    }
+    cands.into_iter().skip(cover_rows).collect()
 }
 
 /// Contents rows found by their page numbers. A row is an Item line that ends
@@ -2084,6 +2130,7 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
         listed: false,
         officers: false,
         joined: None,
+        bare_list: false,
         cites: false,
         gap: heading - pos,
         score: 0.0,
@@ -3234,6 +3281,130 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_2"]);
         assert_eq!(s[1].heading, "Items 2 and 3.");
+    }
+
+    #[test]
+    fn cover_rows_that_list_later_items_before_any_item_line_are_no_headings() {
+        // A 10-K that prints no Item headings, only a cross-reference index
+        // without the word "Item", and a row of the cover's list of documents
+        // incorporated by reference that lists Items with commas or a dash
+        // and nothing after their numbers, the first of them after Item 1,
+        // also after the row of another document.
+        let body = BODY.repeat(30);
+        for row in [
+            "Items 10, 11, 12, 13 and 14",
+            "Items 10, 11, 12, 13, and 14",
+            "ITEMS 10, 11, 12, 13 AND 14.",
+            "Items 10 - 13",
+            "Items 10-14",
+            "Items 10 – 14",
+            "Items 5, 6, 7, 7A and 8\nPortions of the Proxy Statement for the 2018 Annual Meeting\nItems 10-14",
+        ] {
+            let cover = format!(
+                "FORM 10-K\nDOCUMENTS INCORPORATED BY REFERENCE\n\
+                 Portions of the Proxy Statement for the 2018 Annual Meeting\t\n{row}\n\
+                 FORM 10-K CROSS-REFERENCE INDEX\n1\tBusiness\t2-20\n{body}{body}\n"
+            );
+            let s = extract_sections(&format!("{cover}SIGNATURES\n"), FormKind::TenK);
+            assert_eq!(ids(&s), [] as [&str; 0], "{row}");
+            // With the exhibits Item's heading printed, the row does not
+            // start Item 10 at the cover and run up to it.
+            let text =
+                format!("{cover}PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_15"], "{row}");
+        }
+        // A 10-KSB's cover names its Part III Items 9 to 12 and 14.
+        let text = format!(
+            "FORM 10-KSB\nDOCUMENTS INCORPORATED BY REFERENCE\nPortions of the Proxy Statement\n\
+             Items 9, 10, 11, 12 and 14\nCROSS-REFERENCE INDEX\n{body}{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), [] as [&str; 0]);
+    }
+
+    #[test]
+    fn first_item_lines_of_amendments_and_bodies_stay_headings() {
+        // A 10-K/A that amends only Part III starts at Item 10. Its titled
+        // headings stay, also after an explanatory note that lists the Items
+        // it amends, and so does a heading of several Items that prints a
+        // title.
+        let body = BODY.repeat(30);
+        let note = BODY.repeat(80);
+        let part_3 = format!(
+            "PART III\nItem 10. Directors, Executive Officers and Corporate Governance\n{body}\n\
+             Item 11. Executive Compensation\n{body}\n\
+             Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder \
+             Matters\n{body}\n\
+             Item 13. Certain Relationships and Related Transactions, and Director Independence\n{body}\n\
+             Item 14. Principal Accountant Fees and Services\n{body}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n"
+        );
+        for row in ["", "Items 10, 11, 12, 13 and 14", "Items 10-14", "Items 10 through 14"] {
+            let note = if row.is_empty() {
+                String::new()
+            } else {
+                format!("EXPLANATORY NOTE\nThis amendment adds the information required by\n{row}\n{note}\n")
+            };
+            let s = extract_sections(&format!("FORM 10-K/A\n{note}{part_3}"), FormKind::TenK);
+            assert_eq!(ids(&s), ["item_10", "item_11", "item_12", "item_13", "item_14", "item_15"], "{row}");
+            assert_eq!(s[0].heading, "Item 10. Directors, Executive Officers and Corporate Governance");
+        }
+        let text = format!(
+            "FORM 10-K/A\nPART III\nITEMS 10, 11 AND 12. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE; \
+             EXECUTIVE COMPENSATION; SECURITY OWNERSHIP\n{body}\nPART IV\n\
+             Item 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_10", "item_15"]);
+        // A 10-K/A's first heading that lists several Items with nothing
+        // after them stays when the heading of another Item it names comes
+        // next, and so does one that joins two Items with "and" or names a
+        // range with "through".
+        let text = format!(
+            "FORM 10-K/A\nPART II\nITEMS 9, 9A AND 9B.\n{body}\nItem 9A. Controls and Procedures\n{body}\n\
+             SIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_9", "item_9a"]);
+        let text = format!(
+            "FORM 10-K/A\nPART II\nITEMS 7 AND 7A.\nMANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_7", "item_8"]);
+        let text = format!(
+            "FORM 10-K/A\nPART III\nITEMS 10 THROUGH 14.\n{body}\nPART IV\n\
+             Item 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_10", "item_15"]);
+        // Headings that list several later Items with nothing after the
+        // numbers, as Pinnacle Oil (1999), Golden American Life (1997) and
+        // Safety Insurance (2022) print them, follow the heading of an
+        // earlier Item, also when the cover lists the same Items.
+        for heading in ["ITEMS 10., 11., 12. AND 13.", "ITEMS 10 - 13.", "ITEMS 10-14."] {
+            let text = format!(
+                "FORM 10-K\nDOCUMENTS INCORPORATED BY REFERENCE\nPortions of the Proxy Statement\n\
+                 Items 10, 11, 12, 13 and 14\nPART I\nItem 1. Business\n{body}\n\
+                 Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure\n\
+                 None.\nPART III\n{heading}\nThe information is incorporated by reference to the proxy statement.\n\
+                 PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_9", "item_10", "item_15"], "{heading}");
+            assert_eq!(s[2].heading, heading);
+        }
+        // A body's first heading that lists Item 1 and more Items, with its
+        // title on the next line, starts Item 1.
+        for heading in ["ITEMS 1, 1A AND 2.", "ITEMS 1 - 2."] {
+            let text = format!(
+                "PART I\n{heading}\nBUSINESS AND PROPERTIES\n{body}\nItem 3. Legal Proceedings\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_3"], "{heading}");
+            assert_eq!(s[0].heading, heading);
+        }
+        // The rule is for an annual report's cover: a 10-Q's first heading
+        // may list later Items with nothing after them.
+        let text =
+            format!("PART II – OTHER INFORMATION\nItems 3, 4 and 5.\nNone.\nItem 6. Exhibits\n{body}\nSIGNATURES\n");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenQ)), ["part_2_item_3", "part_2_item_6"]);
     }
 
     #[test]
