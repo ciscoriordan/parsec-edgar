@@ -132,9 +132,10 @@
 //! INFORMATION", with Part II's title or without) when text of Part II
 //! follows that line, such as a note on forward-looking statements printed
 //! before Part II's first heading: a line that is no page header (a line
-//! printed on its own more than once), no other `PART II` line and not Part
-//! II's title. A `PART II` line just above Part II's first heading stays in
-//! Part I's last Item.
+//! printed on its own more than once), no page footer ("Page 25 of 31"), no
+//! other `PART II` line and not Part II's title. A `PART II` line just above
+//! Part II's first heading stays in Part I's last Item, and so does a "Part
+//! II." line that a sentence wraps onto ("see Item 1A of" then "Part II.").
 //!
 //! A titled sub-item with the standard title of a lettered Item the form
 //! defines is that Item ("Item 8(A)T. Controls and Procedures" in a 10-KSB,
@@ -2375,21 +2376,31 @@ static PART_TWO: LazyLock<Regex> = LazyLock::new(|| {
 /// to `end`, which is Part II's first heading when the Item is Part I's last:
 /// at the first `PART II` line after the section's heading, when a line
 /// follows it that is no page header (a line printed on its own more than
-/// once in the filing, such as the company's name), no Part II line and not
-/// Part II's title ("OTHER INFORMATION"), as a note on forward-looking
-/// statements is. A `PART II` line just above Part II's first heading stays
-/// in the section, as the labels have it.
+/// once in the filing, such as the company's name), no page footer ("Page 25
+/// of 31", "ACME Corp. Form 10-Q, Page 25"), no Part II line and not Part
+/// II's title ("OTHER INFORMATION"), as a note on forward-looking statements
+/// is. A `PART II` line just above Part II's first heading stays in the
+/// section, as the labels have it. So does a line that holds only "Part II."
+/// where a sentence wraps onto it (`continues_sentence`: "For a discussion
+/// of these risks, see Item 1A of" then "Part II.").
 fn part_two_preamble(text: &str, start: usize, end: usize) -> Option<usize> {
     let lines = item_lines(text, start, end);
-    let at = lines.iter().position(|&(_, l)| PART_TWO.is_match(l))?;
+    let at = lines.iter().position(|&(pos, l)| PART_TWO.is_match(l) && !continues_sentence(text, pos))?;
     let own_text = lines[at + 1..].iter().any(|&(_, l)| {
         l.contains(char::is_alphabetic)
             && !PART_TWO.is_match(l)
             && title_key(l) != "otherinformation"
+            && !PAGE_FOOTER.is_match(l)
             && line_copies(text, l) < 2
     });
     own_text.then_some(lines[at].0)
 }
+
+/// A page footer that names the page: `Page 25`, `Page 25 of 31`, `ACME
+/// Corp. Form 10-Q, Page 25`.
+static PAGE_FOOTER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^(?:[^\n]{0,60}[ \t,|–—-])?page[ \t]+\d{1,3}(?:[ \t]+of[ \t]+\d{1,3})?$").unwrap()
+});
 
 /// How many lines of `text` hold `line` and nothing else but blanks.
 fn line_copies(text: &str, line: &str) -> usize {
@@ -4710,12 +4721,29 @@ Pursuant to ...
     }
 
     #[test]
+    fn part_two_line_inside_a_sentence_ends_no_item() {
+        // MD&A cites "Item 1A of Part II", and the sentence wraps before
+        // "Part II.", which is left alone on its line.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             Our business is subject to risks. For a discussion of these risks, see Item 1A of\nPart II.\n\
+             Our liquidity remains strong, and we expect to fund our operations from cash on hand.\n{body}\n\
+             Item 4. Controls and Procedures\n{body}\nPART II - OTHER INFORMATION\n\
+             Item 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(s[1].end, s[2].start);
+    }
+
+    #[test]
     fn part_two_line_just_above_its_first_heading_stays_in_part_one() {
         // "PART II" just above Part II's first heading, or with only Part II's
-        // title, a page header printed on other pages, a line without letters
-        // or another Part II line after it; a cross-reference that starts with
-        // "Part II"; and Part II's running header above more text of Part II's
-        // first Item.
+        // title, a page header printed on other pages, a page footer, a line
+        // without letters or another Part II line after it; a cross-reference
+        // that starts with "Part II"; and Part II's running header above more
+        // text of Part II's first Item.
         let body = BODY.repeat(30);
         for between in [
             "PART II. OTHER INFORMATION",
@@ -4724,6 +4752,8 @@ Pursuant to ...
             "PART II\n--------",
             "PART II\nPart II. Other Information",
             "Part II, Item 1A of the annual report lists our risk factors.\nOur controls are effective.\nPART II",
+            "PART II - OTHER INFORMATION\nPage 25 of 31",
+            "PART II - OTHER INFORMATION\nACME Corp. Form 10-Q, Page 25",
         ] {
             let text = format!(
                 "ACME CORPORATION\nPART I\nItem 1. Financial Statements\n{body}\nACME CORPORATION\n\
