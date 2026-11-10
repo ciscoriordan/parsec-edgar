@@ -1552,33 +1552,50 @@ fn glossary_start(text: &str, start: usize, end: usize) -> Option<usize> {
 }
 
 /// Start of the page headers printed just above a heading at `cut` that ends
-/// the section starting at `start`: up to three lines, each printed again as
-/// a whole line at least twice after the cut and more often after it than
-/// before it, such as the company name at the top of each page of the
-/// statements that follow. A header line has a letter and at most 100
-/// characters, and the section's first line of text after its heading always
-/// stays.
-fn page_headers_above(text: &str, start: usize, cut: usize) -> usize {
+/// a section, which would otherwise run to `end`, and whose text after its
+/// heading starts at `body` (`body_start`): up to three lines, each printed
+/// again as a whole line at least twice in the text cut off, between `cut`
+/// and `end`, and more often there than before it, such as the company name
+/// at the top of each page of the statements cut off. Copies in later Items
+/// do not count. A header line has a letter and at most 100 characters. The
+/// section's first line of text after its heading always stays, and so do
+/// header lines below a line that the text cut off prints again but not as a
+/// header: they continue a list of what that text prints, such as the
+/// Item's list of the statements, whose last entry ("Notes to Consolidated
+/// Financial Statements") the notes repeat at the top of each page.
+fn page_headers_above(text: &str, body: usize, cut: usize, end: usize) -> usize {
     const MAX_LINES: usize = 3;
     const MIN_COPIES: usize = 2;
     const MAX_CHARS: usize = 100;
-    let lines = item_lines(text, start, cut);
-    let Some(first) = lines.iter().position(|(_, l)| !l.is_empty()) else {
+    if body >= cut {
         return cut;
-    };
-    let (mut header, mut moved) = (cut, 0);
-    for &(pos, line) in lines[first + 1..].iter().rev().filter(|(_, l)| !l.is_empty()) {
-        if moved == MAX_LINES || line.len() > MAX_CHARS || !line.contains(char::is_alphabetic) {
+    }
+    let lines = lines_in(text, body, cut);
+    let cut_off = &text[cut..end];
+    // The line above the header lines, when they stop at a line that is no
+    // header rather than at the most header lines.
+    let (mut header, mut moved, mut above) = (cut, 0, Some(lines[0].1));
+    for &(pos, line) in lines[1..].iter().rev().filter(|(_, l)| !l.is_empty()) {
+        if moved == MAX_LINES {
+            above = None;
             break;
         }
         // A line printed as often before it ("None.") is text, not a header.
-        let after = line_copies(&text[cut..], line);
-        if after < MIN_COPIES || after <= line_copies(&text[..pos], line) {
+        let after = line_copies(cut_off, line);
+        if line.len() > MAX_CHARS
+            || !line.contains(char::is_alphabetic)
+            || after < MIN_COPIES
+            || after <= line_copies(&text[..pos], line)
+        {
+            above = Some(line);
             break;
         }
         (header, moved) = (pos, moved + 1);
     }
-    header
+    match above {
+        Some(line) if moved > 0 && line_copies(cut_off, line) > 0 => cut,
+        _ => header,
+    }
 }
 
 /// How many lines of `text` hold `line` and nothing else but blanks.
@@ -1613,6 +1630,12 @@ fn power_of_attorney(text: &str, start: usize, end: usize) -> Option<usize> {
 /// The lines of a section after its heading line, trimmed, with their starts.
 fn item_lines(text: &str, start: usize, end: usize) -> Vec<(usize, &str)> {
     let from = text[start..end].find('\n').map_or(end, |i| start + i + 1);
+    lines_in(text, from, end)
+}
+
+/// The lines of `text` from `from`, a line start, to `end`, trimmed, with
+/// their starts.
+fn lines_in(text: &str, from: usize, end: usize) -> Vec<(usize, &str)> {
     let mut lines = Vec::new();
     let mut pos = from;
     for line in text[from..end].split_inclusive('\n') {
@@ -1620,6 +1643,34 @@ fn item_lines(text: &str, start: usize, end: usize) -> Vec<(usize, &str)> {
         pos += line.len();
     }
     lines
+}
+
+/// Start of the first line of a section's text after its heading, which
+/// ends at `end`: past the heading line, the title line below a bare heading
+/// ("ITEM 9B." then "OTHER INFORMATION"), and the lines that a heading
+/// printed over several lines goes on with, which hold only words of one of
+/// the Item's titles ("... WITH ACCOUNTANTS ON ACCOUNTING" then "AND
+/// FINANCIAL DISCLOSURE"). Lines without a letter are skipped. `end` when
+/// the section has no such line.
+fn body_start(text: &str, cand: &Candidate, key: &Key, end: usize) -> usize {
+    let titles: Vec<Vec<String>> = std::iter::once(&key.title).chain(key.former).map(|t| title_words(t)).collect();
+    let mut title_line = cand.bare;
+    let mut pos = text[cand.pos..end].find('\n').map_or(end, |i| cand.pos + i + 1);
+    for raw in text[pos..end].split_inclusive('\n') {
+        let (start, line) = (pos, raw.trim());
+        pos += raw.len();
+        if !line.contains(char::is_alphabetic) {
+            continue;
+        }
+        if std::mem::take(&mut title_line) && !is_item_line(line) {
+            continue;
+        }
+        let words = title_words(line);
+        if !titles.iter().any(|t| words.iter().all(|w| t.contains(w))) {
+            return start;
+        }
+    }
+    end
 }
 
 /// A heading line of printed statements, on a trimmed line: at most 100
@@ -2163,7 +2214,7 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             } else {
                 None
             };
-            let end = cut.map_or(end, |c| page_headers_above(text, start, c));
+            let end = cut.map_or(end, |c| page_headers_above(text, body_start(text, cand, key, c), c, end));
             let item_id = key.item.to_ascii_lowercase();
             let id = match key.part {
                 Some(part) => format!("part_{}_item_{item_id}", if part == "I" { 1 } else { 2 }),
@@ -4403,6 +4454,80 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_1b", "item_3", "item_9", "item_9a", "item_9b", "item_16"]);
         assert!(s[2].text.ends_with("AND FINANCIAL DISCLOSURE\nNone."));
+    }
+
+    #[test]
+    fn first_line_of_text_and_lines_that_later_items_repeat_stay_above_a_cut() {
+        // The first line of text after a heading whose title is on the next
+        // line, or that runs over two lines, stays, and so do lines that only
+        // later Items print again ("None." in Items 9C and 16), also below a
+        // caption.
+        let body = BODY.repeat(30);
+        let reports = "MANAGEMENT'S REPORT ON INTERNAL CONTROL OVER FINANCIAL REPORTING\n{body}\n\
+                       REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\n"
+            .replace("{body}", &body);
+        let later = "ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS\nNone.\n\
+                     ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE\nNot applicable.\n\
+                     ITEM 16. FORM 10-K SUMMARY\nNone.\nNot applicable.\n";
+        let text =
+            format!("ITEM 9A. CONTROLS AND PROCEDURES\n{body}\nITEM 9B.\nOTHER INFORMATION\nNone.\n{reports}{later}");
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9a", "item_9b", "item_9c", "item_10", "item_16"]);
+        assert_eq!(s[1].text, "ITEM 9B.\nOTHER INFORMATION\nNone.");
+        let item_9b = "ITEM 9B. OTHER INFORMATION\nRule 10b5-1 Trading Arrangements\nNone.";
+        let text = format!("ITEM 9A. CONTROLS AND PROCEDURES\n{body}\n{item_9b}\n{reports}{later}");
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[1].text, item_9b);
+        for item_9 in [
+            "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING\nAND FINANCIAL DISCLOSURE\nNone.",
+            "ITEM 9.\nChanges in Accountants\nNone.",
+            "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\nNot applicable.",
+        ] {
+            let text = format!(
+                "{item_9}\nREPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\n\
+                 ITEM 9A. CONTROLS AND PROCEDURES\n{body}\n{later}"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_9", "item_9a", "item_9c", "item_10", "item_16"], "{item_9}");
+            assert_eq!(s[0].text, item_9);
+        }
+        // The text cut off prints "None." twice itself.
+        for item_9 in [
+            "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING\nAND FINANCIAL DISCLOSURE\nNone.",
+            "ITEM 9.\nChanges in Accountants\nNone.",
+            "ITEM 9.\nChanges in Registrant's Certifying Accountant\nNone.",
+        ] {
+            let text = format!(
+                "{item_9}\nREPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\n{body}\nGuarantees\nNone.\n\
+                 Commitments\nNone.\nITEM 9A. CONTROLS AND PROCEDURES\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[0].text, item_9);
+        }
+    }
+
+    #[test]
+    fn list_entries_that_the_statements_repeat_at_the_top_of_their_pages_stay() {
+        // Item 15 lists the statements printed after it; the notes repeat
+        // their title, the list's last entry, at the top of each page. The
+        // Item ends at the report with all of its list.
+        let body = BODY.repeat(30);
+        let notes = "Notes to Consolidated Financial Statements";
+        let text = format!(
+            "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\nThe financial statements are included in Item 15.\n\
+             ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n\
+             ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n(a)(3) Exhibits. See the Exhibit Index.\n\
+             (a)(1) Financial Statements. The following statements are printed after this Item:\n\
+             Consolidated Balance Sheets\nConsolidated Statements of Operations\nConsolidated Statements of Cash Flows\n\
+             {notes}\nReport of Independent Registered Public Accounting Firm\n{body}\n\
+             Consolidated Balance Sheets\n{body}\nConsolidated Statements of Operations\n{body}\n\
+             Consolidated Statements of Cash Flows\n{body}\n{notes}\n{body}\n{notes}\n{body}\n{notes}\n{body}\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_9", "item_15"]);
+        assert!(s[2].text.ends_with(notes));
+        assert_eq!(s[2].end, text.find("Report of Independent").unwrap());
     }
 
     #[test]
