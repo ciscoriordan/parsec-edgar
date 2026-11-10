@@ -108,6 +108,7 @@
 //! current title is kept when the heading fits none of the earlier ones
 //! better. The titles never decide which lines are headings.
 
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use regex::Regex;
@@ -592,14 +593,22 @@ static EXHIBITS_INDEX_HEADING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(&format!(r"(?im)^[ \t]*(?:{EXHIBITS_INDEX})")).unwrap());
 
 /// A caption of one of the exhibits Item's own parts, on a trimmed line:
-/// `(a)(3) Exhibits:`, `3. Exhibits`, `(a)(2) Financial Statement Schedules`,
-/// `(b) Reports on Form 8-K`, numbered like that, or the lines `Exhibits`
-/// and `LIST OF EXHIBITS`, or an exhibit table's header (`Exhibit No.`,
-/// `Exhibit Number`).
+/// `(a)(3) Exhibits:`, `(a)(3). Exhibits.`, `3. Exhibits`, `B) REPORTS ON
+/// FORM 8-K`, `(a)(2) Financial Statement Schedules`, `(b) Exhibit
+/// Listing`, `(3) INDEX TO EXHIBITS`, `Item 15(a)(3) Exhibits`, numbered
+/// like that, or the lines `Exhibits`, `EXHIBITS.` and `LIST OF EXHIBITS`,
+/// or an exhibit table's header: `Exhibit` alone, or followed by a tab or by
+/// `No.`, `Number`, `Description` or `Title`.
 static EXHIBITS_ITEM_PART: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?i)^(?:(?:\([a-z]\)|\(\d{1,2}\)|\d{1,2}\.)[ \t]*)+(?:(?:list[ \t]+of[ \t]+)?exhibits\b|financial[ \t]+statement[ \t]+schedules?\b|reports?[ \t]+on[ \t]+form[ \t]+8-?k\b)|^(?:list[ \t]+of[ \t]+)?exhibits[ \t]*:?$|^exhibit[ \t]+(?:no\b|number\b)",
-    )
+    // `(a)`, `(3)`, `B)`, `3.`, `(a)(3).`
+    let part = r"(?:\([a-z]\)|\(\d{1,2}\)|[a-z]\)|\d{1,2}\.)\.?[ \t]*";
+    // `Item 15(a)`
+    let item_part = r"item[ \t]*\d{1,2}[ \t]*\([a-z0-9]{1,2}\)\.?[ \t]*";
+    let caption = r"(?:(?:list|index)[ \t]+(?:of|to)[ \t]+)?exhibits\b|exhibit[ \t]+list(?:ing)?\b|financial[ \t]+statement[ \t]+schedules?\b|reports?[ \t]+on[ \t]+form[ \t]+8-?k\b";
+    let header = r"exhibits?(?:[ \t]*$|\t|[ \t]+(?:no|number|description|title)\b)";
+    Regex::new(&format!(
+        r"(?i)^(?:{item_part}|{part})(?:{part})*(?:{caption})|^(?:list[ \t]+of[ \t]+)?exhibits[ \t]*[.:]?$|^{header}"
+    ))
     .unwrap()
 });
 
@@ -1698,8 +1707,9 @@ fn capital_match(re: &Regex, line: &str) -> bool {
 /// text after the statements keeps them in the Item, which then prints them
 /// in its middle: an exhibit index, an exhibit list's caption ("(a)(3)
 /// Exhibits:", "3. Exhibits", "LIST OF EXHIBITS") or table header ("Exhibit
-/// No."), or the caption of another of its parts ("(b) Reports on Form 8-K",
-/// "2. Financial Statement Schedules").
+/// No.", "Exhibit<TAB>Description"), or the caption of another of its parts
+/// ("(b) Reports on Form 8-K", "2. Financial Statement Schedules"); all of
+/// them in `EXHIBITS_ITEM_PART`.
 fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     const MIN_ENTRIES: usize = 3;
     // Other lines allowed between two entries, or between an index and its
@@ -1763,16 +1773,20 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
 /// the Item, which are the Item's list of the statements or an index to them;
 /// a schedule or an exhibit index ends that search. The Item ends at an index
 /// heading ("Index to Financial Statements") printed after its own text and
-/// before the report, and otherwise at the report. The Item's own text after
-/// the report (an exhibit list's caption or table header, or a caption such
-/// as "(b) Reports on Form 8-K") keeps the statements in the Item, up to an
-/// exhibit index, which is printed after them before the signatures.
-fn statements_after_items(text: &str, start: usize, end: usize) -> Option<usize> {
+/// before the report: it is not the Item's first line of text (`body`, from
+/// `body_start`), which is then the Item's list, and no caption of the
+/// Item's own (`EXHIBITS_ITEM_PART`) or exhibit index comes between it and
+/// the report. Otherwise the Item ends at the report. The Item's own text
+/// after the report (an exhibit list's caption or table header, or a caption
+/// such as "(b) Reports on Form 8-K") keeps the statements in the Item, up to
+/// an exhibit index, which is printed after them before the signatures.
+fn statements_after_items(text: &str, start: usize, body: usize, end: usize) -> Option<usize> {
     const MIN_PRINTED: usize = 3;
     let lines = item_lines(text, start, end);
     let report = lines.iter().position(|&(_, l)| AUDITORS_REPORT_HEADING.is_match(l) && statement_heading(l))?;
     let listed: Vec<String> =
         lines[..report].iter().filter(|(_, l)| !BLOCK_HEADING.is_match(l)).map(|(_, l)| title_key(l)).collect();
+    let listed = TitleIndex::new(&listed);
     let after = &lines[report + 1..];
     let to_exhibits = after.iter().take_while(|(_, l)| !capital_match(&EXHIBITS_INDEX_HEADING, l));
     // The listed lines whose titles the statements' headings repeat.
@@ -1781,11 +1795,13 @@ fn statements_after_items(text: &str, start: usize, end: usize) -> Option<usize>
         if !statement_heading(line) || BLOCK_HEADING.is_match(line) {
             continue;
         }
-        let key = title_key(line);
-        if let Some(i) = listed.iter().position(|t| same_title(t, &key))
+        if let Some(i) = listed.find(&title_key(line))
             && !printed.contains(&i)
         {
             printed.push(i);
+            if printed.len() == MIN_PRINTED {
+                break;
+            }
         }
     }
     let own_text = |line: &str| EXHIBITS_ITEM_PART.is_match(line) || capital_match(&EXHIBITS_INDEX_HEADING, line);
@@ -1796,8 +1812,49 @@ fn statements_after_items(text: &str, start: usize, end: usize) -> Option<usize>
         .iter()
         .rev()
         .take_while(|(_, l)| !own_text(l))
-        .find(|(_, l)| capital_match(&STATEMENTS_INDEX_HEADING, l));
+        .find(|(_, l)| capital_match(&STATEMENTS_INDEX_HEADING, l))
+        .filter(|&&(pos, _)| pos > body);
     Some(index.unwrap_or(&lines[report]).0)
+}
+
+/// Title keys, for finding the first of them that `same_title` pairs with a
+/// key by looking up its prefixes, rather than by comparing it with each.
+struct TitleIndex<'a> {
+    /// The first title with each key of at least 5 letters.
+    whole: HashMap<&'a str, usize>,
+    /// The first title that starts with each prefix of at least 5 letters.
+    prefix: HashMap<&'a str, usize>,
+}
+
+impl<'a> TitleIndex<'a> {
+    /// The fewest letters that `same_title` compares.
+    const MIN_LETTERS: usize = 5;
+
+    fn new(titles: &'a [String]) -> Self {
+        let (mut whole, mut prefix) = (HashMap::new(), HashMap::new());
+        for (i, title) in titles.iter().enumerate() {
+            for p in Self::prefixes(title) {
+                prefix.entry(p).or_insert(i);
+            }
+            if title.chars().count() >= Self::MIN_LETTERS {
+                whole.entry(title.as_str()).or_insert(i);
+            }
+        }
+        TitleIndex { whole, prefix }
+    }
+
+    /// The prefixes of a key with at least 5 letters, the key itself among
+    /// them.
+    fn prefixes(key: &str) -> impl Iterator<Item = &str> {
+        let ends = key.char_indices().map(|(i, _)| i).skip(1).chain(std::iter::once(key.len()));
+        ends.skip(Self::MIN_LETTERS - 1).map(move |i| &key[..i])
+    }
+
+    /// The first title that starts `key` or that `key` starts.
+    fn find(&self, key: &str) -> Option<usize> {
+        let starts_key = Self::prefixes(key).filter_map(|p| self.whole.get(p).copied());
+        starts_key.chain(self.prefix.get(key).copied()).min()
+    }
 }
 
 /// Some 10-Qs print Items out of form order: banks often put the financial
@@ -2207,7 +2264,9 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
                 // Statements printed after all of its text, whatever their
                 // pages, and a glossary end it when no Item follows it.
                 let statements = separate_statements(text, start, end).or_else(|| {
-                    (last && statements_elsewhere).then(|| statements_after_items(text, start, end)).flatten()
+                    (last && statements_elsewhere)
+                        .then(|| statements_after_items(text, start, body_start(text, cand, key, end), end))
+                        .flatten()
                 });
                 let glossary = last.then(|| glossary_start(text, start, end)).flatten();
                 statements.into_iter().chain(glossary).min()
@@ -4806,6 +4865,128 @@ Pursuant to ...
         );
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(s[1].end, text.find(report).unwrap());
+    }
+
+    #[test]
+    fn exhibit_lists_after_the_statements_keep_them_in_the_last_exhibits_item() {
+        // Item 15 lists the statements, prints them, then its own exhibit
+        // list under one of these captions or table headers: the statements
+        // are inside the Item, whatever their page numbers.
+        let body = BODY.repeat(30);
+        let report = "Report of Independent Registered Public Accounting Firm\nTo the Shareholders\n";
+        let rows = "3.1\tArticles of Incorporation\n10.1\tEmployment Agreement\n";
+        for caption in [
+            "(a)(3). Exhibits.",
+            "Exhibit\tDescription",
+            "Exhibit\nNumber\nDescription",
+            "Exhibit Description",
+            "EXHIBIT\tINCORPORATED BY REFERENCE\tFILED HEREWITH",
+            "Exhibit Title",
+            "(b) Exhibit Listing",
+            "Item 15(a)(3) Exhibits",
+            "EXHIBITS.",
+            "(3) INDEX TO EXHIBITS",
+            "B) REPORTS ON FORM 8-K",
+        ] {
+            let text = format!(
+                "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n\
+                 The financial statements required by this Item are included in Item 15 of this report.\n\
+                 ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n\
+                 ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n\
+                 (a)(1) Financial Statements. The following statements are filed as part of this report:\n\
+                 Consolidated Balance Sheets\nConsolidated Statements of Income\n\
+                 Consolidated Statements of Cash Flows\nNotes to Consolidated Financial Statements\n\
+                 (a)(2) Financial Statement Schedules. None.\n{report}{body}\nConsolidated Balance Sheets\n{body}\n\
+                 Consolidated Statements of Income\n{body}\nConsolidated Statements of Cash Flows\n{body}\n\
+                 Notes to Consolidated Financial Statements\n{body}\n{caption}\n{rows}\
+                 SIGNATURES\nPursuant to the requirements of Section 13 ...\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_15"], "{caption}");
+            assert_eq!(s[2].end, text.find("SIGNATURES").unwrap(), "{caption}");
+            // The same with statements on pages of their own (F-1, F-2, ...),
+            // whatever Item 8 prints.
+            let text = format!(
+                "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\n\
+                 ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n(a)(1) Financial Statements\n\
+                 Report of Independent Registered Public Accounting Firm\tF-2\nConsolidated Balance Sheets\tF-3\n\
+                 Consolidated Statements of Income\tF-4\n{report}{body}\nCONSOLIDATED BALANCE SHEETS\n{body}\n\
+                 CONSOLIDATED STATEMENTS OF INCOME\n{body}\n{caption}\n{rows}SIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_14", "item_15"], "{caption}");
+            assert_eq!(s[1].end, text.find("SIGNATURES").unwrap(), "{caption}");
+        }
+    }
+
+    #[test]
+    fn index_printed_as_the_items_first_text_or_before_its_own_text_stays_in_the_item() {
+        // Item 15 opens with an index to the statements as its list, or
+        // prints its exhibit list between such an index and the report: the
+        // Item ends at the report, with its list and its exhibit list.
+        let body = BODY.repeat(30);
+        let index = "INDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n\
+                     Report of Independent Registered Public Accounting Firm\t41\nConsolidated Balance Sheets\t42\n\
+                     Consolidated Statements of Income\t43\nConsolidated Statements of Cash Flows\t44\n\
+                     Notes to Consolidated Financial Statements\t45\n";
+        let rows = "3.1\tArticles of Incorporation\n10.1\tEmployment Agreement\n";
+        let report = "Report of Independent Registered Public Accounting Firm\nTo the Shareholders\n";
+        let printed = format!(
+            "Consolidated Balance Sheets\n{body}\nConsolidated Statements of Income\n{body}\n\
+             Consolidated Statements of Cash Flows\n{body}\nNotes to Consolidated Financial Statements\n{body}\n"
+        );
+        for (before, after) in [
+            ("", "Exhibit\tDescription\n"),
+            ("", "(a)(3). Exhibits.\n"),
+            ("", "Item 15(b) Exhibits\n"),
+            ("", "The exhibits listed below are filed with this report.\n"),
+            ("(a)(1) Financial Statements:\n", "Exhibit\tDescription\n"),
+        ] {
+            let text = format!(
+                "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\nSee Item 15.\n\
+                 ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n\
+                 ITEM 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES\n{before}{index}{after}{rows}{report}{body}\n\
+                 {printed}SIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_15"], "{before}{after}");
+            assert_eq!(s[2].end, text.find(report).unwrap(), "{before}{after}");
+        }
+    }
+
+    #[test]
+    fn title_index_finds_the_first_title_that_same_title_pairs_with_a_key() {
+        let titles: Vec<String> = [
+            "",
+            "abc",
+            "consolidatedbalancesheets",
+            "consolidatedstatementsofincome",
+            "notes",
+            "consolidatedstatementsofcash",
+            "notestoconsolidatedfinancials",
+            "étatsfinanciers",
+            "consolidatedstatementsofincome",
+        ]
+        .map(String::from)
+        .to_vec();
+        let index = TitleIndex::new(&titles);
+        for key in [
+            "",
+            "abc",
+            "cons",
+            "consolidated",
+            "consolidatedstatements",
+            "consolidatedstatementsofcashflows",
+            "notes",
+            "notestoconsolidated",
+            "note",
+            "étatsfinanciersconsolidés",
+            "états",
+            "balancesheets",
+        ] {
+            let linear = titles.iter().position(|t| same_title(t, key));
+            assert_eq!(index.find(key), linear, "{key}");
+        }
     }
 
     #[test]
