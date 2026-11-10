@@ -13,17 +13,21 @@
 //! entries start a few characters of text.
 //!
 //! Before that, contents entries whose Item and title reappear in the body
-//! are dropped, and so is a bare page header ("Item 7") just above its
-//! titled heading. A list of one Item and "SIGNATURES", which an 8-K's cover
-//! can print just above the body, is such a contents list too. In a 10-Q or
-//! 10-QSB a `PART I` or `PART II` line just above a heading fixes its part,
-//! and without one a title that only one part uses for that Item number
+//! are dropped, and so is a bare page header ("Item 7") just above its titled
+//! heading. A list of one Item and "SIGNATURES", which an 8-K's cover can
+//! print just above the body, is such a contents list too. So are rows that
+//! end with a page number or a range of pages ("Item 3. Quantitative and
+//! Qualitative Disclosures About Market Risk   10 - 11"), with the rows just
+//! before them whose entries end with one, also when the body prints no
+//! heading for them; such a row is never taken for a body heading. In a 10-Q
+//! or 10-QSB a `PART I` or `PART II` line just above a heading fixes its
+//! part, and without one a title that only one part uses for that Item number
 //! does. Such a line that starts with a Part I title and runs on as a
 //! sentence that cites the Item ("Item 1. Financial Statements, of this
-//! report") is a wrapped cross-reference, not a heading. In every form, so
-//! is an Item line that carries on a sentence from the line just above it,
-//! which ends with a comma or with a word such as "in", "see" or "to" ("as
-//! set forth in Part II,").
+//! report") is a wrapped cross-reference, not a heading. In every form, so is
+//! an Item line that carries on a sentence from the line just above it, which
+//! ends with a comma or with a word such as "in", "see" or "to" ("as set
+//! forth in Part II,").
 //! A heading that names several Items ("Items 1 and 2.", "Items 1 through
 //! 5.", or with a dash, "Item 1-5.", but not "Item 1-2 of the Form") starts
 //! the first of them. One that puts a comma after the Item number, as
@@ -978,7 +982,9 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// is a listing when a signatures heading comes between them, at or after the
 /// first body heading (contents often list "Signatures" too). In a 10-Q this
 /// matters most: a contents entry for Part I Item 2 could otherwise be taken as
-/// Part I and the body heading as Part II. Entries just before a dropped
+/// Part I and the body heading as Part II. Rows that print a page number
+/// (`paged_rows`) are contents entries whether or not a heading repeats them,
+/// and are never the later copy of a pair. Entries just before a dropped
 /// contents entry belong to the same contents block and go too (an Item listed
 /// in the contents whose body has no heading). Body headings stay: an entry
 /// goes only when the candidate before it is a contents entry too, or when it
@@ -997,6 +1003,9 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // The later copy of any matched pair, which the spread below must not take.
     let mut paired = vec![false; n];
     let mut later_copies: Vec<(usize, usize)> = Vec::new();
+    // Rows that print a page number are contents rows, also when no body
+    // heading repeats them, and never the body copy of a pair.
+    let paged = paged_rows(&cands, text, SAME_BLOCK);
     for a in 0..n {
         if cands[a].title.chars().count() < 5 {
             continue;
@@ -1005,7 +1014,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         for b in a + 1..n {
             if cands[b].label != cands[a].label {
                 other_between = true;
-            } else if other_between && same_title(&cands[a].title, &cands[b].title) {
+            } else if other_between && !paged[b] && same_title(&cands[a].title, &cands[b].title) {
                 if cands[b].gap > cands[a].gap {
                     contents[a] = true;
                     body[b] = true;
@@ -1030,6 +1039,9 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
             body[a] = true;
             paired[a] = true;
         }
+    }
+    for i in 0..n {
+        contents[i] |= paged[i];
     }
     // A body heading is never a contents entry or reached by the spread below
     // (it is the later copy of a pair), so this is where the body starts.
@@ -1094,6 +1106,35 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         .filter(|&(i, _)| !contents[i] && !after[i])
         .map(|(i, c)| Candidate { listed: body[i], ..c })
         .collect()
+}
+
+/// Contents rows found by their page numbers. A row is an Item line that ends
+/// with a page number or a range of pages, after a tab, two spaces or dot
+/// leaders (`Item 3. Quantitative and Qualitative Disclosures About Market
+/// Risk     10 - 11`). Going back from such a row, the Item line before it is
+/// a row too when it is at most `block` characters before it and the last
+/// line between them ends with a page number: its entry lists pages under it
+/// ("Item 1. Financial Statements", then "Balance Sheets   1", ...), or its
+/// title wraps onto a line with the page ("Item 2. Management's Discussion
+/// and Analysis of Financial", then "Condition and Results of Operations
+/// 9 - 10").
+fn paged_rows(cands: &[Candidate], text: &str, block: usize) -> Vec<bool> {
+    let n = cands.len();
+    let mut paged = vec![false; n];
+    for i in (0..n).rev() {
+        let start = cands[i].pos;
+        let line_end = text[start..].find('\n').map_or(text.len(), |e| start + e);
+        let own = PAGE_REFERENCE.is_match(text[start..line_end].trim_end());
+        let entry = i + 1 < n
+            && paged[i + 1]
+            && cands[i + 1].pos - start <= block
+            && text[line_end..cands[i + 1].pos]
+                .lines()
+                .rfind(|l| !l.trim().is_empty())
+                .is_some_and(|l| PAGE_REFERENCE.is_match(l.trim_end()));
+        paged[i] = own || entry;
+    }
+    paged
 }
 
 /// Drop a bare running page header ("Item 7") that comes just before the
@@ -2483,39 +2524,55 @@ mod tests {
 
     #[test]
     fn short_body_items_before_an_index_of_items_at_the_end_are_kept() {
-        // A cross-reference index before the signatures lists every Item. Its
-        // last row starts more text than the short Part II Item 6, so the
-        // body's Item 6 reads as a contents entry and the row as its body
-        // heading. The short Items before Item 6 follow MD&A, which has text
-        // of its own.
+        // A cross-reference index before the signatures lists every Item with
+        // its page. Rows that print a page are contents rows, never the body
+        // heading of their Item, so the body's short Item 6 stays, also when
+        // the index has no heading line of its own. The short Items before
+        // Item 6 follow MD&A, which has text of its own.
         let body = BODY.repeat(30);
+        for index_heading in ["FORM 10-Q CROSS-REFERENCE INDEX\n", ""] {
+            let text = format!(
+                "FORM 10-Q\nPART I — FINANCIAL INFORMATION\nItem 1. Financial Statements\n{body}{body}\n\
+                 Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+                 Item 3. Quantitative and Qualitative Disclosures About Market Risk\nSee Market Risk in Item 2.\n\
+                 Item 4. Controls and Procedures\nOur controls are effective.\n\
+                 PART II — OTHER INFORMATION\nItem 1. Legal Proceedings\nSee Note 9.\nItem 1A. Risk Factors\nNone.\n\
+                 Item 6. Exhibits\nSee the Exhibit Index.\n{index_heading}\
+                 Item 1. Financial Statements\t3\n\
+                 Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\t30\n\
+                 Item 3. Quantitative and Qualitative Disclosures About Market Risk\t45\n\
+                 Item 4. Controls and Procedures\t46\nItem 1. Legal Proceedings\t47\nItem 1A. Risk Factors\t47\n\
+                 Item 6. Exhibits\t48\nSIGNATURES\nPursuant to the requirements of the Securities Exchange Act of \
+                 1934, the registrant has duly caused this report to be signed.\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            let headings: Vec<(&str, &str)> = s.iter().map(|s| (s.id.as_str(), s.heading.as_str())).collect();
+            assert_eq!(
+                headings[2..],
+                [
+                    ("part_1_item_3", "Item 3. Quantitative and Qualitative Disclosures About Market Risk"),
+                    ("part_1_item_4", "Item 4. Controls and Procedures"),
+                    ("part_2_item_1", "Item 1. Legal Proceedings"),
+                    ("part_2_item_1a", "Item 1A. Risk Factors"),
+                    ("part_2_item_6", "Item 6. Exhibits"),
+                ],
+                "{index_heading:?}"
+            );
+            assert_eq!(ids(&s)[..2], ["part_1_item_1", "part_1_item_2"]);
+            assert!(s[1].text.ends_with(body.trim()));
+            assert_eq!(s[5].text, "Item 1A. Risk Factors\nNone.");
+        }
+        // The index names an Item that has no body heading, and that Item's
+        // row is followed by more text: it is not added out of order.
         let text = format!(
-            "FORM 10-Q\nPART I — FINANCIAL INFORMATION\nItem 1. Financial Statements\n{body}{body}\n\
-             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
-             Item 3. Quantitative and Qualitative Disclosures About Market Risk\nSee Market Risk in Item 2.\n\
-             Item 4. Controls and Procedures\nOur controls are effective.\n\
-             PART II — OTHER INFORMATION\nItem 1. Legal Proceedings\nSee Note 9.\nItem 1A. Risk Factors\nNone.\n\
-             Item 6. Exhibits\nSee the Exhibit Index.\nFORM 10-Q CROSS-REFERENCE INDEX\n\
-             Item 1. Financial Statements\t3\n\
-             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\t30\n\
-             Item 3. Quantitative and Qualitative Disclosures About Market Risk\t45\n\
-             Item 4. Controls and Procedures\t46\nItem 1. Legal Proceedings\t47\nItem 1A. Risk Factors\t47\n\
-             Item 6. Exhibits\t48\nSIGNATURES\nPursuant to the requirements of the Securities Exchange Act of 1934, \
-             the registrant has duly caused this report to be signed.\n"
+            "PART I\nConsolidated Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             Item 3. Quantitative and Qualitative Disclosures About Market Risk\n{body}\nPART II\n\
+             Item 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nForm 10-Q Cross-Reference Index\n\
+             Item 1. Financial Statements\t3-40\nItem 2. Management's Discussion and Analysis\t41-60\n\
+             Item 4. Controls and Procedures\t61\nDisclosure controls and procedures. {body}\nSIGNATURES\n"
         );
         let s = extract_sections(&text, FormKind::TenQ);
-        let headings: Vec<(&str, &str)> = s.iter().map(|s| (s.id.as_str(), s.heading.as_str())).collect();
-        assert_eq!(
-            headings[2..6],
-            [
-                ("part_1_item_3", "Item 3. Quantitative and Qualitative Disclosures About Market Risk"),
-                ("part_1_item_4", "Item 4. Controls and Procedures"),
-                ("part_2_item_1", "Item 1. Legal Proceedings"),
-                ("part_2_item_1a", "Item 1A. Risk Factors"),
-            ]
-        );
-        assert_eq!(ids(&s)[..2], ["part_1_item_1", "part_1_item_2"]);
-        assert!(s[1].text.ends_with(body.trim()));
+        assert_eq!(ids(&s), ["part_1_item_2", "part_1_item_3", "part_2_item_1", "part_2_item_6"]);
         // An exhibit after the signatures repeats Item 4 with more text. Item
         // 3 follows MD&A and stays.
         let text = format!(
@@ -2529,6 +2586,97 @@ mod tests {
         assert_eq!(ids(&s)[..3], ["part_1_item_1", "part_1_item_2", "part_1_item_3"]);
         assert!(s[1].text.ends_with(body.trim()));
         assert!(s[2].text.starts_with("Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot"));
+    }
+
+    #[test]
+    fn contents_rows_with_page_numbers_go_without_a_body_heading_to_match() {
+        // The body prints no Part I Item headings, so no body heading names
+        // the contents rows. Item 3's row prints its pages; Item 1 lists the
+        // statements and their pages under it, and Item 2's title wraps onto
+        // the line with its pages.
+        let body = BODY.repeat(30);
+        for (sep, pages) in [
+            ("     ", ["5 - 8", "9 - 10", "10 - 11"]),
+            ("\t", ["5-8", "9-10", "10-11"]),
+            (" ........ ", ["5–8", "9–10", "10–11"]),
+            ("     ", ["5", "9", "10"]),
+        ] {
+            let [notes, mdna, risk] = pages;
+            let text = format!(
+                "FORM 10-Q\nIndex\nPAGE(S)\nPart I  FINANCIAL INFORMATION\nItem 1.   Financial Statements\n\
+                 Unaudited Condensed Consolidated Statements of Financial Condition as of\n\
+                 March 31, 2002 and September 30, 2001{sep}1\n\
+                 Notes to Unaudited Condensed Consolidated Financial Statements{sep}{notes}\n\
+                 Item 2.   Management's Discussion and Analysis of Financial\n\
+                 Condition and Results of Operations{sep}{mdna}\n\
+                 Item 3.   Quantitative and Qualitative Disclosures About Market Risk{sep}{risk}\n\
+                 Part II OTHER INFORMATION\nItem 1. - 6.{sep}12\nSignatures{sep}13\n\
+                 Unaudited Condensed Consolidated Statements of Financial Condition\n{body}\n\
+                 MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS\n{body}\n\
+                 Part II  OTHER INFORMATION\nItem 1-5.   Not applicable.\n\
+                 Item 6.     Exhibits and Reports on Form 8-K\nNone\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_6"], "{pages:?}");
+            assert_eq!(s[1].text, "Item 6.     Exhibits and Reports on Form 8-K\nNone");
+        }
+    }
+
+    #[test]
+    fn explanatory_note_items_above_page_numbered_contents_are_no_headings() {
+        // A 10-Q/A's explanatory note lists the Items it amends above a
+        // contents page whose rows print their pages. The note's lines are
+        // matched with the body headings, not with the contents rows, so
+        // they are contents entries, and the note's Item 1, whose title the
+        // body does not print, goes with them.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "FORM 10-Q/A\nEXPLANATORY NOTE\nThis amendment restates the following items:\n\
+             Part I – Item 1. Financial Statements\n\
+             Part I – Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             Part I – Item 4. Controls and Procedures\n{body}\nPage\nPart I. Financial Information\n\
+             Item 1.\tConsolidated Financial Statements\nConsolidated Balance Sheets\t3\n\
+             Notes to Consolidated Financial Statements\t7\n\
+             Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\t18\n\
+             Item 3.\tQuantitative and Qualitative Disclosures About Market Risk\t33\n\
+             Item 4.\tControls and Procedures\t33\nPart II. Other Information\t34\nItem 1.\tLegal Proceedings\t35\n\
+             Item 6.\tExhibits\t35\nSignatures\t36\nConsolidated Balance Sheets\n{body}{body}\n\
+             Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+             Item 3.\tQuantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+             Item 4.\tControls and Procedures\n{body}\nPART II. OTHER INFORMATION\nItem 1.\tLegal Proceedings\n{body}\n\
+             Item 6.\tExhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_2", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(
+            s[0].heading,
+            "Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations"
+        );
+    }
+
+    #[test]
+    fn page_numbers_drop_only_contents_rows() {
+        let body = BODY.repeat(30);
+        // A year after a heading is no page number.
+        let text = format!(
+            "ITEM 5.  MARKET FOR THE REGISTRANT'S COMMON EQUITY\n{body}\n\
+             ITEM 6.  SELECTED FINANCIAL DATA   2004\n{body}\nITEM 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5", "item_6", "item_7"]);
+        // The exhibits Item lists exhibits with their pages, more than 2,000
+        // characters of them, just before an index of Items with pages.
+        let exhibits: String = (1..=40)
+            .map(|i| format!("10.{i}\tCredit agreement number {i} between the Company and its lender\t{}\n", 20 + i))
+            .collect();
+        let text = format!(
+            "Item 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             Item 6. Exhibits\n{exhibits}Item 1. Financial Statements\t3\n\
+             Item 2. Management's Discussion and Analysis\t10\nItem 6. Exhibits\t20\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+        assert!(s[2].text.starts_with("Item 6. Exhibits\n10.1\t"));
     }
 
     #[test]
