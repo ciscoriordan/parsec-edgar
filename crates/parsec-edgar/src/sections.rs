@@ -40,7 +40,10 @@
 //! the last `PART I` line before it ("PART I." and then "BUSINESS") starts
 //! Item 1, unless an Item line comes between them.
 //! The last Item ends at the signatures or where a separately paginated
-//! attached document (an annual report) begins.
+//! attached document (an annual report) begins. A power of attorney printed
+//! before the signatures under a "POWER OF ATTORNEY" line goes with them, so
+//! that line ends the last Item too, unless it is an exhibit's description in
+//! a list printed cell by cell ("24" on the line above).
 //!
 //! A titled sub-item with the standard title of a lettered Item the form
 //! defines is that Item ("Item 8(A)T. Controls and Procedures" in a 10-KSB,
@@ -379,6 +382,17 @@ static SIGNATURE_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
         r"(?m)^[ \t]*Pursuant to the requirements of (?:Section 13|the Securities Exchange Act)[^\n]*duly caused",
     )
     .unwrap()
+});
+
+/// `POWER OF ATTORNEY` on a line of its own: the heading of a power of
+/// attorney, which goes with the signatures.
+static POWER_OF_ATTORNEY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?im)^[ \t]*powers?[ \t]+of[ \t]+attorney[ \t]*:?[ \t]*$").unwrap());
+
+/// An exhibit number alone on its line, as an exhibit list printed cell by
+/// cell has it: `24`, `99.1*`, `10(a)`, `(23)`, `101.INS`.
+static EXHIBIT_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\(?\d{1,3}(?:\.\d{1,3})?\)?(?:\([a-zA-Z0-9]{1,5}\)|\.[A-Z]{3})*[*†‡#+^]*$").unwrap()
 });
 
 /// Bare sub-item references such as `Item 14(d):` or `Item 15(a)(1)`, which
@@ -1238,10 +1252,31 @@ fn lists_signatures(text: &str, entry: usize, heading: usize) -> bool {
 /// letter, so a wrapped sentence ("report of independent accountants on the
 /// 1997 statements ...") does not count.
 fn heading_start(re: &Regex, text: &str, start: usize, end: usize) -> Option<usize> {
+    heading_starts(re, text, start, end).next()
+}
+
+/// Starts of all the lines that `heading_start` accepts, in order.
+fn heading_starts<'a>(re: &'a Regex, text: &'a str, start: usize, end: usize) -> impl Iterator<Item = usize> + 'a {
     let from = text[start..end].find('\n').map_or(end, |i| start + i + 1);
     re.find_iter(&text[from..end])
-        .map(|m| from + m.start())
-        .find(|&p| text[p..].trim_start_matches([' ', '\t']).starts_with(char::is_uppercase))
+        .map(move |m| from + m.start())
+        .filter(|&p| text[p..].trim_start_matches([' ', '\t']).starts_with(char::is_uppercase))
+}
+
+/// Whether the line at `pos` sits in an exhibit list printed cell by cell:
+/// the line above or below it (blank lines skipped) is an exhibit number
+/// alone. Such a line is an exhibit's description ("24.1" then "Power of
+/// Attorney"), not a heading.
+fn exhibit_cell(text: &str, pos: usize) -> bool {
+    let above = text[..pos].lines().rev().find(|l| !l.trim().is_empty());
+    let below = text[pos..].lines().skip(1).find(|l| !l.trim().is_empty());
+    [above, below].into_iter().flatten().any(|l| EXHIBIT_NUMBER.is_match(l.trim()))
+}
+
+/// Start of a power of attorney printed after the last Item's text and
+/// before the signatures, under a heading of its own.
+fn power_of_attorney(text: &str, start: usize, end: usize) -> Option<usize> {
+    heading_starts(&POWER_OF_ATTORNEY, text, start, end).find(|&p| !exhibit_cell(text, p))
 }
 
 /// Start of financial statements that the exhibits Item prints after its own
@@ -1574,6 +1609,7 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     let last_start = *starts.last().expect("chain is non-empty");
     let doc_end = signatures_after(text, last_start).unwrap_or(text.len());
     let doc_end = attached_document(text, last_start, doc_end).unwrap_or(doc_end);
+    let doc_end = power_of_attorney(text, last_start, doc_end).unwrap_or(doc_end);
     // In an annual report, titled headings of Items the form does not define
     // ("Item 4A. Executive Officers") end the section before them, except the
     // lettered headings of an Item filled from them ("Item 5B" inside Item 5).
@@ -2066,8 +2102,42 @@ mod tests {
         assert_eq!(s[1].text, "Item 15. Exhibits\n31.1\tCertification");
     }
 
+    #[test]
+    fn power_of_attorney_before_the_signatures_ends_the_last_item() {
+        let body = BODY.repeat(30);
+        for heading in ["POWER OF ATTORNEY\n-----------------", "Power of Attorney", "POWERS OF ATTORNEY:"] {
+            let text = format!(
+                "Item 13. Certain Relationships\n{body}\nItem 14. Exhibits, Financial Statement Schedules\n{body}\n\
+                 (D) Financial Statement Schedules.\nNot applicable.\n{heading}\n\
+                 Each person whose signature appears below hereby appoints Jane Doe as attorney-in-fact.\n\
+                 SIGNATURES\nPursuant to the requirements of Section 13 ...\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_13", "item_14"], "{heading}");
+            assert!(s[1].text.ends_with("(D) Financial Statement Schedules.\nNot applicable."), "{heading}");
+        }
+    }
+
     // Layouts close to those each special rule was written for, where the
     // rule must not fire.
+
+    #[test]
+    fn power_of_attorney_in_an_exhibit_list_or_a_sentence_stays() {
+        // An exhibit list printed cell by cell, a sentence, and a power of
+        // attorney after the signatures, which end the Item already.
+        let body = BODY.repeat(30);
+        let tail = "Powers of attorney are filed as Exhibit 24.\n\
+                    Exhibit\nNumber\nDescription\n23\nConsent of Example LLP\n24\n\n Power of Attorney\n\
+                    31.1\nCertification of the Chief Executive Officer\n99.1*\nPOWER OF ATTORNEY\n";
+        let text = format!(
+            "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\n\
+             ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\n{tail}\
+             SIGNATURES\nPursuant to ...\nPOWER OF ATTORNEY\nKNOW ALL PERSONS BY THESE PRESENTS ...\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_14", "item_15"]);
+        assert_eq!(s[1].end, text.find("SIGNATURES").unwrap());
+    }
 
     #[test]
     fn attached_document_needs_a_long_paginated_contents() {
