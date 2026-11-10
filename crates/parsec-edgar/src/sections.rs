@@ -46,7 +46,12 @@
 //! Factors, of our Annual Report on Form 10-K for 2019 describes"), when a
 //! heading of the Item with that title follows it before any heading of an Item
 //! that comes later in the form. Without such a heading after it, the line may
-//! be a run-in heading and stays a candidate.
+//! be a run-in heading and stays a candidate. In a 10-Q or 10-QSB, a Part's
+//! title printed with an Item number ("Item 1. Financial Information
+//! (Unaudited)") on the line just above a heading of that Item with one of its
+//! standard titles ("Item 1. Financial Statements (Unaudited)") is no heading,
+//! unless it is a standard title of the Item too ("Item 5. Other
+//! Information").
 //! A heading that names several Items ("Items 1 and 2.", "Items 1 through
 //! 5.", with a dash, "Item 1-5.", but not "Item 1-2 of the Form", or with
 //! commas, "ITEMS 9, 9A AND 9B.") starts the first of them. A range or a list
@@ -1161,7 +1166,16 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
                     .any(|o| !o.cites && !o.bare && o.label == c.label && same_title(&o.title, &c.title))
         })
         .collect();
-    let mut cands: Vec<Candidate> = cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect();
+    let cands: Vec<Candidate> = cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect();
+    // A 10-Q's Part title printed with an Item number just above that Item's
+    // heading is not the heading.
+    let part_title: Vec<bool> = (0..cands.len())
+        .map(|i| {
+            kind.quarterly() && cands.get(i + 1).is_some_and(|n| part_title_over_heading(text, &cands[i], n, keys))
+        })
+        .collect();
+    let mut cands: Vec<Candidate> =
+        cands.into_iter().zip(part_title).filter(|&(_, part_title)| !part_title).map(|(c, _)| c).collect();
     set_gaps(&mut cands, text.len());
     let cands = drop_item_references(drop_contents_entries(cands, text, keys), keys, kind.annual());
     let mut cands = drop_running_headers(cands, keys);
@@ -1172,6 +1186,33 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
         c.score = (c.gap as f64).ln_1p();
     }
     cands
+}
+
+/// The titles of the two parts of a 10-Q or 10-QSB, as `title_words` reads
+/// them.
+const PART_TITLES: [[&str; 2]; 2] = [["financial", "information"], ["other", "information"]];
+
+/// Whether `c` prints the title of a Part of a 10-Q or 10-QSB with an Item
+/// number ("Item 1. Financial Information (Unaudited)") on the line just
+/// above `next`, a heading of the same Item with one of the Item's standard
+/// titles ("Item 1. Financial Statements (Unaudited)"). Qualifiers such as
+/// "Unaudited" do not count, and a Part title that is also a standard title
+/// of the Item ("Item 5. Other Information") is the Item's.
+fn part_title_over_heading(text: &str, c: &Candidate, next: &Candidate, keys: &[Key]) -> bool {
+    let item_title = |printed: &str| {
+        let title = title_key(without_qualifiers(printed));
+        keys.iter()
+            .filter(|k| k.item == c.label)
+            .any(|k| std::iter::once(&k.title).chain(k.former).any(|t| same_title(&title, &title_key(t))))
+    };
+    let words = title_words(&c.printed);
+    let words = words.iter().map(String::as_str).filter(|w| !QUALIFIERS.contains(w));
+    let line_end = text[c.pos..].find('\n').map_or(text.len(), |i| c.pos + i);
+    next.label == c.label
+        && text.get(line_end..next.pos).is_some_and(|between| between.trim().is_empty())
+        && PART_TITLES.iter().any(|part| words.clone().eq(part.iter().copied()))
+        && !item_title(&c.printed)
+        && item_title(&next.printed)
 }
 
 fn set_gaps(cands: &mut [Candidate], text_len: usize) {
@@ -3934,6 +3975,57 @@ Pursuant to ...
             ),
         ] {
             assert_eq!(annual(&text), items, "{text:.60}");
+        }
+    }
+
+    #[test]
+    fn part_title_printed_with_an_item_number_above_the_heading_is_no_heading() {
+        // "Item 1. Financial Information (Unaudited)", Part I's title, just
+        // above "Item 1. Financial Statements (Unaudited)" in a 10-QSB, and
+        // "Item 1. Other Information" above "Item 1. Legal Proceedings" in a
+        // 10-Q.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Part I   Financial Information\nItem 1.  Financial Statements (Unaudited)\n\
+             Item 2.  Management's Discussion and Analysis or Plan of Operation ........ 3\n\
+             Item 3.  Controls and Procedures ........ 3\nPart II  Other Information\n\
+             Item 1.  Legal Proceedings ........ 4\n\
+             PART I\nItem 1.  Financial Information (Unaudited)\nItem 1.  Financial Statements (Unaudited)\n{body}\n\
+             Item 2.  Management's Discussion and Analysis or Plan of Operation\n{body}\n\
+             Item 3.  Controls and Procedures\n{body}\nPart II Other Information\nItem 1. Legal Proceedings\n{body}\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQsb);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_3", "part_2_item_1"]);
+        assert_eq!(s[0].heading, "Item 1.  Financial Statements (Unaudited)");
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 1. Other Information\n\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(s[2].heading, "Item 1. Legal Proceedings");
+    }
+
+    #[test]
+    fn item_lines_above_the_heading_with_other_titles_stay() {
+        // A line between the two, a second line with no standard title, a
+        // first line with another title, Part II's title that is Item 5's own,
+        // and a second line of another Item: the first line stays the heading.
+        let body = BODY.repeat(30);
+        for (first, second) in [
+            ("Item 1. Financial Information", "The statements follow.\nItem 1. Financial Statements"),
+            ("Item 1. Financial Information", "Item 1. Balance Sheets"),
+            ("Item 1. Financial Data", "Item 1. Financial Statements"),
+            ("Item 5. Other Information", "Item 5. Other information about the quarter"),
+            ("Item 1. Other Information", "Item 2. Legal Proceedings"),
+        ] {
+            let text = format!(
+                "PART II\nItem 4. Mine Safety Disclosures\nNone.\n{first}\n{second}\n{body}\nItem 6. Exhibits\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            let heading = s.iter().find(|s| s.item != "4" && s.item != "6").map(|s| s.heading.as_str());
+            assert_eq!(heading, Some(first), "{first} / {second}");
         }
     }
 
