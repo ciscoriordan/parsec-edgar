@@ -100,14 +100,16 @@
 //! as one does below a contents entry. So it never replaces an Item found with
 //! a number in digits, and of its copies (running headers) the first counts.
 //! The last Item ends at the signatures or where a separately paginated
-//! attached document (an annual report) begins. Without a signatures heading,
+//! attached document (an annual report) begins, with the index headings
+//! ("Index to Financial Statements") and notes that a page is intentionally
+//! left blank printed just above its contents. Without a signatures heading,
 //! the signatures start at the signature block's sentence ("Pursuant to the
 //! requirements of the Securities Exchange Act of 1934, the registrant has
 //! duly caused this report to be signed ..."), also when a plain-text filing
-//! wraps it before "duly caused". A power of attorney printed
-//! before the signatures under a "POWER OF ATTORNEY" line goes with them, so
-//! that line ends the last Item too, unless it is an exhibit's description in
-//! a list printed cell by cell ("24" on the line above). In a 10-Q or 10-QSB,
+//! wraps it before "duly caused". A power of attorney printed before the
+//! signatures under a "POWER OF ATTORNEY" line goes with them, so that line
+//! ends the last Item too, unless it is an exhibit's description in a list
+//! printed cell by cell ("24" on the line above). In a 10-Q or 10-QSB,
 //! a Part I Item ends at the first `PART II` line in it ("PART II. OTHER
 //! INFORMATION", with Part II's title or without) when text of Part II
 //! follows that line, such as a note on forward-looking statements printed
@@ -1826,7 +1828,9 @@ fn drop_running_headers(cands: Vec<Candidate>, keys: &[Key]) -> Vec<Candidate> {
 /// such as a full annual report: a table of contents of at least 8
 /// page-numbered entries spanning 30 or more pages, followed by much more
 /// text than the Item itself. The heading line just before the contents
-/// ("Financial:") goes with the attached document.
+/// ("Financial:") goes with the attached document, and so do the lines just
+/// above it that open the document's pages rather than end the Item
+/// (`opens_attached_pages`).
 fn attached_document(text: &str, from: usize, to: usize) -> Option<usize> {
     const MIN_ENTRIES: usize = 8;
     const MIN_PAGES: u32 = 30;
@@ -1860,7 +1864,13 @@ fn attached_document(text: &str, from: usize, to: usize) -> Option<usize> {
                 if let Some((s, first, last, n)) = block {
                     let after = to - s;
                     if n >= MIN_ENTRIES && last - first >= MIN_PAGES && after >= 50_000 && after >= 4 * (s - from) {
-                        return Some(s);
+                        let opening = lines_in(text, from, s)
+                            .into_iter()
+                            .rev()
+                            .filter(|(_, l)| !l.is_empty())
+                            .take_while(|&(_, l)| opens_attached_pages(l))
+                            .last();
+                        return Some(opening.map_or(s, |(p, _)| p));
                     }
                 }
             }
@@ -1874,6 +1884,31 @@ fn attached_document(text: &str, from: usize, to: usize) -> Option<usize> {
         prev_line = Some((start, trimmed));
     }
     None
+}
+
+/// A note that a page is intentionally left blank, on a trimmed line:
+/// `[THIS PAGE INTENTIONALLY LEFT BLANK]`, `This page intentionally left
+/// blank.`
+static BLANK_PAGE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)^[\[(]?(?:this[ \t]+)?page[ \t]+(?:has[ \t]+been[ \t]+)?intentionally[ \t]+left[ \t]+blank[ \t.]*[\])]?$",
+    )
+    .unwrap()
+});
+
+/// Whether a trimmed line just above an attached document's contents opens
+/// the document's pages rather than ends the Item: an index heading
+/// ("INDEX TO CONSOLIDATED FINANCIAL STATEMENTS" over the contents, or
+/// "Index to Financial Statements" printed at the top of each page), whose
+/// words all start with a capital letter or join others ("to", "and"), or a
+/// note that the page before them is intentionally left blank.
+fn opens_attached_pages(line: &str) -> bool {
+    let title_words = || {
+        TITLE_WORD
+            .find_iter(line)
+            .all(|w| !w.as_str().starts_with(char::is_lowercase) || JOINING_WORDS.contains(&w.as_str()))
+    };
+    (statement_heading(line) && STATEMENTS_INDEX_HEADING.is_match(line) && title_words()) || BLANK_PAGE.is_match(line)
 }
 
 /// Where the signatures start after `from`: a signatures heading, or the
@@ -3262,6 +3297,44 @@ mod tests {
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_14", "item_15"]);
         assert_eq!(s[1].text, "Item 15. Exhibits\n31.1\tCertification");
+        // An index heading over the contents and their column header, and
+        // the pages' header "Index to Financial Statements" around a blank
+        // page, go with the attached document.
+        for opening in [
+            "INDEX TO CONSOLIDATED FINANCIAL STATEMENTS\nITEM\tPAGE\n",
+            "Index to Financial Statements\n[THIS PAGE INTENTIONALLY LEFT BLANK]\nIndex to Financial Statements\n\
+             FINANCIAL SECTION\n",
+            "Index to Financial Statements\nThis page intentionally left blank.\n\nIndex to Financial Statements\n",
+        ] {
+            let text = format!(
+                "Item 14. Principal Accounting Fees\nSee proxy.\nItem 15. Exhibits\nSee the Exhibit Index.\n\
+                 {opening}{contents}{report}\nSignatures\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[1].text, "Item 15. Exhibits\nSee the Exhibit Index.", "{opening}");
+        }
+        // Lines of the Item between the index heading and the contents, and
+        // sentences that name the index or a blank page, keep their place.
+        for (opening, kept) in [
+            (
+                "Index to Financial Statements\nSee page 25.\nFinancial:\n",
+                "Index to Financial Statements\nSee page 25.",
+            ),
+            (
+                "Index to Financial Statements on page 25 lists them.\n",
+                "Index to Financial Statements on page 25 lists them.",
+            ),
+            (
+                "Index to Financial Statements\nThe remainder of this page is intentionally left blank.\n",
+                "Index to Financial Statements\nThe remainder of this page is intentionally left blank.",
+            ),
+        ] {
+            let text = format!(
+                "Item 14. Principal Accounting Fees\nSee proxy.\nItem 15. Exhibits\n{opening}{contents}{report}\nSignatures\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[1].text, format!("Item 15. Exhibits\n{kept}"), "{opening}");
+        }
     }
 
     #[test]
