@@ -1,0 +1,77 @@
+{
+  "accession": "0001023175-04-000233",
+  "cik": 798985,
+  "company": "CHINA SKY ONE MEDICAL, INC.",
+  "form": "10QSB",
+  "filing_date": "2004-11-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/798985/000102317504000233/comet10qsb.txt",
+  "agent": "",
+  "tags": [
+    "small-cap",
+    "10-qsb",
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "Plain-text Form 10-QSB for the quarter ended September 30, 2004, filed as Comet Technologies, Inc., a development stage shell. Part I Item 3 is Controls and Procedures. A contents list after the cover names every Item with a page number; each body heading appears once after it and uses a hyphen as the separator ('Item 1-Financial Statements', 'Item 2 - Management's Discussion and Analysis or Plan of Operation'). Part II Item 1A is not listed absent: the form did not have it. Part II Items 1, 2, 3 and 5 say 'None.' and Item 4 says no matters were submitted to a vote; these are answers, so none is marked incorporated. Item 6 lists the certification exhibits and ends at SIGNATURES.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1-Financial Statements",
+      "occurrence": 0,
+      "next": "COMET TECHNOLOGIES, INC."
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2 - Management's Discussion and Analysis or Plan of Operation",
+      "occurrence": 0,
+      "next": "(1)  Caution Regarding Forward-Looking I"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3 - Controls and Procedures",
+      "occurrence": 0,
+      "next": "As of the end of the period covered by t"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1 - Legal Proceedings",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2 - Changes in Securities",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3 - Defaults on Senior Securities",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4 - Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "During the quarter ended September 30, 2"
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5 - Other Information",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6 - Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "Exhibit  Description"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with Section 13 or 15(d) o"
+  }
+}
