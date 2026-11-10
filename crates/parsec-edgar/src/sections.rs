@@ -87,6 +87,11 @@ pub enum FormKind {
 }
 
 impl FormKind {
+    /// The forms with Item sections, as messages name them ("needs a 10-K,
+    /// 10-Q, 8-K, 10-KSB or 10-QSB filing"). Their amendments and variants
+    /// count too, as [`FormKind::from_form`] reads them.
+    pub const FORMS: &'static str = "10-K, 10-Q, 8-K, 10-KSB or 10-QSB";
+
     /// Classify a form type. Amendments and old variants (10-K405, 10-KT, 10-KSB405, 8-K12B) count,
     /// also as EDGAR's indexes spell some of them, without the hyphen (`10KSB`, `10KSB40`, `10QSB`,
     /// `10KT405`).
@@ -1450,6 +1455,25 @@ mod tests {
         for form in ["18-K", "NT 10-K", "NTN 10K", "NTN 10Q", "10-12B", "8-A12B"] {
             assert_eq!(FormKind::from_form(form), None, "{form}");
         }
+    }
+
+    /// FormKind::FORMS, which messages in the library, the CLI, the MCP server
+    /// and the Python package print, names each kind once.
+    #[test]
+    fn forms_names_every_kind() {
+        let names: Vec<&str> =
+            FormKind::FORMS.split([',', ' ']).filter(|w| !w.is_empty() && *w != "or" && *w != "and").collect();
+        let kinds: Vec<FormKind> =
+            names.iter().map(|name| FormKind::from_form(name).unwrap_or_else(|| panic!("{name}"))).collect();
+        let every = [FormKind::TenK, FormKind::TenQ, FormKind::EightK, FormKind::TenKsb, FormKind::TenQsb];
+        // This match names every kind, so a kind added to FormKind does not
+        // compile here until it is added to the match, to `every` and to FORMS.
+        for kind in every {
+            match kind {
+                FormKind::TenK | FormKind::TenQ | FormKind::EightK | FormKind::TenKsb | FormKind::TenQsb => {}
+            }
+        }
+        assert_eq!(kinds, every, "{names:?}");
     }
 
     #[test]

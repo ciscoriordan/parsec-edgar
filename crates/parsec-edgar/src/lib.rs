@@ -4,7 +4,7 @@
 //! - [`Company`] lookup by ticker or CIK, and [`Filing`] lists from the submissions API
 //! - [`html_to_text`]: filing HTML to clean plain text
 //! - [`html_to_text_and_tables`]: the same text, plus its [`Table`]s as rows of cells with their offsets in it
-//! - [`extract_sections`]: 10-K, 10-Q and 8-K Item sections
+//! - [`extract_sections`]: Item sections of 10-K, 10-Q, 8-K, 10-KSB and 10-QSB filings
 //!
 //! ```no_run
 //! use parsec_edgar::{Client, FilingQuery};

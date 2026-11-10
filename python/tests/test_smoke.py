@@ -38,6 +38,12 @@ def test_extract_sections_of_a_10ksb():
     ]
 
 
+def test_extract_sections_names_the_forms_with_items():
+    with pytest.raises(ValueError, match="10-K, 10-Q, 8-K, 10-KSB or 10-QSB.*not S-1"):
+        pe.extract_sections("Item 1. Business\n", "S-1")
+    assert "10-KSB" in pe.Client.sections.__doc__
+
+
 def test_html_to_text():
     html = "<table><tr><td>Net sales</td><td>$</td><td>391,035</td></tr></table><p>Second <b>line</b>.</p>"
     assert pe.html_to_text(html) == "Net sales\t$391,035\nSecond line.\n"

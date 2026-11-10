@@ -408,10 +408,11 @@ impl Client {
         Ok(document_to_text(&self.primary_document(filing)?))
     }
 
-    /// Item sections of a 10-K, 10-Q or 8-K filing (and their amendments and variants).
+    /// Item sections of a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB filing (and their
+    /// amendments and variants). Other forms are an [`Error::Invalid`].
     pub fn filing_sections(&self, filing: &Filing) -> Result<Vec<Section>> {
         let kind = FormKind::from_form(&filing.form).ok_or_else(|| {
-            Error::Invalid(format!("sections are supported for 10-K, 10-Q and 8-K filings, not {}", filing.form))
+            Error::Invalid(format!("sections are supported for a {} filing, not {}", FormKind::FORMS, filing.form))
         })?;
         Ok(extract_sections(&self.filing_text(filing)?, kind))
     }
@@ -480,6 +481,15 @@ mod tests {
         };
         f.fill_urls();
         f
+    }
+
+    /// A form without Items is refused before anything is downloaded, with
+    /// every form that has them.
+    #[test]
+    fn sections_need_a_form_with_items() {
+        let client = Client::builder("Example Corp admin@example.com").build().unwrap();
+        let err = client.filing_sections(&filing("S-1", "2024-11-01")).unwrap_err().to_string();
+        assert!(err.contains("10-K, 10-Q, 8-K, 10-KSB or 10-QSB") && err.ends_with("not S-1"), "{err}");
     }
 
     #[test]

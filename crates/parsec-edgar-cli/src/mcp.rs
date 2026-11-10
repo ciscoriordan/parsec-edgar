@@ -505,13 +505,13 @@ impl EdgarServer {
 
     #[tool(
         description = "Outline of one filing without its text: filing metadata, the total character count, the \
-            number of tables and, for 10-K, 10-Q and 8-K (and amendments), the Item sections with ids, titles, \
-            character counts and table counts. Tables in no Item section, such as financial statements printed \
-            after the last Item, are counted in tables_outside_items, each run with first_index, the index to \
-            pass to read_tables as offset. Call this first, then read only the sections you need with \
-            read_section, or their tables with read_tables. Identify the filing by company plus accession, or \
-            company plus form for the latest filing of that form (default 10-K). For an exhibit hit from \
-            search_full_text, also pass its document.",
+            number of tables and, for a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB (or an amendment), the Item sections \
+            with ids, titles, character counts and table counts. Tables in no Item section, such as financial \
+            statements printed after the last Item, are counted in tables_outside_items, each run with \
+            first_index, the index to pass to read_tables as offset. Call this first, then read only the sections \
+            you need with read_section, or their tables with read_tables. Identify the filing by company plus \
+            accession, or company plus form for the latest filing of that form (default 10-K). For an exhibit hit \
+            from search_full_text, also pass its document.",
         annotations(title = "Filing outline", read_only_hint = true, open_world_hint = true)
     )]
     async fn get_filing_outline(&self, Parameters(p): Parameters<FilingParams>) -> Result<String, String> {
@@ -536,7 +536,8 @@ impl EdgarServer {
             ),
             (None, Some(_)) => "no Item headings were found in this filing; use read_filing_text".to_owned(),
             (None, None) => format!(
-                "Item sections are extracted for 10-K, 10-Q and 8-K only, not {}; use read_filing_text",
+                "Item sections are extracted only for a {} (or an amendment), not {}; use read_filing_text",
+                FormKind::FORMS,
                 filing.form
             ),
         };
@@ -570,11 +571,12 @@ impl EdgarServer {
     }
 
     #[tool(
-        description = "Read one Item section of a 10-K, 10-Q or 8-K as clean text, in pages. Get section ids from \
-            get_filing_outline (for example item_1a Risk Factors and item_7 MD&A in a 10-K, part_1_item_2 MD&A in \
-            a 10-Q, item_2.02 results in an 8-K). Returns a JSON header line, then up to max_chars characters \
-            starting at offset. When more remains, next_offset in the header is set: call again with \
-            offset=next_offset to continue.",
+        description = "Read one Item section of a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB as clean text, in pages. Get \
+            section ids and titles from get_filing_outline (for example item_1a Risk Factors and item_7 MD&A in a \
+            10-K, part_1_item_2 MD&A in a 10-Q, item_2.02 results in an 8-K, item_6 MD&A and item_7 financial \
+            statements in a 10-KSB, whose Items are numbered differently). Returns a JSON header line, then up to \
+            max_chars characters starting at offset. When more remains, next_offset in the header is set: call again \
+            with offset=next_offset to continue.",
         annotations(title = "Read section", read_only_hint = true, open_world_hint = true)
     )]
     async fn read_section(&self, Parameters(p): Parameters<ReadSectionParams>) -> Result<String, String> {
@@ -595,7 +597,7 @@ impl EdgarServer {
             document, in pages: a JSON header line, then up to max_chars characters starting at offset, with \
             next_offset set when more remains. Use it for forms without Item sections (S-1, DEF 14A, 20-F, 6-K, \
             ...), when get_filing_outline finds none, and for exhibit hits from search_full_text (pass the hit's \
-            accession and document); for 10-K, 10-Q and 8-K prefer read_section.",
+            accession and document); for a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB prefer read_section.",
         annotations(title = "Read filing text", read_only_hint = true, open_world_hint = true)
     )]
     async fn read_filing_text(&self, Parameters(p): Parameters<ReadTextParams>) -> Result<String, String> {
@@ -610,13 +612,13 @@ impl EdgarServer {
             JSON rows of cells: financial statements, schedules and any other table, with `$`, `)` and `%` joined \
             to their numbers as in the text, and empty cells left out. Pass section (an id from \
             get_filing_outline) for only the tables of that Item. A 10-K's financial statements are often in \
-            item_8, but many filings print them after the last Item or in an attached annual report: \
-            get_filing_outline lists those tables under tables_outside_items, and you read them without section, \
-            from offset=first_index. Each table has its index (counting every table of the document), its \
-            section, text_before (the line just above it, often a title or units such as \"(in millions)\", when \
-            that line is short and not part of another table), text_offset (its character position for \
-            read_filing_text), header_rows when the filing marks them, rows, and columns and spans: for each \
-            cell, its column in the table's grid (from 0, counting empty cells, colspan and rowspan; a cell \
+            item_8 (item_7 in a 10-KSB), but many filings print them after the last Item or in an attached \
+            annual report: get_filing_outline lists those tables under tables_outside_items, and you read them \
+            without section, from offset=first_index. Each table has its index (counting every table of the \
+            document), its section, text_before (the line just above it, often a title or units such as \
+            \"(in millions)\", when that line is short and not part of another table), text_offset (its character \
+            position for read_filing_text), header_rows when the filing marks them, rows, and columns and spans: \
+            for each cell, its column in the table's grid (from 0, counting empty cells, colspan and rowspan; a cell \
             joined from `$` and a number takes the number's column) and how many columns it covers, so that a \
             value lines up with the header whose columns hold its column. Returns tables until their \
             JSON reaches max_chars characters; when more remain, call again with offset=next_offset, plus \
@@ -2700,6 +2702,31 @@ mod tests {
         assert_eq!(server.lock().loading.get(&key("acc", "")).map(|l| l.waiting), Some(1));
         server.lock().end_load(&key("acc", ""), &finished);
         assert!(server.lock().loading.contains_key(&key("acc", "")));
+    }
+
+    /// The tools that read Item sections name every form that has them, and
+    /// the outline of another form says which forms those are.
+    #[tokio::test]
+    async fn tools_name_the_forms_with_items() {
+        for tool in EdgarServer::tool_router().list_all() {
+            let description = tool.description.as_deref().unwrap_or_default();
+            if ["get_filing_outline", "read_section", "read_filing_text"].contains(&tool.name.as_ref()) {
+                assert!(description.contains(FormKind::FORMS), "{}: {description}", tool.name);
+            }
+            if ["read_section", "read_tables"].contains(&tool.name.as_ref()) {
+                assert!(description.contains("in a 10-KSB"), "{}: {description}", tool.name);
+            }
+        }
+        let server = offline_server();
+        let mut s1 = filing_of(1566011, "PBF Holding Co LLC", PBF, "s1.htm");
+        s1.form = "S-1".into();
+        server.lock().by_accession.put(("1566011".into(), PBF.replace('-', "")), s1);
+        let text = "Prospectus\n".to_owned();
+        let prospectus = Doc { document: None, total_chars: 11, text, sections: None, tables: Vec::new(), html: true };
+        server.lock().docs.put(key(PBF, ""), Arc::new(prospectus));
+        let out = json(server.get_filing_outline(Parameters(outline_params("1566011", Some(PBF), None))).await);
+        let next = out["next"].as_str().unwrap();
+        assert!(next.contains(FormKind::FORMS) && next.contains("not S-1"), "{next}");
     }
 
     #[test]

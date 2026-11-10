@@ -122,7 +122,8 @@ impl Client {
         py.detach(|| self.inner.filing_text(&f)).map_err(err)
     }
 
-    /// Item sections of a 10-K, 10-Q or 8-K filing dict, as a list of dicts.
+    /// Item sections of a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB filing dict, as a list of dicts.
+    /// Other forms raise ValueError.
     fn sections<'py>(&self, py: Python<'py>, filing: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let f: pe::Filing = depythonize(filing)?;
         let sections = py.detach(|| self.inner.filing_sections(&f)).map_err(err)?;
@@ -161,8 +162,9 @@ fn html_to_text_and_tables<'py>(py: Python<'py>, html: &str) -> PyResult<(String
 /// (variants and amendments accepted, also without the hyphen, as in "10KSB").
 #[pyfunction]
 fn extract_sections<'py>(py: Python<'py>, text: &str, form: &str) -> PyResult<Bound<'py, PyAny>> {
-    let kind = pe::FormKind::from_form(form)
-        .ok_or_else(|| PyValueError::new_err(format!("sections are supported for 10-K, 10-Q and 8-K, not {form}")))?;
+    let kind = pe::FormKind::from_form(form).ok_or_else(|| {
+        PyValueError::new_err(format!("sections are supported for a {} filing, not {form}", pe::FormKind::FORMS))
+    })?;
     let sections = py.detach(|| pe::extract_sections(text, kind));
     Ok(pythonize(py, &sections)?)
 }
