@@ -48,12 +48,17 @@
 //! report") is a wrapped cross-reference, not a heading. In every form, so is
 //! an Item line that carries on a sentence from the line just above it, which
 //! ends with a comma or with a word such as "in", "see" or "to" ("as set forth
-//! in Part II,"). So is one whose title, whole or by its first three words,
-//! goes straight on to name the report or another document ("Item 1A. Risk
-//! Factors, of our Annual Report on Form 10-K for 2019 describes"), when a
+//! in Part II,"), or a word that names a caption ("under the caption", "the
+//! section entitled"). So is one whose title, whole or by its first three
+//! words, goes straight on to name the report or another document ("Item 1A.
+//! Risk Factors, of our Annual Report on Form 10-K for 2019 describes"), when a
 //! heading of the Item with that title follows it before any heading of an Item
-//! that comes later in the form. Without such a heading after it, the line may
-//! be a run-in heading and stays a candidate. In a 10-Q or 10-QSB, a Part's
+//! that comes later in the form, or when it sits inside a later Item: a heading
+//! of the Item with that title comes before it with lines of later Items only
+//! between them, and the next line of another Item after it comes later in the
+//! form than the last of those (after a contents list, the body's next heading
+//! goes back to an Item the list printed). Otherwise the line may be a run-in
+//! heading and stays a candidate. In a 10-Q or 10-QSB, a Part's
 //! title printed with an Item number ("Item 1. Financial Information
 //! (Unaudited)") on the line just above a heading of that Item with one of its
 //! standard titles ("Item 1. Financial Statements (Unaudited)") is no heading,
@@ -1326,7 +1331,8 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     // the Item it sits in short. Without one it may be a run-in heading
     // ("Item 7. Management's Discussion and Analysis of the Company's 1998
     // Annual Report is incorporated herein by reference."), also when an
-    // index after the body lists the Item again.
+    // index after the body lists the Item again, unless it sits inside a
+    // later Item (`after_heading`).
     // The first and the last place of an Item number in the form's order (a
     // 10-Q numbers Items 1 to 4 in both parts).
     let place = |label: &str| {
@@ -1334,18 +1340,36 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
         let first = at.next();
         (first, at.next_back().or(first))
     };
+    // Whether Item `a` comes after Item `b` in every numbering of the form.
+    let later = |a: &str, b: &str| place(a).0.zip(place(b).1).is_some_and(|(a, b)| a > b);
+    let heading_of = |c: &Candidate, o: &Candidate| !o.cites && !o.bare && same_title(&o.title, &c.title);
+    // Nor is such a line after the Item's heading, inside a later Item: a
+    // heading of the Item with the same title comes before it, with lines of
+    // later Items only between them, and the next line of another Item after
+    // it comes later in the form than the last of those. A run-in heading
+    // after a contents list stays, since the body's next heading goes back to
+    // an Item that the list printed before it.
+    let after_heading = |i: usize, c: &Candidate| {
+        let before = cands[..i].iter().rev().take_while(|o| o.label == c.label || later(&o.label, &c.label));
+        let Some(heading) = before.clone().position(|o| o.label == c.label && heading_of(c, o)) else {
+            return false;
+        };
+        let last = before.take(heading).find(|o| o.label != c.label).map_or(&c.label, |o| &o.label);
+        cands[i + 1..].iter().find(|o| o.label != c.label).is_none_or(|o| later(&o.label, last))
+    };
     let cited: Vec<bool> = cands
         .iter()
         .enumerate()
         .map(|(i, c)| {
             let last = place(&c.label).1;
             c.cites
-                && cands[i + 1..]
+                && (cands[i + 1..]
                     .iter()
                     .take_while(|o| {
                         o.label == c.label || place(&o.label).0.zip(last).is_none_or(|(other, cited)| other < cited)
                     })
-                    .any(|o| !o.cites && !o.bare && o.label == c.label && same_title(&o.title, &c.title))
+                    .any(|o| o.label == c.label && heading_of(c, o))
+                    || after_heading(i, c))
         })
         .collect();
     let cands: Vec<Candidate> = cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect();
@@ -1455,15 +1479,22 @@ const JOINING_WORDS: &[&str] =
 /// that cites an Item on the next line does: "see", "as discussed under".
 const OPEN_WORDS: &[&str] = &["see", "See", "under", "within", "this"];
 
+/// Words that a sentence goes on after with the name of a caption, so that a
+/// line of running text that ends with one cites the Item printed on the next
+/// line: "under the caption", "in the section entitled".
+const CAPTION_WORDS: &[&str] = &["caption", "captions", "captioned", "heading", "headings", "entitled", "titled"];
+
 /// A line that holds only a PART label: `PART II,`, `Part I -`.
 static PART_LABEL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[ \t]*(?i:part)[ \t]+[IVX]{1,4}[ \t]*[,.:\-–—]*[ \t]*$").unwrap());
 
 /// Whether the line just above the line that starts at `line_start` stops
 /// inside a sentence, so that this line carries it on: it ends with a comma, a
-/// joining word or one of `OPEN_WORDS`. A hard-wrapped cross-reference starts
-/// its line that way ("The information set forth in Part II," then "Item 7.
-/// Management's Discussion and Analysis, of the Company's Annual Report ...").
+/// joining word or one of `OPEN_WORDS` or `CAPTION_WORDS`. A hard-wrapped
+/// cross-reference starts its line that way ("The information set forth in
+/// Part II," then "Item 7. Management's Discussion and Analysis, of the
+/// Company's Annual Report ...", or "... is included under the caption" then
+/// "Item 7. Management's Discussion and Analysis ...").
 /// A heading comes after the end of a paragraph, a page header, a blank line
 /// or a PART label, also one printed with a comma ("PART II,"). A line that
 /// holds only a joining word links two headings ("Item 1. Business." then
@@ -1479,7 +1510,7 @@ fn continues_sentence(text: &str, line_start: usize) -> bool {
     }
     let last = line.trim_end().rsplit([' ', '\t']).next().unwrap_or("");
     let word = last.trim_start_matches(['(', '"', '“']);
-    last.ends_with(',') || JOINING_WORDS.contains(&word) || OPEN_WORDS.contains(&word)
+    last.ends_with(',') || [JOINING_WORDS, OPEN_WORDS, CAPTION_WORDS].iter().any(|words| words.contains(&word))
 }
 
 /// After an Item's title, a phrase that names the report or another document,
@@ -5889,6 +5920,130 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_1", "item_6", "item_7", "item_8"]);
         assert!(s[2].heading.starts_with("Item 7. Management's Discussion and Analysis of the Company's 1998"));
+    }
+
+    #[test]
+    fn item_line_that_cites_a_document_inside_a_later_item_is_not_a_heading() {
+        // Item 8 points to statements after the signatures, and Item 9A cites
+        // it in a sentence of its own.
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(60);
+        let line = "Item 8. Financial Statements and Supplementary Data, of this report describes the notes.";
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\nThe statements start on page F-1.\n\
+             Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure\nNone.\n\
+             Item 9A. Controls and Procedures\n{body}\nThe notes are due in 2030.\n{line}\n{long}\n\
+             Item 9B. Other Information\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_8", "item_9", "item_9a", "item_9b"]);
+        assert_eq!(s[2].heading, "Item 8. Financial Statements and Supplementary Data");
+        assert!(s[4].text.contains(&format!("\n{line}\n")));
+        // The same in the last Item, with no Item line after it.
+        let text = format!(
+            "PART II\nItem 8. Financial Statements and Supplementary Data\nThe statements start on page F-1.\n\
+             Item 9A. Controls and Procedures\n{body}\n\
+             Item 15. Exhibits and Financial Statement Schedules\n{body}\nThe schedules are omitted.\n{line}\n{long}\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_9a", "item_15"]);
+        assert!(s[2].text.contains(&format!("\n{line}\n")));
+        // A 10-Q's Item 5 that cites Part II Item 1A, and an 8-K's Item 8.01
+        // that cites Item 7.01.
+        let text = format!(
+            "PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n{body}\n\
+             PART II. OTHER INFORMATION\nItem 1A. Risk Factors\nThere have been no material changes.\n\
+             Item 5. Other Information\n{body}\nThe plan was adopted.\n\
+             Item 1A. Risk Factors, of our Annual Report on Form 10-K for 2019 describes the risks.\n{long}\n\
+             Item 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_2_item_1a", "part_2_item_5", "part_2_item_6"]);
+        assert_eq!(s[1].heading, "Item 1A. Risk Factors");
+        let text = format!(
+            "Item 7.01 Regulation FD Disclosure\nSee Item 8.01.\nItem 8.01 Other Events\n{body}\n\
+             The press release is attached.\nItem 7.01 Regulation FD Disclosure, of this report furnishes it.\n\
+             {long}\nItem 9.01 Financial Statements and Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::EightK);
+        assert_eq!(ids(&s), ["item_7.01", "item_8.01", "item_9.01"]);
+        assert_eq!(s[0].heading, "Item 7.01 Regulation FD Disclosure");
+    }
+
+    #[test]
+    fn item_lines_that_cite_a_document_after_a_contents_list_stay() {
+        // A run-in heading of the body's first Item after a contents list that
+        // prints the Item and later ones: the body's next heading goes back to
+        // an Item the list printed.
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(60);
+        let run_in = "Item 1. Business, of the Company's 1998 Annual Report to Shareholders is incorporated herein by \
+                      reference.";
+        let text = format!(
+            "TABLE OF CONTENTS\nItem 1. Business\nItem 7. Management's Discussion and Analysis\n\
+             Item 8. Financial Statements and Supplementary Data\nPART I\n{run_in}\n{long}\nPART II\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_8"]);
+        assert_eq!(s[0].heading, run_in);
+        // A run-in heading of a later Item: the body's heading of an earlier
+        // Item comes between it and the list.
+        let run_in = "Item 7. Management's Discussion and Analysis of the Company's 1998 Annual Report is incorporated \
+                      herein by reference.";
+        let text = format!(
+            "TABLE OF CONTENTS\nItem 1. Business\nItem 7. Management's Discussion and Analysis\n\
+             Item 8. Financial Statements and Supplementary Data\nPART I\nItem 1. Business\n{body}\nPART II\n\
+             {run_in}\n{long}\nItem 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_8"]);
+        assert_eq!(s[1].heading, run_in);
+    }
+
+    #[test]
+    fn item_line_after_a_line_that_names_a_caption_is_not_a_heading() {
+        // A cross-reference that names no document, wrapped after "under the
+        // caption", before Item 7's heading and inside Item 7A after it.
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(60);
+        let reference = "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                         in the 1998 Annual Report.";
+        for above in ["is set forth under the caption", "under the headings", "in the section entitled", "captioned"] {
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\nPART II\nItem 6. Selected Financial Data\n{body}\n\
+                 The discussion of liquidity {above}\n{reference}\n{long}\n\
+                 Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 {body}\nItem 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_6", "item_7", "item_8"], "{above}");
+            assert!(s[1].text.contains(reference), "{above}");
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\nPART II\n\
+                 Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 The discussion follows Item 8.\n\
+                 Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+                 The discussion of liquidity {above}\n{reference}\n{long}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_7", "item_7a", "item_8"], "{above}");
+            assert!(s[2].text.contains(reference), "{above}");
+        }
+        let after = |above: &str| continues_sentence(&format!("{above}\nItem 7. Title"), above.len() + 1);
+        for above in ["under the caption", "the section titled", "under the captions", "(heading"] {
+            assert!(after(above), "{above:?}");
+        }
+        // Capitals, as a table header prints them, and a caption word with a
+        // period.
+        for above in ["Item and Caption", "CAPTION", "HEADING", "under this heading."] {
+            assert!(!after(above), "{above:?}");
+        }
     }
 
     #[test]
