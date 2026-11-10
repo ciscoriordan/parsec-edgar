@@ -59,29 +59,31 @@
 //!
 //! Some annual report text has no Item heading of its own and belongs to no
 //! Item: financial statements printed with no Item 8 heading or after Item 9
-//! of a 10-K, reports on internal control printed after the other
-//! information Item (10-K Item 9B, 10-KSB Item 8B), which an auditors' report
-//! or a management's report on internal control heading ends, and
-//! statements, schedules, an exhibit index, a consent or a glossary printed
-//! after the last Item. A block heading (an auditors' report,
-//! an index to the financial statements, a financial statement schedule, an
-//! exhibit index or an accountants' consent) ends the Items that never hold
-//! such text: changes in accountants (10-K Item 9, 10-KSB Item 8) and the
-//! Items after the exhibits (10-K Item 16, 10-KSB Items 14 and 15), which a
-//! glossary heading ends too. It ends 10-K Item 7A too when no Item 8 heading
-//! was found. It does not when the section also holds the next Item ("Items 9
-//! and 9A.", or "ITEM 9 A" after "ITEM 9."), or when the Item after the
-//! exhibits is titled as the exhibits Item (Item 16 of some 2003 10-Ks). In
-//! other Items these headings are part of the Item: the statements (10-K Item
-//! 8, 10-KSB Item 7), the report on internal control (10-K Item 9A, 10-KSB
-//! Item 8A), and the statements and exhibit index of the exhibits Item (10-K
-//! Item 15, 10-KSB Item 13, or an Item after the statements Item that is
-//! titled as the exhibits Item). The exhibits Item ends only where it prints
-//! statements whose pages are numbered apart from the report's (F-1, F-2,
-//! ...) after all of its own text: an index with such page numbers, then at
-//! least two of the statements it lists, and none of the Item's own text
-//! after them (an exhibit index, an exhibit list's caption or table header,
-//! or a caption such as "(b) Reports on Form 8-K").
+//! of a 10-K, reports on internal control printed after the other information
+//! Item, and statements, schedules, an exhibit index, a consent or a glossary
+//! printed after the last Item. A block heading (an auditors' report, an index
+//! to the financial statements, a financial statement schedule, an exhibit
+//! index or an accountants' consent) ends the Items that never hold such text:
+//! changes in accountants (10-K Item 9, 10-KSB Item 8) and the Items after the
+//! exhibits (10-K Item 16, 10-KSB Items 14 and 15). It ends 10-K Item 7A too
+//! when no Item 8 heading was found. It does not when the section also holds
+//! the next Item ("Items 9 and 9A.", or "ITEM 9 A" after "ITEM 9."), or when
+//! the Item after the exhibits is titled as the exhibits Item (Item 16 of some
+//! 2003 10-Ks). A glossary heading ends the Items after the exhibits too, and
+//! the exhibits Item when no Item follows it, unless the line is an exhibit's
+//! description in a list printed cell by cell (next to an exhibit number
+//! alone). An auditors' report or a management's report on internal control
+//! ends the other information Item (10-K Item 9B, 10-KSB Item 8B). In other
+//! Items these headings are part of the Item: the statements (10-K Item 8,
+//! 10-KSB Item 7), the report on internal control (10-K Item 9A, 10-KSB Item
+//! 8A), and the statements and exhibit index of the exhibits Item (10-K Item
+//! 15, 10-KSB Item 13, or an Item after the statements Item that is titled as
+//! the exhibits Item). The exhibits Item ends only where it prints statements
+//! whose pages are numbered apart from the report's (F-1, F-2, ...) after all
+//! of its own text: an index with such page numbers, then at least two of the
+//! statements it lists, and none of the Item's own text after them (an exhibit
+//! index, an exhibit list's caption or table header, or a caption such as "(b)
+//! Reports on Form 8-K").
 
 use std::sync::LazyLock;
 
@@ -1289,6 +1291,12 @@ fn exhibit_cell(text: &str, pos: usize) -> bool {
     [above, below].into_iter().flatten().any(|l| EXHIBIT_NUMBER.is_match(l.trim()))
 }
 
+/// Start of the first glossary heading in a section that is not an exhibit's
+/// description in an exhibit list ("99.1" then "Glossary of Terms").
+fn glossary_start(text: &str, start: usize, end: usize) -> Option<usize> {
+    heading_starts(&GLOSSARY, text, start, end).find(|&p| !exhibit_cell(text, p))
+}
+
 /// Start of a power of attorney printed after the last Item's text and
 /// before the signatures, under a heading of its own.
 fn power_of_attorney(text: &str, start: usize, end: usize) -> Option<usize> {
@@ -1700,14 +1708,18 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             let start = cand.pos;
             let next = starts.get(i + 1).copied().unwrap_or(doc_end);
             let end = stops.iter().copied().find(|&p| p > start && p < next).unwrap_or(next).max(start);
+            let last = i + 1 == picks.len();
             let end = if ends_at_block(ki, cand) && !holds_more(ci, end) {
                 let block = heading_start(&BLOCK_HEADING, text, start, end);
-                let glossary = after_exhibits(ki, cand).then(|| heading_start(&GLOSSARY, text, start, end)).flatten();
+                let glossary = after_exhibits(ki, cand).then(|| glossary_start(text, start, end)).flatten();
                 block.into_iter().chain(glossary).min().unwrap_or(end)
             } else if other_information(ki) {
                 heading_start(&CONTROLS_REPORT, text, start, end).unwrap_or(end)
             } else if exhibits_item(ki, cand) {
-                separate_statements(text, start, end).unwrap_or(end)
+                // A glossary ends the exhibits Item when no Item follows it.
+                let statements = separate_statements(text, start, end);
+                let glossary = last.then(|| glossary_start(text, start, end)).flatten();
+                statements.into_iter().chain(glossary).min().unwrap_or(end)
             } else {
                 end
             };
@@ -3877,6 +3889,54 @@ mod tests {
         let s = extract_sections(&text, FormKind::TenKsb);
         assert_eq!(ids(&s), ["item_13", "item_14"]);
         assert_eq!(s[1].end, text.find("GLOSSARY OF TERMS").unwrap());
+    }
+
+    #[test]
+    fn glossary_after_the_exhibits_item_ends_it_when_no_item_follows() {
+        // Before Item 16 was added (2016), the glossary follows Item 15's
+        // text, or its last schedule; the same for a 10-K's Item 14 before
+        // 2003.
+        let body = BODY.repeat(30);
+        let glossary = "GLOSSARY OF TERMS\nFollowing is a glossary of selected terms used in this report:\n\
+                        Adits. A horizontal passage leading into a mine.\nAnode. A positively charged metal sheet.\n";
+        let schedule = "SCHEDULE II – VALUATION AND QUALIFYING ACCOUNTS\nMillions\n2014\n\
+                        Materials and Supplies Valuation Reserve\t$8\t$7\t$—\t$2\t$13\n\
+                        (A)\tReduced reserve to appropriate level.\n";
+        for (heading, tail) in [
+            ("Item 15. Exhibits, Financial Statement Schedules.", "(a)(3). Exhibits.\nSee the Exhibit Index.\n"),
+            ("ITEM 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES", schedule),
+            ("ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K", "(b) None.\n"),
+        ] {
+            let text = format!(
+                "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS\n{body}\n{heading}\n{body}\n{tail}\
+                 {glossary}SIGNATURES\nPursuant to ...\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s.len(), 2, "{heading}");
+            assert_eq!(s[1].end, text.find("GLOSSARY OF TERMS").unwrap(), "{heading}");
+        }
+    }
+
+    #[test]
+    fn glossary_in_an_exhibit_list_or_before_item_16_stays_in_the_exhibits_item() {
+        // An exhibit list printed cell by cell names a glossary filed as an
+        // exhibit; a glossary that Item 15 prints before Item 16 is inside it.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{body}\n\
+             ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\nExhibit\nNumber\nDescription\n\
+             21\nSubsidiaries of the Registrant\n99.1\nGlossary of Terms\n101.INS\nXBRL Instance Document\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[1].end, text.find("SIGNATURES").unwrap());
+        let text = format!(
+            "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\nGLOSSARY OF TERMS\n\
+             MMcf. Million cubic feet.\nITEM 16. FORM 10-K SUMMARY\nNone.\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_15", "item_16"]);
+        assert_eq!(s[0].end, s[1].start);
     }
 
     #[test]
