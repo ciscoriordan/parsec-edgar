@@ -826,8 +826,11 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
 /// when those that end a printed page (`ends_page`) are numbered 1, 2, 3 and
 /// so on, as the pages of signatures ("S-1", "S-2") or of an exhibit index
 /// are. Only those copies go, so a reference to a page ("S-1" in an index)
-/// stays, and so does the end of a sentence wrapped onto its own line
-/// ("... begins on page" over "E-1.").
+/// stays where it does not end a page, and so does the end of a sentence
+/// wrapped onto its own line ("... begins on page" over "E-1."), or the
+/// rest of a line that ends with a colon or with a word that such a name
+/// follows: Form, Exhibit, Annex, Appendix or page ("... Registration
+/// Statement on Form" over "S-1", "... rated by S&P:" over "A-1").
 ///
 /// A running header or footer that goes also takes the lines with its text
 /// and a page number with a prefix in place of its page number, as on the
@@ -856,6 +859,16 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>], ends_
     // Whether at least 90% of `total` copies or steps between copies pass a test.
     let mostly = |count: usize, total: usize| count * 10 >= total * 9;
     let mut drop = HashSet::new();
+    // Whether a line is the rest of the line above, which ends with a colon
+    // or with a word that the name of a form, an exhibit or a page follows.
+    let goes_on = |i: usize| {
+        i.checked_sub(1).is_some_and(|above| {
+            let above = lines[above];
+            let last = above.rsplit(|c: char| !c.is_alphanumeric()).next().unwrap_or("");
+            above.ends_with(':')
+                || ["form", "exhibit", "annex", "appendix", "page"].iter().any(|w| last.eq_ignore_ascii_case(w))
+        })
+    };
 
     // Line indexes and page numbers, keyed as page_numbers keys them.
     let mut families: HashMap<PageKey, Vec<(usize, PageNumber)>> = HashMap::new();
@@ -875,7 +888,7 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>], ends_
     for (&(before, after, place), seen) in &families {
         let n = seen.len();
         if place == Place::Label && !before.is_empty() {
-            let ending = seen.iter().filter(|&&(i, _)| ends_page[i] && !lines[i].ends_with('.'));
+            let ending = seen.iter().filter(|&&(i, _)| ends_page[i] && !lines[i].ends_with('.') && !goes_on(i));
             if ending.clone().zip(1..).all(|((_, p), k)| p.number == k) {
                 drop.extend(ending.map(|&(i, _)| i));
             }
@@ -1409,6 +1422,14 @@ mod tests {
         // A reference to page S-1 in an index stays, while the page's own number goes.
         let html = format!("<p>Schedule II</p><p>S-1</p><p>Text.</p>{page_break}<p>Schedule II.</p><p>S-1</p>");
         assert_eq!(tables_of(&html).0, "Schedule II\nS-1\nText.\nSchedule II.\n");
+        // A form's name wrapped just before a page tag of a text filing stays.
+        let raw = "<DOCUMENT>\n<TEXT>\nText.\n<PAGE>\nEXHIBIT INDEX\n3.1  Articles, incorporated by reference to \
+                   the\n     Registration Statement on Form\n     S-1\n<PAGE>\n     (File No. 33-12345).\n</TEXT>";
+        assert_eq!(
+            document_to_text(raw),
+            "Text.\nEXHIBIT INDEX\n3.1  Articles, incorporated by reference to the\nRegistration Statement on Form\nS-1\n\
+             (File No. 33-12345).\n"
+        );
     }
 
     /// Few lines that look like the page numbers of the last pages stay when
@@ -1427,6 +1448,11 @@ mod tests {
             format!("<p>Text.</p><p>- 1</p>{page_break}<p>Text.</p><p>- 2</p>{page_break}<p>Text.</p>"),
             format!("<p>Text.</p><p>1-1</p>{page_break}<p>Text.</p><p>1-2</p>{page_break}<p>Text.</p>"),
             format!("<table><tr><td>Schedule<br>II</td><td>S-1</td></tr></table>{page_break}<p>Text.</p>"),
+            // The rest of a line that ends with a colon or a word that such a
+            // name follows, also on the last line of the document.
+            format!("<p>Text.</p>{page_break}<p>Our commercial paper is rated by S&amp;P:</p><p>A-1</p>"),
+            format!("<p>Filed as Exhibit</p><p>A-1</p>{page_break}<p>to the agreement.</p>"),
+            format!("<p>Text.</p>{page_break}<p>The plan is filed as Appendix</p><p>B-1</p>"),
         ];
         for html in cases {
             // Every line of the input stays.
