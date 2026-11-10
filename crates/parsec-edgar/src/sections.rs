@@ -33,8 +33,10 @@
 //! heading. A heading printed with a footnote's number ("Item
 //! 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed by its
 //! text, and one followed by a running header of its own Item that prints the
-//! page, or by an index of Items after the body, is no such row. A copy
-//! printed after the signature block's sentence ("Pursuant to the
+//! page, or by an index of Items after the body, is no such row. Item lines
+//! above a contents list that the list repeats, as a 10-Q/A's explanatory
+//! note prints the Items it amends, go with the list, with pages or without.
+//! A copy printed after the signature block's sentence ("Pursuant to the
 //! requirements of ... duly caused"), such as an exhibit's, is no body
 //! heading: it goes, and the copy before the signatures stays when an Item
 //! earlier in the form's order with text of its own comes before it, however
@@ -1520,7 +1522,10 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// closely, before the signatures (a list of one Item and "SIGNATURES"), or
 /// when it comes just after a page-numbered row and names a later Item (the
 /// last row of a cross-reference index, which prints no page, in a 10-K whose
-/// body prints no other Item heading). The later copy is a listing when a signatures heading comes between them, at or after the
+/// body prints no other Item heading). An earlier copy before the body whose
+/// later copy is itself a contents entry lists the Item too, as a 10-Q/A's
+/// explanatory note above a contents list without pages does. The later copy
+/// is a listing when a signatures heading comes between them, at or after the
 /// first body heading (contents often list "Signatures" too). In a 10-Q this
 /// matters most: a contents entry for Part I Item 2 could otherwise be taken as
 /// Part I and the body heading as Part II. Rows that print a page number
@@ -1614,8 +1619,13 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // (it is the later copy of a pair), so this is where the body starts.
     let body_start = (0..n).find(|&i| body[i] && !contents[i]).map(|i| cands[i].pos);
     // Spread to the other entries of a contents block: mark the runs of close
-    // candidates that lead up to a contents entry.
+    // candidates that lead up to a contents entry. An earlier copy before the
+    // body whose later copy is a contents entry lists the Item too, as a
+    // 10-Q/A's explanatory note above a contents list without pages does.
     let mut leads = contents.clone();
+    for &(a, b) in &later_copies {
+        leads[a] |= contents[b] && body_start.is_some_and(|s| cands[a].pos < s);
+    }
     for i in (0..n.saturating_sub(1)).rev() {
         if leads[i + 1] && !paired[i] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
             leads[i] = true;
@@ -1657,7 +1667,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     if !later_copies.is_empty() {
         let body_start = body_start.unwrap_or(0);
         let sigs = signature_lines(text);
-        for (a, b) in later_copies {
+        for &(a, b) in &later_copies {
             let from = body_start.max(cands[a].pos + 1);
             after[b] = sigs.iter().any(|&p| p >= from && p < cands[b].pos);
         }
@@ -4751,6 +4761,61 @@ Pursuant to ...
             s[0].heading,
             "Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations"
         );
+    }
+
+    #[test]
+    fn explanatory_note_items_above_contents_without_pages_are_no_headings() {
+        // The note lists the Items it amends, with text after its last line,
+        // above a contents list whose rows print no pages. Its lines match
+        // the contents rows, which match the body headings: they list the
+        // Items too, and its Item 1, whose title the body does not print,
+        // goes with them.
+        let body = BODY.repeat(30);
+        for note_text in [format!("{body}\n"), "No other Items are amended.\n".to_owned()] {
+            let text = format!(
+                "FORM 10-Q/A\nEXPLANATORY NOTE\nThis amendment restates the following items:\n\
+                 Part I – Item 1. Financial Statements\n\
+                 Part I – Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 Part I – Item 4. Controls and Procedures\n{note_text}Part I. Financial Information\n\
+                 Item 1.\tConsolidated Financial Statements\nConsolidated Balance Sheets\n\
+                 Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 Item 3.\tQuantitative and Qualitative Disclosures About Market Risk\n\
+                 Item 4.\tControls and Procedures\nPart II. Other Information\nItem 1.\tLegal Proceedings\n\
+                 Item 6.\tExhibits\nSignatures\nConsolidated Balance Sheets\n{body}{body}\n\
+                 Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+                 Item 3.\tQuantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+                 Item 4.\tControls and Procedures\n{body}\nPART II. OTHER INFORMATION\nItem 1.\tLegal Proceedings\n{body}\n\
+                 Item 6.\tExhibits\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            let all = ["part_1_item_2", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"];
+            assert_eq!(ids(&s), all, "{note_text}");
+            assert_eq!(s[0].start, text.find("Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\nLorem").unwrap());
+        }
+        // A body heading whose later short copy lists the Item again, above a
+        // third copy, stays: it is not before the body.
+        let short = BODY.repeat(12);
+        let text = format!(
+            "TABLE OF CONTENTS\nItem 1. Financial Statements\nItem 2. Management's Discussion and Analysis\n\
+             Item 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             INDEX\nItem 1. Financial Statements\nItem 2. Management's Discussion and Analysis\n\
+             Item 1. Financial Statements\n{short}\nItem 2. Management's Discussion and Analysis\n{short}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2"]);
+        assert!(s[0].text.ends_with(body.trim()));
+        // The statements come before a contents list of the other Items, and
+        // an index of Items after the body lists Item 1 again: that copy is
+        // no contents entry, so the statements' heading stays.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}{body}\nTABLE OF CONTENTS\n\
+             Item 2. Management's Discussion and Analysis\nItem 4. Controls and Procedures\n\
+             Item 2. Management's Discussion and Analysis\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             INDEX OF ITEMS\nItem 1. Financial Statements\nItem 2. Management's Discussion and Analysis\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s)[0], "part_1_item_1");
+        assert_eq!(s[0].start, text.find("Item 1. Financial Statements").unwrap());
     }
 
     #[test]
