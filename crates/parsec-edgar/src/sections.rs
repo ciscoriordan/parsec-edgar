@@ -22,6 +22,13 @@
 //! In every form, so is an Item line that carries on a sentence from the line
 //! just above it, which ends with a comma or with a word such as "in", "see"
 //! or "to" ("as set forth in Part II,").
+//! A heading that names several Items ("Items 1 and 2.", "Items 1 through
+//! 5.") starts the first of them. One that puts a comma after the Item
+//! number, as running text also does ("Item 8, which ..."), counts only when
+//! the line ends where the Item's standard title ends ("Item 8, Financial
+//! Statements and Supplementary Data"), or where the numbers of more Items in
+//! form order, the last after "and", or the standard titles of all of them
+//! end ("ITEMS 9, 9A AND 9B.").
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins.
 //!
@@ -465,7 +472,8 @@ struct Candidate {
     /// The executive officers caption: the title names executive officers, or
     /// a 10-K numbers the heading 4A.
     officers: bool,
-    /// The heading names a second Item: `Items 9 and 9A.`, `ITEM 7A & 8.`
+    /// The heading names a second Item: `Items 9 and 9A.`, `ITEM 7A & 8.`,
+    /// `ITEMS 9, 9A AND 9B.`
     joined: bool,
     /// Distance to the next heading of a different Item.
     gap: usize,
@@ -500,6 +508,78 @@ fn heading_tail_ok(tail: &str) -> bool {
 /// in `Items 1 and 2.`, `& 8.` in `ITEM 7A & 8.`
 static JOINED: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?i:and|&|through)[ \t]+(?i:items?[ \t]*)?\d").unwrap());
+
+/// After the first Item number of a heading, a comma, more Item numbers and
+/// the last one after "and" or "&": `, 9A AND 9B.` in `ITEMS 9, 9A AND
+/// 9B.`, `., 1A. and 2.` in `ITEMS 1., 1A. and 2. BUSINESS, ...`.
+static ITEM_LIST: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^[ \t]*\.?((?:[ \t]*,[ \t]*\d{1,2}[A-Ca-c]?\.?)+)[ \t]*,?[ \t]*(?:(?i:and)|&)[ \t]*(\d{1,2}[A-Ca-c]?)[ \t]*[.:\-–—]?",
+    )
+    .unwrap()
+});
+
+/// An Item number in an `ITEM_LIST` match.
+static ITEM_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d{1,2}[A-Ca-c]?").unwrap());
+
+/// After the Item number, a comma: `Item 8, Financial Statements`.
+static ITEM_COMMA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*\.?[ \t]*,").unwrap());
+
+/// The words of a title as compared whole with a standard title: the stems
+/// (`word_stem`) of its words and numbers, without joining words, so
+/// "FINANCIAL STATEMENTS & SUPPLEMENTARY DATA." has the words of "Financial
+/// Statements and Supplementary Data", and a page number is a word.
+fn title_words(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '’')
+        .map(|w| w.trim_matches(['\'', '’']))
+        .filter(|w| !w.is_empty())
+        .map(word_stem)
+        .filter(|w| !JOINING_WORDS.contains(&w.as_str()))
+        .collect()
+}
+
+/// The keys of the Items `labels` names, when they are in form order: one
+/// list for each part that defines them all (a 10-Q has Items 1 to 4 in both).
+fn in_form_order<'k>(labels: &[String], keys: &'k [Key]) -> Vec<Vec<&'k Key>> {
+    let mut parts: Vec<Option<&str>> = keys.iter().map(|k| k.part).collect();
+    parts.dedup();
+    parts
+        .into_iter()
+        .filter_map(|part| {
+            let at: Vec<usize> = labels
+                .iter()
+                .map(|l| keys.iter().position(|k| k.item == l && k.part == part))
+                .collect::<Option<_>>()?;
+            at.windows(2).all(|w| w[0] < w[1]).then(|| at.iter().map(|&i| &keys[i]).collect())
+        })
+        .collect()
+}
+
+/// A heading that puts a comma after the Item number: `Item 8, Financial
+/// Statements and Supplementary Data`, or `ITEMS 9, 9A AND 9B.` for several
+/// Items. Running text cites Items the same way ("Item 8, which ...", "Item
+/// 7, Management's Discussion and Analysis, of our Annual Report"), so the
+/// line must end where the standard title of the Item ends, or for several
+/// Items, which must be in form order, where their numbers or the standard
+/// titles of all of them end. `after` is the line after the first Item
+/// number. Returns the title, and whether the heading names more Items.
+fn listed_items<'a>(label: &str, after: &'a str, keys: &[Key]) -> Option<(&'a str, bool)> {
+    if let Some(list) = ITEM_LIST.captures(after) {
+        let mut labels = vec![label.to_owned()];
+        labels.extend(ITEM_NUMBER.find_iter(&list[1]).map(|n| n.as_str().to_ascii_uppercase()));
+        labels.push(list[2].to_ascii_uppercase());
+        let rest = after[list.get(0).expect("whole match").end()..].trim_start();
+        let words = title_words(rest);
+        let titled = |ks: &Vec<&Key>| words == ks.iter().flat_map(|k| title_words(k.title)).collect::<Vec<_>>();
+        let fits =
+            heading_tail_ok(rest) && in_form_order(&labels, keys).iter().any(|ks| words.is_empty() || titled(ks));
+        return fits.then_some((rest, true));
+    }
+    let rest = after[ITEM_COMMA.find(after)?.end()..].trim_start();
+    let words = title_words(rest);
+    let titled = heading_tail_ok(rest) && keys.iter().any(|k| k.item == label && title_words(k.title) == words);
+    titled.then_some((rest, false))
+}
 
 /// `Item 3. - Quantitative ...`, `ITEM 1 -- FINANCIAL STATEMENTS`: dashes
 /// right after the separator that the heading pattern takes are a second
@@ -605,28 +685,35 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
         .captures_iter(text)
         .filter_map(|c| {
             let m = c.get(0).expect("group 0 always matches");
+            let (number, tail) = (c.get(1).expect("Item number"), c.get(2).expect("tail"));
+            let label = number.as_str().to_ascii_uppercase();
+            // "Item 8, Financial Statements ...", "ITEMS 9, 9A AND 9B."
+            let listed = listed_items(&label, &text[number.end()..m.end()], keys);
             // A bare sub-item ("Item 9(a).") is a heading only as a lettered
             // Item whose title is on the next line.
-            let tail_ok = heading_tail_ok(after_dashes(&c[2]));
-            if !tail_ok && (kind == FormKind::EightK || !c[2].starts_with('(')) {
+            let tail_ok = listed.is_some() || heading_tail_ok(after_dashes(tail.as_str()));
+            if !tail_ok && (kind == FormKind::EightK || !tail.as_str().starts_with('(')) {
                 return None;
             }
             if continues_sentence(text, m.start()) {
                 return None;
             }
             let heading: String = m.as_str().trim().chars().take(300).collect();
-            let (number, tail) = (c.get(1).expect("Item number"), c.get(2).expect("tail"));
-            let label = number.as_str().to_ascii_uppercase();
-            let (label, tail) = if kind == FormKind::EightK {
-                (label, tail.as_str())
+            let (label, tail, joined) = if let Some((title, more)) = listed {
+                (label, title, more)
             } else {
-                let (label, tail) = split_letter(&label, &text[number.end()..tail.start()], tail.as_str());
-                let lettered = lettered_sub_item(&label, tail, text, m.end(), keys);
-                if !tail_ok && lettered.is_none() {
-                    return None;
-                }
-                let (label, tail) = lettered.unwrap_or((label, tail));
-                if kind.annual() { officers_sub_item(&label, tail, keys) } else { (label, tail) }
+                let (label, tail) = if kind == FormKind::EightK {
+                    (label, tail.as_str())
+                } else {
+                    let (label, tail) = split_letter(&label, &text[number.end()..tail.start()], tail.as_str());
+                    let lettered = lettered_sub_item(&label, tail, text, m.end(), keys);
+                    if !tail_ok && lettered.is_none() {
+                        return None;
+                    }
+                    let (label, tail) = lettered.unwrap_or((label, tail));
+                    if kind.annual() { officers_sub_item(&label, tail, keys) } else { (label, tail) }
+                };
+                (label, tail, JOINED.is_match(after_dashes(tail).trim_start()))
             };
             let bare = !tail.chars().any(char::is_alphabetic);
             let title_text = if bare { next_line_title(text, m.end()) } else { tail };
@@ -635,7 +722,6 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
             // officers caption, also when its title says only "Officers" or is
             // on the lines below.
             let officers = OFFICERS.is_match(title_text) || (kind.annual() && label == "4A");
-            let joined = JOINED.is_match(after_dashes(tail).trim_start());
             let (part, title_part) = if kind.quarterly() {
                 (part_above(text, m.start(), &label), part_by_title(&label, title_text, keys))
             } else {
@@ -1874,6 +1960,79 @@ mod tests {
         assert_eq!(split_letter("9", " ", "A (T). Controls"), ("9A".to_owned(), "Controls"));
         assert_eq!(split_letter("1", ". ", "A (T). General"), ("1".to_owned(), "A (T). General"));
         assert_eq!(split_letter("9", " ", "A (Tax) Matters"), ("9".to_owned(), "A (Tax) Matters"));
+    }
+
+    #[test]
+    fn comma_after_the_item_number_before_its_standard_title_is_a_heading() {
+        // A comma after the Item number, then the Item's standard title or
+        // nothing but the numbers of more Items, or their standard titles.
+        // A heading that names several Items starts the first, as "Items 9
+        // and 9A." does, and keeps the auditors' report on internal control.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nITEMS 1., 1A. and 2. BUSINESS, RISK FACTORS AND PROPERTIES\n{body}\n\
+             Item 1B. Unresolved Staff Comments\nNone.\nPART II\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+             Item 8, Financial Statements and Supplementary Data\n{body}\nITEMS 9, 9A AND 9B.\nNone.\n{body}\n\
+             Report of Independent Registered Public Accounting Firm\n{body}\nPART III\n\
+             ITEMS 10., 11., 12. AND 13.\nSee the proxy statement.\n\
+             ITEM 14, PRINCIPAL ACCOUNTANT FEES AND SERVICES.\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1b", "item_7", "item_8", "item_9", "item_10", "item_14"]);
+        assert_eq!(s[3].heading, "Item 8, Financial Statements and Supplementary Data");
+        assert!(s[4].text.contains("\nReport of Independent Registered Public Accounting Firm\n"));
+        assert_eq!(s[5].text, "ITEMS 10., 11., 12. AND 13.\nSee the proxy statement.");
+        // In a 10-Q, with the standard title of either part.
+        let text = format!(
+            "PART I\nItem 1, Financial Statements\n{body}\nPART II\nItem 1, Legal Proceedings\n{body}\n\
+             Items 2, 3 & 4 — Unregistered Sales of Equity Securities and Use of Proceeds; Defaults Upon Senior \
+             Securities; Mine Safety Disclosures\nNone.\nItem 6, Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_2_item_1", "part_2_item_2", "part_2_item_6"]);
+        assert_eq!(listed_items("1", ", Legal Proceedings", TEN_Q), Some(("Legal Proceedings", false)));
+        assert_eq!(listed_items("9", ", 9A AND 9B.", TEN_K), Some(("", true)));
+        assert_eq!(
+            listed_items("2.02", ", Results of Operations and Financial Condition.", EIGHT_K),
+            Some(("Results of Operations and Financial Condition.", false))
+        );
+    }
+
+    #[test]
+    fn items_cited_with_a_comma_in_running_text_are_no_headings() {
+        // Lines that start with an Item number and a comma, but go on past
+        // the title, shorten it, name no title, list Items with no "and" (a
+        // running header) or out of form order, or carry on a sentence.
+        let body = BODY.repeat(30);
+        for (label, after) in [
+            ("8", ", which follows, holds the statements."),
+            ("7", ", Management's Discussion and Analysis of Financial Condition and Results of Operations, of our"),
+            ("7", ", \"Management's Discussion and Analysis.\""),
+            ("8", ", Financial Statements and Supplementary Data\t45"),
+            ("8", ", financial statements and supplementary data"),
+            ("8", ","),
+            ("9", ", 9A"),
+            ("9B", ", 9C, 10, 11, 12, 13"),
+            ("9", ", 9A and 9B are not applicable."),
+            ("3", ", 4, and 5 are not applicable and have been omitted."),
+            ("9B", ", 9A and 9C."),
+            ("1", ", 1A, 2 and 3; Part II – Items 5, 6, 7,"),
+            ("1", "., 1A. & 2.\tBusiness, Risk Factors and Properties\t1"),
+            ("9", ", 9A AND 9B. CHANGES IN ACCOUNTANTS; CONTROLS AND PROCEDURES"),
+            ("9", ", 9A and 99."),
+        ] {
+            assert_eq!(listed_items(label, after, TEN_K), None, "Item {label}{after}");
+        }
+        let text = format!(
+            "PART II\nItem 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             {body}\nItem 8, which follows, holds the statements.\nThe statements are incorporated pursuant to\n\
+             Item 8, Financial Statements and Supplementary Data.\nItem 9, 9A\n{body}{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_7", "item_8"]);
+        assert!(s[0].text.contains("\nItem 8, Financial Statements and Supplementary Data.\nItem 9, 9A\n"));
     }
 
     #[test]
