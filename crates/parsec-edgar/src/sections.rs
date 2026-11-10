@@ -15,17 +15,25 @@
 //! Before that, contents entries whose Item and title reappear in the body
 //! are dropped, and so is a bare page header ("Item 7") just above its titled
 //! heading. A list of one Item and "SIGNATURES", which an 8-K's cover can
-//! print just above the body, is such a contents list too. So are rows that
-//! end with a page number or a range of pages ("Item 3. Quantitative and
-//! Qualitative Disclosures About Market Risk   10 - 11") among other Item
-//! lines (another Item's line follows closely, or the line above, a Part's
-//! line aside, ends with a page too), with the rows just before them whose
-//! entries end with one and that name an earlier Item, as a contents list
-//! does, also when the body prints no heading for them; such a row is never
-//! taken for a body heading. A heading printed with a footnote's number
-//! ("Item 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed
-//! by its text, and one followed by a running header of its own Item that
-//! prints the page, or by an index of Items after the body, is no such row.
+//! print just above the body, is such a contents list too. So are rows that end
+//! with a page column among other Item lines (another Item's line follows
+//! closely, or the line above, a Part's line aside, ends with pages too): a
+//! page, a range of pages or a list of them ("Item 3. Quantitative and
+//! Qualitative Disclosures About Market Risk   10 - 11", "Item 1. Business
+//! 3-30, 64"). The Item line just before a row that names an earlier Item, and
+//! the one just after it that names a later Item and is followed closely by
+//! another Item's line, are rows too when their entries (the line and the
+//! wrapped title or the pages listed under it) end with a page column, as in a
+//! contents list; there the column may also say "cover", "N/A", "Not
+//! applicable", "None" or "*". Rows go also when the body prints no heading for
+//! them, and are never taken for a body heading. An Item line just after a row
+//! that names a later Item is a contents entry when its heading is printed
+//! again before any other Item heading: the last row of a cross-reference
+//! index, which prints no page, in a 10-K whose body prints no other Item
+//! heading. A heading printed with a footnote's number ("Item
+//! 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed by its
+//! text, and one followed by a running header of its own Item that prints the
+//! page, or by an index of Items after the body, is no such row.
 //! In a 10-Q or 10-QSB a `PART I` or `PART II` line just above a heading fixes
 //! its part, and without one a title that only one part uses for that Item
 //! number does. Such a line that starts with a Part I title and runs on as a
@@ -665,6 +673,24 @@ static F_PAGE_ENTRY: LazyLock<Regex> = LazyLock::new(|| {
 /// `Notes to Financial Statements<TAB>22-33`.
 static PAGE_REFERENCE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:\t| {2,}|\.{2,} ?)(?:[A-Z]{1,2} ?[-–] ?)?\d{1,3}(?:[ \t]*[,–-][ \t]*\d{1,3})?[ \t]*$").unwrap()
+});
+
+/// A contents row's page column at the end of a line, after a tab, two spaces
+/// or dot leaders: a page, a range or a list of them, `3`, `F-3`, `10 - 11`,
+/// `F-1 - F-20`, `3-30, 64`, `8-14, 16-23`.
+static ROW_PAGES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r"(?:\t| {{2,}}|\.{{2,}} ?){PAGES}(?:[ \t]*,[ \t]*{PAGES})*[ \t]*$")).unwrap()
+});
+
+/// A page or a range of pages: `3`, `F-3`, `10 - 11`, `F-1 - F-20`.
+const PAGES: &str = r"(?:[A-Z]{1,2} ?[-–] ?)?\d{1,3}(?:[ \t]*[–-][ \t]*(?:[A-Z]{1,2} ?[-–] ?)?\d{1,3})?";
+
+/// `ROW_PAGES`, or a page column of a cross-reference index that also names
+/// the cover or says that no page answers the Item: `cover, 66, 68`, `N/A`,
+/// `Not applicable.`, `None`, `*`.
+static ENTRY_PAGES: LazyLock<Regex> = LazyLock::new(|| {
+    let value = format!(r"(?:{PAGES}|(?i:cover(?:[ \t]+page)?|n/a|not[ \t]+applicable|none)|[*†‡]{{1,3}})");
+    Regex::new(&format!(r"(?:\t| {{2,}}|\.{{2,}} ?){value}(?:[ \t]*,[ \t]*{value})*[ \t]*\.?[ \t]*$")).unwrap()
 });
 
 /// `PART I`, `Part II - Other Information`, also as the start of a heading line.
@@ -1318,7 +1344,10 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// Items come between them. The earlier copy is a contents entry when it starts
 /// the shorter stretch of text. With no other Item between them, it is one when
 /// a signatures line follows it and the later copy follows that line closely,
-/// before the signatures (a list of one Item and "SIGNATURES"). The later copy
+/// before the signatures (a list of one Item and "SIGNATURES"), or when it
+/// comes just after a page-numbered row and names a later Item (the last row
+/// of a cross-reference index, which prints no page, in a 10-K whose body
+/// prints no other Item heading). The later copy
 /// is a listing when a signatures heading comes between them, at or after the
 /// first body heading (contents often list "Signatures" too). In a 10-Q this
 /// matters most: a contents entry for Part I Item 2 could otherwise be taken as
@@ -1364,6 +1393,26 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
                 paired[b] = true;
                 break;
             }
+        }
+    }
+    // The last row of a cross-reference index can print no page ("Item 14.
+    // Exhibits, Financial Statement Schedules, and Reports on Form 8-K"), and
+    // when the body prints no other Item heading, no other Item comes between
+    // it and its body heading. An Item line just after a row, naming a later
+    // Item, is a contents entry when the heading is printed again before any
+    // other Item.
+    for a in 1..n {
+        let after_row = paged[a - 1] && cands[a].pos - cands[a - 1].pos <= SAME_BLOCK;
+        if contents[a] || !after_row || !comes_before(&cands[a - 1], &cands[a], keys) {
+            continue;
+        }
+        let heading = (a + 1..n)
+            .take_while(|&b| cands[b].label == cands[a].label)
+            .find(|&b| same_title(&cands[a].title, &cands[b].title));
+        if let Some(b) = heading {
+            contents[a] = true;
+            body[b] = true;
+            paired[b] = true;
         }
     }
     // A list of one Item and a signatures line, which an 8-K's cover can
@@ -1521,47 +1570,72 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 }
 
 /// Contents rows found by their page numbers. A row is an Item line that ends
-/// with a page number or a range of pages, after a tab, two spaces or dot
-/// leaders (`Item 3. Quantitative and Qualitative Disclosures About Market
-/// Risk     10 - 11`), in a run of Item lines: a line of another Item follows
-/// it within `block` characters, or the line above it (a Part's line aside)
-/// ends with a page number too, as the last row of a list does. A body heading printed with a
+/// with a page column after a tab, two spaces or dot leaders: a page, a range
+/// of pages, or a list of them (`Item 3. Quantitative and Qualitative
+/// Disclosures About Market Risk     10 - 11`, `Item 1.     Business     3-30,
+/// 64`), in a run of Item lines: a line of another Item follows it within
+/// `block` characters, or the line above it (a Part's line aside) ends with
+/// pages too, as the last row of a list does. A body heading printed with a
 /// footnote's number ("Item 7.<TAB>Management's Discussion and Analysis
-/// ...<TAB>1") is followed by its text. Going back from a row, the Item line
-/// before it is a row too when it is at most `block` characters before it,
-/// the last line between them ends with a page number, and it names an Item
-/// that comes earlier in the form, as the entries of a contents list do. Its
-/// entry lists pages under it ("Item 1. Financial Statements", then "Balance
-/// Sheets   1", ...), or its title wraps onto a line with the page ("Item 2.
-/// Management's Discussion and Analysis of Financial", then "Condition and
-/// Results of Operations   9 - 10"). A heading followed by a running header of
-/// its own Item that prints the page ("ITEM 7. MANAGEMENT'S DISCUSSION AND
-/// ANALYSIS (Continued)   5"), or by an index of Items printed after the
-/// body, which starts again at an earlier Item, is no row.
+/// ...<TAB>1") is followed by its text.
+///
+/// Going back from a row, the Item line before it is a row too when it is at
+/// most `block` characters before it, its entry ends with a page column, and
+/// it names an Item that comes earlier in the form, as the entries of a
+/// contents list do. Its entry is its line and the lines after it, Part's
+/// lines aside: it lists pages under it ("Item 1. Financial Statements", then
+/// "Balance Sheets   1", ...), or its title wraps onto a line with the page
+/// ("Item 2. Management's Discussion and Analysis of Financial", then
+/// "Condition and Results of Operations   9 - 10"). Going forward from a row,
+/// the next Item line is a row too when it is at most `block` characters
+/// after it, names a later Item, its entry ends with a page column, and a line
+/// of another Item follows it within `block` characters. Within such a run, a
+/// page column may also say "cover", "N/A", "Not applicable", "None" or "*"
+/// (`Security Holders     N/A`, `Matters     cover, 66, 68`). A heading
+/// followed by a running header of its own Item that prints the page ("ITEM 7.
+/// MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   5"), or by an index of
+/// Items printed after the body, which starts again at an earlier Item, is no
+/// row.
 fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Vec<bool> {
-    let ends_with_page = |l: &str| PAGE_REFERENCE.is_match(l.trim_end());
+    let ends_with_pages = |l: &str| ROW_PAGES.is_match(l.trim_end());
+    let ends_with_entry = |l: &str| ENTRY_PAGES.is_match(l.trim_end());
     let n = cands.len();
+    let close = |a: usize, b: usize| cands[b].pos - cands[a].pos <= block;
+    let other_follows = |i: usize| (i + 1..n).take_while(|&o| close(i, o)).any(|o| cands[o].label != cands[i].label);
+    // The entry of an Item line runs from its start to the next Item line.
+    let entry_ends = |i: usize| {
+        let end = cands.get(i + 1).map_or(text.len(), |o| o.pos);
+        last_entry_line(text, cands[i].pos, end).is_some_and(ends_with_entry)
+    };
     let mut paged = vec![false; n];
     for i in (0..n).rev() {
         let start = cands[i].pos;
         let line_end = text[start..].find('\n').map_or(text.len(), |e| start + e);
-        let in_run = cands[i + 1..].iter().take_while(|o| o.pos - start <= block).any(|o| o.label != cands[i].label)
+        let in_run = other_follows(i)
             || (i > 0
-                && start - cands[i - 1].pos <= block
-                && last_entry_line(text, cands[i - 1].pos, start).is_some_and(ends_with_page));
-        let own = in_run && ends_with_page(&text[start..line_end]);
+                && close(i - 1, i)
+                && last_entry_line(text, cands[i - 1].pos, start).is_some_and(ends_with_pages));
+        let own = in_run && ends_with_pages(&text[start..line_end]);
         let entry = i + 1 < n
             && paged[i + 1]
-            && cands[i + 1].pos - start <= block
-            && text[line_end..cands[i + 1].pos].lines().rfind(|l| !l.trim().is_empty()).is_some_and(ends_with_page)
-            && cands[i].label != cands[i + 1].label
-            && form_places(&cands[i], keys)
-                .next()
-                .zip(form_places(&cands[i + 1], keys).next_back())
-                .is_some_and(|(this, next)| this < next);
+            && close(i, i + 1)
+            && entry_ends(i)
+            && comes_before(&cands[i], &cands[i + 1], keys);
         paged[i] = own || entry;
     }
+    for i in 1..n {
+        let later = comes_before(&cands[i - 1], &cands[i], keys);
+        if !paged[i] && paged[i - 1] && close(i - 1, i) && later && other_follows(i) && entry_ends(i) {
+            paged[i] = true;
+        }
+    }
     paged
+}
+
+/// Whether `b` names another Item than `a`, one that can come after it in the
+/// form: the first place of `a` is before the last place of `b`.
+fn comes_before(a: &Candidate, b: &Candidate, keys: &[Key]) -> bool {
+    a.label != b.label && form_places(a, keys).next().zip(form_places(b, keys).next_back()).is_some_and(|(a, b)| a < b)
 }
 
 /// The last line of `text[from..to]` that is neither blank nor the line of a
@@ -3732,6 +3806,7 @@ Pursuant to ...
             ("\t", ["5-8", "9-10", "10-11"]),
             (" ........ ", ["5–8", "9–10", "10–11"]),
             ("     ", ["5", "9", "10"]),
+            ("     ", ["5 - 8", "9 - 10, 12", "10 - 11, 14"]),
         ] {
             let [notes, mdna, risk] = pages;
             let text = format!(
@@ -3894,8 +3969,7 @@ Pursuant to ...
 
     #[test]
     fn contents_rows_with_pages_are_rows_next_to_other_item_lines() {
-        // The body prints no Part I Item headings. The first row follows a
-        // line with no page, and the line of the next Item follows it. The
+        // The body prints no Part I Item headings and no Item 1A heading. The
         // last row follows a row with a page and a Part's line, or a row that
         // starts with its Part, and the body's long text follows it.
         let body = BODY.repeat(30);
@@ -3906,7 +3980,7 @@ Pursuant to ...
                 "FORM 10-Q\n{first}{part_1}Item 1. Financial Statements\t3\n\
                  {part_1}Item 2. Management's Discussion and Analysis of Financial Condition and Results of \
                  Operations\t10\n\
-                 {part_2}Item 6. Exhibits\t20\nCONSOLIDATED BALANCE SHEETS\n{body}{body}\n\
+                 {part_2}Item 1A. Risk Factors\t18\nCONSOLIDATED BALANCE SHEETS\n{body}{body}\n\
                  MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\nPART II - OTHER INFORMATION\nItem 6. Exhibits\n\
                  {body}\nSIGNATURES\n"
             );
@@ -3914,6 +3988,162 @@ Pursuant to ...
             assert_eq!(ids(&s), ["part_2_item_6"], "{first:?} {part_1:?}");
             assert!(s[0].text.starts_with("Item 6. Exhibits\nLorem"));
         }
+        // The first row of a list follows a line with no page, and the next
+        // row prints its page on a line of its own.
+        let text = format!(
+            "Page\nITEM 9B. OTHER INFORMATION\t96\nPART III\n\
+             ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE\nREGISTRANT\n96\n\
+             ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE REGISTRANT\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_10"]);
+        assert!(
+            s[0].text
+                .starts_with("ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE REGISTRANT\n")
+        );
+    }
+
+    #[test]
+    fn cross_reference_index_whose_page_column_lists_pages_is_contents() {
+        // An annual report, then the Form 10-K part, which opens with a
+        // cross-reference index. Rows print a list of pages, "cover" or
+        // "N/A", often on the last line of a wrapped title, between Part
+        // lines. The last row prints no page, and the body prints no other
+        // Item heading before the heading of that Item.
+        let body = BODY.repeat(30);
+        let index = |item_13: &str| {
+            format!(
+                "Part I                                                  Pages\n\
+             Item 1.     Business                                    3-30, 64\n\
+             Item 2.     Properties                                  45-46, 66\n\
+             Item 3.     Legal Proceedings                           58, 66\n\
+             Item 4.     Submission of Matters to a Vote of\n\
+             Security Holders                           N/A\n\
+             Part II\n\
+             Item 5.     Market for Registrant's Common\n\
+             Equity and Related Shareholder\n\
+             Matters                                    cover, 66, 68\n\
+             Item 6.     Selected Financial Data                     29\n\
+             Item 7.     Management's Discussion and\n\
+             Analysis of Financial Condition\n\
+             and Results of Operations                  3-30\n\
+             Item 7a.    Quantitative and Qualitative\n\
+             Disclosures about Market Risk              9-11\n\
+             Item 8.     Financial Statements and\n\
+             Supplementary Data                         33-63\n\
+             Item 9.     Changes in and Disagreements with\n\
+             Accountants on Accounting and\n\
+             Financial Disclosure                       66\n\
+             Part III*\n\
+             Item 10.    Directors and Executive Officers of\n\
+             the Registrant                             4-5, 15\n\
+             Item 11.    Executive Compensation                      8-14, 16-23\n\
+             Item 12.    Security Ownership of Certain\n\
+             Beneficial Owners and\n\
+             Management                                 2-4\n\
+             {item_13}\n\
+             Part IV**\n\
+             Item 14.    Exhibits, Financial Statement Schedules,\n\
+             and Reports on Form 8-K\n"
+            )
+        };
+        // Item 13's page column, as printed, then naming the cover or saying
+        // that no page answers it, also on the Item line.
+        let wrapped =
+            |column: &str| format!("Item 13.    Certain Relationships and Related\nTransactions     {column}");
+        let mut rows: Vec<String> = ["8-9", "N/A", "Not applicable.", "None", "*", "†", "cover", "Cover page, 3"]
+            .into_iter()
+            .map(wrapped)
+            .collect();
+        rows.push("Item 13.    Certain Relationships and Related Transactions     *".to_owned());
+        for item_13 in &rows {
+            let text = format!(
+                "ANNUAL REPORT TO SHAREHOLDERS\n{body}{body}\nForm 10-K\n\
+                 Certain information is incorporated by reference from the Annual Report as indicated below.\n\
+                 {}* The information required by Part III is incorporated by reference from the Proxy \
+                 Statement.\nBusiness\n{body}\nProperties\n{body}\nPart IV.\n\
+                 Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K.\n\
+                 (a) Documents Filed as Part of this Report\n{body}\nSignatures\nPursuant to the requirements \
+                 of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed.\n",
+                index(item_13)
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_14"], "{item_13}");
+            assert_eq!(s[0].heading, "Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K.");
+        }
+    }
+
+    #[test]
+    fn page_columns_after_a_contents_list_keep_the_body_headings() {
+        let body = BODY.repeat(30);
+        let page = BODY.repeat(12);
+        // The body of a cross-reference 10-K cites the pages of the annual
+        // report under headings that come earlier in the form than the last
+        // row of the contents list.
+        let text = format!(
+            "PART I\nItem 1. Business\t3\nItem 2. Properties\t12\nItem 3. Legal Proceedings\t14\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\t40\n\
+             PART I\nItem 1. Business\nThe information appears in the Annual Report on pages   3-30\n\
+             Item 2. Properties\nThe information appears in the Annual Report on page   31\n\
+             Item 3. Legal Proceedings\n{body}\nPART IV\nItem 15. Exhibits and Financial Statement Schedules\n\
+             {body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3", "item_15"]);
+        assert_eq!(s[0].heading, "Item 1. Business");
+        // A list of Part I's rows, then Part II's headings: Item 5's text is
+        // long, or does not end with a page column.
+        for item_5 in [format!("{body}\nTotal number of holders of record   212"), "Not applicable.".to_owned()] {
+            let text = format!(
+                "PART I\nItem 1. Business\t3\nItem 2. Properties\t12\nItem 3. Legal Proceedings\t14\n\
+                 PART II\nItem 5. Market for Registrant's Common Equity\n{item_5}\n\
+                 Item 6. Selected Financial Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_5", "item_6"], "{item_5}");
+        }
+        // A heading just after the contents, or far after its rows, followed
+        // by a running header of its own Item and no other Item.
+        let text = format!(
+            "Item 1. Business\t3\nItem 2. Properties\t12\nItem 15. Exhibits and Financial Statement Schedules\t40\n\
+             PART I\nItem 1. Business\n{page}\nItem 1. Business (continued)\n{body}\nItem 2. Properties\n{body}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_15"]);
+        assert_eq!(s[0].heading, "Item 1. Business");
+        let text = format!(
+            "Item 1. Business\t3\nItem 2. Properties\t12\nItem 3. Legal Proceedings\t14\n{body}\n\
+             Item 5. Market for Registrant's Common Equity\n{page}\n\
+             Item 5. Market for Registrant's Common Equity (continued)\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5"]);
+        assert_eq!(s[0].heading, "Item 5. Market for Registrant's Common Equity");
+        // Answers printed in a page column's place in the body ("Not
+        // Applicable") are no pages.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II  OTHER INFORMATION\n\
+             Item 1    Legal Proceedings                Not Applicable\n\
+             Item 2    Change in Securities             Not Applicable\n\
+             Item 3    Defaults Upon Senior Securities  Not Applicable\n\
+             Item 5    Other Information                Not Applicable\n\
+             Item 6    Exhibits and Reports on Form 8-K\n(a)  Exhibits: 27 Financial Data Schedule\nSIGNATURE\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            [
+                "part_1_item_1",
+                "part_1_item_2",
+                "part_2_item_1",
+                "part_2_item_2",
+                "part_2_item_3",
+                "part_2_item_5",
+                "part_2_item_6"
+            ]
+        );
     }
 
     #[test]
