@@ -177,7 +177,7 @@ pub fn parse_filing_index(html: &str) -> FilingIndex {
             match label.take().as_deref() {
                 Some("Filing Date") => out.filing_date = Some(value),
                 Some("Accepted") => out.accepted = Some(value),
-                Some("Period of Report") => out.period_of_report = Some(value),
+                Some("Period of Report") => out.period_of_report = Some(value).filter(|v| !v.is_empty()),
                 Some("Items") => out.items = ITEM.captures_iter(&value).map(|c| c[1].to_owned()).collect(),
                 _ => {}
             }
@@ -522,6 +522,11 @@ mod tests {
 
         let f = idx.to_filing(&entry(320193, "Apple Inc.", "10-K", "2024-11-01", "0000320193-24-000123"));
         assert_eq!(f.report_date.as_deref(), Some("2024-09-28"));
+        // An empty period of report is none, as in the submissions API, so
+        // that sections are titled by the filing date alone.
+        let empty = TEN_K.replace(">2024-09-28<", "><");
+        assert_ne!(empty, TEN_K);
+        assert_eq!(parse_filing_index(&empty).period_of_report, None);
         assert_eq!(f.acceptance_datetime.as_deref(), Some("2024-11-01T10:01:36.000Z"));
         assert_eq!(f.primary_document.as_deref(), Some("aapl-20240928.htm"));
         assert_eq!(f.primary_doc_description.as_deref(), Some("10-K"));

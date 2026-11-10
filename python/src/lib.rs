@@ -123,7 +123,8 @@ impl Client {
     }
 
     /// Item sections of a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB filing dict, as a list of dicts,
-    /// titled as of the filing's "filing_date". Other forms raise ValueError.
+    /// titled for the filing's "filing_date" and "report_date", as extract_sections titles
+    /// them. Other forms, and dates that are not a day written "YYYY-MM-DD", raise ValueError.
     fn sections<'py>(&self, py: Python<'py>, filing: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let f: pe::Filing = depythonize(filing)?;
         let sections = py.detach(|| self.inner.filing_sections(&f)).map_err(err)?;
@@ -160,38 +161,46 @@ fn html_to_text_and_tables<'py>(py: Python<'py>, html: &str) -> PyResult<(String
 
 /// Split filing text into Item sections. `form` is "10-K", "10-Q", "8-K", "10-KSB" or "10-QSB"
 /// (variants and amendments accepted, also without the hyphen, as in "10KSB"). With
-/// `filing_date` (a datetime.date or a "YYYY-MM-DD" string), each section is titled as the form
-/// titled its Item on that date, unless its heading prints another of the Item's titles.
+/// `filing_date`, each section is titled as the form titled its Item for a report filed that
+/// day, and with `report_date` too, for one that covers the period ending that day (the fiscal
+/// year or quarter, or an 8-K's event), as a filing dict's "filing_date" and "report_date" are,
+/// unless its heading prints another of the Item's titles. Each date is a datetime.date or a
+/// "YYYY-MM-DD" string; a string that is not a day written that way raises ValueError.
 #[pyfunction]
-#[pyo3(signature = (text, form, *, filing_date=None))]
+#[pyo3(signature = (text, form, *, filing_date=None, report_date=None))]
 fn extract_sections<'py>(
     py: Python<'py>,
     text: &str,
     form: &str,
     filing_date: Option<&Bound<'py, PyAny>>,
+    report_date: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<Bound<'py, PyAny>> {
     let kind = pe::FormKind::from_form(form).ok_or_else(|| {
         PyValueError::new_err(format!("sections are supported for a {} filing, not {form}", pe::FormKind::FORMS))
     })?;
-    let date = filing_date.map(iso_date).transpose()?;
-    let sections = py.detach(|| match &date {
-        Some(date) => pe::extract_sections_dated(text, kind, date),
-        None => pe::extract_sections(text, kind),
-    });
+    let filing_date = filing_date.map(|d| date_text(d, "filing_date")).transpose()?;
+    let report_date = report_date.map(|d| date_text(d, "report_date")).transpose()?;
+    let sections = match filing_date {
+        Some(filed) => {
+            py.detach(|| pe::extract_sections_dated(text, kind, &filed, report_date.as_deref())).map_err(err)?
+        }
+        None if report_date.is_some() => return Err(PyValueError::new_err("report_date needs a filing_date")),
+        None => py.detach(|| pe::extract_sections(text, kind)),
+    };
     Ok(pythonize(py, &sections)?)
 }
 
-/// A datetime.date, or a "YYYY-MM-DD" string read as one, written "YYYY-MM-DD".
-fn iso_date(value: &Bound<'_, PyAny>) -> PyResult<String> {
+/// A date argument as text: a string as given, which the library checks, or
+/// a datetime.date written "YYYY-MM-DD".
+fn date_text(value: &Bound<'_, PyAny>, name: &str) -> PyResult<String> {
+    if let Ok(text) = value.extract::<String>() {
+        return Ok(text);
+    }
     let date_type = value.py().import("datetime")?.getattr("date")?;
-    let date = if value.is_instance_of::<pyo3::types::PyString>() {
-        date_type.call_method1("fromisoformat", (value,))?
-    } else if value.is_instance(&date_type)? {
-        value.clone()
-    } else {
-        return Err(PyTypeError::new_err("filing_date must be a datetime.date or a \"YYYY-MM-DD\" string"));
-    };
-    let part = |name: &str| -> PyResult<i32> { date.getattr(name)?.extract() };
+    if !value.is_instance(&date_type)? {
+        return Err(PyTypeError::new_err(format!("{name} must be a datetime.date or a \"YYYY-MM-DD\" string")));
+    }
+    let part = |name: &str| -> PyResult<i32> { value.getattr(name)?.extract() };
     Ok(format!("{:04}-{:02}-{:02}", part("year")?, part("month")?, part("day")?))
 }
 

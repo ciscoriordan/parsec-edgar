@@ -5,7 +5,8 @@
 //! - [`html_to_text`]: filing HTML to clean plain text
 //! - [`html_to_text_and_tables`]: the same text, plus its [`Table`]s as rows of cells with their offsets in it
 //! - [`extract_sections`]: Item sections of 10-K, 10-Q, 8-K, 10-KSB and 10-QSB filings, and
-//!   [`extract_sections_dated`]: the same, titled as the form titled its Items on the filing date
+//!   [`extract_sections_dated`]: the same, titled as the form titled its Items for the filing date
+//!   and the period of report
 //!
 //! ```no_run
 //! use parsec_edgar::{Client, FilingQuery};

@@ -40,21 +40,43 @@ def test_extract_sections_of_a_10ksb():
 
 
 def test_extract_sections_titles_by_filing_date():
-    # A bare "Item 6." in a 10-K: "Selected Financial Data" until 2021,
-    # "[Reserved]" since, and the current title without a date.
+    # A bare "Item 6." in a 10-K: "Selected Financial Data" for fiscal years
+    # ending before August 9, 2021, "[Reserved]" since, and the current title
+    # without a date.
     text = f"Item 5. Market\n{BODY}\nItem 6.\n{BODY}\nItem 7. Management's Discussion\n{BODY}\n"
 
-    def title(**date):
-        return pe.extract_sections(text, "10-K", **date)[1]["title"]
+    def title(**dates):
+        return pe.extract_sections(text, "10-K", **dates)[1]["title"]
 
     assert title() == "[Reserved]"
     assert title(filing_date="2019-03-01") == "Selected Financial Data"
     assert title(filing_date=datetime.date(2019, 3, 1)) == "Selected Financial Data"
     assert title(filing_date=datetime.date(2022, 3, 1)) == "[Reserved]"
-    with pytest.raises(ValueError):
-        pe.extract_sections(text, "10-K", filing_date="2019-02-30")
+    assert title(filing_date=" 2022-03-01 ") == "[Reserved]"
+    # A 10-K/A for 2019 filed in 2022.
+    assert title(filing_date="2022-03-01", report_date="2019-12-31") == "Selected Financial Data"
+    assert title(filing_date="2022-03-01", report_date=datetime.date(2021, 12, 31)) == "[Reserved]"
+    # The library checks the strings, the same on every Python version.
+    for bad in ["2019-02-30", "2019-3-1", "20190301", "2019-W09-5", "03/01/2019", "2019-03-01T00:00:00", ""]:
+        with pytest.raises(ValueError, match="filing_date must be a day written YYYY-MM-DD"):
+            pe.extract_sections(text, "10-K", filing_date=bad)
+        with pytest.raises(ValueError, match="report_date must be"):
+            pe.extract_sections(text, "10-K", filing_date="2022-03-01", report_date=bad)
+    with pytest.raises(ValueError, match="needs a filing_date"):
+        pe.extract_sections(text, "10-K", report_date="2019-12-31")
     with pytest.raises(TypeError):
         pe.extract_sections(text, "10-K", filing_date=20190301)
+
+
+def test_client_sections_checks_the_filing_dates():
+    # A filing dict with a date that is not a day raises ValueError before
+    # anything is downloaded.
+    client = pe.Client("Example Corp admin@example.com")
+    filing = {"cik": 1, "company": "A", "accession_number": "0000000001-24-000001", "form": "10-K"}
+    with pytest.raises(ValueError, match="filing_date must be"):
+        client.sections({**filing, "filing_date": "03/01/2024"})
+    with pytest.raises(ValueError, match="report_date must be"):
+        client.sections({**filing, "filing_date": "2024-03-01", "report_date": "2023-02-30"})
 
 
 def test_extract_sections_names_the_forms_with_items():
