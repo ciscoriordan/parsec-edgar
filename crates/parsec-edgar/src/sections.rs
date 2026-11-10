@@ -168,7 +168,10 @@
 //! headings go with the text after it: up to three lines, each printed again
 //! on a line of its own at least twice after the heading and more often than
 //! before it (the company name at the top of each statement page), but never
-//! the Item's first line of text.
+//! the Item's first line of text. So does the auditors' letterhead above an
+//! auditors' report heading: the firm's name, which the report prints again
+//! where the firm signs it, and up to three lines of its address, the last
+//! with a city, a state and a ZIP code ("Allentown, PA 18104").
 //!
 //! A section's title is the standard title of its Item. Where the form has
 //! renamed the Item, the printed heading picks the title among those it has
@@ -2017,6 +2020,48 @@ fn page_headers_above(text: &str, body: usize, cut: usize, end: usize) -> usize 
     }
 }
 
+/// The last line of an address block, with a city, a state and a ZIP code:
+/// `Allentown, PA 18104`, `New York, New York 10017`.
+static CITY_STATE_ZIP: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\p{Lu}[\p{L}.' -]*,[ \t]*\p{Lu}[\p{L}.]*(?:[ \t]+\p{Lu}[\p{L}.]*)?[ \t]+\d{5}(?:-\d{4})?$").unwrap()
+});
+
+/// Start of the auditors' letterhead printed just above an auditors' report
+/// heading at `cut` that ends a section, whose text after its heading starts
+/// at `body`: the firm's name, which the report prints again on a line of its
+/// own where the firm signs it (in the text cut off, up to `end`), and up to
+/// three short lines of its address below it, the last of them with a city,
+/// a state and a ZIP code, just above the heading. The section's first line
+/// of text always stays.
+fn letterhead_above(text: &str, body: usize, cut: usize, end: usize) -> Option<usize> {
+    const MAX_ADDRESS_LINES: usize = 3;
+    const MAX_CHARS: usize = 60;
+    let heading = text[cut..].lines().next().unwrap_or("");
+    if !AUDITORS_REPORT_HEADING.is_match(heading) || body >= cut {
+        return None;
+    }
+    let lines: Vec<(usize, &str)> = lines_in(text, body, cut).into_iter().filter(|(_, l)| !l.is_empty()).collect();
+    let (&(_, last), above) = lines.split_last()?;
+    if !CITY_STATE_ZIP.is_match(last) {
+        return None;
+    }
+    let cut_off = &text[cut..end];
+    let mut address = 1;
+    for &(pos, line) in above.iter().rev() {
+        if line.len() > MAX_CHARS {
+            return None;
+        }
+        if line.contains(char::is_alphabetic) && line_copies(cut_off, line) > 0 {
+            return (pos > body).then_some(pos);
+        }
+        address += 1;
+        if address > MAX_ADDRESS_LINES {
+            return None;
+        }
+    }
+    None
+}
+
 /// The line of Part II of a 10-Q or 10-QSB, with its title or without:
 /// `PART II. OTHER INFORMATION`, `Part II — Other Information`, `PART II`.
 static PART_TWO: LazyLock<Regex> = LazyLock::new(|| {
@@ -2851,7 +2896,10 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             } else {
                 None
             };
-            let end = cut.map_or(end, |c| page_headers_above(text, body_start(text, cand, key, c), c, end));
+            let end = cut.map_or(end, |c| {
+                let body = body_start(text, cand, key, c);
+                letterhead_above(text, body, c, end).unwrap_or_else(|| page_headers_above(text, body, c, end))
+            });
             let item_id = key.item.to_ascii_lowercase();
             let id = match key.part {
                 Some(part) => format!("part_{}_item_{item_id}", if part == "I" { 1 } else { 2 }),
@@ -5971,9 +6019,65 @@ Pursuant to ...
     }
 
     #[test]
+    fn auditors_letterhead_above_a_cut_report_goes_with_it() {
+        // The firm's name, which signs the report, and its address down to
+        // the city, state and ZIP code line just above the report heading,
+        // also with a rule under the name that the statements print too.
+        let body = BODY.repeat(30);
+        let item_9 = |letterhead: &str, heading: &str| {
+            format!(
+                "Item 8. Financial Statements\nSee Item 14 for index.\n\
+                 Item 9. Changes in and Disagreements with Accountants\nNone.\n{letterhead}{heading}\n\
+                 The Board of Directors:\n{body}\nKPMG Peat Marwick LLP\nAllentown, PA\nJanuary 30, 1998\n\
+                 Consolidated Balance Sheets\n---------------------\n{body}\nItem 10. Directors and Executive Officers\n\
+                 {body}\n"
+            )
+        };
+        let report = "Independent Auditors' Report";
+        for letterhead in [
+            "KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA 18104\n",
+            "KPMG Peat Marwick LLP\n\nOne Liberty Place\nSuite 1200\nPhiladelphia, Pennsylvania 19103-7301\n",
+            "KPMG Peat Marwick LLP\nNew York, New York 10017\n",
+            "KPMG Peat Marwick LLP\n---------------------\n4905 Tilghman Street\nAllentown, PA 18104\n",
+        ] {
+            let s = extract_sections(&item_9(letterhead, report), FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_10"], "{letterhead}");
+            assert_eq!(s[1].text, "Item 9. Changes in and Disagreements with Accountants\nNone.", "{letterhead}");
+        }
+        // A name the report does not print again, an address without a ZIP
+        // code or with more than three lines, a heading that is no auditors'
+        // report, a long line of text between the name and the ZIP code, and
+        // a letterhead that is the Item's first line of text stay.
+        let stays = [
+            ("Example & Co. LLP\n4905 Tilghman Street\nAllentown, PA 18104\n", report),
+            ("KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA\n", report),
+            (
+                "KPMG Peat Marwick LLP\nOne Liberty Place\n1650 Market Street\nSuite 1200\nPhiladelphia, PA 19103\n",
+                report,
+            ),
+            ("KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA 18104\n", "INDEX TO FINANCIAL STATEMENTS"),
+            (
+                "KPMG Peat Marwick LLP\nThe new accountants have their office at 4905 Tilghman Street in\n\
+                 Allentown, PA 18104\n",
+                report,
+            ),
+        ];
+        for (letterhead, heading) in stays {
+            let s = extract_sections(&item_9(letterhead, heading), FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_10"], "{letterhead}");
+            assert!(s[1].text.ends_with(letterhead.trim()), "{letterhead}");
+        }
+        let text = item_9("KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA 18104\n", report)
+            .replace("Accountants\nNone.\n", "Accountants\n");
+        let s = extract_sections(&text, FormKind::TenK);
+        assert!(s[1].text.ends_with("Allentown, PA 18104"));
+    }
+
+    #[test]
     fn lines_above_a_cut_that_are_not_page_headers_stay() {
-        // The Item's first line of text, a letterhead printed once, numbers,
-        // long lines, and header lines past the third all stay.
+        // The Item's first line of text, a firm's name printed once with no
+        // address, numbers, long lines, and header lines past the third all
+        // stay.
         let body = BODY.repeat(30);
         let long = "The Company had no disagreements with its former accountants on any matter of accounting principles \
                     or practices.";
