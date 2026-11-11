@@ -226,7 +226,8 @@
 //! title only, so "Item 10, Directors and Executive Officers of the
 //! Registrant" (the title before 2006) is no heading.
 
-use std::collections::HashMap;
+use std::cell::OnceCell;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use regex::{Captures, Regex};
@@ -1532,88 +1533,7 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)]) -> Vec<Candi
             })
         })
         .collect();
-    // A line that cites an Item and a document is not a heading when the
-    // Item's next heading follows it: a titled one with the same title, before
-    // any heading of an Item that comes later in the form. It must not cut
-    // the Item it sits in short. Without one it may be a run-in heading
-    // ("Item 7. Management's Discussion and Analysis of the Company's 1998
-    // Annual Report is incorporated herein by reference."), also when an
-    // index after the body lists the Item again, unless it sits inside a
-    // later Item (`after_heading`).
-    // The first and the last place of an Item number in the form's order (a
-    // 10-Q numbers Items 1 to 4 in both parts).
-    type Place = (Option<usize>, Option<usize>);
-    let place = |label: &str| -> Place {
-        let mut at = keys.iter().enumerate().filter(|(_, k)| k.item == label).map(|(i, _)| i);
-        let first = at.next();
-        (first, at.next_back().or(first))
-    };
-    // The place of each line's Item, found once when a line cites an Item,
-    // since the loops below compare places many times.
-    let places: Vec<Place> =
-        if cands.iter().any(|c| c.cites) { cands.iter().map(|c| place(&c.label)).collect() } else { Vec::new() };
-    // Whether the Item at place `a` comes after the Item at place `b` in every
-    // numbering of the form.
-    let later = |a: Place, b: Place| a.0.zip(b.1).is_some_and(|(a, b)| a > b);
-    let heading_of = |c: &Candidate, o: &Candidate| !o.cites && !o.bare && same_title(&o.title, &c.title);
-    // Nor is such a line after the Item's heading, inside a later Item: a
-    // heading of the Item with the same title comes before it, with lines of
-    // later Items only between them, and the next line of another Item after
-    // it comes later in the form than the last of those. A run-in heading
-    // after a contents list stays, since the body's next heading goes back to
-    // an Item that the list printed before it.
-    // One pass over the lines for each Item that such lines cite, keeping
-    // the Item's headings since the last line of an Item that is not later
-    // in the form (the latest one of each title) and the last line of a
-    // later Item, so that the time grows with the number of lines and not
-    // with its square.
-    let mut after_heading = vec![false; cands.len()];
-    // The next line of another Item after each line.
-    let mut next_other: Vec<Option<usize>> = vec![None; cands.len()];
-    for i in (0..cands.len().saturating_sub(1)).rev() {
-        next_other[i] = if cands[i + 1].label != cands[i].label { Some(i + 1) } else { next_other[i + 1] };
-    }
-    let mut cited_items: Vec<&str> = cands.iter().filter(|c| c.cites).map(|c| c.label.as_str()).collect();
-    cited_items.sort_unstable();
-    cited_items.dedup();
-    for label in cited_items {
-        let label_place = place(label);
-        let mut headings: Vec<usize> = Vec::new();
-        let mut later_line: Option<usize> = None;
-        for (i, c) in cands.iter().enumerate() {
-            if c.label != label {
-                if later(places[i], label_place) {
-                    later_line = Some(i);
-                } else {
-                    headings.clear();
-                    later_line = None;
-                }
-            } else if c.cites {
-                let Some(&h) = headings.iter().rev().find(|&&h| heading_of(c, &cands[h])) else { continue };
-                let last = later_line.filter(|&o| o > h).map_or(label_place, |o| places[o]);
-                after_heading[i] = next_other[i].is_none_or(|o| later(places[o], last));
-            } else if !c.bare {
-                headings.retain(|&h| cands[h].title != c.title);
-                headings.push(i);
-            }
-        }
-    }
-    let cited: Vec<bool> = cands
-        .iter()
-        .enumerate()
-        .map(|(i, c)| {
-            c.cites && {
-                let last = places[i].1;
-                (i + 1..cands.len())
-                    .take_while(|&j| {
-                        cands[j].label == c.label || places[j].0.zip(last).is_none_or(|(other, cited)| other < cited)
-                    })
-                    .any(|j| cands[j].label == c.label && heading_of(c, &cands[j]))
-                    || after_heading[i]
-            }
-        })
-        .collect();
-    let cands: Vec<Candidate> = cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect();
+    let cands = drop_citing_lines(cands, keys);
     // A 10-Q's Part title printed with an Item number just above that Item's
     // heading is not the heading.
     let part_title: Vec<bool> = (0..cands.len())
@@ -1633,6 +1553,250 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)]) -> Vec<Candi
         c.score = (c.gap as f64).ln_1p();
     }
     cands
+}
+
+/// The candidates grouped by Item number and title key, for finding the
+/// nearest candidate of an Item whose title `same_title` pairs with a
+/// candidate's own without comparing the candidate with each one. Two titles
+/// pair when one starts the other, so the groups whose candidates pair with
+/// those of a group are the group itself, the groups of the titles that
+/// start its title (its parent, the parent of that one, and so on: at most
+/// 25, since a title key has 5 to 30 letters) and the groups below it.
+struct TitleGroups {
+    /// The group of each candidate, or none for a title of fewer than 5
+    /// letters, which pairs with no title.
+    of: Vec<Option<usize>>,
+    /// For each group, the group of its Item with the longest title that
+    /// starts its own, if any.
+    parent: Vec<Option<usize>>,
+}
+
+impl TitleGroups {
+    fn new(cands: &[Candidate]) -> Self {
+        let mut order: Vec<usize> = (0..cands.len()).filter(|&i| cands[i].title.chars().count() >= 5).collect();
+        order.sort_unstable_by(|&a, &b| (&cands[a].label, &cands[a].title).cmp(&(&cands[b].label, &cands[b].title)));
+        let mut of = vec![None; cands.len()];
+        let mut parent: Vec<Option<usize>> = Vec::new();
+        // The first candidate of each group, and the groups whose titles
+        // start the last title read, each one's title starting the next:
+        // sorted, a title comes after the titles that start it and before
+        // any other title that they start.
+        let mut firsts: Vec<usize> = Vec::new();
+        let mut open: Vec<usize> = Vec::new();
+        for i in order {
+            let c = &cands[i];
+            let starts = |g: usize| c.label == cands[firsts[g]].label && c.title.starts_with(&cands[firsts[g]].title);
+            if let Some(g) = firsts.len().checked_sub(1).filter(|&g| starts(g) && cands[firsts[g]].title == c.title) {
+                of[i] = Some(g);
+                continue;
+            }
+            while open.last().is_some_and(|&g| !starts(g)) {
+                open.pop();
+            }
+            of[i] = Some(firsts.len());
+            parent.push(open.last().copied());
+            open.push(firsts.len());
+            firsts.push(i);
+        }
+        TitleGroups { of, parent }
+    }
+}
+
+/// Of the candidates added so far, the one added last among those that
+/// `same_title` pairs with a candidate of the same Item (`TitleGroups`).
+/// Added in document order that is the nearest one before it, and added
+/// from the end back the nearest one after it.
+struct Nearest<'a> {
+    groups: &'a TitleGroups,
+    added: usize,
+    /// For each group, the candidate added last to it, and the one added
+    /// last to it or to a group below it, each with its count in `added`
+    /// (0 for none).
+    own: Vec<(usize, usize)>,
+    below: Vec<(usize, usize)>,
+}
+
+impl<'a> Nearest<'a> {
+    fn new(groups: &'a TitleGroups) -> Self {
+        let none = vec![(0, 0); groups.parent.len()];
+        Nearest { groups, added: 0, own: none.clone(), below: none }
+    }
+
+    fn add(&mut self, cand: usize) {
+        let Some(group) = self.groups.of[cand] else { return };
+        self.added += 1;
+        self.own[group] = (self.added, cand);
+        let mut up = Some(group);
+        while let Some(g) = up {
+            self.below[g] = (self.added, cand);
+            up = self.groups.parent[g];
+        }
+    }
+
+    fn find(&self, cand: usize) -> Option<usize> {
+        let group = self.groups.of[cand]?;
+        let mut last = self.below[group];
+        let mut up = self.groups.parent[group];
+        while let Some(g) = up {
+            last = last.max(self.own[g]);
+            up = self.groups.parent[g];
+        }
+        (last.0 > 0).then_some(last.1)
+    }
+}
+
+/// Candidates listed by title group, for reading in order those that
+/// `same_title` pairs with a candidate of the same Item (`TitleGroups`),
+/// without passing the others.
+struct SameTitled<'a> {
+    groups: &'a TitleGroups,
+    /// For each group, the candidates added to it, and those added to it or
+    /// to a group below it, in the order added.
+    own: Vec<Vec<usize>>,
+    below: Vec<Vec<usize>>,
+}
+
+impl<'a> SameTitled<'a> {
+    fn new(groups: &'a TitleGroups) -> Self {
+        let none = vec![Vec::new(); groups.parent.len()];
+        SameTitled { groups, own: none.clone(), below: none }
+    }
+
+    /// Add a candidate that comes after those added before.
+    fn add(&mut self, cand: usize) {
+        let Some(group) = self.groups.of[cand] else { return };
+        self.own[group].push(cand);
+        let mut up = Some(group);
+        while let Some(g) = up {
+            self.below[g].push(cand);
+            up = self.groups.parent[g];
+        }
+    }
+
+    /// The candidates added, from `from` on, that pair with `cand`, in
+    /// order: those of its group and the groups below it, and those of the
+    /// groups above it, each list in order already.
+    fn from(&self, cand: usize, from: usize) -> impl Iterator<Item = usize> + '_ {
+        fn rest(list: &[usize], from: usize) -> &[usize] {
+            &list[list.partition_point(|&i| i < from)..]
+        }
+        let mut lists: Vec<&[usize]> = Vec::new();
+        if let Some(group) = self.groups.of[cand] {
+            lists.push(rest(&self.below[group], from));
+            let mut up = self.groups.parent[group];
+            while let Some(g) = up {
+                lists.push(rest(&self.own[g], from));
+                up = self.groups.parent[g];
+            }
+        }
+        std::iter::from_fn(move || {
+            let (list, next) =
+                lists.iter().enumerate().filter_map(|(k, l)| Some((k, *l.first()?))).min_by_key(|&(_, i)| i)?;
+            lists[list] = &lists[list][1..];
+            Some(next)
+        })
+    }
+}
+
+/// Drop the lines that cite an Item and a document and are no heading.
+///
+/// A line that cites an Item and a document is not a heading when the
+/// Item's next heading follows it: a titled one with the same title, before
+/// any heading of an Item that comes later in the form. It must not cut
+/// the Item it sits in short. Without one it may be a run-in heading
+/// ("Item 7. Management's Discussion and Analysis of the Company's 1998
+/// Annual Report is incorporated herein by reference."), also when an
+/// index after the body lists the Item again, unless it sits inside a
+/// later Item.
+///
+/// Nor is such a line a heading after the Item's heading, inside a later
+/// Item: a heading of the Item with the same title comes before it, with
+/// lines of later Items only between them, and the next line of another
+/// Item after it comes later in the form than the last of those. A run-in
+/// heading after a contents list stays, since the body's next heading goes
+/// back to an Item that the list printed before it.
+///
+/// The time grows with the number of lines and not with its square: one
+/// pass over the lines for each Item that such lines cite, and one pass
+/// from the last line back, with the nearest heading that has a line's
+/// title looked up (`Nearest`) rather than searched for.
+fn drop_citing_lines(cands: Vec<Candidate>, keys: &[Key]) -> Vec<Candidate> {
+    if !cands.iter().any(|c| c.cites) {
+        return cands;
+    }
+    let n = cands.len();
+    // The first and the last place of an Item number in the form's order (a
+    // 10-Q numbers Items 1 to 4 in both parts).
+    type Place = (Option<usize>, Option<usize>);
+    let place = |label: &str| -> Place {
+        let mut at = keys.iter().enumerate().filter(|(_, k)| k.item == label).map(|(i, _)| i);
+        let first = at.next();
+        (first, at.next_back().or(first))
+    };
+    let places: Vec<Place> = cands.iter().map(|c| place(&c.label)).collect();
+    // Whether the Item at place `a` comes after the Item at place `b` in every
+    // numbering of the form.
+    let later = |a: Place, b: Place| a.0.zip(b.1).is_some_and(|(a, b)| a > b);
+    // The headings that a citing line's title can name are the titled lines
+    // of its Item that cite nothing.
+    let groups = TitleGroups::new(&cands);
+    let heading = |c: &Candidate| !c.cites && !c.bare;
+    let mut after_heading = vec![false; n];
+    // The next line of another Item after each line.
+    let mut next_other: Vec<Option<usize>> = vec![None; n];
+    for i in (0..n.saturating_sub(1)).rev() {
+        next_other[i] = if cands[i + 1].label != cands[i].label { Some(i + 1) } else { next_other[i + 1] };
+    }
+    let mut cited_items: Vec<&str> = cands.iter().filter(|c| c.cites).map(|c| c.label.as_str()).collect();
+    cited_items.sort_unstable();
+    cited_items.dedup();
+    // The headings before a line. The passes share them, since each adds
+    // the headings of its own Item only.
+    let mut before = Nearest::new(&groups);
+    for label in cited_items {
+        let label_place = place(label);
+        // The last line of an Item that is not later in the form, which the
+        // Item's headings must come after, and the last line of a later
+        // Item since then.
+        let mut not_later: Option<usize> = None;
+        let mut later_line: Option<usize> = None;
+        for (i, c) in cands.iter().enumerate() {
+            if c.label != label {
+                if later(places[i], label_place) {
+                    later_line = Some(i);
+                } else {
+                    not_later = Some(i);
+                    later_line = None;
+                }
+            } else if c.cites {
+                let Some(h) = before.find(i).filter(|&h| not_later.is_none_or(|o| h > o)) else { continue };
+                let last = later_line.filter(|&o| o > h).map_or(label_place, |o| places[o]);
+                after_heading[i] = next_other[i].is_none_or(|o| later(places[o], last));
+            } else if heading(c) {
+                before.add(i);
+            }
+        }
+    }
+    // From the last line back: the headings after a line, and for each place
+    // in the form the nearest line after it of the Item whose first place
+    // that is. The Item's next heading must come before the nearest line of
+    // an Item whose first place is after the cited Item's last place.
+    let mut after = Nearest::new(&groups);
+    let mut nearest_of_place = vec![usize::MAX; keys.len()];
+    let mut cited = vec![false; n];
+    for i in (0..n).rev() {
+        let c = &cands[i];
+        if c.cites {
+            let stop = places[i].1.and_then(|last| nearest_of_place[last + 1..].iter().copied().min());
+            cited[i] = after.find(i).is_some_and(|h| stop.is_none_or(|stop| h < stop)) || after_heading[i];
+        } else if heading(c) {
+            after.add(i);
+        }
+        if let Some(first) = places[i].0 {
+            nearest_of_place[first] = i;
+        }
+    }
+    cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect()
 }
 
 /// The titles of the two parts of a 10-Q or 10-QSB, as `title_words` reads
@@ -1932,6 +2096,11 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
         .map(|c| if &c[1] == "II" { "II" } else { "I" })
 }
 
+/// The most characters between two Item lines of one block, such as a
+/// contents list. An Item with more before the next Item has text of its
+/// own.
+const SAME_BLOCK: usize = 2000;
+
 /// Drop table-of-contents entries whose heading reappears in the body, and
 /// lists of Item headings printed again after the body.
 ///
@@ -1970,7 +2139,6 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// just after a dropped listing entry go with it. The body headings of dropped
 /// contents entries are marked `listed`.
 fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec<Candidate> {
-    const SAME_BLOCK: usize = 2000;
     let n = cands.len();
     // A contents entry, the body heading it was matched with, and pairs whose
     // later copy is no longer than the earlier one.
@@ -1982,33 +2150,47 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // Pairs whose later copy comes after the signature block's sentence, which
     // starts at the third value.
     let mut signed_pairs: Vec<(usize, usize, usize)> = Vec::new();
-    let mut sentences: Option<Vec<(usize, usize)>> = None;
+    // The signature block's sentences and the signatures heading lines of
+    // the whole text, looked for only when a rule asks.
+    let signatures = Signatures::new(text);
+    // The next line of another Item after each line.
+    let mut next_other: Vec<Option<usize>> = vec![None; n];
+    for i in (0..n.saturating_sub(1)).rev() {
+        next_other[i] = if cands[i + 1].label != cands[i].label { Some(i + 1) } else { next_other[i + 1] };
+    }
     // Rows that print a page number are contents rows, also when no body
     // heading repeats them, and never the body copy of a pair.
-    let paged = paged_rows(&cands, text, keys, SAME_BLOCK);
-    for a in 0..n {
-        if cands[a].title.chars().count() < 5 {
-            continue;
-        }
-        let mut other_between = false;
-        for b in a + 1..n {
-            if cands[b].label != cands[a].label {
-                other_between = true;
-            } else if other_between && !paged[b] && same_title(&cands[a].title, &cands[b].title) {
-                let sentences = sentences.get_or_insert_with(|| signature_sentences(text).collect());
-                let signed = sentences.iter().find(|&&(start, end)| start >= cands[a].pos && end <= cands[b].pos);
-                match signed {
-                    Some(&(start, _)) if !paged[a] => signed_pairs.push((a, b, start)),
-                    _ if cands[b].gap > cands[a].gap => {
-                        contents[a] = true;
-                        body[b] = true;
-                    }
-                    _ => later_copies.push((a, b)),
-                }
-                paired[b] = true;
-                break;
+    let groups = TitleGroups::new(&cands);
+    let paged = paged_rows(&cands, text, keys, SAME_BLOCK, &next_other, &groups);
+    // The later copy of each candidate: the first line of its Item with the
+    // same title that is no paged row, after the next line of another Item.
+    // From the last candidate back, with the lines after that line of
+    // another Item added before the copy is looked up (`Nearest`), so that
+    // the time does not grow with the square of the number of lines.
+    let mut later_copy: Vec<Option<usize>> = vec![None; n];
+    let mut after = Nearest::new(&groups);
+    let mut added_from = n;
+    for a in (0..n).rev() {
+        let Some(other) = next_other[a] else { continue };
+        while added_from > other + 1 {
+            added_from -= 1;
+            if !paged[added_from] {
+                after.add(added_from);
             }
         }
+        later_copy[a] = after.find(a);
+    }
+    for a in 0..n {
+        let Some(b) = later_copy[a] else { continue };
+        match signatures.sentence_between(cands[a].pos, cands[b].pos) {
+            Some(start) if !paged[a] => signed_pairs.push((a, b, start)),
+            _ if cands[b].gap > cands[a].gap => {
+                contents[a] = true;
+                body[b] = true;
+            }
+            _ => later_copies.push((a, b)),
+        }
+        paired[b] = true;
     }
     // The earlier copy of a pair that the signatures split is a body heading
     // when it sits where the Item's heading belongs (`in_body_order`), and the
@@ -2020,8 +2202,37 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         repeats[b] = true;
     }
     let mut signed_copies: Vec<usize> = Vec::new();
-    for (a, b, signed) in signed_pairs {
-        if in_body_order(&cands, a, signed, keys, SAME_BLOCK, &rows, &repeats) {
+    // For each candidate, the nearest one before it with text of its own,
+    // and for each of those the nearest one before it of another Item or
+    // part, so that `in_body_order` does not search for them.
+    let same_item = |x: usize, y: usize| {
+        cands[x].label == cands[y].label
+            && cands[x].part.or(cands[x].title_part) == cands[y].part.or(cands[y].title_part)
+    };
+    let (mut text_before, mut other_before) = (vec![None; n], vec![None; n]);
+    if !signed_pairs.is_empty() {
+        let mut last: Option<usize> = None;
+        for i in 0..n {
+            text_before[i] = last;
+            if cands[i].gap > SAME_BLOCK {
+                other_before[i] = last.and_then(|l| if same_item(l, i) { other_before[l] } else { Some(l) });
+                last = Some(i);
+            }
+        }
+    }
+    // Whether the earlier copy of each pair is in body order, from the last
+    // pair back, so that `BodyOrder` reads the lines after it once for the
+    // copies of one Item before one sentence.
+    let mut body_order = BodyOrder { cands: &cands, keys, rows: &rows, repeats: &repeats, read: HashMap::new() };
+    let mut in_body_order = vec![false; n];
+    for &(a, _, signed) in signed_pairs.iter().rev() {
+        // The nearest candidate before `a` with text of its own, of another
+        // Item or part.
+        let before = text_before[a].and_then(|l| if same_item(l, a) { other_before[l] } else { Some(l) });
+        in_body_order[a] = body_order.holds(a, before, signed);
+    }
+    for (a, b, _) in signed_pairs {
+        if in_body_order[a] {
             signed_copies.push(b);
         } else if cands[b].gap > cands[a].gap {
             contents[a] = true;
@@ -2041,20 +2252,112 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // entry when its heading is printed again, with its title in full, before
     // any other Item. A body heading printed with a footnote's number comes
     // after the body of an earlier Item.
+    // The earliest place in the form's order of the Items with text of their
+    // own before the current line.
+    let mut earliest_text: Option<usize> = None;
+    // For the lines of the current run of one Item's lines, by title and
+    // printed title without the page column, which is all that the search
+    // reads of a line: the heading that the last such line found. A later
+    // line with the same titles (a running header printed on every page)
+    // has the same heading while it comes before it, and none when that
+    // line found none, so it does not search the run again.
+    let mut searched: HashMap<(&str, &str), Option<usize>> = HashMap::new();
+    // The lines that are no paged rows, listed by title when the first line
+    // asks, so that a row's heading is looked for among the lines of its Item
+    // with its title and not among all the lines of its run. Its heading is
+    // most often the next of them (the next running header with a page).
+    // When the first few are not, the search goes on by what the lines
+    // print (Item, title key and printed title, which is all that it reads
+    // of them), and compares each print once, however many lines print it:
+    // `first_lines` lists the first line of each print by title, and
+    // `prints` holds for each print its lines and the words of its title,
+    // read when first compared.
+    const READ_IN_ORDER: usize = 8;
+    struct Print {
+        lines: Vec<usize>,
+        words: OnceCell<Vec<String>>,
+    }
+    struct NoRows<'a> {
+        lines: SameTitled<'a>,
+        first_lines: SameTitled<'a>,
+        prints: HashMap<usize, Print>,
+    }
+    let no_rows = OnceCell::new();
+    let first_heading = |a: usize| -> Option<usize> {
+        let no_rows: &NoRows = no_rows.get_or_init(|| {
+            let mut first_of: HashMap<(&str, &str, &str), usize> = HashMap::new();
+            let (mut lines, mut first_lines) = (SameTitled::new(&groups), SameTitled::new(&groups));
+            let mut prints: HashMap<usize, Print> = HashMap::new();
+            for i in (0..n).filter(|&i| !paged[i]) {
+                lines.add(i);
+                let first = *first_of.entry((&cands[i].label, &cands[i].title, &cands[i].printed)).or_insert(i);
+                if first == i {
+                    first_lines.add(i);
+                }
+                prints
+                    .entry(first)
+                    .or_insert_with(|| Print { lines: Vec::new(), words: OnceCell::new() })
+                    .lines
+                    .push(i);
+            }
+            NoRows { lines, first_lines, prints }
+        });
+        // Up to the end of the run, the next line of another Item.
+        let end = next_other[a].unwrap_or(n);
+        let mut in_order = no_rows.lines.from(a, a + 1).take_while(|&b| b < end);
+        for _ in 0..READ_IN_ORDER {
+            match in_order.next() {
+                Some(b) if prints_title(&cands[a], &cands[b]) => return Some(b),
+                Some(_) => {}
+                None => return None,
+            }
+        }
+        let row = title_words(row_title(&cands[a]));
+        no_rows
+            .first_lines
+            .from(a, 0)
+            .map(|first| &no_rows.prints[&first])
+            .filter(|print| {
+                let first = &cands[print.lines[0]];
+                debug_assert!(same_title(&cands[a].title, &first.title));
+                prints_words(&row, print.words.get_or_init(|| title_words(&first.printed)))
+            })
+            .filter_map(|print| print.lines.get(print.lines.partition_point(|&b| b <= a)).copied())
+            .filter(|&b| b < end)
+            .min()
+    };
     for a in 0..n {
+        if a > 0 {
+            let before = &cands[a - 1];
+            if before.gap > SAME_BLOCK
+                && let Some(first) = form_places(before, keys).next()
+            {
+                earliest_text = Some(earliest_text.map_or(first, |e| e.min(first)));
+            }
+            if before.label != cands[a].label {
+                searched.clear();
+            }
+        }
         let after_row = a > 0
             && paged[a - 1]
             && cands[a].pos - cands[a - 1].pos <= SAME_BLOCK
             && comes_before(&cands[a - 1], &cands[a], keys);
-        let lone_row = !paged[a]
-            && ROW_PAGES.is_match(line_at(text, cands[a].pos).trim_end())
-            && !follows_body_item(&cands, a, keys, SAME_BLOCK);
+        // An Item earlier in the form's order than this line's, with text of
+        // its own, comes before it: the line is in the body, past any
+        // contents list.
+        let in_body =
+            || form_places(&cands[a], keys).next_back().is_some_and(|last| earliest_text.is_some_and(|e| e < last));
+        let lone_row = !paged[a] && ROW_PAGES.is_match(line_at(text, cands[a].pos).trim_end()) && !in_body();
         if contents[a] || !(after_row || lone_row) {
             continue;
         }
-        let heading = (a + 1..n)
-            .take_while(|&b| cands[b].label == cands[a].label)
-            .find(|&b| !paged[b] && prints_title(&cands[a], &cands[b]));
+        let titles = (cands[a].title.as_str(), row_title(&cands[a]));
+        let heading = match searched.get(&titles) {
+            Some(None) => None,
+            Some(&Some(b)) if b > a => Some(b),
+            _ => first_heading(a),
+        };
+        searched.insert(titles, heading);
         if let Some(b) = heading {
             contents[a] = true;
             body[b] = true;
@@ -2068,7 +2371,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         if heading.label == entry.label
             && same_title(&entry.title, &heading.title)
             && heading.pos - entry.pos <= SAME_BLOCK
-            && lists_signatures(text, entry.pos, heading.pos)
+            && lists_signatures(text, entry.pos, heading.pos, &signatures)
         {
             contents[a - 1] = true;
             body[a] = true;
@@ -2137,10 +2440,11 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     }
     if !later_copies.is_empty() {
         let body_start = body_start.unwrap_or(0);
-        let sigs = signature_lines(text);
+        let sigs = signatures.lines();
         for &(a, b) in &later_copies {
             let from = body_start.max(cands[a].pos + 1);
-            after[b] = sigs.iter().any(|&p| p >= from && p < cands[b].pos);
+            // The first signatures line from there on, since they are in order.
+            after[b] = sigs.get(sigs.partition_point(|&p| p < from)).is_some_and(|&p| p < cands[b].pos);
         }
     }
     // Only short entries: a body heading can follow a second contents table.
@@ -2157,6 +2461,12 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         .collect()
 }
 
+/// The printed title of a candidate without its page column. With the title
+/// key, it is all that `prints_title` reads of the row `a`.
+fn row_title(c: &Candidate) -> &str {
+    ENTRY_PAGES.find(&c.printed).map_or(c.printed.as_str(), |m| &c.printed[..m.start()])
+}
+
 /// Whether `b`, a later line of the same Item as `a`, prints the title of `a`
 /// in full, as the body heading of a contents row does: the words of the
 /// title of `a`, without a page column, start the title of `b` (the row's
@@ -2164,70 +2474,100 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
 /// Statement Schedules,"), and `b` adds no "continued", as a running header
 /// does.
 fn prints_title(a: &Candidate, b: &Candidate) -> bool {
-    let printed = ENTRY_PAGES.find(&a.printed).map_or(a.printed.as_str(), |m| &a.printed[..m.start()]);
-    let (row, heading) = (title_words(printed), title_words(&b.printed));
-    same_title(&a.title, &b.title)
-        && heading.starts_with(&row)
+    // The title keys first: reading the words costs much more, and most
+    // lines compared have other titles.
+    same_title(&a.title, &b.title) && prints_words(&title_words(row_title(a)), &title_words(&b.printed))
+}
+
+/// `prints_title` for the words (`title_words`) of the row's title without
+/// its page column and of the later line's printed title, when the title
+/// keys of the two lines pair.
+fn prints_words(row: &[String], heading: &[String]) -> bool {
+    heading.starts_with(row)
         && !heading[row.len()..].iter().any(|w| matches!(w.as_str(), "continued" | "cont'd" | "cont’d"))
 }
 
-/// Whether candidate `a` sits where its Item's body heading belongs among the
-/// Items with text of their own (more than `block` characters before the
-/// next Item), before the signatures at `signed`: the nearest one of another
-/// Item before it, if any, names an earlier Item in the form's order, and the
-/// lines of other Items after it, up to and including the first one with
-/// text of its own before `signed`, name later Items, the first of them no
-/// contents row (`rows`: an earlier copy of a heading that the body prints
-/// again, or a row that prints a page). A line inside another Item's text
-/// that starts with the Item's heading (a cross-reference), a row of an index
-/// of Items printed after the body, and a contents row above the body
-/// headings do not. Lines of its own Item (running headers, an explanatory
-/// note's line) and lines that repeat an earlier line of their Item with no
-/// longer text after them (`repeats`: running headers, cross-references) do
-/// not count.
-fn in_body_order(
-    cands: &[Candidate],
-    a: usize,
-    signed: usize,
-    keys: &[Key],
-    block: usize,
-    rows: &[bool],
-    repeats: &[bool],
-) -> bool {
-    let has_text = |c: &Candidate| c.gap > block;
-    // Items of one number in both parts of a 10-Q come in order when their
-    // parts are known ("Item 2" of Part I, then of Part II).
-    let precedes = |x: &Candidate, y: &Candidate| {
-        let parts_apart = form_places(x, keys).next_back().zip(form_places(y, keys).next()).is_some_and(|(x, y)| x < y);
-        comes_before(x, y, keys) || parts_apart
-    };
-    let part = |c: &Candidate| c.part.or(c.title_part);
-    let other = |c: &Candidate| c.label != cands[a].label || part(c) != part(&cands[a]);
-    if cands[..a].iter().rev().find(|c| other(c) && has_text(c)).is_some_and(|c| !precedes(c, &cands[a])) {
-        return false;
-    }
-    let after =
-        (a + 1..cands.len()).take_while(|&i| cands[i].pos < signed).filter(|&i| other(&cands[i]) && !repeats[i]);
-    if after.clone().next().is_some_and(|i| rows[i]) {
-        return false;
-    }
-    for i in after {
-        if !precedes(&cands[a], &cands[i]) {
-            return false;
-        }
-        if has_text(&cands[i]) {
-            break;
-        }
-    }
-    true
+/// Whether a candidate sits where its Item's body heading belongs
+/// (`BodyOrder::holds`), for the candidates of `drop_contents_entries`,
+/// its contents rows (`rows`) and the lines that repeat an earlier line of
+/// their Item with no longer text after them (`repeats`).
+struct BodyOrder<'a> {
+    cands: &'a [Candidate],
+    keys: &'a [Key],
+    rows: &'a [bool],
+    repeats: &'a [bool],
+    /// What the last candidate of each Item and part read of the lines
+    /// after it.
+    read: HashMap<(&'a str, Option<&'static str>), LinesAfter>,
 }
 
-/// Whether an Item earlier in the form's order than candidate `i`, with text
-/// of its own (more than `block` characters before the next Item), comes
-/// before it: then `i` is in the body, past any contents list.
-fn follows_body_item(cands: &[Candidate], i: usize, keys: &[Key], block: usize) -> bool {
-    let Some(last) = form_places(&cands[i], keys).next_back() else { return false };
-    cands[..i].iter().any(|c| c.gap > block && form_places(c, keys).next().is_some_and(|f| f < last))
+/// The lines that count after candidate `from` and before the signatures at
+/// `signed` (`BodyOrder::holds`): the first of them, and the first that ends
+/// the reading, one that the candidate's Item does not come before or one
+/// with text of its own.
+#[derive(Clone, Copy)]
+struct LinesAfter {
+    from: usize,
+    signed: usize,
+    first: Option<usize>,
+    end: Option<usize>,
+}
+
+impl BodyOrder<'_> {
+    /// Whether candidate `a` sits where its Item's body heading belongs among
+    /// the Items with text of their own (more than `SAME_BLOCK` characters
+    /// before the next Item), before the signatures at `signed`: the nearest
+    /// one of another Item before it, if any, names an earlier Item in the
+    /// form's order, and the lines of other Items after it, up to and
+    /// including the first one with text of its own before `signed`, name
+    /// later Items, the first of them no contents row (`rows`: an earlier
+    /// copy of a heading that the body prints again, or a row that prints a
+    /// page). A line inside another Item's text that starts with the Item's
+    /// heading (a cross-reference), a row of an index of Items printed after
+    /// the body, and a contents row above the body headings do not. Lines of
+    /// its own Item (running headers, an explanatory note's line) and lines
+    /// that repeat an earlier line of their Item with no longer text after
+    /// them (`repeats`: running headers, cross-references) do not count.
+    /// `before` is the nearest candidate before `a` with text of its own, of
+    /// another Item or part.
+    ///
+    /// The lines after `a` read the same for every candidate of its Item
+    /// and part, so one that comes before the last one asked about, with
+    /// the same signatures after it, reads only the lines up to that one
+    /// and goes on with what that one read.
+    fn holds(&mut self, a: usize, before: Option<usize>, signed: usize) -> bool {
+        let (cands, keys) = (self.cands, self.keys);
+        let has_text = |c: &Candidate| c.gap > SAME_BLOCK;
+        // Items of one number in both parts of a 10-Q come in order when their
+        // parts are known ("Item 2" of Part I, then of Part II).
+        let precedes = |x: &Candidate, y: &Candidate| {
+            let parts_apart =
+                form_places(x, keys).next_back().zip(form_places(y, keys).next()).is_some_and(|(x, y)| x < y);
+            comes_before(x, y, keys) || parts_apart
+        };
+        let part = |c: &Candidate| c.part.or(c.title_part);
+        let other = |c: &Candidate| c.label != cands[a].label || part(c) != part(&cands[a]);
+        debug_assert_eq!(before, (0..a).rev().find(|&i| other(&cands[i]) && has_text(&cands[i])));
+        if before.is_some_and(|i| !precedes(&cands[i], &cands[a])) {
+            return false;
+        }
+        let item = (cands[a].label.as_str(), part(&cands[a]));
+        let known = self.read.get(&item).copied().filter(|known| known.signed == signed && known.from > a);
+        let (mut first, mut end) = (None, None);
+        let to = known.map_or(cands.len(), |known| known.from);
+        for i in (a + 1..to).take_while(|&i| cands[i].pos < signed).filter(|&i| other(&cands[i]) && !self.repeats[i]) {
+            first.get_or_insert(i);
+            if !precedes(&cands[a], &cands[i]) || has_text(&cands[i]) {
+                end = Some(i);
+                break;
+            }
+        }
+        if let (None, Some(known)) = (end, known) {
+            (first, end) = (first.or(known.first), known.end);
+        }
+        self.read.insert(item, LinesAfter { from: a, signed, first, end });
+        !first.is_some_and(|i| self.rows[i]) && end.is_none_or(|i| precedes(&cands[a], &cands[i]))
+    }
 }
 
 /// The places in the form's order (indexes into `keys`) that a candidate's
@@ -2283,14 +2623,32 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
     let inside = |o: &Candidate, stretch: &[(usize, usize)]| {
         form_places(o, keys).any(|k| stretch.iter().any(|&(from, to)| from <= k && k <= to))
     };
+    // For the lines that name one stretch (by first Item, part and last
+    // Item): the line that ended the last one's search, a heading of the
+    // first Item alone or the first line outside the stretch, and whether
+    // it is that heading. A later line that names the same stretch (a
+    // running header "ITEMS 7 AND 7A.") before that line has the same
+    // answer, so it does not read the lines up to it again.
+    let mut searched: HashMap<(&str, Option<&str>, &str), (usize, bool)> = HashMap::new();
     let keep: Vec<bool> = (0..cands.len())
         .map(|i| {
             let c = &cands[i];
             let Some(last) = c.joined.as_deref().filter(|_| !c.listed) else { return true };
+            let stretch_named = (c.label.as_str(), c.part.or(c.title_part), last);
+            if let Some(&(end, heading)) = searched.get(&stretch_named)
+                && end > i
+            {
+                return !heading;
+            }
             let stretch = named(c, last);
-            !cands[i + 1..].iter().take_while(|o| inside(o, &stretch)).any(|o| o.label == c.label && o.joined.is_none())
+            let end = (i + 1..cands.len())
+                .find(|&j| !inside(&cands[j], &stretch) || (cands[j].label == c.label && cands[j].joined.is_none()));
+            let found = end.map_or((cands.len(), false), |j| (j, inside(&cands[j], &stretch)));
+            searched.insert(stretch_named, found);
+            !found.1
         })
         .collect();
+    drop(searched);
     let cands: Vec<Candidate> = cands.into_iter().zip(keep).filter(|(_, k)| *k).map(|(c, _)| c).collect();
     let mut cover_rows = 0;
     while let Some(c) = cands.get(cover_rows) {
@@ -2342,12 +2700,21 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 /// adds "(continued)" (`prints_title`). A body heading printed with a
 /// footnote's number after a contents list without pages prints the entry's
 /// title in full.
-fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Vec<bool> {
+fn paged_rows(
+    cands: &[Candidate],
+    text: &str,
+    keys: &[Key],
+    block: usize,
+    next_other: &[Option<usize>],
+    groups: &TitleGroups,
+) -> Vec<bool> {
     let ends_with_pages = |l: &str| ROW_PAGES.is_match(l.trim_end());
     let ends_with_entry = |l: &str| ENTRY_PAGES.is_match(l.trim_end());
     let n = cands.len();
     let close = |a: usize, b: usize| cands[b].pos - cands[a].pos <= block;
-    let other_follows = |i: usize| (i + 1..n).take_while(|&o| close(i, o)).any(|o| cands[o].label != cands[i].label);
+    // Whether a line of another Item follows closely: the next one does
+    // (`next_other`), since any other is further away.
+    let other_follows = |i: usize| next_other[i].is_some_and(|o| close(i, o));
     // The entry of an Item line runs from its start to the next Item line.
     let entry_ends = |i: usize| {
         let end = cands.get(i + 1).map_or(text.len(), |o| o.pos);
@@ -2402,16 +2769,41 @@ fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Ve
         }
         first = last + 1;
     }
+    // A line repeats a line of its Item before it that is no row and has
+    // its title (`same_title`) when it does not print that title in full.
+    // The lines before `i` that are no rows are not each compared with it.
+    // The nearest one with its title (`Nearest`) tells when there is none,
+    // and is most often the line it repeats. Otherwise those with its title
+    // (`SameTitled`) are compared, once for each different print and not
+    // once for each line: of `j` the comparison reads only the Item, the
+    // title key and the printed title without the page column, and `kinds`
+    // holds the first line of each print.
+    let mut no_rows = Nearest::new(groups);
+    let mut added = 0;
+    let mut known: HashSet<(&str, &str, &str)> = HashSet::new();
+    let mut kinds = SameTitled::new(groups);
+    let mut listed = 0;
     for i in 0..n {
-        let repeats = |j: usize| {
-            cands[j].label == cands[i].label
-                && !paged[j]
-                && same_title(&cands[j].title, &cands[i].title)
-                && !prints_title(&cands[j], &cands[i])
-        };
-        if !paged[i] && own_pages(i) && (0..i).any(repeats) {
-            paged[i] = true;
+        if paged[i] || !own_pages(i) {
+            continue;
         }
+        // Whether a line before this one is a row is settled now.
+        (added..i).filter(|&j| !paged[j]).for_each(|j| no_rows.add(j));
+        added = i;
+        paged[i] = match no_rows.find(i) {
+            None => false,
+            Some(j) if !prints_title(&cands[j], &cands[i]) => true,
+            Some(_) => {
+                for j in listed..i {
+                    let c = &cands[j];
+                    if !paged[j] && known.insert((&c.label, &c.title, row_title(c))) {
+                        kinds.add(j);
+                    }
+                }
+                listed = i;
+                kinds.from(i, 0).any(|j| !prints_title(&cands[j], &cands[i]))
+            }
+        };
     }
     paged
 }
@@ -2551,18 +2943,77 @@ fn signatures_after(text: &str, from: usize) -> Option<usize> {
     signature_sentences(&text[from..before]).next().map(|(start, _)| from + start).or(heading)
 }
 
+/// The signatures of a whole text: its signatures heading lines and its
+/// signature block's sentences, each found when first asked for, so that
+/// rules that ask about many places in the text search it once.
+struct Signatures<'a> {
+    text: &'a str,
+    lines: OnceCell<Vec<usize>>,
+    sentences: OnceCell<Vec<(usize, usize)>>,
+    /// For each sentence, the latest start of the sentences up to it: the
+    /// sentences end in order, but nothing says that they start in order,
+    /// and these do.
+    latest_starts: OnceCell<Vec<usize>>,
+}
+
+impl<'a> Signatures<'a> {
+    fn new(text: &'a str) -> Self {
+        Signatures { text, lines: OnceCell::new(), sentences: OnceCell::new(), latest_starts: OnceCell::new() }
+    }
+
+    /// `signature_lines` of the text.
+    fn lines(&self) -> &[usize] {
+        self.lines.get_or_init(|| signature_lines(self.text))
+    }
+
+    /// `signature_sentences` of the text.
+    fn sentences(&self) -> &[(usize, usize)] {
+        self.sentences.get_or_init(|| signature_sentences(self.text).collect())
+    }
+
+    fn latest_starts(&self) -> &[usize] {
+        self.latest_starts.get_or_init(|| {
+            let latest = |latest: &mut usize, &(start, _): &(usize, usize)| {
+                *latest = start.max(*latest);
+                Some(*latest)
+            };
+            self.sentences().iter().scan(0, latest).collect()
+        })
+    }
+
+    /// The start of the first sentence that starts at or after `from` and
+    /// ends at or before `to`. The sentences end in order, so it is the
+    /// first one that starts at or after `from`, which is the first whose
+    /// latest start so far is at or after `from`.
+    fn sentence_between(&self, from: usize, to: usize) -> Option<usize> {
+        let first = self.latest_starts().partition_point(|&start| start < from);
+        self.sentences().get(first).filter(|&&(_, end)| end <= to).map(|&(start, _)| start)
+    }
+
+    /// Whether signatures start after the line of an Item heading that
+    /// starts at `heading`: whether `signatures_after(text, heading + 1)`
+    /// finds any. The rest of the heading's line is no signatures line and
+    /// opens no sentence, and the lines after it read the same in the whole
+    /// text as in the text from there on, so that is whether a signatures
+    /// line or a sentence of the whole text starts after `heading`.
+    fn follow(&self, heading: usize) -> bool {
+        self.lines().last().is_some_and(|&line| line > heading)
+            || self.latest_starts().last().is_some_and(|&start| start > heading)
+    }
+}
+
 /// Whether the Item line at `entry` and the heading of the same Item at
 /// `heading` are a list's entry and the body heading it names, with
 /// "SIGNATURES" as the list's last entry: the line after the entry is a
 /// signatures heading, no signature block sentence comes before the heading,
 /// and the signatures come after it. Signatures between an Item's body
 /// heading and an exhibit that repeats it are followed by that sentence.
-fn lists_signatures(text: &str, entry: usize, heading: usize) -> bool {
+fn lists_signatures(text: &str, entry: usize, heading: usize, signatures: &Signatures) -> bool {
     let after_entry = text[entry..heading].find('\n').map_or(heading, |i| entry + i + 1);
     let next = text[after_entry..heading].lines().find(|l| !l.trim().is_empty()).unwrap_or("");
     SIGNATURES.is_match(next)
         && signature_sentences(&text[after_entry..heading]).next().is_none()
-        && signatures_after(text, heading + 1).is_some()
+        && signatures.follow(heading)
 }
 
 /// Start of the first line in a section, after its heading line, that `re`
@@ -8194,6 +8645,112 @@ Pursuant to ...
             assert_eq!(by_line, whole);
             let found: Vec<&str> = heading.find_iter(text).map(|m| m.as_str()).collect();
             assert_eq!(found.len(), count, "{found:?}");
+        }
+    }
+
+    #[test]
+    fn row_with_a_page_is_no_contents_entry_of_a_heading_after_another_item() {
+        // "Item 1." prints a page and is in no contents list. The line that
+        // prints its title again comes after Item 2, so it is not the
+        // heading that the row lists, and Item 1 starts at the row.
+        let text = format!(
+            "Item 1.\tBusiness\t3\n{}\nItem 2. Properties\n{}\nItem 1. Business\n{}\n\
+             Item 3. Legal Proceedings\n{}\nSIGNATURES\n",
+            BODY.repeat(40),
+            BODY.repeat(40),
+            BODY.repeat(20),
+            BODY.repeat(40)
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3"]);
+        assert_eq!(s[0].start, 0);
+        // In its own run of Item 1 lines the row lists the heading that
+        // prints its title in full, after few or many lines that do not,
+        // and Item 1 starts after the row.
+        for shorter in [0, 3, 12, 40] {
+            let text = format!(
+                "Item 1.\tBusiness Overview\t3\n{}Item 1. Business Overview\n{}\nItem 2. Properties\n{}\nSIGNATURES\n",
+                "Item 1. Business\n".repeat(shorter),
+                BODY.repeat(40),
+                BODY.repeat(40)
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_2"]);
+            assert_eq!(s[0].start, "Item 1.\tBusiness Overview\t3\n".len(), "{shorter}");
+        }
+    }
+
+    #[test]
+    fn nearest_and_same_titled_find_the_candidates_that_same_title_pairs() {
+        let titled = [
+            ("1", "business"),
+            ("1", "businessoverview"),
+            ("2", "business"),
+            ("1", "busin"),
+            ("1", "abc"),
+            ("7", "managementsdiscussionandanalysis"),
+            ("1", "businessx"),
+            ("1", "business"),
+            ("7", "manag"),
+            ("7", "managementsdiscussion"),
+            ("1", "businessoverviewandmore"),
+            ("7", "management"),
+            ("1", ""),
+            ("7", "marketrisk"),
+            ("1", "étatsfinanciers"),
+            ("7", "managers"),
+            ("1", "états"),
+            ("1", "businessoverview"),
+            ("2", "busines"),
+            ("1", "busi"),
+        ];
+        let cands: Vec<Candidate> = titled.iter().map(|&(label, title)| added_candidate("", 0, label, title)).collect();
+        let pairs =
+            |a: usize, b: usize| cands[a].label == cands[b].label && same_title(&cands[a].title, &cands[b].title);
+        let groups = TitleGroups::new(&cands);
+        let (mut before, mut after) = (Nearest::new(&groups), Nearest::new(&groups));
+        for i in 0..cands.len() {
+            assert_eq!(before.find(i), (0..i).rev().find(|&j| pairs(i, j)), "before {i}");
+            before.add(i);
+        }
+        for i in (0..cands.len()).rev() {
+            assert_eq!(after.find(i), (i + 1..cands.len()).find(|&j| pairs(i, j)), "after {i}");
+            after.add(i);
+        }
+        // And all of those added that pair with a candidate, in order.
+        let added = |j: &usize| j % 5 != 3;
+        let mut listed = SameTitled::new(&groups);
+        (0..cands.len()).filter(added).for_each(|j| listed.add(j));
+        for i in 0..cands.len() {
+            for from in [0, i, i + 1] {
+                let pairing: Vec<usize> = (from..cands.len()).filter(added).filter(|&j| pairs(i, j)).collect();
+                assert_eq!(listed.from(i, from).collect::<Vec<_>>(), pairing, "{i} from {from}");
+            }
+        }
+    }
+
+    #[test]
+    fn signatures_of_a_text_answer_as_a_search_from_each_place() {
+        let sentence = "Pursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of 1934, \
+                        the registrant has duly caused this report to be signed.";
+        let wrapped = "In accordance with the requirements of the Exchange Act, the\nregistrant\ncaused this report";
+        let text = format!(
+            "Item 1. Business\nSIGNATURES\nItem 1. Business\n{BODY}\n{sentence}\n item 2. Properties\n{wrapped}\n\
+             The storm caused this delay.\nItem 5. Other Information\n{sentence} It also caused its filing.\n\
+             Signature(s)\nItem 9B. Other Information\ncaused this\nPART IV ITEM 15. Exhibits\n{BODY}\n"
+        );
+        for text in [text.clone(), text.replace('\n', "\r\n"), text[..text.len() / 2].to_owned(), String::new()] {
+            let signatures = Signatures::new(&text);
+            let sentences: Vec<(usize, usize)> = signature_sentences(&text).collect();
+            let headings: Vec<usize> = PERIODIC_HEADING.find_iter(&text).map(|m| m.start()).collect();
+            assert!(text.is_empty() || (headings.len() >= 3 && sentences.len() >= 2));
+            for &heading in &headings {
+                assert_eq!(signatures.follow(heading), signatures_after(&text, heading + 1).is_some(), "{heading}");
+                for &to in &headings {
+                    let between = sentences.iter().find(|&&(start, end)| start >= heading && end <= to);
+                    assert_eq!(signatures.sentence_between(heading, to), between.map(|&(start, _)| start));
+                }
+            }
         }
     }
 
