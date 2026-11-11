@@ -809,15 +809,17 @@ static SIGNATURES: LazyLock<Regex> = LazyLock::new(|| {
 /// long filing.
 fn signature_lines(text: &str) -> Vec<usize> {
     static WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"SIGNATURE|Signature|S I G N").unwrap());
-    let mut found: Vec<usize> = WORD
-        .find_iter(text)
-        .filter_map(|m| {
-            let start = text[..m.start()].rfind('\n').map_or(0, |n| n + 1);
-            let end = text[m.start()..].find('\n').map_or(text.len(), |n| m.start() + n);
-            SIGNATURES.is_match(&text[start..end]).then_some(start)
-        })
-        .collect();
-    found.dedup();
+    let mut found: Vec<usize> = Vec::new();
+    let mut from = 0;
+    while let Some(m) = WORD.find_at(text, from) {
+        let start = text[..m.start()].rfind('\n').map_or(0, |n| n + 1);
+        let end = text[m.start()..].find('\n').map_or(text.len(), |n| m.start() + n);
+        if SIGNATURES.is_match(&text[start..end]) {
+            found.push(start);
+        }
+        // The line is tested once, however often it holds the word.
+        from = end;
+    }
     found
 }
 
@@ -855,20 +857,47 @@ static SIGNATURE_CAUSED: LazyLock<Regex> =
 fn signature_sentences(text: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
     const MAX_LINE: usize = 250;
     const MAX_BREAKS: usize = 2;
+    // The longest text between the opening words and "caused" that fits:
+    // the lines of at most `MAX_LINE` characters, of at most 4 bytes each,
+    // that the breaks looked over divide it into.
+    const MAX_REST: usize = (MAX_BREAKS + 2) * (4 * MAX_LINE + 1);
     let line_start = |pos: usize| text[..pos].rfind('\n').map_or(0, |n| n + 1);
+    // The starts of the line of the last "caused" and of the lines looked at
+    // above it, where the opening words found at each start end, and where
+    // that "caused" ends: a line that holds "caused" many times is searched
+    // for its start, and the lines above it for theirs and for the opening
+    // words, once and not once for each. The opening words found from a
+    // start are the same for each "caused" of the line: they hold no
+    // "caused", so they end before the first of them or are not there.
+    let mut starts: Vec<usize> = Vec::new();
+    let mut openings: Vec<Option<usize>> = Vec::new();
+    let mut last_end = 0;
     SIGNATURE_CAUSED.find_iter(text).filter_map(move |caused| {
+        if starts.is_empty() || text[last_end..caused.start()].contains('\n') {
+            starts.clear();
+            openings.clear();
+            starts.push(line_start(caused.start()));
+        }
+        last_end = caused.end();
         // The opening words can wrap too, so look one line further up.
-        let mut start = line_start(caused.start());
-        for _ in 0..=MAX_BREAKS + 1 {
-            if let Some(opening) = SIGNATURE_OPENING.find(&text[start..caused.start()]) {
-                let rest = &text[start + opening.end()..caused.start()];
-                let fits = rest.split('\n').all(|l| l.chars().count() <= MAX_LINE);
+        for above in 0..=MAX_BREAKS + 1 {
+            if above == starts.len() {
+                starts.push(line_start(starts[above - 1] - 1));
+            }
+            let start = starts[above];
+            let opening_end = || SIGNATURE_OPENING.find(&text[start..caused.start()]).map(|opening| opening.end());
+            if above == openings.len() {
+                openings.push(opening_end());
+            }
+            debug_assert_eq!(openings[above], opening_end());
+            if let Some(opening_end) = openings[above] {
+                let rest = &text[start + opening_end..caused.start()];
+                let fits = rest.len() <= MAX_REST && rest.split('\n').all(|l| l.chars().count() <= MAX_LINE);
                 return (fits && rest.matches('\n').count() <= MAX_BREAKS).then_some((start, caused.end()));
             }
             if start == 0 {
                 break;
             }
-            start = line_start(start - 1);
         }
         None
     })
@@ -3167,12 +3196,25 @@ static PART_TWO: LazyLock<Regex> = LazyLock::new(|| {
 fn part_two_preamble(text: &str, start: usize, end: usize) -> Option<usize> {
     let lines = item_lines(text, start, end);
     let at = lines.iter().position(|&(pos, l)| PART_TWO.is_match(l) && !continues_sentence(text, pos))?;
+    // A filing prints few lines here before its own text, and each is
+    // looked for in the text. When they are many (pages of headers), all
+    // lines of the text are counted once instead.
+    const MAX_SEARCHES: usize = 8;
+    let mut searches = 0;
+    let mut counts: Option<HashMap<&str, usize>> = None;
+    let mut printed_once = |l: &str| {
+        if searches < MAX_SEARCHES {
+            searches += 1;
+            return line_copies(text, l) < 2;
+        }
+        counts.get_or_insert_with(|| line_counts(text)).get(l).copied().unwrap_or(0) < 2
+    };
     let own_text = lines[at + 1..].iter().any(|&(_, l)| {
         l.contains(char::is_alphabetic)
             && !PART_TWO.is_match(l)
             && title_key(l) != "otherinformation"
             && !PAGE_FOOTER.is_match(l)
-            && line_copies(text, l) < 2
+            && printed_once(l)
     });
     own_text.then_some(lines[at].0)
 }
@@ -3185,13 +3227,28 @@ static PAGE_FOOTER: LazyLock<Regex> = LazyLock::new(|| {
 
 /// How many lines of `text` hold `line` and nothing else but blanks.
 fn line_copies(text: &str, line: &str) -> usize {
-    let blank = |s: &str| s.trim().is_empty();
-    text.match_indices(line)
-        .filter(|&(i, _)| {
-            blank(text[..i].rsplit('\n').next().unwrap_or(""))
-                && blank(text[i + line.len()..].split('\n').next().unwrap_or(""))
-        })
-        .count()
+    // The empty line is found at every place in the text, and each place
+    // in a blank line is a copy of it.
+    if line.is_empty() {
+        return text.split('\n').filter(|l| l.trim().is_empty()).map(|l| l.chars().count() + 1).sum();
+    }
+    // Only blanks between the copy and the ends of its line, looked at from
+    // the copy outwards up to the first other character, so that a long
+    // line that holds the words many times is not read through for each.
+    let blank_before = |end: usize| text[..end].chars().rev().take_while(|&c| c != '\n').all(char::is_whitespace);
+    let blank_after = |start: usize| text[start..].chars().take_while(|&c| c != '\n').all(char::is_whitespace);
+    text.match_indices(line).filter(|&(i, _)| blank_before(i) && blank_after(i + line.len())).count()
+}
+
+/// `line_copies` for many lines of one text: how often each trimmed line of
+/// `text` is printed, counted in one pass. The copies of a trimmed line
+/// that is not empty are the lines that read the same when trimmed.
+fn line_counts(text: &str) -> HashMap<&str, usize> {
+    let mut counts = HashMap::new();
+    for line in text.split('\n') {
+        *counts.entry(line.trim()).or_insert(0) += 1;
+    }
+    counts
 }
 
 /// Start of a power of attorney printed after the last Item's text and
@@ -3314,12 +3371,22 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
         return None;
     }
     // Heading lines after the index, then the first one for each entry's title.
-    let headings: Vec<(usize, String)> = (last + 1..lines.len())
-        .filter(|&j| statement_heading(lines[j].1))
-        .map(|j| (j, title_key(lines[j].1)))
-        .collect();
-    let mut printed: Vec<usize> =
-        titles.iter().filter_map(|t| headings.iter().find(|(_, h)| same_title(h, t)).map(|&(j, _)| j)).collect();
+    let headings: Vec<usize> = (last + 1..lines.len()).filter(|&j| statement_heading(lines[j].1)).collect();
+    let heading_titles: Vec<String> = headings.iter().map(|&j| title_key(lines[j].1)).collect();
+    // An index has a few entries, and each is compared with the headings.
+    // For a long one the headings are indexed by their prefixes instead,
+    // which costs more for each heading but nothing more for each entry.
+    const MAX_COMPARED: usize = 64;
+    let mut printed: Vec<usize> = if titles.len() <= MAX_COMPARED {
+        titles
+            .iter()
+            .filter_map(|t| heading_titles.iter().position(|h| same_title(h, t)))
+            .map(|h| headings[h])
+            .collect()
+    } else {
+        let index = TitleIndex::new(&heading_titles);
+        titles.iter().filter_map(|t| index.find(t)).map(|h| headings[h]).collect()
+    };
     printed.sort_unstable();
     printed.dedup();
     let &statements = printed.first()?;
@@ -8730,6 +8797,39 @@ Pursuant to ...
     }
 
     #[test]
+    fn line_copies_counts_the_lines_that_print_a_line_alone() {
+        // As it was first written: every place the line is found at, with
+        // blanks only before and after it on its line.
+        let slow = |text: &str, line: &str| {
+            let blank = |s: &str| s.trim().is_empty();
+            text.match_indices(line)
+                .filter(|&(i, _)| {
+                    blank(text[..i].rsplit('\n').next().unwrap_or(""))
+                        && blank(text[i + line.len()..].split('\n').next().unwrap_or(""))
+                })
+                .count()
+        };
+        let texts = [
+            "",
+            "\n",
+            "A",
+            "  A \r\nA A\n\tA\nA\u{a0}\n A\n\nB A\nAA\n A  A\n",
+            "None.\n  None. \nNone. None.\nnone.\n \n\t\n",
+            "Page 1\r\nPage 1 of 2\r\n  Page 1\r",
+            "é é\né\n  é é  \n",
+        ];
+        for text in texts {
+            let counts = line_counts(text);
+            for line in ["", "A", "A A", "None.", "Page 1", "é", "é é", "B", "missing"] {
+                assert_eq!(line_copies(text, line), slow(text, line), "{line:?} in {text:?}");
+                if !line.is_empty() {
+                    assert_eq!(counts.get(line).copied().unwrap_or(0), slow(text, line), "{line:?} in {text:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn signatures_of_a_text_answer_as_a_search_from_each_place() {
         let sentence = "Pursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of 1934, \
                         the registrant has duly caused this report to be signed.";
@@ -8751,6 +8851,37 @@ Pursuant to ...
                     assert_eq!(signatures.sentence_between(heading, to), between.map(|&(start, _)| start));
                 }
             }
+        }
+    }
+
+    #[test]
+    fn signature_sentences_of_a_line_that_holds_caused_many_times() {
+        let opening = "Pursuant to the requirements of Section 13 of the Exchange Act, the registrant";
+        // The sentence may run for 250 characters after the opening words on
+        // their line, so only the first of these ends one.
+        let line = format!("{opening}{}", " caused this report and that".repeat(40));
+        let text = format!("Above.\n{line}\nBelow.\nIt caused its own end.\n");
+        let found: Vec<(usize, usize)> = signature_sentences(&text).collect();
+        let ends: Vec<usize> = line.match_indices("caused this").map(|(i, m)| 7 + i + m.len()).collect();
+        let after_opening = 7 + "Pursuant to the requirements of Section 13".len();
+        let fits = |end: usize| text[after_opening..end - "caused this".len()].chars().count() <= 250;
+        let expected: Vec<(usize, usize)> = ends.iter().filter(|&&end| fits(end)).map(|&end| (7, end)).collect();
+        assert_eq!(found, expected);
+        assert_eq!(expected.len(), 8);
+        // Lines above the one that holds "caused" open the sentence too.
+        let text =
+            format!("{opening}\nExample Company\nhas duly caused this report, and caused its seal, to be set.\n");
+        let found: Vec<(usize, usize)> = signature_sentences(&text).collect();
+        let caused: Vec<(usize, &str)> = found.iter().map(|&(start, end)| (start, &text[end - 10..end])).collect();
+        assert_eq!(caused, [(0, "aused this"), (0, "caused its")]);
+        // The names before "caused" may fill three lines of 250 characters,
+        // of any width.
+        for name in ["é", "😀"] {
+            let (short, long) = (name.repeat(249), name.repeat(250));
+            let text = format!("Pursuant to Section 13 {short}\n{long}\n{short} caused this report\n");
+            assert_eq!(signature_sentences(&text).count(), 1);
+            let text = format!("Pursuant to Section 13 {long}\n{long}\n{short} caused this report\n");
+            assert_eq!(signature_sentences(&text).count(), 0);
         }
     }
 
