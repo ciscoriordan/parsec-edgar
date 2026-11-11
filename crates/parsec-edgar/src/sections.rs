@@ -767,18 +767,34 @@ fn item_word_lines(text: &str) -> Vec<(usize, usize)> {
     lines
 }
 
+/// Whether a line starts, after spaces and tabs, with "item" or "part" in
+/// ASCII letters of any case, as every line that an Item heading pattern
+/// (`PERIODIC_HEADING`, `CURRENT_HEADING`, `ROMAN_HEADING`) matches does:
+/// each pattern starts with `^[ \t]*`, then an optional `(?i:part)`, then
+/// `(?i:item)`, and case folding gives none of the letters of the two words
+/// a form outside ASCII (as it does to "s" and "k", which are in neither).
+fn starts_like_heading(line: &str) -> bool {
+    let rest = line.trim_start_matches([' ', '\t']).as_bytes();
+    rest.get(..4).is_some_and(|word| word.eq_ignore_ascii_case(b"item") || word.eq_ignore_ascii_case(b"part"))
+}
+
 /// The matches of `heading`, a pattern of one whole line (`(?m)^...$`, with
 /// no part that matches a line break) that holds "item", in `text`, in
 /// order: the same as `heading.captures_iter(text)`, with `lines` from
 /// `item_word_lines`. Each line is searched from its start up to its end,
 /// where `^` and `$` match as they do in the whole text, and the positions
-/// are the same.
+/// are the same. Most lines that hold "item" in running text do not start
+/// as a heading does (`starts_like_heading`), and comparing their first
+/// letters is much faster than running the pattern on them.
 fn heading_matches<'t>(
     heading: &'t Regex,
     text: &'t str,
     lines: &'t [(usize, usize)],
 ) -> impl Iterator<Item = Captures<'t>> + 't {
-    lines.iter().filter_map(move |&(start, end)| heading.captures_at(&text[..end], start))
+    lines
+        .iter()
+        .filter(move |&&(start, end)| starts_like_heading(&text[start..end]))
+        .filter_map(move |&(start, end)| heading.captures_at(&text[..end], start))
 }
 
 /// `SIGNATURES`, `Signature`, `Signature(s)`, `S I G N A T U R E S`
@@ -3189,6 +3205,7 @@ fn added_candidate(text: &str, pos: usize, label: &str, printed: &str) -> Candid
 /// found, as one does below an entry of a contents list; copies of the
 /// heading (running headers) may, and the first copy starts the Item.
 /// Returns the headings as candidates, with their keys, in document order.
+/// `lines` are the lines that hold "item" (`item_word_lines`).
 fn roman_items(
     text: &str,
     lines: &[(usize, usize)],
@@ -3220,6 +3237,27 @@ fn roman_items(
             headings.push((added_candidate(text, m.start(), &label, printed), ki, numeral));
         }
     }
+    let Some(first) = headings.first().map(|(c, ..)| c.pos) else { return Vec::new() };
+    // The Item lines after the first heading and before the signatures, each
+    // with its roman numeral, or "" when it is no roman heading, read once
+    // rather than for each heading above them. A line is read as
+    // `str::lines` gives it, without the `\r` of a `\r\n` line break.
+    let item_lines: Vec<(usize, &str)> = lines
+        .iter()
+        .filter(|&&(start, _)| start > first && start < limit)
+        .filter_map(|&(start, end)| {
+            let line = &text[start..end];
+            let line = if end < text.len() { line.strip_suffix('\r').unwrap_or(line) } else { line };
+            let numeral = || ROMAN_HEADING.captures(line).map_or("", |c| c.get(1).expect("numeral").as_str());
+            is_item_line(line).then(|| (start, numeral()))
+        })
+        .collect();
+    // For each of them, the next one with another numeral, so that a run of
+    // copies of one heading is passed in one step.
+    let mut run_end = vec![item_lines.len(); item_lines.len()];
+    for i in (0..item_lines.len().saturating_sub(1)).rev() {
+        run_end[i] = if item_lines[i + 1].1 == item_lines[i].1 { run_end[i + 1] } else { i + 1 };
+    }
     // From the last heading back, so that the next Item found after a
     // heading is known when it is checked, and an earlier copy of a
     // heading replaces a later one.
@@ -3232,10 +3270,12 @@ fn roman_items(
         let in_place =
             at.checked_sub(1).is_none_or(|i| around[i].1 < ki) && around.get(at).is_none_or(|&(_, k)| ki < k);
         let next = around.get(at).map_or(limit, |&(p, _)| p);
-        let line_end = text[cand.pos..].find('\n').map_or(text.len(), |i| cand.pos + i);
-        let other_item = text[line_end..next.max(line_end)]
-            .lines()
-            .any(|l| is_item_line(l) && ROMAN_HEADING.captures(l).is_none_or(|o| &o[1] != numeral));
+        // Whether an Item line between the heading and `next`, both starts
+        // of lines, is not a copy of the heading: the first one there, or
+        // the one that ends its run of copies.
+        let from = item_lines.partition_point(|&(pos, _)| pos <= cand.pos);
+        let to = item_lines.partition_point(|&(pos, _)| pos < next);
+        let other_item = from < to && (item_lines[from].1 != numeral || run_end[from] < to);
         if in_place && !other_item {
             found.retain(|(_, k)| *k != ki);
             found.push((cand, ki));
@@ -3379,6 +3419,11 @@ fn common_in_order(a: &[&String], b: &[String]) -> usize {
 
 /// Order chain states by total score. On a tie the earlier Item wins, so an
 /// unmarked 10-Q "Item 2" between Part I Item 1 and Part II Item 6 stays in Part I.
+/// Two states are equal only when they have the same total and the same
+/// key. The chain search in `split_sections` relies on that: it keeps one
+/// best state for each key, so the order must never call states of
+/// different keys equal, or the state it picks among them would depend on
+/// how they are stored.
 fn better(a_total: f64, a_key: usize, b_total: f64, b_key: usize) -> std::cmp::Ordering {
     a_total.total_cmp(&b_total).then(b_key.cmp(&a_key))
 }
@@ -3533,11 +3578,11 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
         let fits = |key: &Key| key.item == cand.label && (part.is_none() || key.part == part);
         let first = states.len();
         for (ki, _) in keys.iter().enumerate().filter(|(_, key)| fits(key)) {
-            let best = best_of_key[..ki]
-                .iter()
-                .flatten()
-                .copied()
-                .max_by(|&a, &b| better(states[a].total, states[a].key, states[b].total, states[b].key));
+            let best = best_of_key[..ki].iter().flatten().copied().max_by(|&a, &b| {
+                let order = better(states[a].total, states[a].key, states[b].total, states[b].key);
+                debug_assert!(order.is_ne(), "states of different keys are never equal");
+                order
+            });
             states.push(State {
                 cand: ci,
                 key: ki,
@@ -8122,6 +8167,33 @@ Pursuant to ...
             let s = extract_sections(&text, FormKind::TenK);
             assert_eq!(ids(&s), ["item_8", "item_9", "item_15"], "{before}{after}");
             assert_eq!(s[2].end, text.find(report).unwrap(), "{before}{after}");
+        }
+    }
+
+    #[test]
+    fn heading_patterns_match_only_lines_that_start_with_item_or_part() {
+        // Case folding gives the letters of "item" and "part" no form
+        // outside ASCII, which `starts_like_heading` relies on.
+        let letters = Regex::new(r"(?i:[itempar])").unwrap();
+        let others: String = (128..=u32::from(char::MAX)).filter_map(char::from_u32).collect();
+        assert_eq!(letters.find(&others).map(|m| m.as_str()), None);
+        // The heading lines found among the lines that hold "item" are the
+        // matches of a search of the whole text.
+        let text = "Item 1. Business\n item 2. Properties\r\n\tPART II - ITEM 5 Market\nPart I\nİtem 1. Business\n\
+                    ıtem 2. Properties\nItemſ 3. Legal Proceedings\nITEMS 7 AND 7A.\nIteM 2.02 Results\n\
+                    \u{a0}Item 9. Changes\nthe line item 4 of\nITEM II. PROPERTIES\nPART I, ITEM IV. CONTROLS\n\
+                    Ιtem 1. Business\nitem\n \t PaRt IV: iTeMs 15 exhibits\nKart I Item 1\nPaſt I Item 1\n\
+                    ſtem 1. Business\nPart II\u{2014}Item 1A. Risk Factors\nItem\t9A(T). Controls\nitem 8. Financial Statements";
+        let lines = item_word_lines(text);
+        let spans = |c: Captures| -> Vec<Option<(usize, usize)>> {
+            c.iter().map(|g| g.map(|m| (m.start(), m.end()))).collect()
+        };
+        for (heading, count) in [(&*PERIODIC_HEADING, 10), (&*CURRENT_HEADING, 1), (&*ROMAN_HEADING, 2)] {
+            let whole: Vec<_> = heading.captures_iter(text).map(spans).collect();
+            let by_line: Vec<_> = heading_matches(heading, text, &lines).map(spans).collect();
+            assert_eq!(by_line, whole);
+            let found: Vec<&str> = heading.find_iter(text).map(|m| m.as_str()).collect();
+            assert_eq!(found.len(), count, "{found:?}");
         }
     }
 
