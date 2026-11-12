@@ -1727,6 +1727,186 @@ impl<'a> SameTitled<'a> {
     }
 }
 
+/// Lists of words, numbered: 0 is the list of no words, and every other one
+/// is a list numbered before it with one more word. Two lists of the same
+/// words have one number, and a list is numbered after each list that starts
+/// it, so that the lists that start a list of words are read in one pass
+/// over the words.
+#[derive(Default)]
+struct WordLists {
+    words: HashMap<String, usize>,
+    longer: HashMap<(usize, usize), usize>,
+}
+
+impl WordLists {
+    const EMPTY: usize = 0;
+
+    /// The number of `list` with `word` after it, numbered now when new.
+    fn add(&mut self, list: usize, word: &str) -> usize {
+        let word = match self.words.get(word) {
+            Some(&word) => word,
+            None => {
+                self.words.insert(word.to_owned(), self.words.len());
+                self.words.len() - 1
+            }
+        };
+        let next = self.longer.len() + 1;
+        *self.longer.entry((list, word)).or_insert(next)
+    }
+
+    /// The number of `list` with `word` after it, if it has one.
+    fn with(&self, list: usize, word: &str) -> Option<usize> {
+        self.longer.get(&(list, *self.words.get(word)?)).copied()
+    }
+
+    /// The number of each list that starts `words` and has one, with its
+    /// length, from the empty one on.
+    fn starts<'a>(&'a self, words: &'a [String]) -> impl Iterator<Item = (usize, usize)> + 'a {
+        let mut next = Some((0, Self::EMPTY));
+        std::iter::from_fn(move || {
+            let (len, list) = next?;
+            next = words.get(len).and_then(|word| self.with(list, word)).map(|longer| (len + 1, longer));
+            Some((len, list))
+        })
+    }
+}
+
+/// The fewest words of a row's title that a later line with the title words
+/// `heading` prints in full (`prints_words`): those up to the last
+/// "continued", so that none comes after the row's words.
+fn fewest_printed(heading: &[String]) -> usize {
+    heading.iter().rposition(|word| is_continued(word)).map_or(0, |last| last + 1)
+}
+
+/// The titles of the lines added so far, for telling whether a line prints
+/// in full (`prints_title`) the title of every one of them that
+/// `same_title` pairs with it, without comparing it with each: the lines
+/// are counted by title group and by the words of their title without the
+/// page column, and a line prints in full the titles whose words start its
+/// own (`WordLists`), in the groups that pair with its group
+/// (`TitleGroups`).
+struct RowTitles<'a> {
+    groups: &'a TitleGroups,
+    titles: WordLists,
+    /// For each group, the lines added to it, and those added to it or to a
+    /// group below it: how many, and how many with each title.
+    own: Vec<usize>,
+    below: Vec<usize>,
+    own_titled: HashMap<(usize, usize), usize>,
+    below_titled: HashMap<(usize, usize), usize>,
+}
+
+impl<'a> RowTitles<'a> {
+    fn new(groups: &'a TitleGroups) -> Self {
+        let none = vec![0; groups.parent.len()];
+        RowTitles {
+            groups,
+            titles: WordLists::default(),
+            own: none.clone(),
+            below: none,
+            own_titled: HashMap::new(),
+            below_titled: HashMap::new(),
+        }
+    }
+
+    fn add(&mut self, cand: usize, c: &Candidate) {
+        let Some(group) = self.groups.of[cand] else { return };
+        let title = title_words(row_title(c)).iter().fold(WordLists::EMPTY, |list, word| self.titles.add(list, word));
+        self.own[group] += 1;
+        *self.own_titled.entry((group, title)).or_default() += 1;
+        let mut up = Some(group);
+        while let Some(g) = up {
+            self.below[g] += 1;
+            *self.below_titled.entry((g, title)).or_default() += 1;
+            up = self.groups.parent[g];
+        }
+    }
+
+    /// Whether the line `c` prints in full the title of every line added
+    /// that pairs with it: as many of them have a title that it prints in
+    /// full as there are.
+    fn all_printed_by(&self, cand: usize, c: &Candidate) -> bool {
+        let Some(group) = self.groups.of[cand] else { return true };
+        let above = || std::iter::successors(self.groups.parent[group], |&g| self.groups.parent[g]);
+        let pairing = self.below[group] + above().map(|g| self.own[g]).sum::<usize>();
+        let heading = title_words(&c.printed);
+        let fewest = fewest_printed(&heading);
+        let count = |counts: &HashMap<(usize, usize), usize>, g: usize, title: usize| {
+            counts.get(&(g, title)).copied().unwrap_or(0)
+        };
+        let printed: usize = self
+            .titles
+            .starts(&heading)
+            .filter(|&(len, _)| len >= fewest)
+            .map(|(_, title)| {
+                count(&self.below_titled, group, title)
+                    + above().map(|g| count(&self.own_titled, g, title)).sum::<usize>()
+            })
+            .sum();
+        debug_assert!(printed <= pairing);
+        printed == pairing
+    }
+}
+
+/// The lines that can be the heading of a row, listed by the row titles
+/// that they print in full (`prints_title`), for finding the first one
+/// after a row that prints its title in full and that `same_title` pairs
+/// with it, without comparing the row with each line: a line prints in full
+/// the row titles whose words start its own, from the last "continued" on
+/// (`fewest_printed`), and is listed under each of them that a candidate
+/// has, by title group (`TitleGroups`).
+struct RowHeadings<'a> {
+    groups: &'a TitleGroups,
+    titles: WordLists,
+    /// For each group and row title, the lines of the group that print the
+    /// title in full, and those of the group or of a group below it, in
+    /// order.
+    own: HashMap<(usize, usize), Vec<usize>>,
+    below: HashMap<(usize, usize), Vec<usize>>,
+}
+
+impl<'a> RowHeadings<'a> {
+    /// `lines` are the candidates that can be a heading, in order.
+    fn new(groups: &'a TitleGroups, cands: &[Candidate], lines: impl Iterator<Item = usize>) -> Self {
+        let mut titles = WordLists::default();
+        let row_titles: HashSet<usize> = cands
+            .iter()
+            .map(|c| title_words(row_title(c)).iter().fold(WordLists::EMPTY, |list, word| titles.add(list, word)))
+            .collect();
+        let (mut own, mut below): (HashMap<_, Vec<usize>>, HashMap<_, Vec<usize>>) = Default::default();
+        for i in lines {
+            let Some(group) = groups.of[i] else { continue };
+            let heading = title_words(&cands[i].printed);
+            let fewest = fewest_printed(&heading);
+            for (_, title) in
+                titles.starts(&heading).filter(|(len, title)| *len >= fewest && row_titles.contains(title))
+            {
+                own.entry((group, title)).or_default().push(i);
+                let mut up = Some(group);
+                while let Some(g) = up {
+                    below.entry((g, title)).or_default().push(i);
+                    up = groups.parent[g];
+                }
+            }
+        }
+        RowHeadings { groups, titles, own, below }
+    }
+
+    /// The first line after the row `cand` that prints its title in full
+    /// and pairs with it.
+    fn first_after(&self, cand: usize, c: &Candidate) -> Option<usize> {
+        let group = self.groups.of[cand]?;
+        let title =
+            title_words(row_title(c)).iter().try_fold(WordLists::EMPTY, |list, word| self.titles.with(list, word))?;
+        let after = |lines: Option<&Vec<usize>>| {
+            let lines = lines?;
+            lines.get(lines.partition_point(|&i| i <= cand)).copied()
+        };
+        let above = std::iter::successors(self.groups.parent[group], |&g| self.groups.parent[g]);
+        above.filter_map(|g| after(self.own.get(&(g, title)))).chain(after(self.below.get(&(group, title)))).min()
+    }
+}
+
 /// Drop the lines that cite an Item and a document and are no heading.
 ///
 /// A line that cites an Item and a document is not a heading when the
@@ -2284,76 +2464,38 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // The earliest place in the form's order of the Items with text of their
     // own before the current line.
     let mut earliest_text: Option<usize> = None;
-    // For the lines of the current run of one Item's lines, by title and
-    // printed title without the page column, which is all that the search
-    // reads of a line: the heading that the last such line found. A later
-    // line with the same titles (a running header printed on every page)
-    // has the same heading while it comes before it, and none when that
-    // line found none, so it does not search the run again.
-    let mut searched: HashMap<(&str, &str), Option<usize>> = HashMap::new();
     // The lines that are no paged rows, listed by title when the first line
     // asks, so that a row's heading is looked for among the lines of its Item
     // with its title and not among all the lines of its run. Its heading is
     // most often the next of them (the next running header with a page).
-    // When the first few are not, the search goes on by what the lines
-    // print (Item, title key and printed title, which is all that it reads
-    // of them), and compares each print once, however many lines print it:
-    // `first_lines` lists the first line of each print by title, and
-    // `prints` holds for each print its lines and the words of its title,
-    // read when first compared.
+    // When the first few of a row are not, the lines are listed by the row
+    // titles that they print in full (`RowHeadings`), and the heading of
+    // that row and of the rows after it is looked up there.
     const READ_IN_ORDER: usize = 8;
-    struct Print {
-        lines: Vec<usize>,
-        words: OnceCell<Vec<String>>,
-    }
-    struct NoRows<'a> {
-        lines: SameTitled<'a>,
-        first_lines: SameTitled<'a>,
-        prints: HashMap<usize, Print>,
-    }
     let no_rows = OnceCell::new();
+    let by_title = OnceCell::new();
     let first_heading = |a: usize| -> Option<usize> {
-        let no_rows: &NoRows = no_rows.get_or_init(|| {
-            let mut first_of: HashMap<(&str, &str, &str), usize> = HashMap::new();
-            let (mut lines, mut first_lines) = (SameTitled::new(&groups), SameTitled::new(&groups));
-            let mut prints: HashMap<usize, Print> = HashMap::new();
-            for i in (0..n).filter(|&i| !paged[i]) {
-                lines.add(i);
-                let first = *first_of.entry((&cands[i].label, &cands[i].title, &cands[i].printed)).or_insert(i);
-                if first == i {
-                    first_lines.add(i);
-                }
-                prints
-                    .entry(first)
-                    .or_insert_with(|| Print { lines: Vec::new(), words: OnceCell::new() })
-                    .lines
-                    .push(i);
-            }
-            NoRows { lines, first_lines, prints }
-        });
         // Up to the end of the run, the next line of another Item.
         let end = next_other[a].unwrap_or(n);
-        let mut in_order = no_rows.lines.from(a, a + 1).take_while(|&b| b < end);
-        for _ in 0..READ_IN_ORDER {
-            match in_order.next() {
-                Some(b) if prints_title(&cands[a], &cands[b]) => return Some(b),
-                Some(_) => {}
-                None => return None,
+        if by_title.get().is_none() {
+            let no_rows: &SameTitled = no_rows.get_or_init(|| {
+                let mut lines = SameTitled::new(&groups);
+                (0..n).filter(|&i| !paged[i]).for_each(|i| lines.add(i));
+                lines
+            });
+            let mut in_order = no_rows.from(a, a + 1).take_while(|&b| b < end);
+            for _ in 0..READ_IN_ORDER {
+                match in_order.next() {
+                    Some(b) if prints_title(&cands[a], &cands[b]) => return Some(b),
+                    Some(_) => {}
+                    None => return None,
+                }
             }
         }
-        let row = title_words(row_title(&cands[a]));
-        no_rows
-            .first_lines
-            .from(a, 0)
-            .map(|first| &no_rows.prints[&first])
-            .filter(|print| {
-                let first = &cands[print.lines[0]];
-                debug_assert!(same_title(&cands[a].title, &first.title));
-                prints_words(&row, print.words.get_or_init(|| title_words(&first.printed)))
-            })
-            .filter_map(|print| print.lines.get(print.lines.partition_point(|&b| b <= a)).copied())
+        by_title
+            .get_or_init(|| RowHeadings::new(&groups, &cands, (0..n).filter(|&i| !paged[i])))
+            .first_after(a, &cands[a])
             .filter(|&b| b < end)
-            .min()
     };
     for a in 0..n {
         if a > 0 {
@@ -2362,9 +2504,6 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
                 && let Some(first) = form_places(before, keys).next()
             {
                 earliest_text = Some(earliest_text.map_or(first, |e| e.min(first)));
-            }
-            if before.label != cands[a].label {
-                searched.clear();
             }
         }
         let after_row = a > 0
@@ -2380,14 +2519,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         if contents[a] || !(after_row || lone_row) {
             continue;
         }
-        let titles = (cands[a].title.as_str(), row_title(&cands[a]));
-        let heading = match searched.get(&titles) {
-            Some(None) => None,
-            Some(&Some(b)) if b > a => Some(b),
-            _ => first_heading(a),
-        };
-        searched.insert(titles, heading);
-        if let Some(b) = heading {
+        if let Some(b) = first_heading(a) {
             contents[a] = true;
             body[b] = true;
             paired[b] = true;
@@ -2512,8 +2644,13 @@ fn prints_title(a: &Candidate, b: &Candidate) -> bool {
 /// its page column and of the later line's printed title, when the title
 /// keys of the two lines pair.
 fn prints_words(row: &[String], heading: &[String]) -> bool {
-    heading.starts_with(row)
-        && !heading[row.len()..].iter().any(|w| matches!(w.as_str(), "continued" | "cont'd" | "cont’d"))
+    heading.starts_with(row) && !heading[row.len()..].iter().any(|word| is_continued(word))
+}
+
+/// Whether a word of a title (`title_words`) says "continued", as a running
+/// header does after the title.
+fn is_continued(word: &str) -> bool {
+    matches!(word, "continued" | "cont'd" | "cont’d")
 }
 
 /// Whether a candidate sits where its Item's body heading belongs
@@ -2802,15 +2939,11 @@ fn paged_rows(
     // its title (`same_title`) when it does not print that title in full.
     // The lines before `i` that are no rows are not each compared with it.
     // The nearest one with its title (`Nearest`) tells when there is none,
-    // and is most often the line it repeats. Otherwise those with its title
-    // (`SameTitled`) are compared, once for each different print and not
-    // once for each line: of `j` the comparison reads only the Item, the
-    // title key and the printed title without the page column, and `kinds`
-    // holds the first line of each print.
+    // and is most often the line it repeats. Otherwise the titles of the
+    // lines with its title are counted (`RowTitles`).
     let mut no_rows = Nearest::new(groups);
     let mut added = 0;
-    let mut known: HashSet<(&str, &str, &str)> = HashSet::new();
-    let mut kinds = SameTitled::new(groups);
+    let mut titles = RowTitles::new(groups);
     let mut listed = 0;
     for i in 0..n {
         if paged[i] || !own_pages(i) {
@@ -2823,14 +2956,9 @@ fn paged_rows(
             None => false,
             Some(j) if !prints_title(&cands[j], &cands[i]) => true,
             Some(_) => {
-                for j in listed..i {
-                    let c = &cands[j];
-                    if !paged[j] && known.insert((&c.label, &c.title, row_title(c))) {
-                        kinds.add(j);
-                    }
-                }
+                (listed..i).filter(|&j| !paged[j]).for_each(|j| titles.add(j, &cands[j]));
                 listed = i;
-                kinds.from(i, 0).any(|j| !prints_title(&cands[j], &cands[i]))
+                !titles.all_printed_by(i, &cands[i])
             }
         };
     }
@@ -8794,6 +8922,65 @@ Pursuant to ...
                 assert_eq!(listed.from(i, from).collect::<Vec<_>>(), pairing, "{i} from {from}");
             }
         }
+    }
+
+    #[test]
+    fn row_titles_and_row_headings_answer_as_prints_title_for_each_pair() {
+        let printed = [
+            ("1", "Business"),
+            ("1", "Business\t3"),
+            ("1", "Business Overview"),
+            ("1", "BUSINESS (continued)"),
+            ("7", "Management's Discussion and Analysis"),
+            ("7", "Management's Discussion and Analysis\t12"),
+            ("7", "MANAGEMENT’S DISCUSSION & ANALYSIS (Continued)  14"),
+            ("7", "Management's Discussion"),
+            ("7", "Management's Discussion and Analysis of Financial Condition"),
+            ("1", "Business Overview (cont'd)"),
+            ("1", "Business Overview, continued, and Properties"),
+            ("1", "Business Overview continued and Properties (continued)"),
+            ("1", "Businesses"),
+            ("2", "Business"),
+            ("1", "Busi"),
+            ("1", ""),
+            ("7", "Managements Discussions\tN/A"),
+            ("7", "Management"),
+            ("1", "Business Overview and Properties ..... 5"),
+            ("1", "The Business"),
+            ("7", "Management's Discussion and Analysis (continued)"),
+            ("1", "Business continued"),
+            ("1", "Business Overview\t4"),
+            ("7", "Management's Discussion and Analysis of Operations"),
+        ];
+        // Each line twice, so that every pair comes in both orders.
+        let cands: Vec<Candidate> =
+            printed.iter().chain(&printed).map(|&(label, printed)| added_candidate("", 0, label, printed)).collect();
+        let n = cands.len();
+        let pairs =
+            |a: usize, b: usize| cands[a].label == cands[b].label && same_title(&cands[a].title, &cands[b].title);
+        let prints = |a: usize, b: usize| cands[a].label == cands[b].label && prints_title(&cands[a], &cands[b]);
+        let groups = TitleGroups::new(&cands);
+        let (mut some_printed, mut some_not) = (0, 0);
+        for skip in [2, 3, 5, n] {
+            let added = |j: &usize| j % skip != 1;
+            let mut titles = RowTitles::new(&groups);
+            for (i, c) in cands.iter().enumerate() {
+                let all = (0..i).filter(added).filter(|&j| pairs(j, i)).all(|j| prints(j, i));
+                assert_eq!(titles.all_printed_by(i, c), all, "{i} without every {skip}th");
+                if (0..i).filter(added).any(|j| pairs(j, i)) {
+                    *if all { &mut some_printed } else { &mut some_not } += 1;
+                }
+                if added(&i) {
+                    titles.add(i, c);
+                }
+            }
+            let headings = RowHeadings::new(&groups, &cands, (0..n).filter(added));
+            for (a, c) in cands.iter().enumerate() {
+                let first = (a + 1..n).filter(added).find(|&b| prints(a, b));
+                assert_eq!(headings.first_after(a, c), first, "{a} without every {skip}th");
+            }
+        }
+        assert!(some_printed > 20 && some_not > 20, "{some_printed} {some_not}");
     }
 
     #[test]
