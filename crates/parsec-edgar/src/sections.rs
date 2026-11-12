@@ -40,14 +40,16 @@
 //! heading printed with a footnote's number ("Item 7.<TAB>Management's
 //! Discussion and Analysis ...<TAB>1") is followed by its text, or, when
 //! its Item is short ("Item 6.<TAB>[Reserved]<TAB>1", "Not applicable.",
-//! then Item 7), comes more than 2,000 characters after the Item line before
-//! it and prints one number as its page, with no page on that line, on the
-//! next Item line or at the end of the line under it, none on the three
-//! lines under either of those Item lines (as an index row whose title wraps
-//! onto its page has), no colon at the end of the line above it, and neither
-//! of those Item lines a row; and one
-//! followed by a running header of its own Item that prints the page, or by
-//! an index of Items after the body, is no such row; that running header
+//! then Item 7), prints one number as its page, with no page on the Item
+//! line before it, on the next Item line or at the end of the line under it,
+//! none on the three lines under either of those Item lines (as an index
+//! row whose title wraps onto its page has), no colon at the end of the line
+//! above it, and neither of those Item lines a row (the Item line before it
+//! may be close: the one row of a 10-Q's table of answers that answers with
+//! a number, "Item 1A.<TAB>Risk Factors<TAB>28" among rows that say "None",
+//! is read as the rows around it are); and one followed by a running header
+//! of its own Item that prints the page, or by an index of Items after the
+//! body, is no such row; that running header
 //! ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   25") is one.
 //! Running headers that print the title in full with the page, when at least
 //! two of them follow a line of the Item with that title and print
@@ -3358,14 +3360,16 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 /// 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed by its
 /// text. The heading of a short Item printed that way ("Item
 /// 6.<TAB>[Reserved]<TAB>1", then "Not applicable." and Item 7's heading) is
-/// no row either: the Item line before it is more than `block` characters
-/// above it, neither that line nor the Item line after it is a row or prints
-/// a page, on its line or one of the three lines under it, the line under it
-/// ends with no page, the line above it ends with no colon ("Market risk is
-/// discussed in:"), and its page column is one
-/// number. A range, a list or a page with a prefix ("36 - 37", "3-30, 64")
-/// refers to pages, as a cross-reference index does, and such a row stays
-/// one.
+/// no row either: neither the Item line before it nor the one after it is a
+/// row or prints a page, on its line or one of the three lines under it, the
+/// line under it ends with no page, the line above it ends with no colon
+/// ("Market risk is discussed in:"), and its page column is one number. A
+/// range, a list or a page with a prefix ("36 - 37", "3-30, 64") refers to
+/// pages, as a cross-reference index does, and such a row stays one. The
+/// Item line before it may be close: in a 10-Q's table of answers, the one
+/// row that answers with a number is read like the rows around it, as a
+/// heading there and as an entry in a contents list that prints no other
+/// page.
 ///
 /// Going back from a row, the Item line before it is a row too when it is at
 /// most `block` characters before it, its entry ends with a page column, and
@@ -3477,12 +3481,15 @@ fn paged_rows(
     }
     // A short Item whose heading prints a footnote's number ("Item
     // 6.<TAB>[Reserved]<TAB>1", then "Not applicable." and Item 7's heading)
-    // is no row though another Item's line follows it closely: the Item line
-    // before it is more than `block` characters above it, neither that line
-    // nor the Item line after it is a row or prints a page (`wraps_pages`),
-    // the line under it ends with no page, and the line above it ends with no
-    // colon, as one that introduces a reference does ("Market risk is
-    // discussed in:"). Rows come one after another. Only one number counts: a
+    // is no row though another Item's line follows it closely: neither the
+    // Item line before it nor the one after it is a row or prints a page
+    // (`wraps_pages`), the line under it ends with no page, and the line
+    // above it ends with no colon, as one that introduces a reference does
+    // ("Market risk is discussed in:"). Rows come one after another.
+    // The Item line before it may be close: one row of a table of answers
+    // that answers with a number ("Item 1A.<TAB>Risk Factors<TAB>28" between
+    // rows that say "None") is a heading as they are, and in a contents list
+    // without pages it is an entry as they are. Only one number counts: a
     // range, a list or a page with a prefix ("36 - 37", "3-30, 64", "F-3")
     // refers to pages, as the rows of a cross-reference index do.
     // An Item line whose title wraps prints its page at the end of one of
@@ -3506,7 +3513,6 @@ fn paged_rows(
                 && own_pages(i)
                 && one_number(i)
                 && no_pages(i - 1)
-                && !close(i - 1, i)
                 && no_pages(i + 1)
                 && !next_line(i).is_some_and(ends_with_pages)
                 && !text[..cands[i].pos].trim_end().ends_with(':')
@@ -8364,8 +8370,6 @@ Pursuant to ...
             // the line under it ends with a page, as a row that names no
             // Item does;
             (item_5, reserved, "Signatures\t5\n", item_7),
-            // the Item line before it is close, as in a list;
-            (item_5, "Item 5. Market for Registrant's Common Equity (continued)\nItem 6.\t[Reserved]\t1", "", item_7),
             // its page column is no one number but a range, a list or a
             // page with a prefix, as a cross-reference index prints;
             (item_5, "Item 6.\t[Reserved]\t36 - 37", "Not applicable.\n", item_7),
@@ -8432,6 +8436,52 @@ Pursuant to ...
             let s = extract_sections(&text, FormKind::TenK);
             assert!(!ids(&s).contains(&"item_6"), "{:?}", ids(&s));
         }
+    }
+
+    #[test]
+    fn one_page_number_in_a_table_of_answers_keeps_its_row() {
+        // Part II as a table of answers, one of which is a number.
+        let body = BODY.repeat(30);
+        let part_1 = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n"
+        );
+        let table = |risk: &str| {
+            format!(
+                "PART II\nItem 1.\tLegal Proceedings\tNone\nItem 1A.\tRisk Factors\t{risk}\n\
+                 Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds\tNone\n\
+                 Item 5.\tOther Information\tNone\nItem 6.\tExhibits\tSee Exhibit Index\nSIGNATURES\n"
+            )
+        };
+        let all = [
+            "part_1_item_1",
+            "part_1_item_2",
+            "part_2_item_1",
+            "part_2_item_1a",
+            "part_2_item_2",
+            "part_2_item_5",
+            "part_2_item_6",
+        ];
+        for risk in ["None", "28"] {
+            let text = format!("{part_1}{}", table(risk));
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), all, "{risk}");
+            assert_eq!(s[3].text, format!("Item 1A.\tRisk Factors\t{risk}"));
+        }
+        // Before the body the same table is a contents list, and its rows
+        // go as entries of one, the row with the page among them.
+        let text = format!("{}{part_1}PART II\nItem 6. Exhibits\n{body}\n", table("28").replace("SIGNATURES\n", ""));
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+        // Two rows with pages are rows of a list, in the body too, also
+        // when the second is the last Item line.
+        let two = table("28").replace("Proceeds\tNone", "Proceeds\t29");
+        let s = extract_sections(&format!("{part_1}{two}"), FormKind::TenQ);
+        assert!(!ids(&s).contains(&"part_2_item_1a") && !ids(&s).contains(&"part_2_item_2"), "{:?}", ids(&s));
+        let last =
+            table("None").replace("Information\tNone", "Information\t28\nNone.").replace("See Exhibit Index", "29");
+        let s = extract_sections(&format!("{part_1}{last}"), FormKind::TenQ);
+        assert!(!ids(&s).contains(&"part_2_item_5"), "{:?}", ids(&s));
     }
 
     #[test]
