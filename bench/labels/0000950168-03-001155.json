@@ -111,9 +111,9 @@
       "occurrence": 0,
       "next": "(a)\tThe following documents are filed as",
       "end": {
-        "text": "NETFLIX, INC.",
-        "occurrence": 1,
-        "next": "INDEX TO FINANCIAL STATEMENTS"
+        "text": "INDEX TO FINANCIAL STATEMENTS",
+        "occurrence": 0,
+        "next": "Page"
       }
     }
   ],

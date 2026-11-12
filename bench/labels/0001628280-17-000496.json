@@ -142,9 +142,9 @@
       "occurrence": 0,
       "next": "None.",
       "end": {
-        "text": "NETFLIX, INC.",
-        "occurrence": 2,
-        "next": "INDEX TO FINANCIAL STATEMENTS"
+        "text": "INDEX TO FINANCIAL STATEMENTS",
+        "occurrence": 0,
+        "next": "Page"
       }
     }
   ],
