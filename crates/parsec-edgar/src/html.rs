@@ -732,6 +732,8 @@ fn kept_lines<'a>(
     let mut kept_end: Option<usize> = None;
     // Where each bare page number in digits that was dropped starts, and its value.
     let mut bare: Vec<(usize, u32)> = Vec::new();
+    // Every bare page number that was dropped (see `PageMark`).
+    let mut marks: Vec<PageMark> = Vec::new();
     for line in text.lines() {
         let start = line.as_ptr() as usize - text.as_ptr() as usize;
         while cell_lines.next_if(|&p| p < start).is_some() {}
@@ -755,6 +757,15 @@ fn kept_lines<'a>(
             ended(number.take(), &mut page);
             let value = c.get(1).or(c.get(4)).and_then(|m| m.as_str().parse().ok());
             bare.extend(value.map(|v| (start, v)));
+            // The way each group of `PAGE_NUMBER` writes its number.
+            const WRITTEN: [Written; 8] = {
+                use Written::*;
+                [Digits, Roman, Financial, Digits, Roman, Prefixed, Financial, Digits]
+            };
+            marks.extend((1..9).find_map(|g| Some((WRITTEN[g - 1], c.get(g)?.as_str()))).and_then(|(written, n)| {
+                let value = if written == Written::Roman { roman(n) } else { n.parse().ok() };
+                Some(PageMark { kept: lines.len(), written, value: value? })
+            }));
             number = Some((value, end, kept_end.is_some_and(|k| same_page(k, start))));
             continue;
         }
@@ -784,7 +795,10 @@ fn kept_lines<'a>(
     for i in page_furniture(&lines, &is_cell, &rows, &ends_page, &after_number) {
         gone[i] = true;
     }
-    if ends_page.contains(&true) {
+    // Where the pages end for running headers: at the page breaks, or
+    // without any, at the page numbers that count the pages.
+    let numbered = if ends_page.contains(&true) { None } else { numbered_pages(&lines, &marks) };
+    if let Some(ends_page) = numbered.as_ref().or(ends_page.contains(&true).then_some(&ends_page)) {
         // The table rows as sorted ranges that do not overlap.
         let mut table_rows = table_rows.to_vec();
         table_rows.sort_unstable_by_key(|r| r.start);
@@ -800,7 +814,7 @@ fn kept_lines<'a>(
             .zip(&is_cell)
             .map(|(&s, &cell)| cell || merged.get(merged.partition_point(|r| r.end <= s)).is_some_and(|r| r.start <= s))
             .collect();
-        for i in running_headers(&lines, &in_table, &ends_page, &gone) {
+        for i in running_headers(&lines, &in_table, ends_page, &gone) {
             gone[i] = true;
         }
     }
@@ -841,12 +855,70 @@ fn unjoin_page_numbers(lines: &mut [&str], starts: &[usize], ends_page: &[bool],
     }
 }
 
+/// How a bare page number is written.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Written {
+    /// "12", "- 12 -", "Page 12", "(Page 12)".
+    Digits,
+    /// "xii", "- xii -".
+    Roman,
+    /// "F-12", "- F 12 -".
+    Financial,
+    /// "Page E-12".
+    Prefixed,
+}
+
+/// A bare page number that was dropped from the text.
+struct PageMark {
+    /// How many lines were kept before it.
+    kept: usize,
+    written: Written,
+    value: u32,
+}
+
+/// The ends of the printed pages of a document that does not mark its page
+/// breaks, read from its bare page numbers (`marks`, in order), as whether a
+/// page ends after each of `lines`. Wherever on its page a number is
+/// printed, the lines of a running header or footer around it are at the
+/// edge of the pages on its two sides.
+///
+/// A number shows a page end when it counts the pages: the number written
+/// in the same way before it is one less, or the one after it is one more,
+/// and at least 500 bytes of text lie between the two, as a printed page
+/// has. So the page references of a table of contents, the numbers of a
+/// list and the cells of a table printed one to a line show none. With
+/// fewer than five such page ends the pages are not known.
+fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
+    const MIN_PAGES: usize = 5;
+    const MIN_PAGE: usize = 500;
+    // The bytes of text before each line.
+    let mut before = Vec::with_capacity(lines.len() + 1);
+    before.push(0);
+    for line in lines {
+        before.push(before[before.len() - 1] + line.len());
+    }
+    let counts = |a: &PageMark, b: &PageMark| a.value + 1 == b.value && before[b.kept] - before[a.kept] >= MIN_PAGE;
+    let mut ends = vec![false; lines.len()];
+    for written in [Written::Digits, Written::Roman, Written::Financial, Written::Prefixed] {
+        let same: Vec<&PageMark> = marks.iter().filter(|m| m.written == written).collect();
+        for (j, mark) in same.iter().enumerate() {
+            let follows = j.checked_sub(1).is_some_and(|b| counts(same[b], mark));
+            let followed = same.get(j + 1).is_some_and(|a| counts(mark, a));
+            if (follows || followed) && mark.kept > 0 {
+                ends[mark.kept - 1] = true;
+            }
+        }
+    }
+    (ends.iter().filter(|&&end| end).count() >= MIN_PAGES).then_some(ends)
+}
+
 /// Running page headers and footers that print no page number, such as
 /// "MetLife, Inc." over "Notes to the Consolidated Financial Statements —
 /// (Continued)" at the top of each page, as indexes into `lines`. Only a
-/// document with page breaks (`ends_page`) has them: the lines of each page
-/// are the lines kept between two breaks, with the lines that are `gone`
-/// (page numbers and other page furniture) left out.
+/// document whose page ends are known (`ends_page`) has them, from its page
+/// breaks or from its page numbers (see `numbered_pages`): the lines of
+/// each page are the lines kept between two page ends, with the lines that
+/// are `gone` (page numbers and other page furniture) left out.
 ///
 /// The header block of a page is the run of up to six lines at its top whose
 /// texts are running headers, and its footer block the same at its bottom
@@ -2271,6 +2343,91 @@ mod tests {
             })
             .collect();
         assert_eq!(html_to_text(&html), (1..7).map(|n| format!("Text {n}.\n")).collect::<String>());
+    }
+
+    /// In a document without page breaks, running headers go when its bare
+    /// page numbers count the pages: five or more numbers written in the
+    /// same way, each one more than the one before, with a page of text
+    /// between them.
+    #[test]
+    fn running_headers_dropped_where_page_numbers_show_the_pages() {
+        // Pages of two header lines and `filler` + 49 bytes of text, each
+        // ending with its number, or starting with it.
+        let pages = |numbers: &[&str], filler: usize, top: bool| -> Vec<Vec<String>> {
+            let page = |(i, number): (usize, &&str)| {
+                let mut page = vec![
+                    "Acme Corporation".to_string(),
+                    "Notes (Continued)".to_string(),
+                    format!("Text of page {i}. {}", "x".repeat(filler)),
+                ];
+                if !number.is_empty() {
+                    page.insert(if top { 0 } else { 3 }, number.to_string());
+                }
+                page
+            };
+            numbers.iter().enumerate().map(page).collect()
+        };
+        let html = |pages: &[Vec<String>]| pages.concat().iter().map(|l| format!("<p>{l}</p>")).collect::<String>();
+        let headers =
+            |text: &str| text.lines().filter(|l| ["Acme Corporation", "Notes (Continued)"].contains(l)).count();
+        let all = [
+            ["3", "4", "5", "6", "7", "8"],
+            ["- 3 -", "- 4 -", "- 5 -", "- 6 -", "- 7 -", "- 8 -"],
+            ["Page 3", "Page 4", "Page 5", "(Page 6)", "- 7 -", "8"],
+            ["F-3", "F-4", "F-5", "- F 6 -", "F-7", "F-8"],
+            ["i", "ii", "iii", "iv", "v", "- vi -"],
+            ["Page A-1", "Page A-2", "Page A-3", "Page A-4", "Page A-5", "Page A-6"],
+            ["i", "ii", "iii", "1", "2", "3"],
+        ];
+        for numbers in all {
+            for top in [false, true] {
+                let pages = pages(&numbers, 451, top);
+                let text = html_to_text(&html(&pages));
+                assert_eq!((headers(&text), text.lines().count()), (0, 6), "{numbers:?} {top}");
+                let raw = pages.concat().join("\n");
+                let text = document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}\n</TEXT>"));
+                assert_eq!((headers(&text), text.lines().count()), (0, 6), "{numbers:?} {top}");
+            }
+        }
+        // Five numbers end five pages, but not when the first comes before
+        // any text.
+        let five = ["3", "4", "5", "6", "7", ""];
+        assert_eq!(headers(&html_to_text(&html(&pages(&five, 451, false)))), 0);
+        assert_eq!(headers(&html_to_text(&html(&pages(&five, 451, true)))), 12);
+        // Four numbers end four pages, with a fifth page after them.
+        assert_eq!(headers(&html_to_text(&html(&pages(&["3", "4", "5", "6", ""], 451, false)))), 10);
+        // Page breaks show the pages where there are any: numbers in the
+        // middle of those pages change nothing.
+        let broken: String = (3..9)
+            .map(|n| {
+                let filler = "x".repeat(500);
+                let page =
+                    ["Acme Corporation", "Notes (Continued)", &format!("Text of page {n}. {filler}"), &n.to_string()];
+                let page: String = page.iter().map(|l| format!("<p>{l}</p>")).collect();
+                format!("{page}<p>More text of page {n}.</p><div style=\"page-break-after: always\"></div>")
+            })
+            .collect();
+        assert_eq!((headers(&html_to_text(&broken)), html_to_text(&broken).lines().count()), (0, 12));
+        // One byte less than a page of text between the numbers.
+        assert_eq!(headers(&html_to_text(&html(&pages(&all[0], 450, false)))), 12);
+        // Numbers that do not count the pages: not one more each, the same
+        // number, falling, two ways of writing in turn, and only four pages.
+        for numbers in [
+            ["2", "4", "6", "8", "10", "12"],
+            ["7", "7", "7", "7", "7", "7"],
+            ["8", "7", "6", "5", "4", "3"],
+            ["3", "F-4", "5", "F-6", "7", "F-8"],
+            ["i", "2", "iii", "4", "v", "6"],
+            ["3", "4", "5", "6", "", ""],
+            ["", "", "", "", "", ""],
+        ] {
+            for top in [false, true] {
+                assert_eq!(headers(&html_to_text(&html(&pages(&numbers, 451, top)))), 12, "{numbers:?} {top}");
+            }
+        }
+        // The numbers of a list are no page numbers: "Director" stays.
+        let list: String = (1..9).map(|n| format!("<p>{n}</p><p>Name {n}</p><p>Director</p>")).collect();
+        assert_eq!(html_to_text(&list).matches("Director").count(), 8);
     }
 
     /// A heading that is also the running header of the pages after it stays
