@@ -862,29 +862,35 @@ fn signature_sentences(text: &str) -> impl Iterator<Item = (usize, usize)> + '_ 
     // that the breaks looked over divide it into.
     const MAX_REST: usize = (MAX_BREAKS + 2) * (4 * MAX_LINE + 1);
     let line_start = |pos: usize| text[..pos].rfind('\n').map_or(0, |n| n + 1);
-    // The starts of the line of the last "caused" and of the lines looked at
-    // above it, where the opening words found at each start end, and where
-    // that "caused" ends: a line that holds "caused" many times is searched
-    // for its start, and the lines above it for theirs and for the opening
-    // words, once and not once for each. The opening words found from a
-    // start are the same for each "caused" of the line: they hold no
-    // "caused", so they end before the first of them or are not there.
+    // The starts of the line where the last "caused" starts and of the lines
+    // looked at above it, where the opening words found at each start end,
+    // and where that "caused" starts: a line that holds "caused" many times
+    // is searched for its start, and the lines above it for theirs and for
+    // the opening words, once and not once for each. They are kept only for
+    // a "caused" that starts on the same line: one whose "this" is on the
+    // next line ("caused", then "this y caused this") ends on another line
+    // than it starts on, and the next one is on that line. The opening words
+    // found from a start are the same for each "caused" of the line: they
+    // hold no "caused", so they end before the first of them or are not
+    // there.
     let mut starts: Vec<usize> = Vec::new();
     let mut openings: Vec<Option<usize>> = Vec::new();
-    let mut last_end = 0;
+    let mut last_start = 0;
     SIGNATURE_CAUSED.find_iter(text).filter_map(move |caused| {
-        if starts.is_empty() || text[last_end..caused.start()].contains('\n') {
+        if starts.is_empty() || text[last_start..caused.start()].contains('\n') {
             starts.clear();
             openings.clear();
             starts.push(line_start(caused.start()));
         }
-        last_end = caused.end();
+        last_start = caused.start();
+        debug_assert_eq!(starts[0], line_start(caused.start()));
         // The opening words can wrap too, so look one line further up.
         for above in 0..=MAX_BREAKS + 1 {
             if above == starts.len() {
                 starts.push(line_start(starts[above - 1] - 1));
             }
             let start = starts[above];
+            debug_assert!(above == 0 || start == line_start(starts[above - 1] - 1));
             let opening_end = || SIGNATURE_OPENING.find(&text[start..caused.start()]).map(|opening| opening.end());
             if above == openings.len() {
                 openings.push(opening_end());
@@ -9069,6 +9075,63 @@ Pursuant to ...
             assert_eq!(signature_sentences(&text).count(), 1);
             let text = format!("Pursuant to Section 13 {long}\n{long}\n{short} caused this report\n");
             assert_eq!(signature_sentences(&text).count(), 0);
+        }
+    }
+
+    /// `signature_sentences` as it is defined: each "caused" looks up from
+    /// its own line.
+    fn sentences_searched_for_each_caused(text: &str) -> Vec<(usize, usize)> {
+        let line_start = |pos: usize| text[..pos].rfind('\n').map_or(0, |n| n + 1);
+        let sentence = |caused: regex::Match| {
+            let mut start = line_start(caused.start());
+            for _ in 0..4 {
+                if let Some(opening) = SIGNATURE_OPENING.find(&text[start..caused.start()]) {
+                    let rest = &text[start + opening.end()..caused.start()];
+                    let fits = rest.split('\n').all(|l| l.chars().count() <= 250);
+                    return (fits && rest.matches('\n').count() <= 2).then_some((start, caused.end()));
+                }
+                if start == 0 {
+                    break;
+                }
+                start = line_start(start - 1);
+            }
+            None
+        };
+        SIGNATURE_CAUSED.find_iter(text).filter_map(sentence).collect()
+    }
+
+    #[test]
+    fn signature_sentence_of_a_caused_that_ends_on_the_next_line() {
+        // The second "caused" starts on the fourth line and ends on the
+        // fifth. The third one is on the fifth line, which is the fourth
+        // below the line of the opening words, too far for a sentence.
+        let text = "Pursuant\nto\nSection\n13 the registrant has duly caused this report to be signed x caused\n\
+                    this y caused this";
+        let found: Vec<(usize, usize)> = signature_sentences(text).collect();
+        assert_eq!(found, [(0, 58), (0, 92)]);
+        assert_eq!(found, sentences_searched_for_each_caused(text));
+        // One more line above the opening words, and one line fewer.
+        let above = format!("Above.\n{text}");
+        let found: Vec<(usize, usize)> = signature_sentences(&above).collect();
+        assert_eq!(found, [(7, 65), (7, 99)]);
+        let text = "Pursuant to\nSection\n13 the registrant has duly caused this report to be signed x caused\n\
+                    this y caused this";
+        let found: Vec<(usize, usize)> = signature_sentences(text).collect();
+        assert_eq!(found.len(), 3);
+        assert_eq!(found, sentences_searched_for_each_caused(text));
+        // Lines made of these pieces in every order, with "caused" and its
+        // "this" on one line, on two, or apart.
+        let pieces =
+            ["Pursuant to", "Section 13", " caused", "this", " caused its", "\n", "\n", " ", "x", "caused\n\nthis"];
+        let mut seed = 7u64;
+        for _ in 0..4000 {
+            let mut text = String::new();
+            for _ in 0..12 {
+                seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                text.push_str(pieces[(seed >> 33) as usize % pieces.len()]);
+            }
+            let found: Vec<(usize, usize)> = signature_sentences(&text).collect();
+            assert_eq!(found, sentences_searched_for_each_caused(&text), "{text:?}");
         }
     }
 
