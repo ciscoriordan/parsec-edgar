@@ -56,7 +56,11 @@
 //! different pages, are no contents rows and no headings: the line
 //! they repeat starts the Item, and its text runs on through them, also past
 //! a stray line of another Item before the first of them ("Item 1A. Risk
-//! Factors" inside MD&A). One such line alone may be a heading printed with
+//! Factors" inside MD&A). So does the text of a line whose running headers
+//! print no page and say "continued" ("ITEM 7. MANAGEMENT'S DISCUSSION AND
+//! ANALYSIS (Continued)"), also past such a stray line, when the line has
+//! more than 2,000 characters of its own, as no entry of a contents list
+//! has. One line with title and page alone may be a heading printed with
 //! a footnote's number after a contents list without pages, and a line that
 //! prints a lower number than a page printed before it in the body is one
 //! too. When the chain of headings takes a line of another Item between
@@ -1344,9 +1348,10 @@ struct Candidate {
     /// Distance to the next heading of a different Item.
     gap: usize,
     score: f64,
-    /// A running header that prints the title in full and the page, with
-    /// the place of the line that it repeats (`paged_rows`). It never starts
-    /// its Item, and that line's text runs on through it.
+    /// A running header that prints the title in full and the page
+    /// (`paged_rows`), or says "continued" and prints no page
+    /// (`continued_headers`), with the place of the line that it repeats.
+    /// It never starts its Item, and that line's text runs on through it.
     repeats: Option<usize>,
 }
 
@@ -2799,10 +2804,10 @@ const SAME_BLOCK: usize = 2000;
 /// goes when it is the later copy of a heading printed twice. Short entries
 /// just after a dropped listing entry go with it. The body headings of dropped
 /// contents entries are marked `listed`. Running headers that print the
-/// title in full (`paged_rows`) are neither entries nor later copies, and are
-/// marked `repeats` with the place of the line they repeat, which has no
-/// later copy; the headers of a line at a place in `unread`, or of a line
-/// that goes, are read as any other line.
+/// title in full (`paged_rows`) or say "continued" (`continued_headers`) are
+/// neither entries nor later copies, and are marked `repeats` with the place
+/// of the line they repeat, which has no later copy; the headers of a line at
+/// a place in `unread`, or of a line that goes, are read as any other line.
 fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key], unread: &HashSet<usize>) -> Vec<Candidate> {
     let n = cands.len();
     // The signature block's sentences and the signatures heading lines of
@@ -2817,6 +2822,9 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key], unread
     // heading repeats them, and never the body copy of a pair.
     let groups = TitleGroups::new(&cands);
     let (paged, mut headers) = paged_rows(&cands, text, keys, SAME_BLOCK, &next_other, &groups);
+    for (i, j) in continued_headers(&cands, &paged, SAME_BLOCK) {
+        headers[i].get_or_insert(j);
+    }
     for h in &mut headers {
         *h = h.filter(|&j| !unread.contains(&cands[j].pos));
     }
@@ -2841,6 +2849,39 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key], unread
         .filter(|&(i, _)| !contents[i] && !after[i])
         .map(|(i, c)| Candidate { listed: body[i], repeats: headers[i].map(|j| cands_pos[j]), ..c })
         .collect()
+}
+
+/// "(Continued)" and the like at the end of a running header's title.
+static CONTINUED_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bcont(?:inued|['’]d)[ \t)\].]*$").unwrap());
+
+/// Running headers that print no page and say "continued" after the title
+/// ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)"), each with
+/// the line it repeats, also past a line of another Item between the two.
+/// The line repeated is the last line of the header's Item before it that is
+/// no row and says no "continued". Its title pairs with the header's
+/// (`same_title`, without the "continued"), and it has text of its own, more
+/// than `block` characters before the next Item line, as an entry of a
+/// contents list has not.
+fn continued_headers(cands: &[Candidate], paged: &[bool], block: usize) -> Vec<(usize, usize)> {
+    // The last line of each Item so far that is no row and says no
+    // "continued".
+    let mut last: HashMap<&str, usize> = HashMap::new();
+    let mut headers = Vec::new();
+    for (i, c) in cands.iter().enumerate() {
+        if paged[i] {
+            continue;
+        }
+        let Some(end) = CONTINUED_END.find(&c.printed) else {
+            last.insert(c.label.as_str(), i);
+            continue;
+        };
+        let Some(&j) = last.get(c.label.as_str()) else { continue };
+        let own_text = cands[j + 1].pos - cands[j].pos > block;
+        if own_text && same_title(&cands[j].title, &title_key(&c.printed[..end.start()])) {
+            headers.push((i, j));
+        }
+    }
+    headers
 }
 
 /// The contents entries of `drop_contents_entries`, the short entries just
@@ -8436,6 +8477,148 @@ Pursuant to ...
             let s = extract_sections(&text, FormKind::TenK);
             assert!(!ids(&s).contains(&"item_6"), "{:?}", ids(&s));
         }
+    }
+
+    #[test]
+    fn running_headers_that_say_continued_repeat_their_heading_past_a_stray_line() {
+        // Item 7's heading, a page of text, a line of another Item inside
+        // that text, then Item 7's running headers, which print no page and
+        // say "continued". Item 7 starts at its heading, and the stray line
+        // starts nothing.
+        let page = BODY.repeat(37);
+        let short = BODY.repeat(5);
+        let mdna = "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations";
+        let doc = |contents: &str, heading: &str, first: &str, stray: &str, header: &str| {
+            format!(
+                "{contents}PART I\nItem 1. Business\n{page}\nItem 1A. Risk Factors\n{page}\nItem 2. Properties\n{short}\n\
+                 PART II\n{heading}\n{first}\n{stray}{header}\n{page}\n{header}\n{page}\n{header}\n{page}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{page}\nSIGNATURES\n"
+            )
+        };
+        let stray = format!("Item 1A. Risk Factors\n{short}\n");
+        for header in [
+            "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)",
+            "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations (continued)",
+            "Item 7. Management's Discussion and Analysis - Cont'd",
+            "Item 7. Management's Discussion and Analysis, continued.",
+            "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS [CONTINUED]",
+        ] {
+            for stray in [&stray, &format!("Item 3. Legal Proceedings\n{short}\n")] {
+                let text = doc("", mdna, &page, stray, header);
+                let s = extract_sections(&text, FormKind::TenK);
+                assert_eq!(ids(&s), ["item_1", "item_1a", "item_2", "item_7", "item_8"], "{header} / {stray}");
+                assert_eq!(s[3].heading, mdna, "{header}");
+                assert!(s[2].text.len() < 600, "{header}");
+                assert!(s[3].text.len() > 4 * page.len(), "{header}");
+            }
+        }
+        let header = "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)";
+        // The Item starts at its first running header, as it did, when the
+        // last line of the Item before the headers is not their heading:
+        let at_header = |text: &str, why: &str| {
+            let s = extract_sections(text, FormKind::TenK);
+            let item_7 = s.iter().find(|x| x.id == "item_7").unwrap_or_else(|| panic!("{why}"));
+            assert_eq!(item_7.heading, header, "{why}");
+            assert!(item_7.text.len() < 4 * page.len(), "{why}");
+        };
+        // it has another title,
+        at_header(&doc("", "Item 7. Financial Review", &page, &stray, header), "title");
+        // or less text of its own than a block, as an entry of a contents
+        // list has. Here it is the last entry of a list without pages, and
+        // the body's heading prints no Item number.
+        let contents = "Item 1. Business\nItem 1A. Risk Factors\nItem 2. Properties\n\
+                        Item 8. Financial Statements and Supplementary Data\n\
+                        Item 7. Management's Discussion and Analysis\n";
+        let unnumbered = "MANAGEMENT'S DISCUSSION AND ANALYSIS";
+        at_header(&doc(contents, unnumbered, &page, &stray, header), "entry");
+        at_header(&doc(&format!("{contents}{}\n", BODY.repeat(20)), unnumbered, &page, &stray, header), "short entry");
+        // The text of its own is counted from the heading to the stray line:
+        // 2,000 characters are not enough, 2,001 are.
+        for (own, repeated) in [(SAME_BLOCK, false), (SAME_BLOCK + 1, true)] {
+            let first = &BODY.repeat(30)[..own - mdna.len() - 2];
+            let text = doc("", mdna, first, &stray, header);
+            assert_eq!(text.rfind("Item 1A. Risk Factors\n").unwrap() - text.find(mdna).unwrap(), own);
+            if repeated {
+                assert_eq!(extract_sections(&text, FormKind::TenK)[3].heading, mdna);
+            } else {
+                at_header(&text, "2,000");
+            }
+        }
+        // The line repeated is the last of its Item before the header: the
+        // body's heading, not the entry of a contents list above it.
+        let listed = "Item 1. Business\nItem 1A. Risk Factors\nItem 2. Properties\n\
+                      Item 7. Management's Discussion and Analysis\n\
+                      Item 8. Financial Statements and Supplementary Data\n";
+        let s = extract_sections(&doc(listed, mdna, &page, &stray, header), FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2", "item_7", "item_8"]);
+        assert_eq!(s[3].heading, mdna);
+        // A title that ends in "Discontinued" says no "continued".
+        let ended = "Item 7. Management's Discussion and Analysis of the Discontinued";
+        let s = extract_sections(&doc("", mdna, &page, &stray, ended), FormKind::TenK);
+        assert_eq!(s.iter().find(|x| x.id == "item_7").unwrap().heading, ended);
+        // A line that says "continued" is not what a later header repeats:
+        // the first header of an Item without a heading starts it.
+        at_header(&doc("", unnumbered, &page, &format!("{header}\n{page}\n{stray}"), header), "first header");
+        // Without a line of another Item between them, the split is the
+        // same, also when a longer copy of the Item follows the body (an
+        // annual report printed after Item 15): the headers stand for no
+        // second copy of the Item, and its heading keeps its place.
+        let s = extract_sections(&doc("", mdna, &page, "", header), FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2", "item_7", "item_8"]);
+        assert_eq!(s[3].heading, mdna);
+        let copy =
+            format!("PART IV\nItem 15. Exhibits\n{short}\nANNUAL REPORT TO SHAREHOLDERS\n{mdna}\n{}\n", page.repeat(6));
+        for stray in ["", &stray] {
+            let text = doc("", mdna, &page, stray, header).replace("SIGNATURES\n", &format!("{copy}SIGNATURES\n"));
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_1a", "item_2", "item_7", "item_8", "item_15"], "{stray}");
+            assert_eq!(s[3].heading, mdna, "{stray}");
+        }
+        // A header that prints the page is a row, as before.
+        let paged = format!("{header}    25");
+        let s = extract_sections(&doc("", mdna, &page, &stray, &paged), FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2", "item_7", "item_8"]);
+        assert_eq!(s[3].heading, mdna);
+        // So is the first of these headers, and the ones after it that
+        // print none still repeat the heading above it.
+        let mixed = doc("", mdna, &page, &stray, header).replacen(&format!("{header}\n"), &format!("{paged}\n"), 1);
+        let s = extract_sections(&mixed, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2", "item_7", "item_8"]);
+        assert_eq!(s[3].heading, mdna);
+        // The header's title is compared without its "continued": a short
+        // one pairs with a heading that goes on after it.
+        let text = format!(
+            "PART I\nItem 1. Business\n{page}\nItem 2. Properties and Facilities\n{page}\nItem 1A. Risk Factors\n{short}\n\
+             Item 2. Properties (Continued)\n{page}\nItem 2. Properties (Continued)\n{page}\n\
+             Item 3. Legal Proceedings\n{page}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3"]);
+        assert_eq!(s[1].heading, "Item 2. Properties and Facilities");
+        // A heading that says "continued" inside its title is a heading.
+        let inside = "Item 7. Management's Discussion of Continued Operations";
+        let short_header = "Item 7. Management's Discussion (Continued)";
+        let s = extract_sections(&doc("", inside, &page, &stray, short_header), FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2", "item_7", "item_8"]);
+        assert_eq!(s[3].heading, inside);
+        // A list of Part II's Items without pages just above its text, whose
+        // first heading prints no Item number: the list's entry has no text
+        // of its own, and the headers do not repeat it.
+        let list = "Item 7. Management's Discussion and Analysis\n\
+                    Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n\
+                    Item 8. Financial Statements and Supplementary Data\n";
+        let text = format!(
+            "PART I\nItem 1. Business\n{page}\nItem 1A. Risk Factors\n{page}\nPART II\n{list}{unnumbered}\n{page}\n\
+             {stray}{header}\n{page}\n{header}\n{page}\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{page}\n\
+             Item 8. Financial Statements and Supplementary Data\n{page}\nSIGNATURES\n"
+        );
+        at_header(&text, "list above");
+        // Another Item with a heading and text of its own between the
+        // heading and the headers is read as before: the chain takes it,
+        // and the headers are read as any other line.
+        let market = format!("Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{page}\n");
+        at_header(&doc("", mdna, &page, &market, header), "another Item");
     }
 
     #[test]
