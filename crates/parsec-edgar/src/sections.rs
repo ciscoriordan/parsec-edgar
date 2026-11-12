@@ -290,13 +290,24 @@
 //! 45 after a quarter, and 15 or 5 more under Rule 12b-25, to the Monday when
 //! that is on a weekend; an 8-K goes by its filing date alone), so an
 //! amendment filed years later ("10-K/A" for 2009, filed in 2013) keeps the
-//! titles its original report could have had. Apart from a heading numbered
-//! in roman numerals, that choice never decides which lines are headings: the
-//! rules above that compare a line with an Item's title (a comma after the
-//! Item number, Item 1 printed without a number, a lettered sub-item, the
-//! line below a cover's row) use the current title only, so "Item 10,
-//! Directors and Executive Officers of the Registrant" (the title before
-//! 2006) is no heading.
+//! titles its original report could have had. An Item that the form did not
+//! have when the report was filed, whose heading line prints a title that
+//! shares no word with any of the Item's titles and is none of them with its
+//! spaces and hyphens taken out ("Cyber Security"), is a section of the
+//! filer's own, and its title is empty ("Item 1C. Executive Officers of the
+//! Registrant" in 2017, "ITEM 15. SIGNATURES" in 1999). The form has the Item
+//! from the day the release that added it took effect, whatever compliance
+//! date the release set, since filers adopt Items early: 10-K Items 1A and 1B
+//! and 10-Q Part II Item 1A from December 2005, 10-K Item 9C from May 2021,
+//! 10-K Item 1C and 8-K Item 1.05 from September 2023, 10-K Item 15 from
+//! August 2002, 10-K Item 16 from May to August 2003 and again from June
+//! 2016, 10-KSB Item 14 from August 2002, and 8-K Item 5.02 from August 2004.
+//! Apart from a heading numbered in roman numerals, that choice never decides
+//! which lines are headings: the rules above that compare a line with an
+//! Item's title (a comma after the Item number, Item 1 printed without a
+//! number, a lettered sub-item, the line below a cover's row) use the current
+//! title only, so "Item 10, Directors and Executive Officers of the
+//! Registrant" (the title before 2006) is no heading.
 
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -395,7 +406,10 @@ pub struct Section {
     /// ("Submission of Matters to a Vote of Security Holders" for Item 4 of a
     /// 10-K before 2010). With the filing date and period of report
     /// ([`extract_sections_dated`]), the title in force for them unless the
-    /// heading prints another.
+    /// heading prints another, and empty when the form had no such Item
+    /// when the report was filed and the heading line prints a title that
+    /// shares no word with any of the Item's titles (a filer's own "Item 1C.
+    /// Executive Officers of the Registrant" in 2017).
     pub title: String,
     /// The heading line as it appears in the filing.
     pub heading: String,
@@ -507,6 +521,16 @@ impl Key {
         Some(title).filter(|t| !t.is_empty())
     }
 
+    /// Whether the form had the Item when a report with these dates was
+    /// filed: the release that added it was in effect by then, whatever
+    /// compliance date it set for the period, since a filer may adopt a new
+    /// Item early ("Item 1C. Cybersecurity" in a 10-K for a fiscal year that
+    /// ended in October 2023).
+    fn in_form_on(&self, dates: Dates) -> bool {
+        let in_effect = |since: Since| since.filed <= dates.filed && since.filed <= dates.due;
+        self.history().rev().find(|&(since, _)| in_effect(since)).is_some_and(|(_, title)| !title.is_empty())
+    }
+
     /// The title in force for a report with these dates (`title_on`), and
     /// when the form had no such Item then, the last title it had before, or
     /// else its first title, the one nearest in time: "Exhibits, Financial
@@ -611,12 +635,28 @@ const SUMMARY: Since = Since::filed("2016-06-09");
 /// ending on or after August 9, 2021.
 const RESERVED_ITEM_6: Since = Since { filed: "2021-02-10", period: "2021-08-09" };
 
-// Other releases added Items without renaming one, so those Items have one
-// title: Release 33-8591, Securities Offering Reform (70 FR 44722), 10-K
-// Items 1A and 1B and 10-Q Part II Item 1A from 2005-12-01; Release 34-93701
-// (86 FR 70027), 10-K Item 9C from 2022-01-10; Release 33-11216, Cybersecurity
-// Risk Management, Strategy, Governance, and Incident Disclosure (88 FR
-// 51896), 10-K Item 1C and 8-K Item 1.05 from 2023-09-05. Release 33-8876,
+/// Release 33-8591, Securities Offering Reform (70 FR 44722): 10-K Items 1A
+/// and 1B and 10-Q Part II Item 1A.
+const OFFERING_REFORM: Since = Since::filed("2005-12-01");
+
+/// Release 34-91364, Holding Foreign Companies Accountable Act Disclosure,
+/// the interim final rule (86 FR 17528): 10-K Item 9C. Release 34-93701 (86
+/// FR 70027), effective January 10, 2022, adopted it with the same title.
+const FOREIGN_INSPECTIONS: Since = Since::filed("2021-05-05");
+
+/// Release 33-11216, Cybersecurity Risk Management, Strategy, Governance, and
+/// Incident Disclosure (88 FR 51896): 10-K Item 1C, for fiscal years ending
+/// on or after December 15, 2023.
+const CYBERSECURITY: Since = Since { filed: "2023-09-05", period: "2023-12-15" };
+
+/// The same release's 8-K Item 1.05, for incidents disclosed from December
+/// 18, 2023.
+const CYBERSECURITY_8K: Since = Since { filed: "2023-09-05", period: "2023-12-18" };
+
+/// The time before a release added an Item: the form had no such Item.
+const NO_ITEM: &[(Since, &str)] = &[(EARLIEST, "")];
+
+// The releases above that added Items gave them one title each. Release 33-8876,
 // Smaller Reporting Company Regulatory Relief and Simplification (73 FR 934),
 // ended Forms 10-QSB (2008-10-31) and 10-KSB (2009-03-15) without renaming
 // their Items.
@@ -632,9 +672,9 @@ const OLD_ITEM_4: &[(Since, &str)] =
 
 const TEN_K: &[Key] = &[
     k("1", "Business"),
-    k("1A", "Risk Factors"),
-    k("1B", "Unresolved Staff Comments"),
-    k("1C", "Cybersecurity"),
+    k("1A", "Risk Factors").was(OFFERING_REFORM, NO_ITEM),
+    k("1B", "Unresolved Staff Comments").was(OFFERING_REFORM, NO_ITEM),
+    k("1C", "Cybersecurity").was(CYBERSECURITY, NO_ITEM),
     k("2", "Properties"),
     k("3", "Legal Proceedings"),
     k("4", "Mine Safety Disclosures").was(MINE_SAFETY, OLD_ITEM_4),
@@ -650,7 +690,7 @@ const TEN_K: &[Key] = &[
     k("9", "Changes in and Disagreements with Accountants on Accounting and Financial Disclosure"),
     k("9A", "Controls and Procedures"),
     k("9B", "Other Information"),
-    k("9C", "Disclosure Regarding Foreign Jurisdictions that Prevent Inspections"),
+    k("9C", "Disclosure Regarding Foreign Jurisdictions that Prevent Inspections").was(FOREIGN_INSPECTIONS, NO_ITEM),
     k("10", "Directors, Executive Officers and Corporate Governance")
         .was(EXECUTIVE_PAY, &[(EARLIEST, "Directors and Executive Officers of the Registrant")]),
     k("11", "Executive Compensation"),
@@ -677,7 +717,7 @@ const TEN_Q: &[Key] = &[
     q("I", "3", "Quantitative and Qualitative Disclosures About Market Risk"),
     q("I", "4", "Controls and Procedures"),
     q("II", "1", "Legal Proceedings"),
-    q("II", "1A", "Risk Factors"),
+    q("II", "1A", "Risk Factors").was(OFFERING_REFORM, NO_ITEM),
     q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds").was(
         NEW_8K,
         &[
@@ -697,7 +737,7 @@ const EIGHT_K: &[Key] = &[
     k("1.02", "Termination of a Material Definitive Agreement"),
     k("1.03", "Bankruptcy or Receivership"),
     k("1.04", "Mine Safety - Reporting of Shutdowns and Patterns of Violations"),
-    k("1.05", "Material Cybersecurity Incidents"),
+    k("1.05", "Material Cybersecurity Incidents").was(CYBERSECURITY_8K, NO_ITEM),
     k("2.01", "Completion of Acquisition or Disposition of Assets"),
     k("2.02", "Results of Operations and Financial Condition"),
     k(
@@ -4800,6 +4840,34 @@ fn misprinted_items(
     found
 }
 
+/// Whether a heading names a section of the filer's own with the number of an
+/// Item that the form did not have when the report was filed
+/// (`Key::in_form_on`): "Item 1C. Executive Officers of the Registrant" in
+/// 2017, years before Item 1C was "Cybersecurity", or "ITEM 15. SIGNATURES"
+/// in 1999, when Form 10-K ended at Item 14. Its own line prints a title
+/// that shares no word with any of the Item's titles and, with its spaces
+/// and hyphens taken out, neither holds one of them nor is held by one
+/// ("Cyber Security" is "Cybersecurity"). No standard title names such a
+/// section. A bare heading ("Item 1C.") prints no title of its own and is
+/// no such heading.
+fn own_section(key: &Key, cand: &Candidate, dates: Dates) -> bool {
+    /// The fewest letters of a title that count when found inside another.
+    const MIN_LETTERS: usize = 5;
+    let joined =
+        |t: &str| -> String { t.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect() };
+    let printed = title_words(&cand.printed);
+    let printed_joined = joined(&cand.printed);
+    let same_joined = |title: &str| {
+        let title = joined(title);
+        (title.len() >= MIN_LETTERS && printed_joined.contains(&title))
+            || (printed_joined.len() >= MIN_LETTERS && title.contains(&printed_joined))
+    };
+    !cand.bare
+        && !key.in_form_on(dates)
+        && !printed.is_empty()
+        && key.titles().all(|t| !title_words(t).iter().any(|w| printed.contains(w)) && !same_joined(t))
+}
+
 /// The title the heading prints, of the titles the form has given its Item
 /// (`Key::titles`), so that a 10-K for 2005 names its Item 4 "Submission of
 /// Matters to a Vote of Security Holders". The words (`title_words`) of the
@@ -5386,7 +5454,11 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
                 id,
                 part: key.part.map(str::to_owned),
                 item: key.item.to_owned(),
-                title: printed_title(key, &cand.printed, &cand.printed_next, dates).to_owned(),
+                title: if dates.is_some_and(|d| own_section(key, cand, d)) {
+                    String::new()
+                } else {
+                    printed_title(key, &cand.printed, &cand.printed_next, dates).to_owned()
+                },
                 heading: cand.heading.clone(),
                 start,
                 end,
@@ -12517,6 +12589,20 @@ Pursuant to ...
     }
 
     #[test]
+    fn an_eight_k_is_titled_by_its_filing_date_whenever_its_event_was() {
+        // An 8-K filed on the form of August 23, 2004 for an event of weeks
+        // before has that form's Items; one filed the day before has not.
+        let body = BODY.repeat(30);
+        let text = format!("Item 5.02 Other Matters\n{body}\nSIGNATURES\n");
+        let title = |filed, event| {
+            extract_sections_dated(&text, FormKind::EightK, filed, Some(event)).unwrap()[0].title.clone()
+        };
+        assert_ne!(title("2004-09-10", "2004-08-02"), "");
+        assert_ne!(title("2004-08-23", "2004-08-02"), "");
+        assert_eq!(title("2004-08-22", "2004-08-02"), "");
+    }
+
+    #[test]
     fn amendments_keep_the_titles_their_original_reports_could_have_had() {
         // A 10-K/A filed in 2013 for fiscal 2009 with a bare "ITEM 4.": the
         // original was due by 2010-04-15, before Item 4 became "Mine Safety
@@ -12546,6 +12632,86 @@ Pursuant to ...
         // A heading that prints its title keeps it.
         let printed = ten_k.replace("ITEM 4.\n", "ITEM 4. MINE SAFETY DISCLOSURES\n");
         assert_eq!(title(&printed, FormKind::TenK, "2013-05-01", Some("2009-12-31")), "Mine Safety Disclosures");
+    }
+
+    #[test]
+    fn a_filers_own_section_with_an_item_the_form_did_not_have_gets_no_title() {
+        // Caterpillar's 10-K of 2017 numbers its executive officers section
+        // "Item 1C", years before Item 1C was "Cybersecurity".
+        let body = BODY.repeat(30);
+        let ten_k = |item_1c: &str| {
+            format!(
+                "Item 1B.\tUnresolved Staff Comments.\n{body}\n{item_1c}\n{body}\nItem 2.\tProperties.\n{body}\nSIGNATURES\n"
+            )
+        };
+        let title = |text: &str, filed: &str, period: Option<&str>| {
+            let s = extract_sections_dated(text, FormKind::TenK, filed, period).unwrap();
+            s.into_iter().find(|s| s.id == "item_1c").expect("Item 1C").title
+        };
+        let own = ten_k("Item 1C.\tExecutive Officers of the Registrant.");
+        assert_eq!(title(&own, "2017-02-15", None), "");
+        assert_eq!(title(&own, "2023-09-04", Some("2023-06-30")), "");
+        // Not once the release that added the Item is in effect, even before
+        // the compliance date for the period: a filer may adopt it early.
+        assert_eq!(title(&own, "2023-09-05", Some("2023-06-30")), "Cybersecurity");
+        assert_eq!(title(&own, "2023-10-02", Some("2023-06-30")), "Cybersecurity");
+        // An amendment filed after it, for a year whose report was due
+        // before it, keeps the section the original report had.
+        assert_eq!(title(&own, "2024-03-01", Some("2022-12-31")), "");
+        assert_eq!(title(&own, "2024-03-01", Some("2023-06-30")), "Cybersecurity");
+        // Nor when the heading prints the title in two words, as Pharma-Bio
+        // Serv's 10-K for October 2023 does, or part of it or more as one.
+        for heading in [
+            "ITEM 1C. CYBER SECURITY.",
+            "Item 1C. Cyber-Security",
+            "Item 1C. Cybersecur ity",
+            "Item 1C. Cyber Secur",
+            "Item 1C. Our Cyber Security",
+        ] {
+            assert_eq!(title(&ten_k(heading), "2017-02-15", None), "Cybersecurity", "{heading}");
+        }
+        assert_eq!(title(&ten_k("Item 1C. Cybe"), "2017-02-15", None), "");
+        // The title stays when the form had the Item, without dates, when the
+        // heading shares a word with the title or prints no title on its line.
+        assert_eq!(title(&own, "2024-02-15", Some("2023-12-31")), "Cybersecurity");
+        assert_eq!(extract_sections(&own, FormKind::TenK)[1].title, "Cybersecurity");
+        for heading in
+            ["Item 1C.\tCybersecurity Matters", "Item 1C.\nEXECUTIVE OFFICERS OF THE REGISTRANT", "Item 1C.\tAnd"]
+        {
+            assert_eq!(title(&ten_k(heading), "2017-02-15", None), "Cybersecurity", "{heading}");
+        }
+        // An Item the form always had keeps its title whatever the heading
+        // prints, and so does one it had at the time.
+        let text = ten_k("Item 1C.\tCybersecurity").replace("Item 2.\tProperties.", "Item 2.\tOur Plants");
+        let s = dated(&text, FormKind::TenK, "2017-02-15");
+        assert_eq!(s[2].title, "Properties");
+        let text = format!("ITEM 1A. Executive Officers of the Registrant\n{body}\nITEM 2. PROPERTIES\n{body}\n");
+        assert_eq!(dated(&text, FormKind::TenK, "2004-03-15")[0].title, "");
+        assert_eq!(dated(&text, FormKind::TenK, "2007-03-15")[0].title, "Risk Factors");
+        // The other Items that releases added, before their dates.
+        let cases = [
+            (FormKind::TenK, "ITEM 1B. Executive Officers", "item_1b", "2005-11-30", "2005-12-01"),
+            (FormKind::TenK, "ITEM 9C. Executive Officers", "item_9c", "2021-05-04", "2021-05-05"),
+            (FormKind::TenK, "ITEM 15. SIGNATURES", "item_15", "1999-03-25", "2003-03-25"),
+            (FormKind::TenK, "ITEM 16. SIGNATURES", "item_16", "2015-03-25", "2017-03-25"),
+            (FormKind::TenKsb, "ITEM 14 (a) AND 14 (d)", "item_14", "1997-03-31", "2003-03-31"),
+            (FormKind::EightK, "Item 5.02 Other Matters", "item_5.02", "2004-08-22", "2004-08-23"),
+            (FormKind::TenQ, "PART II\nItem 1A. Other Matters", "part_2_item_1a", "2004-05-15", "2007-05-15"),
+            (FormKind::EightK, "Item 1.05 Other Events", "item_1.05", "2015-05-15", "2024-05-15"),
+        ];
+        for (kind, heading, id, before, after) in cases {
+            let text = format!("{heading}\n{body}\nSIGNATURES\n");
+            let title = |filed| dated(&text, kind, filed).into_iter().find(|s| s.id == id).expect(id).title;
+            assert_eq!(title(before), "", "{heading}");
+            assert_ne!(title(after), "", "{heading}");
+        }
+        // A heading that shares a word with the current title only, or with
+        // an earlier one only, of an Item that the form had before and has
+        // again.
+        for (heading, title) in [("SUMMARY INFORMATION", OLD_EXHIBITS), ("EXHIBITS AND SCHEDULES", OLD_EXHIBITS)] {
+            let text = format!("ITEM 15. EXHIBITS\n{body}\nITEM 16. {heading}\n{body}\nSIGNATURES\n");
+            assert_eq!(dated(&text, FormKind::TenK, "2010-03-01")[1].title, title, "{heading}");
+        }
     }
 
     #[test]
