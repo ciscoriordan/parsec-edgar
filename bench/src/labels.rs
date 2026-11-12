@@ -174,8 +174,11 @@ impl Doc {
         Ok(LineRef { text: self.line(i).to_owned(), occurrence: self.occurrence(i), next })
     }
 
-    /// Line number of a label.
-    pub fn find(&self, r: &LineRef) -> Res<usize> {
+    /// Line number of a label, with a warning when the label names that line
+    /// only through a fallback: its line after it no longer matches and the
+    /// occurrence alone picks the line, or the line after it picks another
+    /// copy of the text than its occurrence.
+    pub fn find(&self, r: &LineRef) -> Res<(usize, Option<String>)> {
         let empty = Vec::new();
         let cands = self.index.get(&normalize(&r.text)).unwrap_or(&empty);
         let want_next = r.next.as_deref().map(normalize);
@@ -186,23 +189,30 @@ impl Doc {
         if let Some(&i) = cands.get(r.occurrence)
             && next_ok(i)
         {
-            return Ok(i);
+            return Ok((i, None));
         }
         let good: Vec<usize> = cands.iter().copied().filter(|&i| next_ok(i)).collect();
         match (good.len(), cands.get(r.occurrence)) {
-            (1, _) => Ok(good[0]),
+            (1, _) => {
+                let copy = self.occurrence(good[0]);
+                Ok((good[0], Some(format!("{:?} #{} is copy #{copy} by the line after it", r.text, r.occurrence))))
+            }
             // The following line changed: fall back to the occurrence.
-            (0, Some(&i)) => Ok(i),
+            (0, Some(&i)) => Ok((
+                i,
+                Some(format!("{:?} #{}: the line after it no longer starts with {:?}", r.text, r.occurrence, r.next)),
+            )),
             _ => Err(format!("{:?} #{} ({} matching lines)", r.text, r.occurrence, cands.len())),
         }
     }
 
-    /// Byte offset of a label. When no whole line matches (a text conversion
+    /// Byte offset of a label, with a warning when it resolves through a
+    /// fallback (see `find`). When no whole line matches (a text conversion
     /// that joins lines), the heading followed by the start of its next line
-    /// is searched inside lines instead.
-    pub fn find_pos(&self, r: &LineRef) -> Res<usize> {
+    /// is searched inside lines instead, also with a warning.
+    pub fn find_pos(&self, r: &LineRef) -> Res<(usize, Option<String>)> {
         match self.find(r) {
-            Ok(line) => Ok(self.start(line)),
+            Ok((line, warning)) => Ok((self.start(line), warning)),
             Err(e) => {
                 let (flat, map) = self.flat.get_or_init(|| {
                     let mut flat = String::new();
@@ -223,7 +233,7 @@ impl Doc {
                     1 => hits[0],
                     _ => *hits.get(r.occurrence).unwrap_or(&hits[0]),
                 };
-                Ok(map[i])
+                Ok((map[i], Some(format!("{:?} #{} is found only inside a line", r.text, r.occurrence))))
             }
         }
     }
@@ -243,23 +253,31 @@ pub struct Truth {
     pub items: Vec<TrueItem>,
     /// Byte offset where the last Item ends, when labeled.
     pub end_pos: Option<usize>,
+    /// The labels that resolve only through a fallback (see
+    /// `Doc::find_pos`), each with the label it is for.
+    pub warnings: Vec<String>,
 }
 
 /// Resolve labels to positions and spans. An Item runs to its own end label,
 /// else to the next labeled heading, else to the filing's end label or the end of the text.
 pub fn resolve(doc: &Doc, label: &LabelFile) -> Res<Truth> {
-    let end_pos = label.end.as_ref().map(|e| doc.find_pos(e)).transpose().map_err(|e| format!("end: {e}"))?;
+    let mut warnings = Vec::new();
+    let mut find = |r: &LineRef, what: &str| {
+        let (pos, warning) = doc.find_pos(r).map_err(|e| format!("{what}: {e}"))?;
+        warnings.extend(warning.map(|w| format!("{what}: {w}")));
+        Ok::<usize, String>(pos)
+    };
+    let end_pos = label.end.as_ref().map(|e| find(e, "end")).transpose()?;
     let mut items: Vec<(usize, &ItemLabel)> = Vec::new();
     for it in &label.items {
-        let pos = doc.find_pos(&it.heading).map_err(|e| format!("{}: {e}", it.id))?;
-        items.push((pos, it));
+        items.push((find(&it.heading, &it.id)?, it));
     }
     items.sort_by_key(|(p, _)| *p);
     let doc_end = end_pos.unwrap_or(doc.text.len());
     let mut out = Vec::new();
     for (n, (pos, it)) in items.iter().enumerate() {
         let end = match &it.end {
-            Some(e) => doc.find_pos(e).map_err(|e| format!("{} end: {e}", it.id))?,
+            Some(e) => find(e, &format!("{} end", it.id))?,
             None => items.get(n + 1).map_or(doc_end, |(p, _)| *p),
         };
         if end <= *pos {
@@ -267,7 +285,7 @@ pub fn resolve(doc: &Doc, label: &LabelFile) -> Res<Truth> {
         }
         out.push(TrueItem { id: it.id.clone(), pos: *pos, line: doc.line_of(*pos), end });
     }
-    Ok(Truth { items: out, end_pos })
+    Ok(Truth { items: out, end_pos, warnings })
 }
 
 /// Section id from a short form: `1A` (10-K), `II1A` (10-Q), `2.02` (8-K), or a full id.
@@ -390,13 +408,22 @@ mod tests {
         let doc = Doc::new("Item 1. Business\nItem 1A. Risk\nItem 1. Business\nWe make things.\n".into());
         let r = doc.line_ref(2).unwrap();
         assert_eq!(r.occurrence, 1);
-        assert_eq!(doc.find(&r).unwrap(), 2);
+        assert_eq!(doc.find(&r).unwrap(), (2, None));
         // Spacing and case changes still resolve.
         let r2 = LineRef { text: "ITEM 1.  BUSINESS".into(), occurrence: 1, next: Some("We make".into()) };
-        assert_eq!(doc.find(&r2).unwrap(), 2);
-        // A wrong occurrence is repaired by the next line when that is unique.
+        assert_eq!(doc.find(&r2).unwrap(), (2, None));
+        // A wrong occurrence is repaired by the next line when that is unique,
+        // with a warning.
         let r3 = LineRef { text: "Item 1. Business".into(), occurrence: 0, next: Some("We make".into()) };
-        assert_eq!(doc.find(&r3).unwrap(), 2);
+        let (line, warning) = doc.find(&r3).unwrap();
+        assert_eq!(line, 2);
+        assert!(warning.is_some_and(|w| w.contains("copy #1")));
+        // A next line that no longer matches falls back to the occurrence,
+        // with a warning.
+        let r4 = LineRef { text: "Item 1. Business".into(), occurrence: 1, next: Some("We sell".into()) };
+        let (line, warning) = doc.find(&r4).unwrap();
+        assert_eq!(line, 2);
+        assert!(warning.is_some_and(|w| w.contains("no longer starts with")));
     }
 
     #[test]
@@ -418,7 +445,9 @@ mod tests {
         let doc = Doc::new("Intro text. ITEM 7. MD&A\nResults improved.\n".into());
         let r = LineRef { text: "Item 7. MD&A".into(), occurrence: 0, next: Some("Results".into()) };
         assert!(doc.find(&r).is_err());
-        assert_eq!(doc.find_pos(&r).unwrap(), "Intro text. ".len());
+        let (pos, warning) = doc.find_pos(&r).unwrap();
+        assert_eq!(pos, "Intro text. ".len());
+        assert!(warning.is_some_and(|w| w.contains("inside a line")));
     }
 
     #[test]

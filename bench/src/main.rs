@@ -396,6 +396,10 @@ struct FilingResult {
     text_bytes: usize,
     items: Vec<ItemResult>,
     error: Option<String>,
+    /// Labels that resolve only through a fallback, which may be the wrong
+    /// line (see `labels::Doc::find_pos`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    warnings: Vec<String>,
 }
 
 impl FilingResult {
@@ -587,6 +591,7 @@ fn score_one(doc: &Doc, label: &LabelFile, preds: &[Pred], r: &mut FilingResult)
     };
     r.labeled = truth.items.len();
     r.predicted = preds.len();
+    r.warnings = truth.warnings;
     let true_spans: HashMap<&str, (usize, usize, usize)> =
         truth.items.iter().map(|t| (t.id.as_str(), (t.line, t.pos, t.end))).collect();
     let mut intervals: Vec<(usize, usize)> = Vec::new();
@@ -763,6 +768,15 @@ fn report(results: &[FilingResult], name: &str, misses: bool, timing: bool) {
         println!("\nErrors (scored as all Items missed, span 0):");
         for r in errors {
             println!("  {} {} {}: {}", r.accession, r.company, r.form, r.error.as_deref().unwrap_or(""));
+        }
+    }
+    let warned: Vec<&FilingResult> = results.iter().filter(|r| !r.warnings.is_empty()).collect();
+    if !warned.is_empty() {
+        println!("\nLabels that resolve only through a fallback (check that they name the right line):");
+        for r in warned {
+            for w in &r.warnings {
+                println!("  {} {} {}: {w}", r.accession, r.company, r.form);
+            }
         }
     }
     if misses {
