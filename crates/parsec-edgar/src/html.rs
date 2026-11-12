@@ -1315,6 +1315,7 @@ fn page_furniture(
     // Filings also spell the dash as a non-breaking hyphen (U+2011) or an en dash.
     static FORM_NAME: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"(?i)\b(?:10[-‐‑‒–—][KQ]|8[-‐‑‒–—]K|20[-‐‑‒–—]F|40[-‐‑‒–—]F)").unwrap());
+    static GOES_ON: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(?i:\(continued\)|continued)$").unwrap());
     let letters = |s: &str| s.chars().filter(|c| c.is_alphabetic()).count();
     // Whether at least 90% of `total` copies or steps between copies pass a test.
     let mostly = |count: usize, total: usize| count * 10 >= total * 9;
@@ -1381,7 +1382,10 @@ fn page_furniture(
                 let piped = mostly(seen.iter().filter(|(_, p)| p.piped).count(), n);
                 let first = seen.iter().filter(|(_, p)| p.first).count();
                 let facing = place == Place::Edge && first >= 2 && n - first >= 2;
-                let text = (spaced && (!short || form)) || place == Place::PageOf || piped || facing;
+                // A footer that only says the text goes on, on pages one
+                // to three apart: "47 (Continued)".
+                let continues = place == Place::Edge && GOES_ON.is_match(before) && mostly(page_steps(seen), n - 1);
+                let text = (spaced && (!short || form)) || place == Place::PageOf || piped || facing || continues;
                 text && mostly(rising(seen), n - 1) && ((!short && after.is_empty()) || apart)
             }
         };
@@ -1816,6 +1820,38 @@ mod tests {
         let text = html_to_text(&html);
         assert_eq!(text.lines().filter(|l| l.starts_with("Note ")).count(), 7);
         assert_eq!(text.matches("ACME").count(), 8);
+    }
+
+    /// A footer of a page number and "(Continued)" goes when its copies are
+    /// on pages one to three apart, on either side of the number.
+    #[test]
+    fn page_numbers_beside_continued_dropped() {
+        for footer in ["{}          (Continued)", "(Continued) {}", "{} (continued)", "CONTINUED {}"] {
+            let (html, want) = paged(footer, numbered(47..53));
+            assert_eq!(html_to_text(&html), want, "{footer}");
+            let raw: String =
+                (47..53).map(|n| format!("Text of page {n}.\n{}\n", footer.replace("{}", &n.to_string()))).collect();
+            assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")), want, "{footer}");
+        }
+        // Four copies; another word; more beside the word.
+        let (html, _) = paged("{} (Continued)", numbered(47..51));
+        assert_eq!(html_to_text(&html).matches("(Continued)").count(), 4);
+        for footer in ["{} (Concluded)", "{} (Continued) -", "{} (Continued", "{} Discontinued"] {
+            let (html, _) = paged(footer, numbered(47..57));
+            assert_eq!(html_to_text(&html).lines().count(), 20, "{footer}");
+        }
+        // Numbers that rise more than three at a time, as the notes that go
+        // on over a page do, or that do not rise.
+        let (html, _) = paged("{} (Continued)", (1..9).map(|n| (4 * n).to_string()));
+        assert_eq!(html_to_text(&html).matches("(Continued)").count(), 8);
+        let (html, _) = paged("{} (Continued)", [3, 3, 4, 4, 5, 5, 6, 6].map(|n| n.to_string()));
+        assert_eq!(html_to_text(&html).matches("(Continued)").count(), 8);
+        // Copies on lines next to each other.
+        let html: String = (47..57).map(|n| format!("<p>{n} (Continued)</p>")).collect();
+        assert_eq!(html_to_text(&html).lines().count(), 10);
+        // The middle cell of a row of three.
+        let raw: String = (47..57).map(|n| format!("Text of page {n}.\n(Continued)\t{n}\tA\n")).collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).lines().count(), 20);
     }
 
     /// "Page N of M" footers that start again at page 1 in each exhibit go,
