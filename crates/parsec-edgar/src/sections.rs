@@ -97,14 +97,20 @@
 //! Items 10 through 14"), or one Item after its Part ("Part II – Item 5") with
 //! another row next to it, when the heading of the cover's list of documents
 //! incorporated by reference comes at most 2,000 characters before it with only
-//! the list's rows between them (no other Part line, Item line or explanatory
-//! note), unless the list says "None" or that no document is incorporated, or
-//! the next line holds one of the first Item's standard titles, current or
-//! former. Otherwise two Items joined with "and" and a range with "through"
-//! stay, as they can start a 10-K/A that amends only those Items ("ITEMS 7 AND
-//! 7A."). A comma after the number of one Item, as running text also puts it
-//! ("Item 8, which ..."), counts only when the line ends where the Item's
-//! standard title ends ("Item 8, Financial Statements and Supplementary Data").
+//! the list's rows between them (no other Part line or Item line, no
+//! explanatory note and no heading of a note or an amendment, such as
+//! "INTRODUCTORY NOTE" or "PURPOSE OF AMENDMENT"), unless the list says "None"
+//! or that no document is incorporated, in an annual report the line just
+//! above it is a sentence that names a Part or an Item as a place and the line
+//! names an Item of another Part ("Portions of the Proxy Statement are
+//! incorporated into Part III.", then "ITEMS 1 AND 2."; a row below such a
+//! sentence repeats its Parts), or the next line holds one of the first Item's
+//! standard titles, current or former. Otherwise two Items joined with "and"
+//! and a range with "through" stay, as they can start a 10-K/A that amends
+//! only those Items ("ITEMS 7 AND 7A."). A comma after the number of one Item,
+//! as running text also puts it ("Item 8, which ..."), counts only when the
+//! line ends where the Item's standard title ends ("Item 8, Financial
+//! Statements and Supplementary Data").
 //! In a 10-K or 10-KSB whose first Item found is Item 1A or Item 2, and whose
 //! last Part line before that heading is a `PART I` line that comes after every
 //! Item line before it, a line that holds only Item 1's standard title starts
@@ -1416,15 +1422,104 @@ static NONE_LINE: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
+/// The longest line that `NOTE_HEADING` is tried on: four long words,
+/// "Amendment" and its number.
+const NOTE_HEADING_LEN: usize = 80;
+
+/// The heading of a note that an amendment prints before its Items, under
+/// another name than "Explanatory note": at most four words and then "Note" or
+/// "Amendment", with the amendment's number or without. `INTRODUCTORY NOTE`,
+/// `PURPOSE OF AMENDMENT`, `Purpose of this Amendment:`, `Amendment No. 1`.
+/// Lines longer than `NOTE_HEADING_LEN` are no such heading.
+static NOTE_HEADING: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)^[ \t]*(?:\p{L}+[ \t]+){0,4}(?:note|amendment)(?:[ \t]+(?:no\.?|number)[ \t]*\d{1,2})?[ \t]*[.:]?[ \t]*$",
+    )
+    .unwrap()
+});
+
+/// A Part or an Item named as a place in a sentence: `incorporated into Part
+/// III`, `in Parts I and II`, `in response to Items 10 through 14`, `required
+/// by Part III`.
+static PLACED: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)(?-u:\b)(?:in|into|to|by|under)[ \t]+(?:the[ \t]+)?(?:parts?[ \t]+[IV]{1,3}|items?[ \t]+\d{1,2}[A-Ca-c]?)(?-u:\b)",
+    )
+    .unwrap()
+});
+
+/// Parts named in a line, with the numerals in the first group: `Part III`,
+/// `Parts I and II`, `Part I and Part II`, `Parts I, II and III`.
+static PARTS_NAMED: LazyLock<Regex> = LazyLock::new(|| {
+    let numeral = r"[IV]{1,3}(?-u:\b)";
+    let joint = r"[ \t]*(?:,[ \t]*and|,|and|&)[ \t]*";
+    Regex::new(&format!(r"(?i)(?-u:\b)parts?[ \t]+({numeral}(?:{joint}(?:parts?[ \t]+)?{numeral})*)")).unwrap()
+});
+
+/// Items named in a line, a list or a range of them: `Item 10`, `Items 10
+/// through 14`, `Items 1, 1A, 2 and 3`.
+static ITEMS_NAMED: LazyLock<Regex> = LazyLock::new(|| {
+    let n = r"\d{1,2}[A-Ca-c]?(?-u:\b)";
+    let joint = r"[ \t]*(?:,[ \t]*and|,|and|&|through|to|[-–—])[ \t]*";
+    Regex::new(&format!(r"(?i)(?-u:\b)items?[ \t]+{n}(?:{joint}(?:items?[ \t]+)?{n})*")).unwrap()
+});
+
+/// The Part of an annual report that holds the Item numbered `n`, as a bit
+/// (Part I is 1, Part II is 2, Part III is 4, Part IV is 8).
+fn annual_part(n: u32, kind: FormKind) -> u8 {
+    let (second, third) = if kind == FormKind::TenKsb { (5, 9) } else { (5, 10) };
+    match n {
+        _ if n < second => 1,
+        _ if n < third => 2,
+        _ if n <= 14 => 4,
+        _ => 8,
+    }
+}
+
+/// The Parts of an annual report that a line names, as bits
+/// (`annual_part`): by their numerals, or by the Items it names.
+fn parts_named(line: &str, kind: FormKind) -> u8 {
+    let mut parts = 0;
+    for c in PARTS_NAMED.captures_iter(line) {
+        for numeral in c[1].split(|c: char| !c.is_ascii_alphabetic()) {
+            parts |= match numeral.to_ascii_uppercase().as_str() {
+                "I" => 1,
+                "II" => 2,
+                "III" => 4,
+                "IV" => 8,
+                _ => 0,
+            };
+        }
+    }
+    for m in ITEMS_NAMED.find_iter(line) {
+        parts |= item_numbers(m.as_str()).fold(0, |p, n| p | annual_part(n, kind));
+    }
+    parts
+}
+
+/// The Item numbers written in digits in a line of Parts and Items.
+fn item_numbers(line: &str) -> impl Iterator<Item = u32> + '_ {
+    line.split(|c: char| !c.is_ascii_digit()).filter_map(|d| d.parse().ok())
+}
+
 /// Whether the line from `start` to `end`, of Item `label`, is a row of a
 /// cover's list of documents incorporated by reference: it names several
 /// Items and nothing else ("Items 10, 11, 12, 13 and 14", "Part III – Items 10
 /// through 14") or starts with a Part and names only Parts and Items ("Part II
 /// – Item 5"), and the list's heading ("DOCUMENTS INCORPORATED BY REFERENCE")
 /// comes at most 2,000 characters before it, with only other such rows and the
-/// documents' names between them: no other Part line, Item line or
-/// explanatory note. A list that says "None" or "No documents are
-/// incorporated by reference" lists nothing, and a heading of several Items
+/// documents' names between them: no other Part line, Item line or note
+/// ("EXPLANATORY NOTE" and what follows on its line, or a heading such as
+/// "INTRODUCTORY NOTE" or "PURPOSE OF AMENDMENT"). A row says where the
+/// document named above it is incorporated, so in an annual report a line is
+/// no row when the line just above it is a sentence that names a Part or an
+/// Item as a place ("Portions of the Proxy Statement are incorporated into
+/// Part III.", "to add the information required by Part III") and the line
+/// names an Item of another Part ("ITEMS 1 AND 2."). A row that names Items
+/// of the Parts the sentence names ("Part III – Items 10 through 14" below
+/// "incorporated in Part III") repeats where the document goes, and stays a
+/// row. A list that says "None" or "No documents are incorporated by reference"
+/// lists nothing, and a heading of several Items
 /// has a title of its first Item on the next line ("ITEMS 7 AND 7A.", then
 /// "MANAGEMENT'S DISCUSSION AND ANALYSIS"; "ITEMS 10 THROUGH 13.", then
 /// "DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT", the title until
@@ -1433,7 +1528,7 @@ static NONE_LINE: LazyLock<Regex> = LazyLock::new(|| {
 /// names several Items after it, before any other Part or Item line. A
 /// heading printed with its Part ("PART I, ITEM 1.", then "GENERAL
 /// DEVELOPMENT OF BUSINESS") has none.
-fn cover_row(text: &str, start: usize, end: usize, label: &str, keys: &[Key]) -> bool {
+fn cover_row(text: &str, start: usize, end: usize, label: &str, keys: &[Key], kind: FormKind) -> bool {
     const NEAR: usize = 2000;
     let row = &text[start..end];
     let several = |line: &str| {
@@ -1461,6 +1556,18 @@ fn cover_row(text: &str, start: usize, end: usize, label: &str, keys: &[Key]) ->
     let mut back = 0;
     let mut below: Option<&str> = None;
     let mut rows_between = false;
+    // The line just above the row, no row itself, if it is not one, and
+    // whether the walk has passed it.
+    let mut above: Option<&str> = None;
+    let mut passed = false;
+    // The line above says where its document is incorporated, and the row
+    // names an Item of another Part. Read only when the row is one otherwise.
+    let elsewhere = |line: &str| {
+        kind.annual() && PLACED.is_match(line) && {
+            let parts = parts_named(line, kind);
+            item_numbers(row).any(|n| annual_part(n, kind) & parts == 0)
+        }
+    };
     for line in text[..start].rsplit('\n') {
         back += line.len() + 1;
         if back > NEAR {
@@ -1471,15 +1578,24 @@ fn cover_row(text: &str, start: usize, end: usize, label: &str, keys: &[Key]) ->
         }
         if is_row(line) {
             rows_between = true;
+            passed = true;
             continue;
+        }
+        if !passed {
+            above = Some(line);
+            passed = true;
         }
         if let Some(c) = INCORPORATED_DOCUMENTS.captures(line) {
             return !NONE_LINE.is_match(&c[1])
                 && (!c[1].trim().is_empty() || !below.is_some_and(|l| NONE_LINE.is_match(l)))
-                && (several(row) || rows_between || several_after());
+                && (several(row) || rows_between || several_after())
+                && !above.is_some_and(elsewhere);
         }
-        let note = line.trim_start().get(..16).is_some_and(|w| w.eq_ignore_ascii_case("explanatory note"));
-        if PART_LINE.is_match(line) || PERIODIC_HEADING.is_match(line) || note {
+        let note = || {
+            line.trim_start().get(..16).is_some_and(|w| w.eq_ignore_ascii_case("explanatory note"))
+                || (line.len() <= NOTE_HEADING_LEN && NOTE_HEADING.is_match(line))
+        };
+        if PART_LINE.is_match(line) || PERIODIC_HEADING.is_match(line) || note() {
             return false;
         }
         below = Some(line);
@@ -1497,7 +1613,7 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)]) -> Vec<Candi
             let m = c.get(0).expect("group 0 always matches");
             let (number, tail) = (c.get(1).expect("Item number"), c.get(2).expect("tail"));
             let label = number.as_str().to_ascii_uppercase();
-            if kind != FormKind::EightK && cover_row(text, m.start(), m.end(), &label, keys) {
+            if kind != FormKind::EightK && cover_row(text, m.start(), m.end(), &label, keys, kind) {
                 return None;
             }
             // "Item 8, Financial Statements ...", "ITEMS 9, 9A AND 9B." A list
@@ -5578,6 +5694,134 @@ Pursuant to ...
                  PART I, ITEM 2.\nPROPERTIES\n{body}\n{tail}"
             );
             assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2", "item_15"]);
+        }
+    }
+
+    #[test]
+    fn headings_of_several_items_after_a_list_that_says_where_or_a_note_stay() {
+        let body = BODY.repeat(30);
+        let tail = format!("PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n");
+        let rest = format!(
+            "Item 3. Legal Proceedings\n{body}\nPART II\n\
+             Item 5. Market for Registrant's Common Equity\n{body}\n{tail}"
+        );
+        // A 10-K whose body starts right after the cover's list, with no
+        // "PART I" line and a heading of Items 1 and 2 that prints no title.
+        // The list's last line says where its document is incorporated, so it
+        // needs no row.
+        for list in [
+            "DOCUMENTS INCORPORATED BY REFERENCE\nPortions of the Proxy Statement are incorporated into Part III.\n",
+            "DOCUMENTS INCORPORATED BY REFERENCE\n\
+             Portions of the Annual Report to Shareholders are incorporated by reference in Parts I and II.\n\
+             The Proxy Statement for the 2018 Annual Meeting is incorporated by reference\n\
+             in response to Items 10 through 14 of this report.\n",
+            "Documents incorporated by reference: Portions of the Proxy Statement are incorporated into Part III.\n",
+        ] {
+            let text = format!("FORM 10-K\n{list}ITEMS 1 AND 2.\nGENERAL\n{body}\n{rest}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_3", "item_5", "item_15"], "{list}");
+            assert_eq!(s[0].heading, "ITEMS 1 AND 2.");
+        }
+        // A heading that names an Item of the Part the list names and one of
+        // another Part.
+        let list = "DOCUMENTS INCORPORATED BY REFERENCE\n\
+                    Portions of the Annual Report are incorporated by reference in Part II.\n";
+        let text = format!("FORM 10-K\n{list}ITEMS 1 THROUGH 5.\nGENERAL\n{body}\n{tail}");
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_15"]);
+        assert_eq!(s[0].heading, "ITEMS 1 THROUGH 5.");
+        // A 10-K/A with a note under another heading than "Explanatory note"
+        // between the list and a heading of the Items it adds, after a list
+        // of sentences or of cells.
+        let sentence = "The following information is furnished in response to Part III of Form 10-K.";
+        for list in [
+            "DOCUMENTS INCORPORATED BY REFERENCE\nPortions of the Proxy Statement are incorporated into Part III.\n",
+            "DOCUMENTS INCORPORATED BY REFERENCE\nPortions of the Proxy Statement for the 2018 Annual Meeting\t\n",
+        ] {
+            for note in [
+                "INTRODUCTORY NOTE",
+                "PURPOSE OF AMENDMENT",
+                "Purpose of this Amendment:",
+                "PURPOSE OF AMENDMENT NO. 1",
+                "Explanatory Note Regarding this Amendment",
+            ] {
+                let text = format!(
+                    "FORM 10-K/A\n{list}{note}\nThis amendment restates the items listed below in full.\n\
+                     ITEMS 10 THROUGH 13.\n{sentence}\n{body}\n{tail}"
+                );
+                let s = extract_sections(&text, FormKind::TenK);
+                assert_eq!(ids(&s), ["item_10", "item_15"], "{list}{note}");
+                assert_eq!(s[0].heading, "ITEMS 10 THROUGH 13.");
+            }
+        }
+        // A paragraph that names another Part than the heading's Items, under
+        // any heading.
+        let text = format!(
+            "FORM 10-K/A\nDOCUMENTS INCORPORATED BY REFERENCE\n\
+             Portions of the Proxy Statement for the 2018 Annual Meeting\t\nGENERAL\n\
+             This report is amended to add the information required by Part II.\n\
+             ITEMS 10 THROUGH 13.\n{sentence}\n{body}\n{tail}"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_10", "item_15"]);
+    }
+
+    #[test]
+    fn rows_below_a_sentence_that_says_where_stay_rows_in_a_ten_q() {
+        // A 10-Q numbers the Items of each Part from 1, so the number of an
+        // Item gives no Part, and the row stays a row.
+        let text = "FORM 10-Q\nDOCUMENTS INCORPORATED BY REFERENCE\n\
+                    Portions of the Annual Report are incorporated by reference into Part II.\n\
+                    ITEMS 1 AND 2.\nGENERAL\n";
+        let start = text.find("ITEMS 1 AND 2.").unwrap();
+        let end = start + "ITEMS 1 AND 2.".len();
+        assert!(cover_row(text, start, end, "1", keys_for(FormKind::TenQ), FormKind::TenQ));
+        assert!(!cover_row(text, start, end, "1", keys_for(FormKind::TenK), FormKind::TenK));
+    }
+
+    #[test]
+    fn cover_rows_below_a_document_that_names_no_place_are_no_headings() {
+        // Rows of a cover's list in a 10-K that prints no other Item heading
+        // than the exhibits Item's. The line above a row names a document but
+        // not where it is incorporated, also when a line further up does, or
+        // when the document's name holds "Amendment", "Note" or a Part of
+        // another document, or wraps, or is a long name that ends with
+        // "Amendment". Or the line above names where the document goes, and
+        // the row names Items of those Parts only, also after another row.
+        let body = BODY.repeat(30);
+        for cells in [
+            "Portions of the Annual Report to Shareholders for 2017 (incorporated in Part I and Part II)\n\
+             Items 1, 2, 5, 7 and 8\nProxy Statement for the 2018 Annual Meeting (incorporated in Part III)\n\
+             Items 10 through 14",
+            "Portions of the Proxy Statement are incorporated by reference into Part III of this Form 10-K.\n\
+             Part III – Items 10 through 14",
+            "The following documents are incorporated by reference into Parts I, II and III of this report:\n\
+             Items 1, 1A, 2 and 3\nAnnual Report to Shareholders for 2017\nItems 10 through 14",
+            "Proxy Statement, incorporated by reference in response to Items 10 through 14\nItems 10 and 11",
+            "Portions of the Proxy Statement are incorporated into Part III.\nPart III – Items 10 through 14\n\
+             Part II – Item 5",
+            "Portions of the Registration Statement as amended by the Second Amendment\nItems 10 and 11",
+            "GENERAL\nThis report is amended to add the information required by Part III.\nITEMS 10 THROUGH 13.",
+            "Portions of the Proxy Statement are incorporated into Part III.\n\
+             Document\tPart of Form 10-K into which incorporated\n\
+             Portions of the Annual Report to Shareholders for 2017\t\nItems 1, 1A, 2 and 3",
+            "The following documents are incorporated by reference into Parts I, II and III of this report:\n\
+             Annual Report to Shareholders for 2017\nItems 1 and 2",
+            "Portions of Amendment No. 1 to the Registration Statement on Form S-1\nItems 10 and 11",
+            "Annual Report to Shareholders for 2017, as amended by Amendment No. 1\nItems 1 and 2",
+            "Notes to Consolidated Financial Statements in the Annual Report to Shareholders\nItems 7 and 8",
+            "Portions of the Annual Report to Shareholders for 2017 (the Annual Report), and of the notes\n\
+             to its financial statements\nITEMS 7 AND 8.",
+            "The Annual Report to Shareholders for 2017, Part II\nItems 5 through 8",
+            "Annual Report to Shareholders for 2017\n\
+             Part I – Items 1, 1A, 2 and 3; Part II – Items 5, 6, 7,\n7A, 8 and 9A; and Part IV– Item 15.\n\
+             Part III – Items 10 through 14",
+        ] {
+            let text = format!(
+                "FORM 10-K\nDOCUMENTS INCORPORATED BY REFERENCE\n{cells}\n\
+                 FORM 10-K CROSS-REFERENCE INDEX\n1\tBusiness\t2-20\n{body}{body}\n\
+                 PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_15"], "{cells}");
         }
     }
 
