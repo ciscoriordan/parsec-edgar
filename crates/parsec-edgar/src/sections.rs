@@ -38,7 +38,14 @@
 //! body prints no other Item heading. A running
 //! header that shortens the title or adds "(Continued)" is no such heading. A
 //! heading printed with a footnote's number ("Item 7.<TAB>Management's
-//! Discussion and Analysis ...<TAB>1") is followed by its text, and one
+//! Discussion and Analysis ...<TAB>1") is followed by its text, or, when
+//! its Item is short ("Item 6.<TAB>[Reserved]<TAB>1", "Not applicable.",
+//! then Item 7), comes more than 2,000 characters after the Item line before
+//! it and prints one number as its page, with no page on that line, on the
+//! next Item line or at the end of the line under it, none on the three
+//! lines under either of those Item lines (as an index row whose title wraps
+//! onto its page has), no colon at the end of the line above it, and neither
+//! of those Item lines a row; and one
 //! followed by a running header of its own Item that prints the page, or by
 //! an index of Items after the body, is no such row; that running header
 //! ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   25") is one.
@@ -1269,6 +1276,11 @@ static PAGE_REFERENCE: LazyLock<Regex> = LazyLock::new(|| {
 static ROW_PAGES: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(r"(?:\t| {{2,}}|\.{{2,}} ?){PAGES}(?:[ \t]*,[ \t]*{PAGES})*[ \t]*$")).unwrap()
 });
+
+/// A page column alone on its line, under the title it belongs to: `33`,
+/// `13–14`, `3 - 8, 32`.
+static PAGES_ALONE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"^[ \t]*{PAGES}(?:[ \t]*,[ \t]*{PAGES})*[ \t]*$")).unwrap());
 
 /// A page or a range of pages: `3`, `F-3`, `10 - 11`, `F-1 - F-20`.
 const PAGES: &str = r"(?:[A-Z]{1,2} ?[-–] ?)?\d{1,3}(?:[ \t]*[–-][ \t]*(?:[A-Z]{1,2} ?[-–] ?)?\d{1,3})?";
@@ -3344,7 +3356,16 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 /// Procedures<TAB>3", then "Signatures<TAB>5", the contents of an amendment
 /// of one Item). A body heading printed with a footnote's number ("Item
 /// 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed by its
-/// text.
+/// text. The heading of a short Item printed that way ("Item
+/// 6.<TAB>[Reserved]<TAB>1", then "Not applicable." and Item 7's heading) is
+/// no row either: the Item line before it is more than `block` characters
+/// above it, neither that line nor the Item line after it is a row or prints
+/// a page, on its line or one of the three lines under it, the line under it
+/// ends with no page, the line above it ends with no colon ("Market risk is
+/// discussed in:"), and its page column is one
+/// number. A range, a list or a page with a prefix ("36 - 37", "3-30, 64")
+/// refers to pages, as a cross-reference index does, and such a row stays
+/// one.
 ///
 /// Going back from a row, the Item line before it is a row too when it is at
 /// most `block` characters before it, its entry ends with a page column, and
@@ -3453,6 +3474,46 @@ fn paged_rows(
             }
         }
         first = last + 1;
+    }
+    // A short Item whose heading prints a footnote's number ("Item
+    // 6.<TAB>[Reserved]<TAB>1", then "Not applicable." and Item 7's heading)
+    // is no row though another Item's line follows it closely: the Item line
+    // before it is more than `block` characters above it, neither that line
+    // nor the Item line after it is a row or prints a page (`wraps_pages`),
+    // the line under it ends with no page, and the line above it ends with no
+    // colon, as one that introduces a reference does ("Market risk is
+    // discussed in:"). Rows come one after another. Only one number counts: a
+    // range, a list or a page with a prefix ("36 - 37", "3-30, 64", "F-3")
+    // refers to pages, as the rows of a cross-reference index do.
+    // An Item line whose title wraps prints its page at the end of one of
+    // the next three lines, or alone on one, as a row of an index does ("Item
+    // 5<TAB>Market for the Registrant's", "Common Equity and Related", then
+    // "Shareholder Matters ... 20"; "Item 5.", "Market for Common Equity,
+    // ...", "and Issuer Purchases of Equity Securities", then "33").
+    const WRAPPED_LINES: usize = 3;
+    let wraps_pages = |j: usize| {
+        let line_end = cands[j].pos + line_at(text, cands[j].pos).len();
+        let end = cands.get(j + 1).map_or(text.len(), |o| o.pos).max(line_end);
+        let mut lines = text[line_end..end].lines().filter(|l| !l.trim().is_empty()).take(WRAPPED_LINES);
+        lines.any(|l| ends_with_pages(l) || PAGES_ALONE.is_match(l))
+    };
+    let no_pages = |j: usize| !paged[j] && !own_pages(j) && !wraps_pages(j);
+    let one_number =
+        |i: usize| page_value(line_at(text, cands[i].pos)).is_some_and(|p| p.bytes().all(|b| b.is_ascii_digit()));
+    let headings: Vec<usize> = (1..n.saturating_sub(1))
+        .filter(|&i| {
+            paged[i]
+                && own_pages(i)
+                && one_number(i)
+                && no_pages(i - 1)
+                && !close(i - 1, i)
+                && no_pages(i + 1)
+                && !next_line(i).is_some_and(ends_with_pages)
+                && !text[..cands[i].pos].trim_end().ends_with(':')
+        })
+        .collect();
+    for i in headings {
+        paged[i] = false;
     }
     // A line repeats a line of its Item before it that is no row and has
     // its title (`same_title`) when it does not print that title in full.
@@ -8263,6 +8324,117 @@ Pursuant to ...
     }
 
     #[test]
+    fn short_item_whose_heading_ends_with_a_footnote_number_stays() {
+        // Item 6 has two lines, and Item 7's heading follows it closely.
+        let body = BODY.repeat(30);
+        let annual = |before: &str, heading: &str, under: &str, next: &str| {
+            format!(
+                "{before}\n{body}\n{heading}\n{under}{next}\n{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            )
+        };
+        let (item_5, item_7) = (
+            "Item 5. Market for Registrant's Common Equity",
+            "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+        );
+        let reserved = "Item 6.\t[Reserved]\t1";
+        for (heading, under) in [
+            (reserved, "Not applicable.\n"),
+            (reserved, ""),
+            ("Item 6.  Selected Financial Data   (1)", "Not applicable.\n"),
+            ("Item 6. Selected Financial Data ..... 2", "Omitted.\nSee the note 3 below.\n"),
+        ] {
+            let heading = heading.replace("(1)", "1");
+            let text = annual(item_5, &heading, under, item_7);
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_5", "item_6", "item_7", "item_8"], "{heading}");
+            assert_eq!(s[1].heading, heading);
+            assert_eq!(s[1].end, text.find(item_7).unwrap());
+        }
+        // A number on the fourth line under Item 5's heading is its text.
+        let text_5 = format!("{item_5}\nThe stock trades on the exchange.\nHolders of record\nAt March 1:\n412");
+        let s = extract_sections(&annual(&text_5, reserved, "Not applicable.\n", item_7), FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5", "item_6", "item_7", "item_8"]);
+        // Still a row, and no Item 6:
+        for (before, heading, under, next) in [
+            // the line before it prints a page too, as a list's rows do;
+            ("Item 5.\tMarket for Registrant's Common Equity\t1", reserved, "Not applicable.\n", item_7),
+            // so does the line after it;
+            (item_5, reserved, "Not applicable.\n", &*format!("{item_7}\t2")),
+            // the line under it ends with a page, as a row that names no
+            // Item does;
+            (item_5, reserved, "Signatures\t5\n", item_7),
+            // the Item line before it is close, as in a list;
+            (item_5, "Item 5. Market for Registrant's Common Equity (continued)\nItem 6.\t[Reserved]\t1", "", item_7),
+            // its page column is no one number but a range, a list or a
+            // page with a prefix, as a cross-reference index prints;
+            (item_5, "Item 6.\t[Reserved]\t36 - 37", "Not applicable.\n", item_7),
+            (item_5, "Item 6.\t[Reserved]\t3-30, 64", "Not applicable.\n", item_7),
+            (item_5, "Item 6.\t[Reserved]\tF-3", "Not applicable.\n", item_7),
+            // the line above it ends with a colon, as one that introduces a
+            // reference does;
+            (item_5, "The selected data are in:\nItem 6.\t[Reserved]\t1", "Not applicable.\n", item_7),
+            // the line before it or after it prints its page on one of the
+            // three lines under it, at the end or alone, as an index row whose
+            // title wraps does.
+            (
+                "Item 5.\tMarket for Registrant's Common Equity\nand Related Stockholder Matters\t20",
+                reserved,
+                "",
+                item_7,
+            ),
+            (
+                "Item 5.\nMarket for Registrant's Common Equity, Related Stockholder Matters\n\
+                 and Issuer Purchases of Equity Securities\n15",
+                reserved,
+                "",
+                item_7,
+            ),
+            (
+                item_5,
+                reserved,
+                "",
+                "Item 7.\nManagement's Discussion and Analysis of Financial\nCondition\n13\u{2013}14",
+            ),
+            (item_5, reserved, "", "Item 7.\nManagement's Discussion and Analysis of Financial\nCondition\n3 - 8, 32"),
+        ] {
+            let text = annual(before, heading, under, next);
+            let s = extract_sections(&text, FormKind::TenK);
+            assert!(!ids(&s).contains(&"item_6"), "{before} / {heading} / {under} / {next}: {:?}", ids(&s));
+        }
+        // A row whose wrapped neighbor is a row by the page under it stays
+        // one: both lines go, and Item 5 runs up to Item 7A.
+        let text = annual(
+            item_5,
+            reserved,
+            "",
+            "Item 7. Management's Discussion and Analysis of Financial\nCondition\t3\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5", "item_7a", "item_8"]);
+        // A cross-reference index whose rows wrap their pages and print text
+        // of their own between them: the row that prints its page on its own
+        // line stays a row, and no Item 6 starts there.
+        let short = BODY.repeat(5);
+        let index = format!(
+            "CROSS REFERENCE INDEX\nItem 5         Market for the Registrant's\nCommon Equity and Related\n\
+             Shareholder Matters                 20\n{short}\nItem 6         Selected Financial Data                 21\n\
+             Item 7         Management's Discussion and\nAnalysis of Financial Condition\n\
+             and Results of Operations           14 - 19\n{body}\nItem 8         Financial Statements and\n\
+             Supplementary Data                  22 - 40\n"
+        );
+        for index in [index.clone(), index.replace("Matters                 20", "Matters\n20")] {
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\nPART II\n{index}Item 9. Changes in and Disagreements with \
+                 Accountants\nNone.\nPART III\nItem 10. Directors and Executive Officers\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert!(!ids(&s).contains(&"item_6"), "{:?}", ids(&s));
+        }
+    }
+
+    #[test]
     fn contents_rows_with_pages_are_rows_next_to_other_item_lines() {
         // The body prints no Part I Item headings and no Item 1A heading. The
         // last row follows a row with a page and a Part's line, or a row that
@@ -8284,18 +8456,21 @@ Pursuant to ...
             assert!(s[0].text.starts_with("Item 6. Exhibits\nLorem"));
         }
         // The first row of a list follows a line with no page, and the next
-        // row prints its page on a line of its own.
-        let text = format!(
-            "Page\nITEM 9B. OTHER INFORMATION\t96\nPART III\n\
-             ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE\nREGISTRANT\n96\n\
-             ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE REGISTRANT\n{body}\nSIGNATURES\n"
-        );
-        let s = extract_sections(&text, FormKind::TenK);
+        // row prints its page on a line of its own, or none.
+        let text = |row_10: &str| {
+            format!(
+                "Page\nITEM 9B. OTHER INFORMATION\t96\nPART III\n\
+                 ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE {row_10}\n\
+                 ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE REGISTRANT\n{body}\nSIGNATURES\n"
+            )
+        };
+        let s = extract_sections(&text("OF THE\nREGISTRANT\n96"), FormKind::TenK);
         assert_eq!(ids(&s), ["item_10"]);
         assert!(
             s[0].text
                 .starts_with("ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE REGISTRANT\n")
         );
+        assert_eq!(ids(&extract_sections(&text("OF THE REGISTRANT (1)"), FormKind::TenK)), ["item_10"]);
     }
 
     #[test]
