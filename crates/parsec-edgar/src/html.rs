@@ -659,17 +659,21 @@ fn ends_like_number(cell: &str) -> bool {
     rest.ends_with(|c: char| c.is_ascii_digit() || DASHES.contains(&c))
 }
 
-/// A bare page number, such as "12", "Page 12", "F-3", "F - 3", "- 7 -",
-/// "ii" or "- ii -", or "Page" and a page number with a prefix, "Page E-1",
-/// with the number in the first group that matched (roman numerals in the
-/// second and fifth). Old text filings escape a line that starts with a dash
-/// as "- -", so "- -7-" is one too.
+/// A bare page number, such as "12", "Page 12", "(Page 12)", "F-3", "F - 3",
+/// "- 7 -", "- F 7 -", "ii" or "- ii -", or "Page" and a page number with a
+/// prefix, "Page E-1", with the number in the first group that matched
+/// (roman numerals in the second and fifth, the number between dashes after
+/// an "F" in the seventh, the number in parentheses in the eighth). Old text
+/// filings escape a line that starts with a dash as "- -", so "- -7-" is one
+/// too.
 static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
         r"^(?:(?:(?i:page)\s+)?",
         r"(?:(\d{1,3})|([ivxlc]{1,7})|F\s*[-‐‑‒–—−]\s*(\d{1,3})",
         r"|(?:-\s+)?[-–—]\s*(?:(\d{1,3})|([ivxlc]{1,7}))\s*[-–—])",
-        r"|(?i:page)\s+[A-Z]{1,3}\s*[-‐‑‒–—−]\s*(\d{1,3}))$",
+        r"|(?i:page)\s+[A-Z]{1,3}\s*[-‐‑‒–—−]\s*(\d{1,3})",
+        r"|[-–—]\s*F\s*[-‐‑‒–—−]?\s*(\d{1,3})\s*[-–—]",
+        r"|\((?i:page)\s+(\d{1,3})\))$",
     ))
     .unwrap()
 });
@@ -1545,7 +1549,7 @@ fn page_numbers<'a>(line: &'a str) -> [Option<PageNumber<'a>>; 2] {
     let none = || [None, None];
     if let Some(c) = PAGE_NUMBER.captures(line) {
         let roman = c.get(2).or(c.get(5)).is_some();
-        let Some(m) = (1..7).find_map(|g| c.get(g)) else { return none() };
+        let Some(m) = (1..9).find_map(|g| c.get(g)) else { return none() };
         let number = if roman { self::roman(m.as_str()) } else { m.as_str().parse().ok() };
         let key = (&line[..m.start()], &line[m.end()..], Place::Edge);
         return [number.map(|number| PageNumber { roman, ..PageNumber::new(number, key) }), None];
@@ -1676,6 +1680,18 @@ mod tests {
         // Only a whole line is a page number.
         let html = "<p>- iv - Text</p><p>Page E-1 lists the exhibits.</p><p>See page A-2</p>";
         assert_eq!(html_to_text(html), "- iv - Text\nPage E-1 lists the exhibits.\nSee page A-2\n");
+        // A number between dashes after an "F", and "Page" and a number in
+        // parentheses.
+        let html = "<p>Text</p><p>- F 1 -</p><p>- F-2 -</p><p>-F3-</p><p>(Page 4)</p><p>(page 12)</p><p>End</p>";
+        assert_eq!(html_to_text(html), "Text\nEnd\n");
+        for line in ["- F 1", "F 1 -", "- FS 1 -", "- G 1 -", "- F 1 - Text", "- F 1234 -", "- F -"] {
+            assert_eq!(html_to_text(&format!("<p>Text</p><p>{line}</p>")), format!("Text\n{line}\n"));
+        }
+        for line in
+            ["(Page 4", "Page 4)", "(Pages 4)", "(Page F-4)", "(Page 4) of the report", "(Page 4 of 9)", "(Page)"]
+        {
+            assert_eq!(html_to_text(&format!("<p>Text</p><p>{line}</p>")), format!("Text\n{line}\n"));
+        }
     }
 
     /// Text of `pages` pages, each "Text of page N." followed by `footer`
