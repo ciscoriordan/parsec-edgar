@@ -15,27 +15,66 @@
 //! Before that, contents entries whose Item and title reappear in the body
 //! are dropped, and so is a bare page header ("Item 7") just above its titled
 //! heading. A list of one Item and "SIGNATURES", which an 8-K's cover can
-//! print just above the body, is such a contents list too. So are rows that
-//! end with a page number or a range of pages ("Item 3. Quantitative and
-//! Qualitative Disclosures About Market Risk   10 - 11"), with the rows just
-//! before them whose entries end with one and that name an earlier Item, as
-//! a contents list does, also when the body prints no heading for them; such
-//! a row is never taken for a body heading. A heading followed by a running
-//! header of its own Item that prints the page, or by an index of Items
-//! after the body, is no such row. In a 10-Q
-//! or 10-QSB a `PART I` or `PART II` line just above a heading fixes its
-//! part, and without one a title that only one part uses for that Item number
-//! does. Such a line that starts with a Part I title and runs on as a
+//! print just above the body, is such a contents list too. So are rows that end
+//! with a page column among other rows (another Item's line follows closely,
+//! or the line above, a Part's line aside, or the next line ends with pages
+//! too, as "Signatures<TAB>5" does): a page, a range of pages or a list of
+//! them ("Item 3. Quantitative and Qualitative Disclosures About Market Risk
+//! 10 - 11", "Item 1. Business   3-30, 64"). The Item line just before a row
+//! that names an earlier Item, and the one just after it that names a later
+//! Item and is followed closely by another Item's line, are rows too when
+//! their entries (the line and the wrapped title or the pages listed under it)
+//! end with a page column, as in a contents list; there the column may also say
+//! "cover", "N/A", "Not applicable", "None" or "*", when at least two rows of
+//! the run print pages. Rows go also when the body prints no heading for them,
+//! and are never taken for a body heading. An Item line just after a row that
+//! names a later Item, or one that prints a page before the body with no other
+//! row next to it (the only row of an amendment's contents), is a contents
+//! entry when its heading is printed again, with its title in full, before any
+//! other Item heading: the last row of a cross-reference index, which prints
+//! no page, in a 10-K whose body prints no other Item heading. A running
+//! header that shortens the title or adds "(Continued)" is no such heading. A
+//! heading printed with a footnote's number ("Item 7.<TAB>Management's
+//! Discussion and Analysis ...<TAB>1") is followed by its text, and one
+//! followed by a running header of its own Item that prints the page, or by
+//! an index of Items after the body, is no such row; that running header
+//! ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   25") is one.
+//! Item lines above a contents list that the list repeats, as a 10-Q/A's
+//! explanatory note prints the Items it amends, go with the list, with pages
+//! or without, when no Item line with text of its own comes before them.
+//! A copy printed after the signature block's sentence ("Pursuant to the
+//! requirements of ... duly caused this report"), such as an exhibit's, is no
+//! body heading when the copy before the signatures sits where the Item's
+//! heading belongs, however short its own text: the nearest Item with text of
+//! its own before it comes earlier in the form's order, and the Item lines
+//! after it, up to the next one with text of its own, come later, the first
+//! of them no contents row. The later copy goes then. A line inside another
+//! Item's text, a row of an index of Items printed after the body and a
+//! contents row stay out of this, and the copy after the signatures starts
+//! the Item, as when the report prints Part IV after its signatures.
+//! In a 10-Q or 10-QSB a `PART I` or `PART II` line just above a heading fixes
+//! its part, and without one a title that only one part uses for that Item
+//! number does. Such a line that starts with a Part I title and runs on as a
 //! sentence that cites the Item ("Item 1. Financial Statements, of this
 //! report") is a wrapped cross-reference, not a heading. In every form, so is
 //! an Item line that carries on a sentence from the line just above it, which
-//! ends with a comma or with a word such as "in", "see" or "to" ("as set
-//! forth in Part II,"). So is one whose title, whole or by its first three
+//! ends with a comma or with a word such as "in", "see" or "to" ("as set forth
+//! in Part II,"), or a word that names a caption ("under the caption", "the
+//! section entitled"). So is one whose title, whole or by its first three
 //! words, goes straight on to name the report or another document ("Item 1A.
-//! Risk Factors, of our Annual Report on Form 10-K for 2019 describes"), when
-//! a heading of the Item with that title follows it before any heading of an
-//! Item that comes later in the form. Without such a heading after it, the
-//! line may be a run-in heading and stays a candidate.
+//! Risk Factors, of our Annual Report on Form 10-K for 2019 describes"), when a
+//! heading of the Item with that title follows it before any heading of an Item
+//! that comes later in the form, or when it sits inside a later Item: a heading
+//! of the Item with that title comes before it with lines of later Items only
+//! between them, and the next line of another Item after it comes later in the
+//! form than the last of those (after a contents list, the body's next heading
+//! goes back to an Item the list printed). Otherwise the line may be a run-in
+//! heading and stays a candidate. In a 10-Q or 10-QSB, a Part's
+//! title printed with an Item number ("Item 1. Financial Information
+//! (Unaudited)") on the line just above a heading of that Item with one of its
+//! standard titles ("Item 1. Financial Statements (Unaudited)") is no heading,
+//! unless it is a standard title of the Item too ("Item 5. Other
+//! Information").
 //! A heading that names several Items ("Items 1 and 2.", "Items 1 through
 //! 5.", with a dash, "Item 1-5.", but not "Item 1-2 of the Form", or with
 //! commas, "ITEMS 9, 9A AND 9B.") starts the first of them. A range or a list
@@ -51,24 +90,62 @@
 //! ("Items 10, 11, 12, 13 and 14", "Items 10 - 13"), none of whose Items is
 //! Item 1, when only such lines come before it and no heading of another
 //! Item it names comes next: in a filing that prints no Item headings, the
-//! cover's row would start Item 10 and run to the signatures. A body's
-//! heading of several later Items ("ITEMS 10 - 13.") follows the heading of
-//! an earlier Item. Two Items joined with "and" and a range with "through"
-//! stay, as they can start a 10-K/A that amends only those Items ("ITEMS 7
-//! AND 7A."). A comma after the number of one Item, as running text also
-//! puts it ("Item 8, which ..."), counts only when the line ends where the
-//! Item's standard title ends ("Item 8, Financial Statements and
-//! Supplementary Data"). In a 10-K or 10-KSB whose first Item found is Item
-//! 1A or Item 2, a line that holds only Item 1's standard title after the
-//! last `PART I` line before it ("PART I." and then "BUSINESS") starts Item
-//! 1, unless an Item line comes between them, or the title line is printed
-//! more than once after the last Item line before the heading (Item 1's pages
-//! print "PART I" and "Business" as page headers).
+//! cover's row would start Item 10 and run to the signatures. A body's heading
+//! of several later Items ("ITEMS 10 - 13.") follows the heading of an earlier
+//! Item. Nor is a line that names several Items and nothing else, with or
+//! without its Part ("Items 1, 1A, 2 and 3", "Items 10 and 11", "Part III –
+//! Items 10 through 14"), or one Item after its Part ("Part II – Item 5") with
+//! another row next to it, when the heading of the cover's list of documents
+//! incorporated by reference comes at most 2,000 characters before it with only
+//! the list's rows between them (no other Part line, Item line or explanatory
+//! note), unless the list says "None" or that no document is incorporated, or
+//! the next line holds one of the first Item's standard titles, current or
+//! former. Otherwise two Items joined with "and" and a range with "through"
+//! stay, as they can start a 10-K/A that amends only those Items ("ITEMS 7 AND
+//! 7A."). A comma after the number of one Item, as running text also puts it
+//! ("Item 8, which ..."), counts only when the line ends where the Item's
+//! standard title ends ("Item 8, Financial Statements and Supplementary Data").
+//! In a 10-K or 10-KSB whose first Item found is Item 1A or Item 2, and whose
+//! last Part line before that heading is a `PART I` line that comes after every
+//! Item line before it, a line that holds only Item 1's standard title starts
+//! Item 1: the first one right after a `PART I` line ("PART I." and then
+//! "BUSINESS"), unless another Part's line comes after it or the next line
+//! holds only another Item's title, as in a contents list printed without Item
+//! numbers. It may come before the last `PART I` line, since Item 1's pages may
+//! print "PART I" and "Business" again as page headers. Without one, the first
+//! such line after the last `PART I` line starts Item 1, unless the title line
+//! is printed more than once after the last Item line before the heading.
+//! A heading that writes the Item number in roman numerals ("ITEM I.
+//! BUSINESS", with the letter I for 1) starts that Item when its title starts
+//! like one of the Item's standard titles, current or former, and it sits
+//! where the Item belongs: the Items found before it come earlier in the
+//! form's order, those found after it come later, it comes before the
+//! signatures, and no other Item line comes between it and the next Item found,
+//! as one does below a contents entry. So it never replaces an Item found with
+//! a number in digits, and of its copies (running headers) the first counts.
 //! The last Item ends at the signatures or where a separately paginated
-//! attached document (an annual report) begins. A power of attorney printed
-//! before the signatures under a "POWER OF ATTORNEY" line goes with them, so
-//! that line ends the last Item too, unless it is an exhibit's description in
-//! a list printed cell by cell ("24" on the line above).
+//! attached document (an annual report) begins, with the index headings
+//! ("Index to Financial Statements") and notes that a page is intentionally
+//! left blank printed just above its contents. The signatures start at the
+//! signatures heading or at the signature block's sentence ("Pursuant to the
+//! requirements of the Securities Exchange Act of 1934, the registrant has
+//! duly caused this report to be signed ...", or the 10-KSB and 10-QSB
+//! wording "In accordance with Section 13 or 15(d) of the Exchange Act, the
+//! registrant caused this report ..."), whichever comes first, so that a
+//! signatures heading inside an attached document does not end the report's
+//! last Item. The sentence counts also when a plain-text filing wraps it
+//! twice before "caused". A power of attorney printed before the
+//! signatures under a "POWER OF ATTORNEY" line goes with them, so that line
+//! ends the last Item too, unless it is an exhibit's description in a list
+//! printed cell by cell ("24" on the line above). In a 10-Q or 10-QSB,
+//! a Part I Item ends at the first `PART II` line in it ("PART II. OTHER
+//! INFORMATION", with Part II's title or without) when text of Part II
+//! follows that line, such as a note on forward-looking statements printed
+//! before Part II's first heading: a line that is no page header (a line
+//! printed on its own more than once), no page footer ("Page 25 of 31"), no
+//! other `PART II` line and not Part II's title. A `PART II` line just above
+//! Part II's first heading stays in Part I's last Item, and so does a "Part
+//! II." line that a sentence wraps onto ("see Item 1A of" then "Part II.").
 //!
 //! A titled sub-item with the standard title of a lettered Item the form
 //! defines is that Item ("Item 8(A)T. Controls and Procedures" in a 10-KSB,
@@ -120,7 +197,12 @@
 //! headings go with the text after it: up to three lines, each printed again
 //! on a line of its own at least twice after the heading and more often than
 //! before it (the company name at the top of each statement page), but never
-//! the Item's first line of text.
+//! the Item's first line of text. So does the auditors' letterhead above an
+//! auditors' report heading: the firm's name, which the report prints again
+//! where the firm signs it, and up to three lines of its address, the last
+//! with a city, a state and a ZIP code ("Allentown, PA 18104"), below a line
+//! of the Item that ends a sentence. An address that the Item's text leads
+//! into ("Our auditors may be contacted at:") stays in the Item.
 //!
 //! A section's title is the standard title of its Item. Where the form has
 //! renamed the Item, the printed heading picks the title among those it has
@@ -130,17 +212,29 @@
 //! earlier title shares with the current one fits the earlier, shorter one
 //! better ("Directors and Executive Officers of the Company" for 10-K Item
 //! 10, titled "Directors and Executive Officers of the Registrant" until
-//! 2006). That choice never decides which lines are headings: the rules
-//! above that compare a line with an Item's title (a comma after the Item
-//! number, Item 1 printed without a number, a lettered sub-item) use the
-//! current title only, so "Item 10, Directors and Executive Officers of the
+//! 2006). With the report's dates ([`extract_sections_dated`]), the title in
+//! force for them, by the effective dates of the SEC releases that renamed
+//! the Items and, where a release set one, the compliance date for the
+//! period the report covers, is kept unless the heading prints another
+//! title whole (a filing that keeps an outdated title) or shares no word
+//! with the title in force; so a heading that prints no title ("ITEMS 10 -
+//! 13.") or only some words of a title gets the title of its dates. Apart
+//! from a heading numbered in roman numerals, that choice never decides
+//! which lines are headings: the rules above that compare a line with
+//! an Item's title (a comma after the Item number, Item 1 printed without a
+//! number, a lettered sub-item, the line below a cover's row) use the current
+//! title only, so "Item 10, Directors and Executive Officers of the
 //! Registrant" (the title before 2006) is no heading.
 
-use std::collections::HashMap;
+use std::cell::OnceCell;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
-use regex::Regex;
+use regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
+
+use crate::error::{Error, Result};
+use crate::index::parse_date;
 
 /// Form families with Item sections. Each has its own list of Items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -227,7 +321,9 @@ pub struct Section {
     /// Standard title of the Item: its title in the current version of the
     /// form, or an earlier title of the Item when the heading prints that one
     /// ("Submission of Matters to a Vote of Security Holders" for Item 4 of a
-    /// 10-K before 2010).
+    /// 10-K before 2010). With the filing date and period of report
+    /// ([`extract_sections_dated`]), the title in force for them unless the
+    /// heading prints another.
     pub title: String,
     /// The heading line as it appears in the filing.
     pub heading: String,
@@ -244,35 +340,212 @@ struct Key {
     /// The Item's title in the current version of the form, which the
     /// headings are matched with.
     title: &'static str,
-    /// Titles of the Item in earlier versions of the form, newest first. They
-    /// name a section whose heading prints one of them (`printed_title`), but
-    /// are not used to find headings.
-    former: &'static [&'static str],
+    /// When `title` took effect.
+    since: Since,
+    /// Titles of the Item in earlier versions of the form, oldest first, each
+    /// with when it took effect. An empty title is a time the form had no
+    /// such Item. They name a section whose heading prints one of them
+    /// (`printed_title`), but are not used to find headings.
+    former: &'static [(Since, &'static str)],
 }
 
 const fn k(item: &'static str, title: &'static str) -> Key {
-    Key { part: None, item, title, former: &[] }
+    Key { part: None, item, title, since: EARLIEST, former: &[] }
 }
 
 const fn q(part: &'static str, item: &'static str, title: &'static str) -> Key {
-    Key { part: Some(part), item, title, former: &[] }
+    Key { part: Some(part), item, title, since: EARLIEST, former: &[] }
 }
 
-impl Key {
-    /// The same Item with the titles it had in earlier versions of the form.
-    const fn was(self, former: &'static [&'static str]) -> Key {
-        Key { former, ..self }
+/// When a title of an Item took effect: for filings made on or after
+/// `filed` (`YYYY-MM-DD`), and, when the release that set it gave filers
+/// until a later compliance date, only for reports of periods ending on or
+/// after `period`. A filing for an earlier period could still leave out the
+/// new disclosure, and kept the earlier title.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Since {
+    filed: &'static str,
+    period: &'static str,
+}
+
+impl Since {
+    /// In effect for every filing made on or after `filed`.
+    const fn filed(filed: &'static str) -> Since {
+        Since { filed, period: "" }
+    }
+
+    /// Whether the title was in force for a report with these dates.
+    fn applies(self, dates: Dates) -> bool {
+        self.filed <= dates.filed && self.period <= dates.period
     }
 }
 
-/// The title of the exhibits Item from 1980 to the early 2000s: 10-K Item 14,
-/// then Item 15, and Item 16 in 2003.
+/// The dates that decide a section's title: the day the report was filed,
+/// and the last day of the period it covers (the fiscal year or quarter,
+/// or for an 8-K the day of the event), which is the filing date when it
+/// is not known.
+#[derive(Clone, Copy, Debug)]
+struct Dates<'a> {
+    filed: &'a str,
+    period: &'a str,
+}
+
+impl Key {
+    /// The same Item, titled `title` since `since`, with the titles it had
+    /// before, each with when it took effect.
+    const fn was(self, since: Since, former: &'static [(Since, &'static str)]) -> Key {
+        Key { since, former, ..self }
+    }
+
+    /// The current title, then the earlier ones, newest first, each once.
+    fn titles(&self) -> impl Iterator<Item = &'static str> + '_ {
+        let former = self.former;
+        let earlier = former.iter().enumerate().rev().filter(move |&(i, &(_, t))| {
+            !t.is_empty() && t != self.title && !former[i + 1..].iter().any(|&(_, later)| later == t)
+        });
+        std::iter::once(self.title).chain(earlier.map(|(_, &(_, t))| t))
+    }
+
+    /// When `title`, one of the Item's titles, first took effect.
+    fn first_day(&self, title: &str) -> Since {
+        self.former.iter().find(|&&(_, t)| t == title).map_or(self.since, |&(since, _)| since)
+    }
+
+    /// The titles in the order they took effect, with when.
+    fn history(&self) -> impl DoubleEndedIterator<Item = (Since, &'static str)> + '_ {
+        self.former.iter().copied().chain([(self.since, self.title)])
+    }
+
+    /// The title in force for a report with these dates, the latest of the
+    /// Item's titles that applies to it, unless the form had no such Item
+    /// then.
+    fn title_on(&self, dates: Dates) -> Option<&'static str> {
+        let (_, title) = self.history().rev().find(|&(since, _)| since.applies(dates))?;
+        Some(title).filter(|t| !t.is_empty())
+    }
+
+    /// The title in force for a report with these dates (`title_on`), and
+    /// when the form had no such Item then, the last title it had before, or
+    /// else its first title, the one nearest in time: "Exhibits, Financial
+    /// Statement Schedules, and Reports on Form 8-K" for a 10-K Item 16 of
+    /// 2004 rather than "Form 10-K Summary" of 2016.
+    fn title_for(&self, dates: Dates) -> &'static str {
+        self.title_on(dates).unwrap_or_else(|| {
+            let titles = || self.history().filter(|&(_, t)| !t.is_empty());
+            let last = titles().rev().find(|&(since, _)| since.applies(dates));
+            last.or_else(|| titles().next()).map_or(self.title, |(_, t)| t)
+        })
+    }
+}
+
+// When the SEC releases that renamed Items took effect, with the Federal
+// Register pages of each release: the effective date, and the compliance
+// date where the release set one for reports of later periods. Titles
+// printed in a release are the titles here.
+
+/// Before filings were made on EDGAR: when an Item's first title took
+/// effect.
+const EARLIEST: Since = Since::filed("");
+
+/// Release 33-7431, Phase Two Recommendations of Task Force on Disclosure
+/// Simplification (62 FR 39755): Part II Item 2 of Forms 10-Q and 10-QSB,
+/// until then "Changes in Securities", becomes "Changes in Securities and
+/// Use of Proceeds".
+const USE_OF_PROCEEDS: Since = Since::filed("1997-09-02");
+
+/// Release 33-8048, Disclosure of Equity Compensation Plan Information (67 FR
+/// 232): 10-K Item 12 and 10-KSB Item 11 add "and Related Stockholder
+/// Matters" to their titles, for annual reports of fiscal years ending on
+/// or after March 15, 2002.
+const EQUITY_PLANS: Since = Since { filed: "2002-02-01", period: "2002-03-15" };
+
+/// Release 33-8124, Certification of Disclosure in Companies' Quarterly and
+/// Annual Reports (67 FR 57276): "Controls and Procedures" becomes Item 14 of
+/// Forms 10-K and 10-KSB, Part I Item 4 of Form 10-Q and Part I Item 3 of Form
+/// 10-QSB, and the 10-K exhibits Item moves from Item 14 to Item 15. Its
+/// disclosure is due in reports of periods ending after the effective date,
+/// August 29, 2002.
+const CONTROLS: Since = Since { filed: "2002-08-29", period: "2002-08-30" };
+
+/// Release 33-8183, Strengthening the Commission's Requirements Regarding
+/// Auditor Independence (68 FR 6006), as corrected by Release 33-8183A (68 FR
+/// 15354): "Principal Accountant Fees and Services" becomes Item 15 of Forms
+/// 10-K and 10-KSB, and the 10-K exhibits Item moves to Item 16. The fees
+/// are due in annual reports of the first fiscal year ending after December
+/// 15, 2003.
+const AUDIT_FEES: Since = Since { filed: "2003-05-06", period: "2003-12-16" };
+
+/// Release 33-8238, Management's Report on Internal Control over Financial
+/// Reporting (68 FR 36636): controls and procedures move to 10-K Item 9A and
+/// 10-KSB Item 8A, the fees to Item 14 of both forms, and the 10-K exhibits
+/// Item back to Item 15. The release's compliance dates are for the report
+/// on internal control, not for the new numbering.
+const INTERNAL_CONTROL: Since = Since::filed("2003-08-14");
+
+/// Release 33-8335, Purchases of Certain Equity Securities by the Issuer and
+/// Others (68 FR 64952): issuer purchases join the titles of 10-K and 10-KSB
+/// Item 5 and of Part II Item 2 of Forms 10-Q ("Changes in Securities, Use of
+/// Proceeds and Issuer Purchases of Equity Securities") and 10-QSB ("Changes
+/// in Securities and Small Business Issuer Purchases of Equity Securities"),
+/// for reports of periods ending on or after March 15, 2004.
+const REPURCHASES: Since = Since { filed: "2003-12-17", period: "2004-03-15" };
+
+/// Release 33-8400, Additional Form 8-K Disclosure Requirements and
+/// Acceleration of Filing Date (69 FR 15594): Form 8-K's Items are numbered
+/// 1.01 to 9.01, Part II Item 2 of Forms 10-Q and 10-QSB becomes "Unregistered
+/// Sales of Equity Securities and Use of Proceeds", the exhibits Items drop
+/// "Reports on Form 8-K" (10-K Item 15 "Exhibits and Financial Statement
+/// Schedules", 10-KSB Item 13 and Part II Item 6 of Forms 10-Q and 10-QSB
+/// "Exhibits"), and Forms 10-K and 10-KSB add Items 9B and 8B, Other
+/// Information.
+const NEW_8K: Since = Since::filed("2004-08-23");
+
+/// Release 33-8732A, Executive Compensation and Related Person Disclosure (71
+/// FR 53158): new titles for 10-K Items 10 and 13 and 10-KSB Items 9 and 12,
+/// for fiscal years ending on or after December 15, 2006.
+const EXECUTIVE_PAY: Since = Since { filed: "2006-11-07", period: "2006-12-15" };
+
+/// The same release's new title of 8-K Item 5.02, for events on or after its
+/// effective date.
+const EXECUTIVE_PAY_8K: Since = Since { filed: "2006-11-07", period: "2006-11-07" };
+
+/// Release 33-9089, Proxy Disclosure Enhancements (74 FR 68334), as corrected
+/// by Release 33-9089A (75 FR 9100): 10-K Item 4 and Part II Item 4 of Form
+/// 10-Q are removed and reserved, as vote results move to 8-K Item 5.07.
+const VOTE_RESULTS: Since = Since::filed("2010-02-28");
+
+/// Release 33-9286, Mine Safety Disclosure (76 FR 81762): 10-K Item 4 and Part
+/// II Item 4 of Form 10-Q become "Mine Safety Disclosures".
+const MINE_SAFETY: Since = Since::filed("2012-01-27");
+
+/// Release 34-77969, Form 10-K Summary (81 FR 37132): 10-K Item 16, "Form 10-K
+/// Summary".
+const SUMMARY: Since = Since::filed("2016-06-09");
+
+/// Release 33-10890, Management's Discussion and Analysis, Selected Financial
+/// Data, and Supplementary Financial Information (86 FR 2080): 10-K Item 6,
+/// "Selected Financial Data", is removed and reserved, for fiscal years
+/// ending on or after August 9, 2021.
+const RESERVED_ITEM_6: Since = Since { filed: "2021-02-10", period: "2021-08-09" };
+
+// Other releases added Items without renaming one, so those Items have one
+// title: Release 33-8591, Securities Offering Reform (70 FR 44722), 10-K
+// Items 1A and 1B and 10-Q Part II Item 1A from 2005-12-01; Release 34-93701
+// (86 FR 70027), 10-K Item 9C from 2022-01-10; Release 33-11216, Cybersecurity
+// Risk Management, Strategy, Governance, and Incident Disclosure (88 FR
+// 51896), 10-K Item 1C and 8-K Item 1.05 from 2023-09-05. Release 33-8876,
+// Smaller Reporting Company Regulatory Relief and Simplification (73 FR 934),
+// ended Forms 10-QSB (2008-10-31) and 10-KSB (2009-03-15) without renaming
+// their Items.
+
+/// The title of the exhibits Item until 2004: 10-K Item 14, then Item 15,
+/// and Item 16 in 2003.
 const OLD_EXHIBITS: &str = "Exhibits, Financial Statement Schedules, and Reports on Form 8-K";
 
-/// Item 4 of Form 10-K and Part II Item 4 of Form 10-Q: removed in 2010, when
-/// the vote results moved to Form 8-K, and used again for mine safety from
-/// 2012.
-const OLD_ITEM_4: &[&str] = &["(Removed and Reserved)", "Submission of Matters to a Vote of Security Holders"];
+/// The titles before "Mine Safety Disclosures" of Item 4 of Form 10-K and
+/// Part II Item 4 of Form 10-Q.
+const OLD_ITEM_4: &[(Since, &str)] =
+    &[(EARLIEST, "Submission of Matters to a Vote of Security Holders"), (VOTE_RESULTS, "(Removed and Reserved)")];
 
 const TEN_K: &[Key] = &[
     k("1", "Business"),
@@ -281,13 +554,13 @@ const TEN_K: &[Key] = &[
     k("1C", "Cybersecurity"),
     k("2", "Properties"),
     k("3", "Legal Proceedings"),
-    k("4", "Mine Safety Disclosures").was(OLD_ITEM_4),
+    k("4", "Mine Safety Disclosures").was(MINE_SAFETY, OLD_ITEM_4),
     k(
         "5",
         "Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
     )
-    .was(&["Market for Registrant's Common Equity and Related Stockholder Matters"]),
-    k("6", "[Reserved]").was(&["Selected Financial Data"]),
+    .was(REPURCHASES, &[(EARLIEST, "Market for Registrant's Common Equity and Related Stockholder Matters")]),
+    k("6", "[Reserved]").was(RESERVED_ITEM_6, &[(EARLIEST, "Selected Financial Data")]),
     k("7", "Management's Discussion and Analysis of Financial Condition and Results of Operations"),
     k("7A", "Quantitative and Qualitative Disclosures About Market Risk"),
     k("8", "Financial Statements and Supplementary Data"),
@@ -296,16 +569,23 @@ const TEN_K: &[Key] = &[
     k("9B", "Other Information"),
     k("9C", "Disclosure Regarding Foreign Jurisdictions that Prevent Inspections"),
     k("10", "Directors, Executive Officers and Corporate Governance")
-        .was(&["Directors and Executive Officers of the Registrant"]),
+        .was(EXECUTIVE_PAY, &[(EARLIEST, "Directors and Executive Officers of the Registrant")]),
     k("11", "Executive Compensation"),
     k("12", "Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters")
-        .was(&["Security Ownership of Certain Beneficial Owners and Management"]),
+        .was(EQUITY_PLANS, &[(EARLIEST, "Security Ownership of Certain Beneficial Owners and Management")]),
     k("13", "Certain Relationships and Related Transactions, and Director Independence")
-        .was(&["Certain Relationships and Related Transactions"]),
-    k("14", "Principal Accountant Fees and Services").was(&["Controls and Procedures", OLD_EXHIBITS]),
-    k("15", "Exhibits and Financial Statement Schedules")
-        .was(&["Principal Accountant Fees and Services", OLD_EXHIBITS]),
-    k("16", "Form 10-K Summary").was(&[OLD_EXHIBITS]),
+        .was(EXECUTIVE_PAY, &[(EARLIEST, "Certain Relationships and Related Transactions")]),
+    k("14", "Principal Accountant Fees and Services")
+        .was(INTERNAL_CONTROL, &[(EARLIEST, OLD_EXHIBITS), (CONTROLS, "Controls and Procedures")]),
+    k("15", "Exhibits and Financial Statement Schedules").was(
+        NEW_8K,
+        &[
+            (CONTROLS, OLD_EXHIBITS),
+            (AUDIT_FEES, "Principal Accountant Fees and Services"),
+            (INTERNAL_CONTROL, OLD_EXHIBITS),
+        ],
+    ),
+    k("16", "Form 10-K Summary").was(SUMMARY, &[(AUDIT_FEES, OLD_EXHIBITS), (INTERNAL_CONTROL, "")]),
 ];
 
 const TEN_Q: &[Key] = &[
@@ -315,15 +595,18 @@ const TEN_Q: &[Key] = &[
     q("I", "4", "Controls and Procedures"),
     q("II", "1", "Legal Proceedings"),
     q("II", "1A", "Risk Factors"),
-    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds").was(&[
-        "Changes in Securities, Use of Proceeds and Issuer Purchases of Equity Securities",
-        "Changes in Securities and Use of Proceeds",
-        "Changes in Securities",
-    ]),
+    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds").was(
+        NEW_8K,
+        &[
+            (EARLIEST, "Changes in Securities"),
+            (USE_OF_PROCEEDS, "Changes in Securities and Use of Proceeds"),
+            (REPURCHASES, "Changes in Securities, Use of Proceeds and Issuer Purchases of Equity Securities"),
+        ],
+    ),
     q("II", "3", "Defaults Upon Senior Securities"),
-    q("II", "4", "Mine Safety Disclosures").was(OLD_ITEM_4),
+    q("II", "4", "Mine Safety Disclosures").was(MINE_SAFETY, OLD_ITEM_4),
     q("II", "5", "Other Information"),
-    q("II", "6", "Exhibits").was(&["Exhibits and Reports on Form 8-K"]),
+    q("II", "6", "Exhibits").was(NEW_8K, &[(EARLIEST, "Exhibits and Reports on Form 8-K")]),
 ];
 
 const EIGHT_K: &[Key] = &[
@@ -357,7 +640,10 @@ const EIGHT_K: &[Key] = &[
         "5.02",
         "Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers",
     )
-    .was(&["Departure of Directors or Principal Officers; Election of Directors; Appointment of Principal Officers"]),
+    .was(
+        EXECUTIVE_PAY_8K,
+        &[(NEW_8K, "Departure of Directors or Principal Officers; Election of Directors; Appointment of Principal Officers")],
+    ),
     k("5.03", "Amendments to Articles of Incorporation or Bylaws; Change in Fiscal Year"),
     k("5.04", "Temporary Suspension of Trading Under Registrant's Employee Benefit Plans"),
     k("5.05", "Amendments to the Registrant's Code of Ethics, or Waiver of a Provision of the Code of Ethics"),
@@ -387,9 +673,9 @@ const TEN_KSB: &[Key] = &[
     k("4", "Submission of Matters to a Vote of Security Holders"),
     k(
         "5",
-        "Market for Common Equity and Related Stockholder Matters and Small Business Issuer Purchases of Equity Securities",
+        "Market for Common Equity, Related Stockholder Matters and Small Business Issuer Purchases of Equity Securities",
     )
-    .was(&["Market for Common Equity and Related Stockholder Matters"]),
+    .was(REPURCHASES, &[(EARLIEST, "Market for Common Equity and Related Stockholder Matters")]),
     k("6", "Management's Discussion and Analysis or Plan of Operation"),
     k("7", "Financial Statements"),
     k("8", "Changes in and Disagreements with Accountants on Accounting and Financial Disclosure"),
@@ -399,14 +685,20 @@ const TEN_KSB: &[Key] = &[
         "9",
         "Directors, Executive Officers, Promoters, Control Persons and Corporate Governance; Compliance with Section 16(a) of the Exchange Act",
     )
-    .was(&["Directors, Executive Officers, Promoters and Control Persons; Compliance with Section 16(a) of the Exchange Act"]),
+    .was(
+        EXECUTIVE_PAY,
+        &[(
+            EARLIEST,
+            "Directors, Executive Officers, Promoters and Control Persons; Compliance with Section 16(a) of the Exchange Act",
+        )],
+    ),
     k("10", "Executive Compensation"),
     k("11", "Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters")
-        .was(&["Security Ownership of Certain Beneficial Owners and Management"]),
+        .was(EQUITY_PLANS, &[(EARLIEST, "Security Ownership of Certain Beneficial Owners and Management")]),
     k("12", "Certain Relationships and Related Transactions, and Director Independence")
-        .was(&["Certain Relationships and Related Transactions"]),
-    k("13", "Exhibits").was(&["Exhibits and Reports on Form 8-K"]),
-    k("14", "Principal Accountant Fees and Services").was(&["Controls and Procedures"]),
+        .was(EXECUTIVE_PAY, &[(EARLIEST, "Certain Relationships and Related Transactions")]),
+    k("13", "Exhibits").was(NEW_8K, &[(EARLIEST, "Exhibits and Reports on Form 8-K")]),
+    k("14", "Principal Accountant Fees and Services").was(INTERNAL_CONTROL, &[(CONTROLS, "Controls and Procedures")]),
     k("15", "Principal Accountant Fees and Services"),
 ];
 
@@ -418,12 +710,18 @@ const TEN_QSB: &[Key] = &[
     q("I", "3", "Controls and Procedures"),
     q("II", "1", "Legal Proceedings"),
     q("II", "1A", "Risk Factors"),
-    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds")
-        .was(&["Changes in Securities and Use of Proceeds", "Changes in Securities"]),
+    q("II", "2", "Unregistered Sales of Equity Securities and Use of Proceeds").was(
+        NEW_8K,
+        &[
+            (EARLIEST, "Changes in Securities"),
+            (USE_OF_PROCEEDS, "Changes in Securities and Use of Proceeds"),
+            (REPURCHASES, "Changes in Securities and Small Business Issuer Purchases of Equity Securities"),
+        ],
+    ),
     q("II", "3", "Defaults Upon Senior Securities"),
     q("II", "4", "Submission of Matters to a Vote of Security Holders"),
     q("II", "5", "Other Information"),
-    q("II", "6", "Exhibits").was(&["Exhibits and Reports on Form 8-K"]),
+    q("II", "6", "Exhibits").was(NEW_8K, &[(EARLIEST, "Exhibits and Reports on Form 8-K")]),
 ];
 
 fn keys_for(kind: FormKind) -> &'static [Key] {
@@ -449,6 +747,57 @@ static PERIODIC_HEADING: LazyLock<Regex> = LazyLock::new(|| {
 static CURRENT_HEADING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[ \t]*(?i:item)[ \t]*(\d{1,2}\.\d{2})[ \t]*[.:\-–—]?[ \t]*([^\n]*)$").unwrap());
 
+/// "item" in any case. Every line that an Item heading pattern
+/// (`PERIODIC_HEADING`, `CURRENT_HEADING`, `ROMAN_HEADING`) matches holds it.
+static ITEM_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i:item)").unwrap());
+
+/// The lines of `text` that hold "item" in any case, as the start and end
+/// (before the line break) of each, in order. A heading pattern starts with
+/// `^` and spaces, so a search for it in the whole text has no word to look
+/// for and tests every position of a long filing; a search for "item" finds
+/// the few lines worth testing much faster.
+fn item_word_lines(text: &str) -> Vec<(usize, usize)> {
+    let mut lines = Vec::new();
+    let mut from = 0;
+    while let Some(m) = ITEM_WORD.find_at(text, from) {
+        let start = text[..m.start()].rfind('\n').map_or(0, |i| i + 1);
+        let end = text[m.end()..].find('\n').map_or(text.len(), |i| m.end() + i);
+        lines.push((start, end));
+        from = end;
+    }
+    lines
+}
+
+/// Whether a line starts, after spaces and tabs, with "item" or "part" in
+/// ASCII letters of any case, as every line that an Item heading pattern
+/// (`PERIODIC_HEADING`, `CURRENT_HEADING`, `ROMAN_HEADING`) matches does:
+/// each pattern starts with `^[ \t]*`, then an optional `(?i:part)`, then
+/// `(?i:item)`, and case folding gives none of the letters of the two words
+/// a form outside ASCII (as it does to "s" and "k", which are in neither).
+fn starts_like_heading(line: &str) -> bool {
+    let rest = line.trim_start_matches([' ', '\t']).as_bytes();
+    rest.get(..4).is_some_and(|word| word.eq_ignore_ascii_case(b"item") || word.eq_ignore_ascii_case(b"part"))
+}
+
+/// The matches of `heading`, a pattern of one whole line (`(?m)^...$`, with
+/// no part that matches a line break) that holds "item", in `text`, in
+/// order: the same as `heading.captures_iter(text)`, with `lines` from
+/// `item_word_lines`. Each line is searched from its start up to its end,
+/// where `^` and `$` match as they do in the whole text, and the positions
+/// are the same. Most lines that hold "item" in running text do not start
+/// as a heading does (`starts_like_heading`), and comparing their first
+/// letters is much faster than running the pattern on them.
+fn heading_matches<'t>(
+    heading: &'t Regex,
+    text: &'t str,
+    lines: &'t [(usize, usize)],
+) -> impl Iterator<Item = Captures<'t>> + 't {
+    lines
+        .iter()
+        .filter(move |&&(start, end)| starts_like_heading(&text[start..end]))
+        .filter_map(move |&(start, end)| heading.captures_at(&text[..end], start))
+}
+
 /// `SIGNATURES`, `Signature`, `Signature(s)`, `S I G N A T U R E S`
 static SIGNATURES: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^[ \t]*(?:S ?I ?G ?N ?A ?T ?U ?R ?E(?: ?S)?|Signatures?|Signature\(s\))[ \t]*[.:]?[ \t]*$")
@@ -460,26 +809,105 @@ static SIGNATURES: LazyLock<Regex> = LazyLock::new(|| {
 /// long filing.
 fn signature_lines(text: &str) -> Vec<usize> {
     static WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"SIGNATURE|Signature|S I G N").unwrap());
-    let mut found: Vec<usize> = WORD
-        .find_iter(text)
-        .filter_map(|m| {
-            let start = text[..m.start()].rfind('\n').map_or(0, |n| n + 1);
-            let end = text[m.start()..].find('\n').map_or(text.len(), |n| m.start() + n);
-            SIGNATURES.is_match(&text[start..end]).then_some(start)
-        })
-        .collect();
-    found.dedup();
+    let mut found: Vec<usize> = Vec::new();
+    let mut from = 0;
+    while let Some(m) = WORD.find_at(text, from) {
+        let start = text[..m.start()].rfind('\n').map_or(0, |n| n + 1);
+        let end = text[m.start()..].find('\n').map_or(text.len(), |n| m.start() + n);
+        if SIGNATURES.is_match(&text[start..end]) {
+            found.push(start);
+        }
+        // The line is tested once, however often it holds the word.
+        from = end;
+    }
     found
 }
 
-/// The signature block's opening sentence, for filings that print no
-/// signatures heading.
-static SIGNATURE_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?m)^[ \t]*Pursuant to the requirements of (?:Section 13|the Securities Exchange Act)[^\n]*duly caused",
-    )
+/// The opening words of the signature block's sentence, for filings that
+/// print no signatures heading: "Pursuant to the requirements of Section 13
+/// or 15(d) of the Securities Exchange Act of 1934, the registrant has duly
+/// caused this report to be signed ...", and the wordings of Forms 10-KSB and
+/// 10-QSB ("In accordance with Section 13 or 15(d) of the Exchange Act, the
+/// registrant caused this report to be signed ...", "In accordance with the
+/// requirements of the Exchange Act, ..."). Filers also write "Sections 13",
+/// "the Section 13", "requirement of" and "the Securities Act of 1934", in any
+/// case. The words may break across lines.
+static SIGNATURE_OPENING: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?i)^[ \t]*(?:pursuant\s+to|in\s+accordance\s+with)\s+(?:(?:the\s+)?requirements?\s+of\s+)?",
+        r"(?:the\s+)?(?:sections?\s+13|(?:securities\s+)?exchange\s+act|securities\s+act\s+of\s+1934)",
+    ))
     .unwrap()
 });
+
+/// What the registrant caused, in the signature block's sentence: "caused
+/// this report", "has duly caused this Annual Report", "caused its annual
+/// report".
+static SIGNATURE_CAUSED: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:caused|Caused|CAUSED)\s+(?i:this|its)\b").unwrap());
+
+/// Starts and ends of the signature block's sentences in `text`, from their
+/// opening words (`SIGNATURE_OPENING`) at the start of a line to "caused
+/// this" or "caused its" (`SIGNATURE_CAUSED`). A plain-text filing wraps the
+/// sentence: the text after the opening words may break over two more lines,
+/// each holding at most 250 characters before "caused" ("... of 1934, the"
+/// then "registrant, Example Life Insurance Company of New York, has" then
+/// "duly caused this report ..."). "caused" is rare, so the search starts
+/// there and looks up for the opening words.
+fn signature_sentences(text: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
+    const MAX_LINE: usize = 250;
+    const MAX_BREAKS: usize = 2;
+    // The longest text between the opening words and "caused" that fits:
+    // the lines of at most `MAX_LINE` characters, of at most 4 bytes each,
+    // that the breaks looked over divide it into.
+    const MAX_REST: usize = (MAX_BREAKS + 2) * (4 * MAX_LINE + 1);
+    let line_start = |pos: usize| text[..pos].rfind('\n').map_or(0, |n| n + 1);
+    // The starts of the line where the last "caused" starts and of the lines
+    // looked at above it, where the opening words found at each start end,
+    // and where that "caused" starts: a line that holds "caused" many times
+    // is searched for its start, and the lines above it for theirs and for
+    // the opening words, once and not once for each. They are kept only for
+    // a "caused" that starts on the same line: one whose "this" is on the
+    // next line ("caused", then "this y caused this") ends on another line
+    // than it starts on, and the next one is on that line. The opening words
+    // found from a start are the same for each "caused" of the line: they
+    // hold no "caused", so they end before the first of them or are not
+    // there.
+    let mut starts: Vec<usize> = Vec::new();
+    let mut openings: Vec<Option<usize>> = Vec::new();
+    let mut last_start = 0;
+    SIGNATURE_CAUSED.find_iter(text).filter_map(move |caused| {
+        if starts.is_empty() || text[last_start..caused.start()].contains('\n') {
+            starts.clear();
+            openings.clear();
+            starts.push(line_start(caused.start()));
+        }
+        last_start = caused.start();
+        debug_assert_eq!(starts[0], line_start(caused.start()));
+        // The opening words can wrap too, so look one line further up.
+        for above in 0..=MAX_BREAKS + 1 {
+            if above == starts.len() {
+                starts.push(line_start(starts[above - 1] - 1));
+            }
+            let start = starts[above];
+            debug_assert!(above == 0 || start == line_start(starts[above - 1] - 1));
+            let opening_end = || SIGNATURE_OPENING.find(&text[start..caused.start()]).map(|opening| opening.end());
+            if above == openings.len() {
+                openings.push(opening_end());
+            }
+            debug_assert_eq!(openings[above], opening_end());
+            if let Some(opening_end) = openings[above] {
+                let rest = &text[start + opening_end..caused.start()];
+                let fits = rest.len() <= MAX_REST && rest.split('\n').all(|l| l.chars().count() <= MAX_LINE);
+                return (fits && rest.matches('\n').count() <= MAX_BREAKS).then_some((start, caused.end()));
+            }
+            if start == 0 {
+                break;
+            }
+        }
+        None
+    })
+}
 
 /// `POWER OF ATTORNEY` on a line of its own: the heading of a power of
 /// attorney, which goes with the signatures.
@@ -664,8 +1092,30 @@ static PAGE_REFERENCE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:\t| {2,}|\.{2,} ?)(?:[A-Z]{1,2} ?[-–] ?)?\d{1,3}(?:[ \t]*[,–-][ \t]*\d{1,3})?[ \t]*$").unwrap()
 });
 
+/// A contents row's page column at the end of a line, after a tab, two spaces
+/// or dot leaders: a page, a range or a list of them, `3`, `F-3`, `10 - 11`,
+/// `F-1 - F-20`, `3-30, 64`, `8-14, 16-23`.
+static ROW_PAGES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(r"(?:\t| {{2,}}|\.{{2,}} ?){PAGES}(?:[ \t]*,[ \t]*{PAGES})*[ \t]*$")).unwrap()
+});
+
+/// A page or a range of pages: `3`, `F-3`, `10 - 11`, `F-1 - F-20`.
+const PAGES: &str = r"(?:[A-Z]{1,2} ?[-–] ?)?\d{1,3}(?:[ \t]*[–-][ \t]*(?:[A-Z]{1,2} ?[-–] ?)?\d{1,3})?";
+
+/// `ROW_PAGES`, or a page column of a cross-reference index that also names
+/// the cover or says that no page answers the Item: `cover, 66, 68`, `N/A`,
+/// `Not applicable.`, `None`, `*`.
+static ENTRY_PAGES: LazyLock<Regex> = LazyLock::new(|| {
+    let value = format!(r"(?:{PAGES}|(?i:cover(?:[ \t]+page)?|n/a|not[ \t]+applicable|none)|[*†‡]{{1,3}})");
+    Regex::new(&format!(r"(?:\t| {{2,}}|\.{{2,}} ?){value}(?:[ \t]*,[ \t]*{value})*[ \t]*\.?[ \t]*$")).unwrap()
+});
+
 /// `PART I`, `Part II - Other Information`, also as the start of a heading line.
 static PART_MARK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*(?i:part)[ \t]+(II|I)(?-u:\b)").unwrap());
+
+/// A Part's line in any form: `Part III`, `PART IV**`, `PART II - OTHER
+/// INFORMATION`.
+static PART_LINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*(?i:part)[ \t]+[IV]{1,3}(?-u:\b)").unwrap());
 
 /// One entry of a page-numbered table of contents: `26<TAB>Five-year summary` or `Introduction<TAB>46`.
 static TOC_ENTRY: LazyLock<Regex> =
@@ -834,7 +1284,13 @@ fn after_dashes(tail: &str) -> &str {
 }
 
 fn title_key(tail: &str) -> String {
-    tail.chars().filter(|c| c.is_alphabetic()).flat_map(char::to_lowercase).take(30).collect()
+    title_letters(tail).collect()
+}
+
+/// The letters of a title key, for comparing it with one known key without
+/// building it.
+fn title_letters(tail: &str) -> impl Iterator<Item = char> + '_ {
+    tail.chars().filter(|c| c.is_alphabetic()).flat_map(char::to_lowercase).take(30)
 }
 
 /// `Item 9 A. Controls` and `Item 1.A. Risk Factors`: a letter set apart from
@@ -922,15 +1378,128 @@ fn lettered_sub_item<'a>(
     standard.then_some((lettered, title))
 }
 
-fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
+/// A line that names several Items and nothing else: `Items 10, 11, 12, 13
+/// and 14`, `Items 1-3`, `Part III – Items 10 through 14`, `ITEMS 7 AND 7A.`
+static SEVERAL_ITEMS: LazyLock<Regex> = LazyLock::new(|| {
+    let part = r"(?:part[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[-–—]+)?[ \t]*)?";
+    let n = r"\d{1,2}[A-Ca-c]?\.?";
+    let joint = r"(?:,[ \t]*(?:and|&)?|and|&|through|to|[-–—])";
+    Regex::new(&format!(
+        r"(?i)^[ \t]*{part}items?[ \t]*{n}(?:[ \t]*{joint}[ \t]*(?:items?[ \t]*)?{n})+[ \t]*[.:]?[ \t]*$"
+    ))
+    .unwrap()
+});
+
+/// A line that names only Parts and Items, starting with a Part: `Part I –
+/// Items 1, 1A, 2 and 3; Part II – Items 5, 6, 7,`, `Part II, Item 5`.
+static PARTS_AND_ITEMS: LazyLock<Regex> = LazyLock::new(|| {
+    let part = r"part[ \t]+[IV]{1,3}";
+    let n = r"\d{1,2}[A-Ca-c]?";
+    let marks = r"[ \t]*[,.:;&\-–—]*[ \t]*";
+    let word = format!(r"(?:{part}|items?|{n}|and|through|to)(?-u:\b)");
+    Regex::new(&format!(r"(?i)^[ \t]*{part}{marks}items?[ \t]*{n}(?-u:\b)(?:{marks}{word})*{marks}$")).unwrap()
+});
+
+/// The heading of a cover's list of documents incorporated by reference, and
+/// the rest of its line: `DOCUMENTS INCORPORATED BY REFERENCE`, `Documents
+/// incorporated by reference: None`.
+static INCORPORATED_DOCUMENTS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^[ \t]*documents?[ \t]+incorporated[ \t]+(?:herein[ \t]+)?by[ \t]+reference\b[ \t:.\-–—]*(.*)$")
+        .unwrap()
+});
+
+/// `None`, `Not applicable.`, `N/A`, or a sentence that says that no
+/// document is incorporated: `No documents are incorporated by reference.`,
+/// `There are no documents incorporated by reference in this Amendment.`
+static NONE_LINE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^[ \t]*(?:(?:none|not[ \t]+applicable|n/a)[ \t]*\.?[ \t]*$|(?:there[ \t]+(?:are|is)[ \t]+)?no[ \t]+\p{L})")
+        .unwrap()
+});
+
+/// Whether the line from `start` to `end`, of Item `label`, is a row of a
+/// cover's list of documents incorporated by reference: it names several
+/// Items and nothing else ("Items 10, 11, 12, 13 and 14", "Part III – Items 10
+/// through 14") or starts with a Part and names only Parts and Items ("Part II
+/// – Item 5"), and the list's heading ("DOCUMENTS INCORPORATED BY REFERENCE")
+/// comes at most 2,000 characters before it, with only other such rows and the
+/// documents' names between them: no other Part line, Item line or
+/// explanatory note. A list that says "None" or "No documents are
+/// incorporated by reference" lists nothing, and a heading of several Items
+/// has a title of its first Item on the next line ("ITEMS 7 AND 7A.", then
+/// "MANAGEMENT'S DISCUSSION AND ANALYSIS"; "ITEMS 10 THROUGH 13.", then
+/// "DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT", the title until
+/// 2006). A row that names one Item with its Part has another row next to it,
+/// as a cover's list does: one between it and the list's heading, or one that
+/// names several Items after it, before any other Part or Item line. A
+/// heading printed with its Part ("PART I, ITEM 1.", then "GENERAL
+/// DEVELOPMENT OF BUSINESS") has none.
+fn cover_row(text: &str, start: usize, end: usize, label: &str, keys: &[Key]) -> bool {
+    const NEAR: usize = 2000;
+    let row = &text[start..end];
+    let several = |line: &str| {
+        SEVERAL_ITEMS.is_match(line) || (PARTS_AND_ITEMS.is_match(line) && ITEM_NUMBER.find_iter(line).nth(1).is_some())
+    };
+    let is_row = |line: &str| SEVERAL_ITEMS.is_match(line) || PARTS_AND_ITEMS.is_match(line);
+    if !is_row(row) {
+        return false;
+    }
+    let next = title_key(next_line_title(text, end));
+    if keys.iter().any(|k| k.item == label && k.titles().any(|t| same_title(&next, &title_key(t)))) {
+        return false;
+    }
+    // A row of several Items after it, before any other Part or Item line.
+    let several_after = || {
+        let mut ahead = 0;
+        for line in text[end..].split('\n').skip(1) {
+            ahead += line.len() + 1;
+            if ahead > NEAR || PART_LINE.is_match(line) || PERIODIC_HEADING.is_match(line) {
+                return ahead <= NEAR && several(line);
+            }
+        }
+        false
+    };
+    let mut back = 0;
+    let mut below: Option<&str> = None;
+    let mut rows_between = false;
+    for line in text[..start].rsplit('\n') {
+        back += line.len() + 1;
+        if back > NEAR {
+            return false;
+        }
+        if line.trim().is_empty() {
+            continue;
+        }
+        if is_row(line) {
+            rows_between = true;
+            continue;
+        }
+        if let Some(c) = INCORPORATED_DOCUMENTS.captures(line) {
+            return !NONE_LINE.is_match(&c[1])
+                && (!c[1].trim().is_empty() || !below.is_some_and(|l| NONE_LINE.is_match(l)))
+                && (several(row) || rows_between || several_after());
+        }
+        let note = line.trim_start().get(..16).is_some_and(|w| w.eq_ignore_ascii_case("explanatory note"));
+        if PART_LINE.is_match(line) || PERIODIC_HEADING.is_match(line) || note {
+            return false;
+        }
+        below = Some(line);
+    }
+    false
+}
+
+/// The candidates for the Item headings of `text`, read from `lines`, the
+/// lines that hold "item" (`item_word_lines`).
+fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)]) -> Vec<Candidate> {
     let keys = keys_for(kind);
     let re = if kind == FormKind::EightK { &*CURRENT_HEADING } else { &*PERIODIC_HEADING };
-    let cands: Vec<Candidate> = re
-        .captures_iter(text)
+    let cands: Vec<Candidate> = heading_matches(re, text, lines)
         .filter_map(|c| {
             let m = c.get(0).expect("group 0 always matches");
             let (number, tail) = (c.get(1).expect("Item number"), c.get(2).expect("tail"));
             let label = number.as_str().to_ascii_uppercase();
+            if kind != FormKind::EightK && cover_row(text, m.start(), m.end(), &label, keys) {
+                return None;
+            }
             // "Item 8, Financial Statements ...", "ITEMS 9, 9A AND 9B." A list
             // or a range of Items with nothing after it, on a line that starts
             // with a Part, names where text is incorporated, as a cover's list
@@ -1005,35 +1574,16 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
             })
         })
         .collect();
-    // A line that cites an Item and a document is not a heading when the
-    // Item's next heading follows it: a titled one with the same title, before
-    // any heading of an Item that comes later in the form. It must not cut
-    // the Item it sits in short. Without one it may be a run-in heading
-    // ("Item 7. Management's Discussion and Analysis of the Company's 1998
-    // Annual Report is incorporated herein by reference."), also when an
-    // index after the body lists the Item again.
-    // The first and the last place of an Item number in the form's order (a
-    // 10-Q numbers Items 1 to 4 in both parts).
-    let place = |label: &str| {
-        let mut at = keys.iter().enumerate().filter(|(_, k)| k.item == label).map(|(i, _)| i);
-        let first = at.next();
-        (first, at.next_back().or(first))
-    };
-    let cited: Vec<bool> = cands
-        .iter()
-        .enumerate()
-        .map(|(i, c)| {
-            let last = place(&c.label).1;
-            c.cites
-                && cands[i + 1..]
-                    .iter()
-                    .take_while(|o| {
-                        o.label == c.label || place(&o.label).0.zip(last).is_none_or(|(other, cited)| other < cited)
-                    })
-                    .any(|o| !o.cites && !o.bare && o.label == c.label && same_title(&o.title, &c.title))
+    let cands = drop_citing_lines(cands, keys);
+    // A 10-Q's Part title printed with an Item number just above that Item's
+    // heading is not the heading.
+    let part_title: Vec<bool> = (0..cands.len())
+        .map(|i| {
+            kind.quarterly() && cands.get(i + 1).is_some_and(|n| part_title_over_heading(text, &cands[i], n, keys))
         })
         .collect();
-    let mut cands: Vec<Candidate> = cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect();
+    let mut cands: Vec<Candidate> =
+        cands.into_iter().zip(part_title).filter(|&(_, part_title)| !part_title).map(|(c, _)| c).collect();
     set_gaps(&mut cands, text.len());
     let cands = drop_item_references(drop_contents_entries(cands, text, keys), keys, kind.annual());
     let mut cands = drop_running_headers(cands, keys);
@@ -1046,9 +1596,465 @@ fn candidates(text: &str, kind: FormKind) -> Vec<Candidate> {
     cands
 }
 
+/// The candidates grouped by Item number and title key, for finding the
+/// nearest candidate of an Item whose title `same_title` pairs with a
+/// candidate's own without comparing the candidate with each one. Two titles
+/// pair when one starts the other, so the groups whose candidates pair with
+/// those of a group are the group itself, the groups of the titles that
+/// start its title (its parent, the parent of that one, and so on: at most
+/// 25, since a title key has 5 to 30 letters) and the groups below it.
+struct TitleGroups {
+    /// The group of each candidate, or none for a title of fewer than 5
+    /// letters, which pairs with no title.
+    of: Vec<Option<usize>>,
+    /// For each group, the group of its Item with the longest title that
+    /// starts its own, if any.
+    parent: Vec<Option<usize>>,
+}
+
+impl TitleGroups {
+    fn new(cands: &[Candidate]) -> Self {
+        let mut order: Vec<usize> = (0..cands.len()).filter(|&i| cands[i].title.chars().count() >= 5).collect();
+        order.sort_unstable_by(|&a, &b| (&cands[a].label, &cands[a].title).cmp(&(&cands[b].label, &cands[b].title)));
+        let mut of = vec![None; cands.len()];
+        let mut parent: Vec<Option<usize>> = Vec::new();
+        // The first candidate of each group, and the groups whose titles
+        // start the last title read, each one's title starting the next:
+        // sorted, a title comes after the titles that start it and before
+        // any other title that they start.
+        let mut firsts: Vec<usize> = Vec::new();
+        let mut open: Vec<usize> = Vec::new();
+        for i in order {
+            let c = &cands[i];
+            let starts = |g: usize| c.label == cands[firsts[g]].label && c.title.starts_with(&cands[firsts[g]].title);
+            if let Some(g) = firsts.len().checked_sub(1).filter(|&g| starts(g) && cands[firsts[g]].title == c.title) {
+                of[i] = Some(g);
+                continue;
+            }
+            while open.last().is_some_and(|&g| !starts(g)) {
+                open.pop();
+            }
+            of[i] = Some(firsts.len());
+            parent.push(open.last().copied());
+            open.push(firsts.len());
+            firsts.push(i);
+        }
+        TitleGroups { of, parent }
+    }
+}
+
+/// Of the candidates added so far, the one added last among those that
+/// `same_title` pairs with a candidate of the same Item (`TitleGroups`).
+/// Added in document order that is the nearest one before it, and added
+/// from the end back the nearest one after it.
+struct Nearest<'a> {
+    groups: &'a TitleGroups,
+    added: usize,
+    /// For each group, the candidate added last to it, and the one added
+    /// last to it or to a group below it, each with its count in `added`
+    /// (0 for none).
+    own: Vec<(usize, usize)>,
+    below: Vec<(usize, usize)>,
+}
+
+impl<'a> Nearest<'a> {
+    fn new(groups: &'a TitleGroups) -> Self {
+        let none = vec![(0, 0); groups.parent.len()];
+        Nearest { groups, added: 0, own: none.clone(), below: none }
+    }
+
+    fn add(&mut self, cand: usize) {
+        let Some(group) = self.groups.of[cand] else { return };
+        self.added += 1;
+        self.own[group] = (self.added, cand);
+        let mut up = Some(group);
+        while let Some(g) = up {
+            self.below[g] = (self.added, cand);
+            up = self.groups.parent[g];
+        }
+    }
+
+    fn find(&self, cand: usize) -> Option<usize> {
+        let group = self.groups.of[cand]?;
+        let mut last = self.below[group];
+        let mut up = self.groups.parent[group];
+        while let Some(g) = up {
+            last = last.max(self.own[g]);
+            up = self.groups.parent[g];
+        }
+        (last.0 > 0).then_some(last.1)
+    }
+}
+
+/// Candidates listed by title group, for reading in order those that
+/// `same_title` pairs with a candidate of the same Item (`TitleGroups`),
+/// without passing the others.
+struct SameTitled<'a> {
+    groups: &'a TitleGroups,
+    /// For each group, the candidates added to it, and those added to it or
+    /// to a group below it, in the order added.
+    own: Vec<Vec<usize>>,
+    below: Vec<Vec<usize>>,
+}
+
+impl<'a> SameTitled<'a> {
+    fn new(groups: &'a TitleGroups) -> Self {
+        let none = vec![Vec::new(); groups.parent.len()];
+        SameTitled { groups, own: none.clone(), below: none }
+    }
+
+    /// Add a candidate that comes after those added before.
+    fn add(&mut self, cand: usize) {
+        let Some(group) = self.groups.of[cand] else { return };
+        self.own[group].push(cand);
+        let mut up = Some(group);
+        while let Some(g) = up {
+            self.below[g].push(cand);
+            up = self.groups.parent[g];
+        }
+    }
+
+    /// The candidates added, from `from` on, that pair with `cand`, in
+    /// order: those of its group and the groups below it, and those of the
+    /// groups above it, each list in order already.
+    fn from(&self, cand: usize, from: usize) -> impl Iterator<Item = usize> + '_ {
+        fn rest(list: &[usize], from: usize) -> &[usize] {
+            &list[list.partition_point(|&i| i < from)..]
+        }
+        let mut lists: Vec<&[usize]> = Vec::new();
+        if let Some(group) = self.groups.of[cand] {
+            lists.push(rest(&self.below[group], from));
+            let mut up = self.groups.parent[group];
+            while let Some(g) = up {
+                lists.push(rest(&self.own[g], from));
+                up = self.groups.parent[g];
+            }
+        }
+        std::iter::from_fn(move || {
+            let (list, next) =
+                lists.iter().enumerate().filter_map(|(k, l)| Some((k, *l.first()?))).min_by_key(|&(_, i)| i)?;
+            lists[list] = &lists[list][1..];
+            Some(next)
+        })
+    }
+}
+
+/// Lists of words, numbered: 0 is the list of no words, and every other one
+/// is a list numbered before it with one more word. Two lists of the same
+/// words have one number, and a list is numbered after each list that starts
+/// it, so that the lists that start a list of words are read in one pass
+/// over the words.
+#[derive(Default)]
+struct WordLists {
+    words: HashMap<String, usize>,
+    longer: HashMap<(usize, usize), usize>,
+}
+
+impl WordLists {
+    const EMPTY: usize = 0;
+
+    /// The number of `list` with `word` after it, numbered now when new.
+    fn add(&mut self, list: usize, word: &str) -> usize {
+        let word = match self.words.get(word) {
+            Some(&word) => word,
+            None => {
+                self.words.insert(word.to_owned(), self.words.len());
+                self.words.len() - 1
+            }
+        };
+        let next = self.longer.len() + 1;
+        *self.longer.entry((list, word)).or_insert(next)
+    }
+
+    /// The number of `list` with `word` after it, if it has one.
+    fn with(&self, list: usize, word: &str) -> Option<usize> {
+        self.longer.get(&(list, *self.words.get(word)?)).copied()
+    }
+
+    /// The number of each list that starts `words` and has one, with its
+    /// length, from the empty one on.
+    fn starts<'a>(&'a self, words: &'a [String]) -> impl Iterator<Item = (usize, usize)> + 'a {
+        let mut next = Some((0, Self::EMPTY));
+        std::iter::from_fn(move || {
+            let (len, list) = next?;
+            next = words.get(len).and_then(|word| self.with(list, word)).map(|longer| (len + 1, longer));
+            Some((len, list))
+        })
+    }
+}
+
+/// The fewest words of a row's title that a later line with the title words
+/// `heading` prints in full (`prints_words`): those up to the last
+/// "continued", so that none comes after the row's words.
+fn fewest_printed(heading: &[String]) -> usize {
+    heading.iter().rposition(|word| is_continued(word)).map_or(0, |last| last + 1)
+}
+
+/// The titles of the lines added so far, for telling whether a line prints
+/// in full (`prints_title`) the title of every one of them that
+/// `same_title` pairs with it, without comparing it with each: the lines
+/// are counted by title group and by the words of their title without the
+/// page column, and a line prints in full the titles whose words start its
+/// own (`WordLists`), in the groups that pair with its group
+/// (`TitleGroups`).
+struct RowTitles<'a> {
+    groups: &'a TitleGroups,
+    titles: WordLists,
+    /// For each group, the lines added to it, and those added to it or to a
+    /// group below it: how many, and how many with each title.
+    own: Vec<usize>,
+    below: Vec<usize>,
+    own_titled: HashMap<(usize, usize), usize>,
+    below_titled: HashMap<(usize, usize), usize>,
+}
+
+impl<'a> RowTitles<'a> {
+    fn new(groups: &'a TitleGroups) -> Self {
+        let none = vec![0; groups.parent.len()];
+        RowTitles {
+            groups,
+            titles: WordLists::default(),
+            own: none.clone(),
+            below: none,
+            own_titled: HashMap::new(),
+            below_titled: HashMap::new(),
+        }
+    }
+
+    fn add(&mut self, cand: usize, c: &Candidate) {
+        let Some(group) = self.groups.of[cand] else { return };
+        let title = title_words(row_title(c)).iter().fold(WordLists::EMPTY, |list, word| self.titles.add(list, word));
+        self.own[group] += 1;
+        *self.own_titled.entry((group, title)).or_default() += 1;
+        let mut up = Some(group);
+        while let Some(g) = up {
+            self.below[g] += 1;
+            *self.below_titled.entry((g, title)).or_default() += 1;
+            up = self.groups.parent[g];
+        }
+    }
+
+    /// Whether the line `c` prints in full the title of every line added
+    /// that pairs with it: as many of them have a title that it prints in
+    /// full as there are.
+    fn all_printed_by(&self, cand: usize, c: &Candidate) -> bool {
+        let Some(group) = self.groups.of[cand] else { return true };
+        let above = || std::iter::successors(self.groups.parent[group], |&g| self.groups.parent[g]);
+        let pairing = self.below[group] + above().map(|g| self.own[g]).sum::<usize>();
+        let heading = title_words(&c.printed);
+        let fewest = fewest_printed(&heading);
+        let count = |counts: &HashMap<(usize, usize), usize>, g: usize, title: usize| {
+            counts.get(&(g, title)).copied().unwrap_or(0)
+        };
+        let printed: usize = self
+            .titles
+            .starts(&heading)
+            .filter(|&(len, _)| len >= fewest)
+            .map(|(_, title)| {
+                count(&self.below_titled, group, title)
+                    + above().map(|g| count(&self.own_titled, g, title)).sum::<usize>()
+            })
+            .sum();
+        debug_assert!(printed <= pairing);
+        printed == pairing
+    }
+}
+
+/// The lines that can be the heading of a row, listed by the row titles
+/// that they print in full (`prints_title`), for finding the first one
+/// after a row that prints its title in full and that `same_title` pairs
+/// with it, without comparing the row with each line: a line prints in full
+/// the row titles whose words start its own, from the last "continued" on
+/// (`fewest_printed`), and is listed under each of them that a candidate
+/// has, by title group (`TitleGroups`).
+struct RowHeadings<'a> {
+    groups: &'a TitleGroups,
+    titles: WordLists,
+    /// For each group and row title, the lines of the group that print the
+    /// title in full, and those of the group or of a group below it, in
+    /// order.
+    own: HashMap<(usize, usize), Vec<usize>>,
+    below: HashMap<(usize, usize), Vec<usize>>,
+}
+
+impl<'a> RowHeadings<'a> {
+    /// `lines` are the candidates that can be a heading, in order.
+    fn new(groups: &'a TitleGroups, cands: &[Candidate], lines: impl Iterator<Item = usize>) -> Self {
+        let mut titles = WordLists::default();
+        let row_titles: HashSet<usize> = cands
+            .iter()
+            .map(|c| title_words(row_title(c)).iter().fold(WordLists::EMPTY, |list, word| titles.add(list, word)))
+            .collect();
+        let (mut own, mut below): (HashMap<_, Vec<usize>>, HashMap<_, Vec<usize>>) = Default::default();
+        for i in lines {
+            let Some(group) = groups.of[i] else { continue };
+            let heading = title_words(&cands[i].printed);
+            let fewest = fewest_printed(&heading);
+            for (_, title) in
+                titles.starts(&heading).filter(|(len, title)| *len >= fewest && row_titles.contains(title))
+            {
+                own.entry((group, title)).or_default().push(i);
+                let mut up = Some(group);
+                while let Some(g) = up {
+                    below.entry((g, title)).or_default().push(i);
+                    up = groups.parent[g];
+                }
+            }
+        }
+        RowHeadings { groups, titles, own, below }
+    }
+
+    /// The first line after the row `cand` that prints its title in full
+    /// and pairs with it.
+    fn first_after(&self, cand: usize, c: &Candidate) -> Option<usize> {
+        let group = self.groups.of[cand]?;
+        let title =
+            title_words(row_title(c)).iter().try_fold(WordLists::EMPTY, |list, word| self.titles.with(list, word))?;
+        let after = |lines: Option<&Vec<usize>>| {
+            let lines = lines?;
+            lines.get(lines.partition_point(|&i| i <= cand)).copied()
+        };
+        let above = std::iter::successors(self.groups.parent[group], |&g| self.groups.parent[g]);
+        above.filter_map(|g| after(self.own.get(&(g, title)))).chain(after(self.below.get(&(group, title)))).min()
+    }
+}
+
+/// Drop the lines that cite an Item and a document and are no heading.
+///
+/// A line that cites an Item and a document is not a heading when the
+/// Item's next heading follows it: a titled one with the same title, before
+/// any heading of an Item that comes later in the form. It must not cut
+/// the Item it sits in short. Without one it may be a run-in heading
+/// ("Item 7. Management's Discussion and Analysis of the Company's 1998
+/// Annual Report is incorporated herein by reference."), also when an
+/// index after the body lists the Item again, unless it sits inside a
+/// later Item.
+///
+/// Nor is such a line a heading after the Item's heading, inside a later
+/// Item: a heading of the Item with the same title comes before it, with
+/// lines of later Items only between them, and the next line of another
+/// Item after it comes later in the form than the last of those. A run-in
+/// heading after a contents list stays, since the body's next heading goes
+/// back to an Item that the list printed before it.
+///
+/// The time grows with the number of lines and not with its square: one
+/// pass over the lines for each Item that such lines cite, and one pass
+/// from the last line back, with the nearest heading that has a line's
+/// title looked up (`Nearest`) rather than searched for.
+fn drop_citing_lines(cands: Vec<Candidate>, keys: &[Key]) -> Vec<Candidate> {
+    if !cands.iter().any(|c| c.cites) {
+        return cands;
+    }
+    let n = cands.len();
+    // The first and the last place of an Item number in the form's order (a
+    // 10-Q numbers Items 1 to 4 in both parts).
+    type Place = (Option<usize>, Option<usize>);
+    let place = |label: &str| -> Place {
+        let mut at = keys.iter().enumerate().filter(|(_, k)| k.item == label).map(|(i, _)| i);
+        let first = at.next();
+        (first, at.next_back().or(first))
+    };
+    let places: Vec<Place> = cands.iter().map(|c| place(&c.label)).collect();
+    // Whether the Item at place `a` comes after the Item at place `b` in every
+    // numbering of the form.
+    let later = |a: Place, b: Place| a.0.zip(b.1).is_some_and(|(a, b)| a > b);
+    // The headings that a citing line's title can name are the titled lines
+    // of its Item that cite nothing.
+    let groups = TitleGroups::new(&cands);
+    let heading = |c: &Candidate| !c.cites && !c.bare;
+    let mut after_heading = vec![false; n];
+    // The next line of another Item after each line.
+    let mut next_other: Vec<Option<usize>> = vec![None; n];
+    for i in (0..n.saturating_sub(1)).rev() {
+        next_other[i] = if cands[i + 1].label != cands[i].label { Some(i + 1) } else { next_other[i + 1] };
+    }
+    let mut cited_items: Vec<&str> = cands.iter().filter(|c| c.cites).map(|c| c.label.as_str()).collect();
+    cited_items.sort_unstable();
+    cited_items.dedup();
+    // The headings before a line. The passes share them, since each adds
+    // the headings of its own Item only.
+    let mut before = Nearest::new(&groups);
+    for label in cited_items {
+        let label_place = place(label);
+        // The last line of an Item that is not later in the form, which the
+        // Item's headings must come after, and the last line of a later
+        // Item since then.
+        let mut not_later: Option<usize> = None;
+        let mut later_line: Option<usize> = None;
+        for (i, c) in cands.iter().enumerate() {
+            if c.label != label {
+                if later(places[i], label_place) {
+                    later_line = Some(i);
+                } else {
+                    not_later = Some(i);
+                    later_line = None;
+                }
+            } else if c.cites {
+                let Some(h) = before.find(i).filter(|&h| not_later.is_none_or(|o| h > o)) else { continue };
+                let last = later_line.filter(|&o| o > h).map_or(label_place, |o| places[o]);
+                after_heading[i] = next_other[i].is_none_or(|o| later(places[o], last));
+            } else if heading(c) {
+                before.add(i);
+            }
+        }
+    }
+    // From the last line back: the headings after a line, and for each place
+    // in the form the nearest line after it of the Item whose first place
+    // that is. The Item's next heading must come before the nearest line of
+    // an Item whose first place is after the cited Item's last place.
+    let mut after = Nearest::new(&groups);
+    let mut nearest_of_place = vec![usize::MAX; keys.len()];
+    let mut cited = vec![false; n];
+    for i in (0..n).rev() {
+        let c = &cands[i];
+        if c.cites {
+            let stop = places[i].1.and_then(|last| nearest_of_place[last + 1..].iter().copied().min());
+            cited[i] = after.find(i).is_some_and(|h| stop.is_none_or(|stop| h < stop)) || after_heading[i];
+        } else if heading(c) {
+            after.add(i);
+        }
+        if let Some(first) = places[i].0 {
+            nearest_of_place[first] = i;
+        }
+    }
+    cands.into_iter().zip(cited).filter(|&(_, cited)| !cited).map(|(c, _)| c).collect()
+}
+
+/// The titles of the two parts of a 10-Q or 10-QSB, as `title_words` reads
+/// them.
+const PART_TITLES: [[&str; 2]; 2] = [["financial", "information"], ["other", "information"]];
+
+/// Whether `c` prints the title of a Part of a 10-Q or 10-QSB with an Item
+/// number ("Item 1. Financial Information (Unaudited)") on the line just
+/// above `next`, a heading of the same Item with one of the Item's standard
+/// titles ("Item 1. Financial Statements (Unaudited)"). Qualifiers such as
+/// "Unaudited" do not count, and a Part title that is also a standard title
+/// of the Item ("Item 5. Other Information") is the Item's.
+fn part_title_over_heading(text: &str, c: &Candidate, next: &Candidate, keys: &[Key]) -> bool {
+    let item_title = |printed: &str| {
+        let title = title_key(without_qualifiers(printed));
+        keys.iter().filter(|k| k.item == c.label).any(|k| k.titles().any(|t| same_title(&title, &title_key(t))))
+    };
+    let words = title_words(&c.printed);
+    let words = words.iter().map(String::as_str).filter(|w| !QUALIFIERS.contains(w));
+    let line_end = text[c.pos..].find('\n').map_or(text.len(), |i| c.pos + i);
+    next.label == c.label
+        && text.get(line_end..next.pos).is_some_and(|between| between.trim().is_empty())
+        && PART_TITLES.iter().any(|part| words.clone().eq(part.iter().copied()))
+        && !item_title(&c.printed)
+        && item_title(&next.printed)
+}
+
 fn set_gaps(cands: &mut [Candidate], text_len: usize) {
-    for i in 0..cands.len() {
-        let next = cands[i + 1..].iter().find(|c| c.label != cands[i].label).map_or(text_len, |c| c.pos);
+    // From the last candidate back: the next heading of a different Item is
+    // the next candidate, or when that is of the same Item, the one after it.
+    let mut next = text_len;
+    for i in (0..cands.len()).rev() {
+        if let Some(after) = cands.get(i + 1)
+            && after.label != cands[i].label
+        {
+            next = after.pos;
+        }
         cands[i].gap = next - cands[i].pos;
     }
 }
@@ -1106,15 +2112,22 @@ const JOINING_WORDS: &[&str] =
 /// that cites an Item on the next line does: "see", "as discussed under".
 const OPEN_WORDS: &[&str] = &["see", "See", "under", "within", "this"];
 
+/// Words that a sentence goes on after with the name of a caption, so that a
+/// line of running text that ends with one cites the Item printed on the next
+/// line: "under the caption", "in the section entitled".
+const CAPTION_WORDS: &[&str] = &["caption", "captions", "captioned", "heading", "headings", "entitled", "titled"];
+
 /// A line that holds only a PART label: `PART II,`, `Part I -`.
 static PART_LABEL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[ \t]*(?i:part)[ \t]+[IVX]{1,4}[ \t]*[,.:\-–—]*[ \t]*$").unwrap());
 
 /// Whether the line just above the line that starts at `line_start` stops
 /// inside a sentence, so that this line carries it on: it ends with a comma, a
-/// joining word or one of `OPEN_WORDS`. A hard-wrapped cross-reference starts
-/// its line that way ("The information set forth in Part II," then "Item 7.
-/// Management's Discussion and Analysis, of the Company's Annual Report ...").
+/// joining word or one of `OPEN_WORDS` or `CAPTION_WORDS`. A hard-wrapped
+/// cross-reference starts its line that way ("The information set forth in
+/// Part II," then "Item 7. Management's Discussion and Analysis, of the
+/// Company's Annual Report ...", or "... is included under the caption" then
+/// "Item 7. Management's Discussion and Analysis ...").
 /// A heading comes after the end of a paragraph, a page header, a blank line
 /// or a PART label, also one printed with a comma ("PART II,"). A line that
 /// holds only a joining word links two headings ("Item 1. Business." then
@@ -1130,7 +2143,7 @@ fn continues_sentence(text: &str, line_start: usize) -> bool {
     }
     let last = line.trim_end().rsplit([' ', '\t']).next().unwrap_or("");
     let word = last.trim_start_matches(['(', '"', '“']);
-    last.ends_with(',') || JOINING_WORDS.contains(&word) || OPEN_WORDS.contains(&word)
+    last.ends_with(',') || [JOINING_WORDS, OPEN_WORDS, CAPTION_WORDS].iter().any(|words| words.contains(&word))
 }
 
 /// After an Item's title, a phrase that names the report or another document,
@@ -1156,7 +2169,7 @@ static TITLE_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\p{Alphabeti
 fn cites_document(label: &str, title: &str, keys: &[Key]) -> bool {
     keys.iter()
         .filter(|k| k.item == label)
-        .flat_map(|k| std::iter::once(k.title).chain(k.former.iter().copied()))
+        .flat_map(Key::titles)
         .filter_map(|standard| after_title(title, standard))
         .any(|rest| DOCUMENT_REFERENCE.is_match(rest))
 }
@@ -1304,14 +2317,34 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
         .map(|c| if &c[1] == "II" { "II" } else { "I" })
 }
 
+/// The most characters between two Item lines of one block, such as a
+/// contents list. An Item with more before the next Item has text of its
+/// own.
+const SAME_BLOCK: usize = 2000;
+
 /// Drop table-of-contents entries whose heading reappears in the body, and
 /// lists of Item headings printed again after the body.
 ///
 /// Two candidates are the same heading when they share Item and title and other
 /// Items come between them. The earlier copy is a contents entry when it starts
-/// the shorter stretch of text. With no other Item between them, it is one when
-/// a signatures line follows it and the later copy follows that line closely,
-/// before the signatures (a list of one Item and "SIGNATURES"). The later copy
+/// the shorter stretch of text, unless the signature block's sentence comes
+/// between the two (a signatures line alone does not count, since contents
+/// list "Signatures" too), the earlier copy prints no page and it sits where
+/// the Item's heading belongs (`in_body_order`): that copy is then a body
+/// heading, and the later one (an exhibit's, or the heading over statements
+/// printed after the signatures) goes. With no other Item between them, it is
+/// one when a signatures line follows it and the later copy follows that line
+/// closely, before the signatures (a list of one Item and "SIGNATURES"), or
+/// when it comes just after a page-numbered row and names a later Item (the
+/// last row of a cross-reference index, which prints no page, in a 10-K whose
+/// body prints no other Item heading), or when it prints a page itself before
+/// the body (the only row of an amendment's contents, "Item 15.<TAB>Exhibits
+/// and Financial Statement Schedules<TAB>2"), and the later copy prints its
+/// title in full (`prints_title`), which a running header that shortens the
+/// title or adds "(continued)" does not. An earlier copy before the body whose
+/// later copy is itself a row of a contents list lists the Item too, as a
+/// 10-Q/A's explanatory note above a contents list without pages does, when
+/// no Item line with text of its own comes before it. The later copy
 /// is a listing when a signatures heading comes between them, at or after the
 /// first body heading (contents often list "Signatures" too). In a 10-Q this
 /// matters most: a contents entry for Part I Item 2 could otherwise be taken as
@@ -1327,7 +2360,6 @@ fn part_above(text: &str, start: usize, label: &str) -> Option<&'static str> {
 /// just after a dropped listing entry go with it. The body headings of dropped
 /// contents entries are marked `listed`.
 fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec<Candidate> {
-    const SAME_BLOCK: usize = 2000;
     let n = cands.len();
     // A contents entry, the body heading it was matched with, and pairs whose
     // later copy is no longer than the earlier one.
@@ -1336,27 +2368,173 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // The later copy of any matched pair, which the spread below must not take.
     let mut paired = vec![false; n];
     let mut later_copies: Vec<(usize, usize)> = Vec::new();
+    // Pairs whose later copy comes after the signature block's sentence, which
+    // starts at the third value.
+    let mut signed_pairs: Vec<(usize, usize, usize)> = Vec::new();
+    // The signature block's sentences and the signatures heading lines of
+    // the whole text, looked for only when a rule asks.
+    let signatures = Signatures::new(text);
+    // The next line of another Item after each line.
+    let mut next_other: Vec<Option<usize>> = vec![None; n];
+    for i in (0..n.saturating_sub(1)).rev() {
+        next_other[i] = if cands[i + 1].label != cands[i].label { Some(i + 1) } else { next_other[i + 1] };
+    }
     // Rows that print a page number are contents rows, also when no body
     // heading repeats them, and never the body copy of a pair.
-    let paged = paged_rows(&cands, text, keys, SAME_BLOCK);
+    let groups = TitleGroups::new(&cands);
+    let paged = paged_rows(&cands, text, keys, SAME_BLOCK, &next_other, &groups);
+    // The later copy of each candidate: the first line of its Item with the
+    // same title that is no paged row, after the next line of another Item.
+    // From the last candidate back, with the lines after that line of
+    // another Item added before the copy is looked up (`Nearest`), so that
+    // the time does not grow with the square of the number of lines.
+    let mut later_copy: Vec<Option<usize>> = vec![None; n];
+    let mut after = Nearest::new(&groups);
+    let mut added_from = n;
+    for a in (0..n).rev() {
+        let Some(other) = next_other[a] else { continue };
+        while added_from > other + 1 {
+            added_from -= 1;
+            if !paged[added_from] {
+                after.add(added_from);
+            }
+        }
+        later_copy[a] = after.find(a);
+    }
     for a in 0..n {
-        if cands[a].title.chars().count() < 5 {
+        let Some(b) = later_copy[a] else { continue };
+        match signatures.sentence_between(cands[a].pos, cands[b].pos) {
+            Some(start) if !paged[a] => signed_pairs.push((a, b, start)),
+            _ if cands[b].gap > cands[a].gap => {
+                contents[a] = true;
+                body[b] = true;
+            }
+            _ => later_copies.push((a, b)),
+        }
+        paired[b] = true;
+    }
+    // The earlier copy of a pair that the signatures split is a body heading
+    // when it sits where the Item's heading belongs (`in_body_order`), and the
+    // later copy (an exhibit's, or the heading over statements printed after
+    // the signatures) goes. Otherwise the pair is read as any other.
+    let rows: Vec<bool> = (0..n).map(|i| contents[i] || paged[i]).collect();
+    let mut repeats = vec![false; n];
+    for &(_, b) in &later_copies {
+        repeats[b] = true;
+    }
+    let mut signed_copies: Vec<usize> = Vec::new();
+    // For each candidate, the nearest one before it with text of its own,
+    // and for each of those the nearest one before it of another Item or
+    // part, so that `in_body_order` does not search for them.
+    let same_item = |x: usize, y: usize| {
+        cands[x].label == cands[y].label
+            && cands[x].part.or(cands[x].title_part) == cands[y].part.or(cands[y].title_part)
+    };
+    let (mut text_before, mut other_before) = (vec![None; n], vec![None; n]);
+    if !signed_pairs.is_empty() {
+        let mut last: Option<usize> = None;
+        for i in 0..n {
+            text_before[i] = last;
+            if cands[i].gap > SAME_BLOCK {
+                other_before[i] = last.and_then(|l| if same_item(l, i) { other_before[l] } else { Some(l) });
+                last = Some(i);
+            }
+        }
+    }
+    // Whether the earlier copy of each pair is in body order, from the last
+    // pair back, so that `BodyOrder` reads the lines after it once for the
+    // copies of one Item before one sentence.
+    let mut body_order = BodyOrder { cands: &cands, keys, rows: &rows, repeats: &repeats, read: HashMap::new() };
+    let mut in_body_order = vec![false; n];
+    for &(a, _, signed) in signed_pairs.iter().rev() {
+        // The nearest candidate before `a` with text of its own, of another
+        // Item or part.
+        let before = text_before[a].and_then(|l| if same_item(l, a) { other_before[l] } else { Some(l) });
+        in_body_order[a] = body_order.holds(a, before, signed);
+    }
+    for (a, b, _) in signed_pairs {
+        if in_body_order[a] {
+            signed_copies.push(b);
+        } else if cands[b].gap > cands[a].gap {
+            contents[a] = true;
+            body[b] = true;
+        } else {
+            later_copies.push((a, b));
+        }
+    }
+    // The last row of a cross-reference index can print no page ("Item 14.
+    // Exhibits, Financial Statement Schedules, and Reports on Form 8-K"), and
+    // when the body prints no other Item heading, no other Item comes between
+    // it and its body heading. Nor does one come between the only row of an
+    // amendment's contents and its body heading. An Item line just after a
+    // row that names a later Item, or an Item line that prints a page but is
+    // no row by its neighbors and comes before the body (no Item earlier in
+    // the form's order with text of its own comes before it), is a contents
+    // entry when its heading is printed again, with its title in full, before
+    // any other Item. A body heading printed with a footnote's number comes
+    // after the body of an earlier Item.
+    // The earliest place in the form's order of the Items with text of their
+    // own before the current line.
+    let mut earliest_text: Option<usize> = None;
+    // The lines that are no paged rows, listed by title when the first line
+    // asks, so that a row's heading is looked for among the lines of its Item
+    // with its title and not among all the lines of its run. Its heading is
+    // most often the next of them (the next running header with a page).
+    // When the first few of a row are not, the lines are listed by the row
+    // titles that they print in full (`RowHeadings`), and the heading of
+    // that row and of the rows after it is looked up there.
+    const READ_IN_ORDER: usize = 8;
+    let no_rows = OnceCell::new();
+    let by_title = OnceCell::new();
+    let first_heading = |a: usize| -> Option<usize> {
+        // Up to the end of the run, the next line of another Item.
+        let end = next_other[a].unwrap_or(n);
+        if by_title.get().is_none() {
+            let no_rows: &SameTitled = no_rows.get_or_init(|| {
+                let mut lines = SameTitled::new(&groups);
+                (0..n).filter(|&i| !paged[i]).for_each(|i| lines.add(i));
+                lines
+            });
+            let mut in_order = no_rows.from(a, a + 1).take_while(|&b| b < end);
+            for _ in 0..READ_IN_ORDER {
+                match in_order.next() {
+                    Some(b) if prints_title(&cands[a], &cands[b]) => return Some(b),
+                    Some(_) => {}
+                    None => return None,
+                }
+            }
+        }
+        by_title
+            .get_or_init(|| RowHeadings::new(&groups, &cands, (0..n).filter(|&i| !paged[i])))
+            .first_after(a, &cands[a])
+            .filter(|&b| b < end)
+    };
+    for a in 0..n {
+        if a > 0 {
+            let before = &cands[a - 1];
+            if before.gap > SAME_BLOCK
+                && let Some(first) = form_places(before, keys).next()
+            {
+                earliest_text = Some(earliest_text.map_or(first, |e| e.min(first)));
+            }
+        }
+        let after_row = a > 0
+            && paged[a - 1]
+            && cands[a].pos - cands[a - 1].pos <= SAME_BLOCK
+            && comes_before(&cands[a - 1], &cands[a], keys);
+        // An Item earlier in the form's order than this line's, with text of
+        // its own, comes before it: the line is in the body, past any
+        // contents list.
+        let in_body =
+            || form_places(&cands[a], keys).next_back().is_some_and(|last| earliest_text.is_some_and(|e| e < last));
+        let lone_row = !paged[a] && ROW_PAGES.is_match(line_at(text, cands[a].pos).trim_end()) && !in_body();
+        if contents[a] || !(after_row || lone_row) {
             continue;
         }
-        let mut other_between = false;
-        for b in a + 1..n {
-            if cands[b].label != cands[a].label {
-                other_between = true;
-            } else if other_between && !paged[b] && same_title(&cands[a].title, &cands[b].title) {
-                if cands[b].gap > cands[a].gap {
-                    contents[a] = true;
-                    body[b] = true;
-                } else {
-                    later_copies.push((a, b));
-                }
-                paired[b] = true;
-                break;
-            }
+        if let Some(b) = first_heading(a) {
+            contents[a] = true;
+            body[b] = true;
+            paired[b] = true;
         }
     }
     // A list of one Item and a signatures line, which an 8-K's cover can
@@ -1366,7 +2544,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         if heading.label == entry.label
             && same_title(&entry.title, &heading.title)
             && heading.pos - entry.pos <= SAME_BLOCK
-            && lists_signatures(text, entry.pos, heading.pos)
+            && lists_signatures(text, entry.pos, heading.pos, &signatures)
         {
             contents[a - 1] = true;
             body[a] = true;
@@ -1380,8 +2558,21 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // (it is the later copy of a pair), so this is where the body starts.
     let body_start = (0..n).find(|&i| body[i] && !contents[i]).map(|i| cands[i].pos);
     // Spread to the other entries of a contents block: mark the runs of close
-    // candidates that lead up to a contents entry.
+    // candidates that lead up to a contents entry. An earlier copy before the
+    // body whose later copy is a row of a contents list (a contents entry
+    // next to another one) lists the Item too, as a 10-Q/A's explanatory note
+    // above a contents list without pages does, when no Item line with text
+    // of its own comes before it. Without a contents list the body can seem
+    // to start late, at a later Item, and a line inside an earlier Item's text
+    // that starts with an Item's heading (a cross-reference) is no such note.
     let mut leads = contents.clone();
+    let first_text = (0..n).find(|&i| cands[i].gap > SAME_BLOCK).unwrap_or(n);
+    let close = |i: usize, j: usize| cands[j].pos - cands[i].pos <= SAME_BLOCK;
+    let in_list =
+        |i: usize| (i > 0 && contents[i - 1] && close(i - 1, i)) || (i + 1 < n && contents[i + 1] && close(i, i + 1));
+    for &(a, b) in &later_copies {
+        leads[a] |= contents[b] && in_list(b) && a <= first_text && body_start.is_some_and(|s| cands[a].pos < s);
+    }
     for i in (0..n.saturating_sub(1)).rev() {
         if leads[i + 1] && !paired[i] && cands[i + 1].pos - cands[i].pos <= SAME_BLOCK {
             leads[i] = true;
@@ -1417,12 +2608,16 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         }
     }
     let mut after = vec![false; n];
+    for b in signed_copies {
+        after[b] = true;
+    }
     if !later_copies.is_empty() {
         let body_start = body_start.unwrap_or(0);
-        let sigs = signature_lines(text);
-        for (a, b) in later_copies {
+        let sigs = signatures.lines();
+        for &(a, b) in &later_copies {
             let from = body_start.max(cands[a].pos + 1);
-            after[b] = sigs.iter().any(|&p| p >= from && p < cands[b].pos);
+            // The first signatures line from there on, since they are in order.
+            after[b] = sigs.get(sigs.partition_point(|&p| p < from)).is_some_and(|&p| p < cands[b].pos);
         }
     }
     // Only short entries: a body heading can follow a second contents table.
@@ -1437,6 +2632,129 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         .filter(|&(i, _)| !contents[i] && !after[i])
         .map(|(i, c)| Candidate { listed: body[i], ..c })
         .collect()
+}
+
+/// The printed title of a candidate without its page column. With the title
+/// key, it is all that `prints_title` reads of the row `a`.
+fn row_title(c: &Candidate) -> &str {
+    ENTRY_PAGES.find(&c.printed).map_or(c.printed.as_str(), |m| &c.printed[..m.start()])
+}
+
+/// Whether `b`, a later line of the same Item as `a`, prints the title of `a`
+/// in full, as the body heading of a contents row does: the words of the
+/// title of `a`, without a page column, start the title of `b` (the row's
+/// title can be cut short where it wraps, "Item 14. Exhibits, Financial
+/// Statement Schedules,"), and `b` adds no "continued", as a running header
+/// does.
+fn prints_title(a: &Candidate, b: &Candidate) -> bool {
+    // The title keys first: reading the words costs much more, and most
+    // lines compared have other titles.
+    same_title(&a.title, &b.title) && prints_words(&title_words(row_title(a)), &title_words(&b.printed))
+}
+
+/// `prints_title` for the words (`title_words`) of the row's title without
+/// its page column and of the later line's printed title, when the title
+/// keys of the two lines pair.
+fn prints_words(row: &[String], heading: &[String]) -> bool {
+    heading.starts_with(row) && !heading[row.len()..].iter().any(|word| is_continued(word))
+}
+
+/// Whether a word of a title (`title_words`) says "continued", as a running
+/// header does after the title.
+fn is_continued(word: &str) -> bool {
+    matches!(word, "continued" | "cont'd" | "cont’d")
+}
+
+/// Whether a candidate sits where its Item's body heading belongs
+/// (`BodyOrder::holds`), for the candidates of `drop_contents_entries`,
+/// its contents rows (`rows`) and the lines that repeat an earlier line of
+/// their Item with no longer text after them (`repeats`).
+struct BodyOrder<'a> {
+    cands: &'a [Candidate],
+    keys: &'a [Key],
+    rows: &'a [bool],
+    repeats: &'a [bool],
+    /// What the last candidate of each Item and part read of the lines
+    /// after it.
+    read: HashMap<(&'a str, Option<&'static str>), LinesAfter>,
+}
+
+/// The lines that count after candidate `from` and before the signatures at
+/// `signed` (`BodyOrder::holds`): the first of them, and the first that ends
+/// the reading, one that the candidate's Item does not come before or one
+/// with text of its own.
+#[derive(Clone, Copy)]
+struct LinesAfter {
+    from: usize,
+    signed: usize,
+    first: Option<usize>,
+    end: Option<usize>,
+}
+
+impl BodyOrder<'_> {
+    /// Whether candidate `a` sits where its Item's body heading belongs among
+    /// the Items with text of their own (more than `SAME_BLOCK` characters
+    /// before the next Item), before the signatures at `signed`: the nearest
+    /// one of another Item before it, if any, names an earlier Item in the
+    /// form's order, and the lines of other Items after it, up to and
+    /// including the first one with text of its own before `signed`, name
+    /// later Items, the first of them no contents row (`rows`: an earlier
+    /// copy of a heading that the body prints again, or a row that prints a
+    /// page). A line inside another Item's text that starts with the Item's
+    /// heading (a cross-reference), a row of an index of Items printed after
+    /// the body, and a contents row above the body headings do not. Lines of
+    /// its own Item (running headers, an explanatory note's line) and lines
+    /// that repeat an earlier line of their Item with no longer text after
+    /// them (`repeats`: running headers, cross-references) do not count.
+    /// `before` is the nearest candidate before `a` with text of its own, of
+    /// another Item or part.
+    ///
+    /// The lines after `a` read the same for every candidate of its Item
+    /// and part, so one that comes before the last one asked about, with
+    /// the same signatures after it, reads only the lines up to that one
+    /// and goes on with what that one read.
+    fn holds(&mut self, a: usize, before: Option<usize>, signed: usize) -> bool {
+        let (cands, keys) = (self.cands, self.keys);
+        let has_text = |c: &Candidate| c.gap > SAME_BLOCK;
+        // Items of one number in both parts of a 10-Q come in order when their
+        // parts are known ("Item 2" of Part I, then of Part II).
+        let precedes = |x: &Candidate, y: &Candidate| {
+            let parts_apart =
+                form_places(x, keys).next_back().zip(form_places(y, keys).next()).is_some_and(|(x, y)| x < y);
+            comes_before(x, y, keys) || parts_apart
+        };
+        let part = |c: &Candidate| c.part.or(c.title_part);
+        let other = |c: &Candidate| c.label != cands[a].label || part(c) != part(&cands[a]);
+        debug_assert_eq!(before, (0..a).rev().find(|&i| other(&cands[i]) && has_text(&cands[i])));
+        if before.is_some_and(|i| !precedes(&cands[i], &cands[a])) {
+            return false;
+        }
+        let item = (cands[a].label.as_str(), part(&cands[a]));
+        let known = self.read.get(&item).copied().filter(|known| known.signed == signed && known.from > a);
+        let repeats = self.repeats;
+        // The first line that counts and the one that ends the reading,
+        // among the lines after `a` and before `to`.
+        let read = |to: usize| {
+            let (mut first, mut end) = (None, None);
+            for i in (a + 1..to).take_while(|&i| cands[i].pos < signed).filter(|&i| other(&cands[i]) && !repeats[i]) {
+                first.get_or_insert(i);
+                if !precedes(&cands[a], &cands[i]) || has_text(&cands[i]) {
+                    end = Some(i);
+                    break;
+                }
+            }
+            (first, end)
+        };
+        let (mut first, mut end) = read(known.map_or(cands.len(), |known| known.from));
+        if let (None, Some(known)) = (end, known) {
+            (first, end) = (first.or(known.first), known.end);
+        }
+        // What is kept for an Item and part holds only while the reading
+        // asks nothing else about `a` than its Item, its part and its place.
+        debug_assert_eq!((first, end), read(cands.len()));
+        self.read.insert(item, LinesAfter { from: a, signed, first, end });
+        !first.is_some_and(|i| self.rows[i]) && end.is_none_or(|i| precedes(&cands[a], &cands[i]))
+    }
 }
 
 /// The places in the form's order (indexes into `keys`) that a candidate's
@@ -1492,14 +2810,39 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
     let inside = |o: &Candidate, stretch: &[(usize, usize)]| {
         form_places(o, keys).any(|k| stretch.iter().any(|&(from, to)| from <= k && k <= to))
     };
+    // For the lines that name one stretch (by first Item, part and last
+    // Item): the line that ended the last one's search, a heading of the
+    // first Item alone or the first line outside the stretch, and whether
+    // it is that heading. A later line that names the same stretch (a
+    // running header "ITEMS 7 AND 7A.") before that line has the same
+    // answer, so it does not read the lines up to it again.
+    let mut searched: HashMap<(&str, Option<&str>, &str), (usize, bool)> = HashMap::new();
     let keep: Vec<bool> = (0..cands.len())
         .map(|i| {
             let c = &cands[i];
             let Some(last) = c.joined.as_deref().filter(|_| !c.listed) else { return true };
-            let stretch = named(c, last);
-            !cands[i + 1..].iter().take_while(|o| inside(o, &stretch)).any(|o| o.label == c.label && o.joined.is_none())
+            let search = || {
+                let stretch = named(c, last);
+                let end = (i + 1..cands.len()).find(|&j| {
+                    !inside(&cands[j], &stretch) || (cands[j].label == c.label && cands[j].joined.is_none())
+                });
+                end.map_or((cands.len(), false), |j| (j, inside(&cands[j], &stretch)))
+            };
+            let stretch_named = (c.label.as_str(), c.part.or(c.title_part), last);
+            if let Some(&found) = searched.get(&stretch_named)
+                && found.0 > i
+            {
+                // What is kept for a stretch holds only while the search
+                // asks nothing else about the line than what names it.
+                debug_assert_eq!(found, search());
+                return !found.1;
+            }
+            let found = search();
+            searched.insert(stretch_named, found);
+            !found.1
         })
         .collect();
+    drop(searched);
     let cands: Vec<Candidate> = cands.into_iter().zip(keep).filter(|(_, k)| *k).map(|(c, _)| c).collect();
     let mut cover_rows = 0;
     while let Some(c) = cands.get(cover_rows) {
@@ -1514,39 +2857,159 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 }
 
 /// Contents rows found by their page numbers. A row is an Item line that ends
-/// with a page number or a range of pages, after a tab, two spaces or dot
-/// leaders (`Item 3. Quantitative and Qualitative Disclosures About Market
-/// Risk     10 - 11`). Going back from a row, the Item line before it is a
-/// row too when it is at most `block` characters before it, the last line
-/// between them ends with a page number, and it names an Item that comes
-/// earlier in the form, as the entries of a contents list do. Its entry lists
-/// pages under it ("Item 1. Financial Statements", then "Balance Sheets   1",
-/// ...), or its title wraps onto a line with the page ("Item 2. Management's
-/// Discussion and Analysis of Financial", then "Condition and Results of
-/// Operations   9 - 10"). A heading followed by a running header of its own
-/// Item that prints the page ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS
-/// (Continued)   5"), or by an index of Items printed after the body, which
-/// starts again at an earlier Item, is no row.
-fn paged_rows(cands: &[Candidate], text: &str, keys: &[Key], block: usize) -> Vec<bool> {
-    let ends_with_page = |l: &str| PAGE_REFERENCE.is_match(l.trim_end());
+/// with a page column after a tab, two spaces or dot leaders: a page, a range
+/// of pages, or a list of them (`Item 3. Quantitative and Qualitative
+/// Disclosures About Market Risk     10 - 11`, `Item 1.     Business     3-30,
+/// 64`), in a run of Item lines: a line of another Item follows it within
+/// `block` characters, the line above it (a Part's line aside) ends with
+/// pages too, as the last row of a list does, or the next line does, as a
+/// list's row that names no Item does ("Item 9A.<TAB>Controls and
+/// Procedures<TAB>3", then "Signatures<TAB>5", the contents of an amendment
+/// of one Item). A body heading printed with a footnote's number ("Item
+/// 7.<TAB>Management's Discussion and Analysis ...<TAB>1") is followed by its
+/// text.
+///
+/// Going back from a row, the Item line before it is a row too when it is at
+/// most `block` characters before it, its entry ends with a page column, and
+/// it names an Item that comes earlier in the form, as the entries of a
+/// contents list do. Its entry is its line and the lines after it, Part's
+/// lines aside: it lists pages under it ("Item 1. Financial Statements", then
+/// "Balance Sheets   1", ...), or its title wraps onto a line with the page
+/// ("Item 2. Management's Discussion and Analysis of Financial", then
+/// "Condition and Results of Operations   9 - 10"). Going forward from a row,
+/// the next Item line is a row too when it is at most `block` characters
+/// after it, names a later Item, its entry ends with a page column, and a line
+/// of another Item follows it within `block` characters. Within such a run, a
+/// page column may also say "cover", "N/A", "Not applicable", "None" or "*"
+/// (`Security Holders     N/A`, `Matters     cover, 66, 68`), when at least
+/// two rows of the run print pages: one row that prints a number in a 10-Q's
+/// table of answers ("Item 1A.<TAB>Risk Factors<TAB>28") does not make the
+/// rows around it ("Item 1.<TAB>Legal Proceedings<TAB>None") contents rows.
+/// A heading followed by a running header of its own Item that prints the
+/// page ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   5"), or
+/// by an index of Items printed after the body, which starts again at an
+/// earlier Item, is no row. That running header is a row: an Item line that
+/// prints a page after a line of its Item with the same title, which is no
+/// row, repeats that heading on a later page when it shortens the title or
+/// adds "(continued)" (`prints_title`). A body heading printed with a
+/// footnote's number after a contents list without pages prints the entry's
+/// title in full.
+fn paged_rows(
+    cands: &[Candidate],
+    text: &str,
+    keys: &[Key],
+    block: usize,
+    next_other: &[Option<usize>],
+    groups: &TitleGroups,
+) -> Vec<bool> {
+    let ends_with_pages = |l: &str| ROW_PAGES.is_match(l.trim_end());
+    let ends_with_entry = |l: &str| ENTRY_PAGES.is_match(l.trim_end());
     let n = cands.len();
+    let close = |a: usize, b: usize| cands[b].pos - cands[a].pos <= block;
+    // Whether a line of another Item follows closely: the next one does
+    // (`next_other`), since any other is further away.
+    let other_follows = |i: usize| next_other[i].is_some_and(|o| close(i, o));
+    // The entry of an Item line runs from its start to the next Item line.
+    let entry_ends = |i: usize| {
+        let end = cands.get(i + 1).map_or(text.len(), |o| o.pos);
+        last_entry_line(text, cands[i].pos, end).is_some_and(ends_with_entry)
+    };
+    let own_pages = |i: usize| ends_with_pages(line_at(text, cands[i].pos));
+    // The first line after an Item's line, when it comes before the next Item
+    // line.
+    let next_line = |i: usize| {
+        let line_end = cands[i].pos + line_at(text, cands[i].pos).len();
+        let end = cands.get(i + 1).map_or(text.len(), |o| o.pos).max(line_end);
+        text[line_end..end].lines().find(|l| !l.trim().is_empty())
+    };
     let mut paged = vec![false; n];
     for i in (0..n).rev() {
         let start = cands[i].pos;
-        let line_end = text[start..].find('\n').map_or(text.len(), |e| start + e);
-        let own = ends_with_page(&text[start..line_end]);
+        let in_run = other_follows(i)
+            || (i > 0
+                && close(i - 1, i)
+                && last_entry_line(text, cands[i - 1].pos, start).is_some_and(ends_with_pages))
+            || next_line(i).is_some_and(ends_with_pages);
+        let own = in_run && own_pages(i);
         let entry = i + 1 < n
             && paged[i + 1]
-            && cands[i + 1].pos - start <= block
-            && text[line_end..cands[i + 1].pos].lines().rfind(|l| !l.trim().is_empty()).is_some_and(ends_with_page)
-            && cands[i].label != cands[i + 1].label
-            && form_places(&cands[i], keys)
-                .next()
-                .zip(form_places(&cands[i + 1], keys).next_back())
-                .is_some_and(|(this, next)| this < next);
+            && close(i, i + 1)
+            && entry_ends(i)
+            && comes_before(&cands[i], &cands[i + 1], keys);
         paged[i] = own || entry;
     }
+    for i in 1..n {
+        let later = comes_before(&cands[i - 1], &cands[i], keys);
+        if !paged[i] && paged[i - 1] && close(i - 1, i) && later && other_follows(i) && entry_ends(i) {
+            paged[i] = true;
+        }
+    }
+    // A run of rows with fewer than two rows that print pages keeps the rows
+    // whose page column holds only words.
+    let prints_pages = |i: usize| {
+        let end = cands.get(i + 1).map_or(text.len(), |o| o.pos);
+        own_pages(i) || last_entry_line(text, cands[i].pos, end).is_some_and(ends_with_pages)
+    };
+    let mut first = 0;
+    while first < n {
+        let mut last = first;
+        while paged[first] && last + 1 < n && paged[last + 1] && close(last, last + 1) {
+            last += 1;
+        }
+        if paged[first] && (first..=last).filter(|&i| prints_pages(i)).count() < 2 {
+            for (i, row) in paged.iter_mut().enumerate().take(last + 1).skip(first) {
+                *row &= prints_pages(i);
+            }
+        }
+        first = last + 1;
+    }
+    // A line repeats a line of its Item before it that is no row and has
+    // its title (`same_title`) when it does not print that title in full.
+    // The lines before `i` that are no rows are not each compared with it.
+    // The nearest one with its title (`Nearest`) tells when there is none,
+    // and is most often the line it repeats. Otherwise the titles of the
+    // lines with its title are counted (`RowTitles`).
+    let mut no_rows = Nearest::new(groups);
+    let mut added = 0;
+    let mut titles = RowTitles::new(groups);
+    let mut listed = 0;
+    for i in 0..n {
+        if paged[i] || !own_pages(i) {
+            continue;
+        }
+        // Whether a line before this one is a row is settled now.
+        (added..i).filter(|&j| !paged[j]).for_each(|j| no_rows.add(j));
+        added = i;
+        paged[i] = match no_rows.find(i) {
+            None => false,
+            Some(j) if !prints_title(&cands[j], &cands[i]) => true,
+            Some(_) => {
+                (listed..i).filter(|&j| !paged[j]).for_each(|j| titles.add(j, &cands[j]));
+                listed = i;
+                !titles.all_printed_by(i, &cands[i])
+            }
+        };
+    }
     paged
+}
+
+/// The line that starts at `start`, without its line break.
+fn line_at(text: &str, start: usize) -> &str {
+    let rest = &text[start..];
+    &rest[..rest.find('\n').unwrap_or(rest.len())]
+}
+
+/// Whether `b` names another Item than `a`, one that can come after it in the
+/// form: the first place of `a` is before the last place of `b`.
+fn comes_before(a: &Candidate, b: &Candidate, keys: &[Key]) -> bool {
+    a.label != b.label && form_places(a, keys).next().zip(form_places(b, keys).next_back()).is_some_and(|(a, b)| a < b)
+}
+
+/// The last line of `text[from..to]` that is neither blank nor the line of a
+/// Part alone (`PART II` between the rows of a contents list).
+fn last_entry_line(text: &str, from: usize, to: usize) -> Option<&str> {
+    let part_alone = |l: &str| PART_LINE.is_match(l) && !PERIODIC_HEADING.is_match(l);
+    text[from..to].lines().rfind(|l| !l.trim().is_empty() && !part_alone(l))
 }
 
 /// Drop a bare running page header ("Item 7") that comes just before the
@@ -1572,7 +3035,9 @@ fn drop_running_headers(cands: Vec<Candidate>, keys: &[Key]) -> Vec<Candidate> {
 /// such as a full annual report: a table of contents of at least 8
 /// page-numbered entries spanning 30 or more pages, followed by much more
 /// text than the Item itself. The heading line just before the contents
-/// ("Financial:") goes with the attached document.
+/// ("Financial:") goes with the attached document, and so do the lines just
+/// above it that open the document's pages rather than end the Item
+/// (`opens_attached_pages`).
 fn attached_document(text: &str, from: usize, to: usize) -> Option<usize> {
     const MIN_ENTRIES: usize = 8;
     const MIN_PAGES: u32 = 30;
@@ -1606,7 +3071,13 @@ fn attached_document(text: &str, from: usize, to: usize) -> Option<usize> {
                 if let Some((s, first, last, n)) = block {
                     let after = to - s;
                     if n >= MIN_ENTRIES && last - first >= MIN_PAGES && after >= 50_000 && after >= 4 * (s - from) {
-                        return Some(s);
+                        let opening = lines_in(text, from, s)
+                            .into_iter()
+                            .rev()
+                            .filter(|(_, l)| !l.is_empty())
+                            .take_while(|&(_, l)| opens_attached_pages(l))
+                            .last();
+                        return Some(opening.map_or(s, |(p, _)| p));
                     }
                 }
             }
@@ -1622,13 +3093,98 @@ fn attached_document(text: &str, from: usize, to: usize) -> Option<usize> {
     None
 }
 
-/// Where the signatures start after `from`: a signatures heading, or the
-/// signature block's opening sentence when there is no heading.
+/// A note that a page is intentionally left blank, on a trimmed line:
+/// `[THIS PAGE INTENTIONALLY LEFT BLANK]`, `This page intentionally left
+/// blank.`
+static BLANK_PAGE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)^[\[(]?(?:this[ \t]+)?page[ \t]+(?:has[ \t]+been[ \t]+)?intentionally[ \t]+left[ \t]+blank[ \t.]*[\])]?$",
+    )
+    .unwrap()
+});
+
+/// Whether a trimmed line just above an attached document's contents opens
+/// the document's pages rather than ends the Item: an index heading
+/// ("INDEX TO CONSOLIDATED FINANCIAL STATEMENTS" over the contents, or
+/// "Index to Financial Statements" printed at the top of each page), whose
+/// words all start with a capital letter or join others ("to", "and"), or a
+/// note that the page before them is intentionally left blank.
+fn opens_attached_pages(line: &str) -> bool {
+    let title_words = || {
+        TITLE_WORD
+            .find_iter(line)
+            .all(|w| !w.as_str().starts_with(char::is_lowercase) || JOINING_WORDS.contains(&w.as_str()))
+    };
+    (statement_heading(line) && STATEMENTS_INDEX_HEADING.is_match(line) && title_words()) || BLANK_PAGE.is_match(line)
+}
+
+/// Where the signatures start after `from`: the first signatures heading or
+/// signature block's opening sentence, whichever comes first. A report that
+/// prints no heading of its own can carry an attached document that does (an
+/// 11-K annual report filed as an exhibit), after the report's sentence.
 fn signatures_after(text: &str, from: usize) -> Option<usize> {
-    signature_lines(&text[from..])
-        .first()
-        .map(|&p| from + p)
-        .or_else(|| SIGNATURE_BLOCK.find_at(text, from).map(|m| m.start()))
+    let heading = signature_lines(&text[from..]).first().map(|&p| from + p);
+    let before = heading.unwrap_or(text.len());
+    signature_sentences(&text[from..before]).next().map(|(start, _)| from + start).or(heading)
+}
+
+/// The signatures of a whole text: its signatures heading lines and its
+/// signature block's sentences, each found when first asked for, so that
+/// rules that ask about many places in the text search it once.
+struct Signatures<'a> {
+    text: &'a str,
+    lines: OnceCell<Vec<usize>>,
+    sentences: OnceCell<Vec<(usize, usize)>>,
+    /// For each sentence, the latest start of the sentences up to it: the
+    /// sentences end in order, but nothing says that they start in order,
+    /// and these do.
+    latest_starts: OnceCell<Vec<usize>>,
+}
+
+impl<'a> Signatures<'a> {
+    fn new(text: &'a str) -> Self {
+        Signatures { text, lines: OnceCell::new(), sentences: OnceCell::new(), latest_starts: OnceCell::new() }
+    }
+
+    /// `signature_lines` of the text.
+    fn lines(&self) -> &[usize] {
+        self.lines.get_or_init(|| signature_lines(self.text))
+    }
+
+    /// `signature_sentences` of the text.
+    fn sentences(&self) -> &[(usize, usize)] {
+        self.sentences.get_or_init(|| signature_sentences(self.text).collect())
+    }
+
+    fn latest_starts(&self) -> &[usize] {
+        self.latest_starts.get_or_init(|| {
+            let latest = |latest: &mut usize, &(start, _): &(usize, usize)| {
+                *latest = start.max(*latest);
+                Some(*latest)
+            };
+            self.sentences().iter().scan(0, latest).collect()
+        })
+    }
+
+    /// The start of the first sentence that starts at or after `from` and
+    /// ends at or before `to`. The sentences end in order, so it is the
+    /// first one that starts at or after `from`, which is the first whose
+    /// latest start so far is at or after `from`.
+    fn sentence_between(&self, from: usize, to: usize) -> Option<usize> {
+        let first = self.latest_starts().partition_point(|&start| start < from);
+        self.sentences().get(first).filter(|&&(_, end)| end <= to).map(|&(start, _)| start)
+    }
+
+    /// Whether signatures start after the line of an Item heading that
+    /// starts at `heading`: whether `signatures_after(text, heading + 1)`
+    /// finds any. The rest of the heading's line is no signatures line and
+    /// opens no sentence, and the lines after it read the same in the whole
+    /// text as in the text from there on, so that is whether a signatures
+    /// line or a sentence of the whole text starts after `heading`.
+    fn follow(&self, heading: usize) -> bool {
+        self.lines().last().is_some_and(|&line| line > heading)
+            || self.latest_starts().last().is_some_and(|&start| start > heading)
+    }
 }
 
 /// Whether the Item line at `entry` and the heading of the same Item at
@@ -1637,12 +3193,12 @@ fn signatures_after(text: &str, from: usize) -> Option<usize> {
 /// signatures heading, no signature block sentence comes before the heading,
 /// and the signatures come after it. Signatures between an Item's body
 /// heading and an exhibit that repeats it are followed by that sentence.
-fn lists_signatures(text: &str, entry: usize, heading: usize) -> bool {
+fn lists_signatures(text: &str, entry: usize, heading: usize, signatures: &Signatures) -> bool {
     let after_entry = text[entry..heading].find('\n').map_or(heading, |i| entry + i + 1);
     let next = text[after_entry..heading].lines().find(|l| !l.trim().is_empty()).unwrap_or("");
     SIGNATURES.is_match(next)
-        && !SIGNATURE_BLOCK.is_match(&text[after_entry..heading])
-        && signatures_after(text, heading + 1).is_some()
+        && signature_sentences(&text[after_entry..heading]).next().is_none()
+        && signatures.follow(heading)
 }
 
 /// Start of the first line in a section, after its heading line, that `re`
@@ -1728,15 +3284,127 @@ fn page_headers_above(text: &str, body: usize, cut: usize, end: usize) -> usize 
     }
 }
 
+/// The last line of an address block, with a city, a state and a ZIP code:
+/// `Allentown, PA 18104`, `New York, New York 10017`.
+static CITY_STATE_ZIP: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\p{Lu}[\p{L}.' -]*,[ \t]*\p{Lu}[\p{L}.]*(?:[ \t]+\p{Lu}[\p{L}.]*)?[ \t]+\d{5}(?:-\d{4})?$").unwrap()
+});
+
+/// Start of the auditors' letterhead printed just above an auditors' report
+/// heading at `cut` that ends a section, whose text after its heading starts
+/// at `body`: the firm's name, which the report prints again on a line of its
+/// own where the firm signs it (in the text cut off, up to `end`), and up to
+/// three short lines of its address below it, the last of them with a city,
+/// a state and a ZIP code, just above the heading, below a line of the
+/// section that ends a sentence. The section's first line of text always
+/// stays, and so does an address that its text leads into ("Our auditors may
+/// be contacted at:").
+fn letterhead_above(text: &str, body: usize, cut: usize, end: usize) -> Option<usize> {
+    const MAX_ADDRESS_LINES: usize = 3;
+    const MAX_CHARS: usize = 60;
+    let heading = text[cut..].lines().next().unwrap_or("");
+    if !AUDITORS_REPORT_HEADING.is_match(heading) || body >= cut {
+        return None;
+    }
+    let lines: Vec<(usize, &str)> = lines_in(text, body, cut).into_iter().filter(|(_, l)| !l.is_empty()).collect();
+    let (&(_, last), above) = lines.split_last()?;
+    if !CITY_STATE_ZIP.is_match(last) {
+        return None;
+    }
+    let cut_off = &text[cut..end];
+    let mut address = 1;
+    for (i, &(pos, line)) in above.iter().enumerate().rev() {
+        if line.len() > MAX_CHARS {
+            return None;
+        }
+        if line.contains(char::is_alphabetic) && line_copies(cut_off, line) > 0 {
+            // The Item's text above ends a sentence; one that leads into the
+            // block ("may be reached at:", "by writing to:") or a line that
+            // ends no sentence ("Investor Relations") keeps it in the Item.
+            let ends_sentence = i.checked_sub(1).is_some_and(|j| above[j].1.trim_end().ends_with('.'));
+            return (pos > body && ends_sentence).then_some(pos);
+        }
+        address += 1;
+        if address > MAX_ADDRESS_LINES {
+            return None;
+        }
+    }
+    None
+}
+
+/// The line of Part II of a 10-Q or 10-QSB, with its title or without:
+/// `PART II. OTHER INFORMATION`, `Part II — Other Information`, `PART II`.
+static PART_TWO: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^[ \t]*part[ \t]+II(?:[ \t.:,\-–—]*other[ \t]+information)?[ \t.:,\-–—]*$").unwrap()
+});
+
+/// Where text of Part II begins in the section of a Part I Item from `start`
+/// to `end`, which is Part II's first heading when the Item is Part I's last:
+/// at the first `PART II` line after the section's heading, when a line
+/// follows it that is no page header (a line printed on its own more than
+/// once in the filing, such as the company's name), no page footer ("Page 25
+/// of 31", "ACME Corp. Form 10-Q, Page 25"), no Part II line and not Part
+/// II's title ("OTHER INFORMATION"), as a note on forward-looking statements
+/// is. A `PART II` line just above Part II's first heading stays in the
+/// section, as the labels have it. So does a line that holds only "Part II."
+/// where a sentence wraps onto it (`continues_sentence`: "For a discussion
+/// of these risks, see Item 1A of" then "Part II.").
+fn part_two_preamble(text: &str, start: usize, end: usize) -> Option<usize> {
+    let lines = item_lines(text, start, end);
+    let at = lines.iter().position(|&(pos, l)| PART_TWO.is_match(l) && !continues_sentence(text, pos))?;
+    // A filing prints few lines here before its own text, and each is
+    // looked for in the text. When they are many (pages of headers), all
+    // lines of the text are counted once instead.
+    const MAX_SEARCHES: usize = 8;
+    let mut searches = 0;
+    let mut counts: Option<HashMap<&str, usize>> = None;
+    let mut printed_once = |l: &str| {
+        if searches < MAX_SEARCHES {
+            searches += 1;
+            return line_copies(text, l) < 2;
+        }
+        counts.get_or_insert_with(|| line_counts(text)).get(l).copied().unwrap_or(0) < 2
+    };
+    let own_text = lines[at + 1..].iter().any(|&(_, l)| {
+        l.contains(char::is_alphabetic)
+            && !PART_TWO.is_match(l)
+            && !title_letters(l).eq("otherinformation".chars())
+            && !PAGE_FOOTER.is_match(l)
+            && printed_once(l)
+    });
+    own_text.then_some(lines[at].0)
+}
+
+/// A page footer that names the page: `Page 25`, `Page 25 of 31`, `ACME
+/// Corp. Form 10-Q, Page 25`.
+static PAGE_FOOTER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^(?:[^\n]{0,60}[ \t,|–—-])?page[ \t]+\d{1,3}(?:[ \t]+of[ \t]+\d{1,3})?$").unwrap()
+});
+
 /// How many lines of `text` hold `line` and nothing else but blanks.
 fn line_copies(text: &str, line: &str) -> usize {
-    let blank = |s: &str| s.trim().is_empty();
-    text.match_indices(line)
-        .filter(|&(i, _)| {
-            blank(text[..i].rsplit('\n').next().unwrap_or(""))
-                && blank(text[i + line.len()..].split('\n').next().unwrap_or(""))
-        })
-        .count()
+    // The empty line is found at every place in the text, and each place
+    // in a blank line is a copy of it.
+    if line.is_empty() {
+        return text.split('\n').filter(|l| l.trim().is_empty()).map(|l| l.chars().count() + 1).sum();
+    }
+    // Only blanks between the copy and the ends of its line, looked at from
+    // the copy outwards up to the first other character, so that a long
+    // line that holds the words many times is not read through for each.
+    let blank_before = |end: usize| text[..end].chars().rev().take_while(|&c| c != '\n').all(char::is_whitespace);
+    let blank_after = |start: usize| text[start..].chars().take_while(|&c| c != '\n').all(char::is_whitespace);
+    text.match_indices(line).filter(|&(i, _)| blank_before(i) && blank_after(i + line.len())).count()
+}
+
+/// `line_copies` for many lines of one text: how often each trimmed line of
+/// `text` is printed, counted in one pass. The copies of a trimmed line
+/// that is not empty are the lines that read the same when trimmed.
+fn line_counts(text: &str) -> HashMap<&str, usize> {
+    let mut counts = HashMap::new();
+    for line in text.split('\n') {
+        *counts.entry(line.trim()).or_insert(0) += 1;
+    }
+    counts
 }
 
 /// Start of a power of attorney printed after the last Item's text and
@@ -1783,7 +3451,7 @@ fn lines_in(text: &str, from: usize, end: usize) -> Vec<(usize, &str)> {
 /// FINANCIAL DISCLOSURE"). Lines without a letter are skipped. `end` when
 /// the section has no such line.
 fn body_start(text: &str, cand: &Candidate, key: &Key, end: usize) -> usize {
-    let titles: Vec<Vec<String>> = std::iter::once(&key.title).chain(key.former).map(|t| title_words(t)).collect();
+    let titles: Vec<Vec<String>> = key.titles().map(title_words).collect();
     let mut title_line = cand.bare;
     let mut pos = text[cand.pos..end].find('\n').map_or(end, |i| cand.pos + i + 1);
     for raw in text[pos..end].split_inclusive('\n') {
@@ -1859,12 +3527,22 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
         return None;
     }
     // Heading lines after the index, then the first one for each entry's title.
-    let headings: Vec<(usize, String)> = (last + 1..lines.len())
-        .filter(|&j| statement_heading(lines[j].1))
-        .map(|j| (j, title_key(lines[j].1)))
-        .collect();
-    let mut printed: Vec<usize> =
-        titles.iter().filter_map(|t| headings.iter().find(|(_, h)| same_title(h, t)).map(|&(j, _)| j)).collect();
+    let headings: Vec<usize> = (last + 1..lines.len()).filter(|&j| statement_heading(lines[j].1)).collect();
+    let heading_titles: Vec<String> = headings.iter().map(|&j| title_key(lines[j].1)).collect();
+    // An index has a few entries, and each is compared with the headings.
+    // For a long one the headings are indexed by their prefixes instead,
+    // which costs more for each heading but nothing more for each entry.
+    const MAX_COMPARED: usize = 64;
+    let mut printed: Vec<usize> = if titles.len() <= MAX_COMPARED {
+        titles
+            .iter()
+            .filter_map(|t| heading_titles.iter().position(|h| same_title(h, t)))
+            .map(|h| headings[h])
+            .collect()
+    } else {
+        let index = TitleIndex::new(&heading_titles);
+        titles.iter().filter_map(|t| index.find(t)).map(|h| headings[h]).collect()
+    };
     printed.sort_unstable();
     printed.dedup();
     let &statements = printed.first()?;
@@ -2071,17 +3749,22 @@ fn add_lettered(cands: &[Candidate], keys: &[Key], picks: &mut Vec<(usize, usize
 
 /// Item 1 printed with no number in a 10-K or 10-KSB: "PART I." and then
 /// "BUSINESS" on a line of its own, while the other Items have numbered
-/// headings. When the first Item of the chain is Item 1A or Item 2, the first
-/// line that holds only Item 1's standard title ("Business", "Description of
-/// Business"), between the last `PART I` line before that Item's heading and
-/// the heading, starts Item 1, unless an Item line comes between that `PART
-/// I` line and the heading. A Part I printed with no Item numbers at all has
-/// its first numbered heading in Part II, so it gets no Item 1. Neither does
-/// one whose title line is printed more than once after the last Item line
-/// before the heading: Item 1's pages then print "PART I" and "Business" as
-/// page headers, the `PART I` line nearest the heading is one of them, and
-/// the first copy of the title, which may be the heading, may also be a
-/// contents entry. Returns the title line as a candidate.
+/// headings. It is looked for when the first Item of the chain is Item 1A or
+/// Item 2, and the last Part line before that Item's heading is a `PART I`
+/// line that comes after every Item line before it: a Part I printed with no
+/// Item numbers at all has its first numbered heading in Part II, so it gets
+/// no Item 1. The first line that holds only Item 1's standard title
+/// ("Business", "Description of Business") right after a `PART I` line starts
+/// Item 1, unless another Part's line comes after it, as in a contents list
+/// printed without Item numbers ("PART I", "Business", "Risk Factors", ...,
+/// "PART II", ...), or the next line holds only a title of another Item, as
+/// the next entry of such a list does when it prints no later Part line or
+/// prints it with a page or a title ("PART II<TAB>20"). It may come before
+/// the last `PART I` line, since Item 1's pages may print "PART I" and
+/// "Business" as page headers. Without such a
+/// line, the first title line between the last `PART I` line and the heading
+/// starts Item 1, unless the title line is printed more than once after the
+/// last Item line before the heading. Returns the title line as a candidate.
 fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(usize, usize)]) -> Option<Candidate> {
     let &(first, key) = picks.first()?;
     let item_1 = keys.iter().find(|k| k.item == "1")?;
@@ -2113,18 +3796,65 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
         let line = line.trim();
         line.starts_with(char::is_uppercase) && title_key(line) == letters && title_words(line) == words
     };
-    let (pos, line) = lines.into_iter().rev().find(|&(_, line)| title_line(line))?;
-    if text[..heading].lines().rev().take_while(|l| !is_item_line(l)).filter(|l| title_line(l)).count() > 1 {
-        return None;
+    // The first title line right after a PART I line, unless another Part's
+    // line comes after it, or the next line is a contents entry.
+    let part_one = |l: &str| PART_LABEL.is_match(l) && PART_MARK.captures(l).is_some_and(|c| &c[1] == "I");
+    let other_title = |l: &str| {
+        let words = title_words(l);
+        keys.iter().filter(|k| k.item != item_1.item).any(|k| k.titles().any(|t| title_words(t) == words))
+    };
+    let mut first: Option<(usize, &str)> = None;
+    let before: Vec<(usize, &str)> = lines_in(text, 0, heading).into_iter().filter(|(_, l)| !l.is_empty()).collect();
+    for (i, &(start, line)) in before.iter().enumerate() {
+        if PART_LABEL.is_match(line) && !part_one(line) {
+            first = None;
+        } else if first.is_none()
+            && i > 0
+            && part_one(before[i - 1].1)
+            && title_line(line)
+            && !before.get(i + 1).is_some_and(|&(_, next)| other_title(next))
+        {
+            first = Some((start, line));
+        }
     }
-    Some(Candidate {
+    let copies = text[..heading].lines().rev().take_while(|l| !is_item_line(l)).filter(|l| title_line(l)).count();
+    let (pos, line) = match first {
+        Some(first) => first,
+        None if copies > 1 => return None,
+        None => lines.into_iter().rev().find(|&(_, line)| title_line(line))?,
+    };
+    Some(added_candidate(text, pos, item_1.item, line))
+}
+
+/// `ITEM I.  BUSINESS`, `ITEM IV. CONTROLS AND PROCEDURES`: an Item heading
+/// whose number is written in roman numerals, as some filings print one
+/// heading, with the letter I for the number 1.
+static ROMAN_HEADING: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[\-–—]+)?[ \t]*)?(?i:item)[ \t]+([IVX]{1,5})(?-u:\b)[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
+    )
+    .unwrap()
+});
+
+/// The number that a roman numeral up to XVI writes: `4` for `IV`.
+fn roman_number(numeral: &str) -> Option<usize> {
+    const NUMERALS: [&str; 16] =
+        ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI"];
+    NUMERALS.iter().position(|&n| n == numeral).map(|i| i + 1)
+}
+
+/// A candidate for a heading line that a rule finds after the chain is
+/// built, with `printed` as its title.
+fn added_candidate(text: &str, pos: usize, label: &str, printed: &str) -> Candidate {
+    let end = text[pos..].find('\n').map_or(text.len(), |i| pos + i);
+    Candidate {
         pos,
-        label: item_1.item.to_owned(),
-        heading: line.trim().to_owned(),
+        label: label.to_owned(),
+        heading: text[pos..end].trim().chars().take(300).collect(),
         bare: false,
-        title: title_key(line),
-        printed: line.trim().to_owned(),
-        printed_next: String::new(),
+        title: title_key(printed),
+        printed: printed.trim().chars().take(300).collect(),
+        printed_next: lines_after(text, end).chars().take(300).collect(),
         part: None,
         title_part: None,
         listed: false,
@@ -2132,63 +3862,214 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
         joined: None,
         bare_list: false,
         cites: false,
-        gap: heading - pos,
+        gap: 0,
         score: 0.0,
-    })
+    }
+}
+
+/// Items whose heading writes the number in roman numerals ("ITEM I.
+/// BUSINESS"), which the heading pattern does not read. Such a heading, with
+/// a title that starts like one of the standard titles, current or former,
+/// of the Item with that number, starts the Item when it sits where the Item
+/// belongs, before the signatures: after the Items found before it, which
+/// come earlier in the form's order, and before those found after it, which
+/// come later, so never when the Item was found. The title picks the Item
+/// in a 10-Q or 10-QSB, whose parts give their Items of one number different
+/// titles. No other Item line may come between the heading and the next Item
+/// found, as one does below an entry of a contents list; copies of the
+/// heading (running headers) may, and the first copy starts the Item.
+/// Returns the headings as candidates, with their keys, in document order.
+/// `lines` are the lines that hold "item" (`item_word_lines`).
+fn roman_items(
+    text: &str,
+    lines: &[(usize, usize)],
+    cands: &[Candidate],
+    keys: &[Key],
+    picks: &[(usize, usize)],
+) -> Vec<(Candidate, usize)> {
+    let Some(&(last, _)) = picks.last() else { return Vec::new() };
+    let limit = signatures_after(text, cands[last].pos).unwrap_or(text.len());
+    // Roman headings with a title of the Item of their number, with its key.
+    let mut headings: Vec<(Candidate, usize, &str)> = Vec::new();
+    for c in heading_matches(&ROMAN_HEADING, text, lines) {
+        let (m, numeral) = (c.get(0).expect("group 0 always matches"), c.get(1).expect("numeral").as_str());
+        // The lines come in order, so none after this one is before the
+        // signatures either.
+        if m.start() >= limit {
+            break;
+        }
+        let Some(number) = roman_number(numeral) else { continue };
+        let label = number.to_string();
+        let tail = after_dashes(c.get(2).expect("tail").as_str()).trim();
+        if !heading_tail_ok(tail) || continues_sentence(text, m.start()) {
+            continue;
+        }
+        let printed = if tail.chars().any(char::is_alphabetic) { tail } else { next_line_title(text, m.end()) };
+        let title = title_key(printed);
+        let ki = keys.iter().position(|k| k.item == label && k.titles().any(|t| same_title(&title, &title_key(t))));
+        if let Some(ki) = ki {
+            headings.push((added_candidate(text, m.start(), &label, printed), ki, numeral));
+        }
+    }
+    let Some(first) = headings.first().map(|(c, ..)| c.pos) else { return Vec::new() };
+    // The Item lines after the first heading and before the signatures, each
+    // with its roman numeral, or "" when it is no roman heading, read once
+    // rather than for each heading above them. The `\r` of a `\r\n` line
+    // break is read as the end of the line's title and changes neither
+    // answer. The lines after the signatures are never asked about, and
+    // leaving them out only saves reading them.
+    let item_lines: Vec<(usize, &str)> = lines
+        .iter()
+        .filter(|&&(start, _)| start > first && start < limit)
+        .filter_map(|&(start, end)| {
+            let line = &text[start..end];
+            let numeral = || ROMAN_HEADING.captures(line).map_or("", |c| c.get(1).expect("numeral").as_str());
+            is_item_line(line).then(|| (start, numeral()))
+        })
+        .collect();
+    // For each of them, the next one with another numeral, so that a run of
+    // copies of one heading is passed in one step.
+    let mut run_end = vec![item_lines.len(); item_lines.len()];
+    for i in (0..item_lines.len().saturating_sub(1)).rev() {
+        run_end[i] = if item_lines[i + 1].1 == item_lines[i].1 { run_end[i + 1] } else { i + 1 };
+    }
+    // From the last heading back, so that the next Item found after a
+    // heading is known when it is checked, and an earlier copy of a
+    // heading replaces a later one.
+    let mut found: Vec<(Candidate, usize)> = Vec::new();
+    for (cand, ki, numeral) in headings.into_iter().rev() {
+        let mut around: Vec<(usize, usize)> = picks.iter().map(|&(p, k)| (cands[p].pos, k)).collect();
+        around.extend(found.iter().filter(|(_, k)| *k != ki).map(|(c, k)| (c.pos, *k)));
+        around.sort_unstable();
+        let at = around.partition_point(|&(p, _)| p < cand.pos);
+        let in_place =
+            at.checked_sub(1).is_none_or(|i| around[i].1 < ki) && around.get(at).is_none_or(|&(_, k)| ki < k);
+        let next = around.get(at).map_or(limit, |&(p, _)| p);
+        // Whether an Item line between the heading and `next`, both starts
+        // of lines, is not a copy of the heading: the first one there, or
+        // the one that ends its run of copies.
+        let from = item_lines.partition_point(|&(pos, _)| pos <= cand.pos);
+        let to = item_lines.partition_point(|&(pos, _)| pos < next);
+        let other_item = from < to && (item_lines[from].1 != numeral || run_end[from] < to);
+        if in_place && !other_item {
+            found.retain(|(_, k)| *k != ki);
+            found.push((cand, ki));
+        }
+    }
+    found.sort_by_key(|(c, _)| c.pos);
+    found
 }
 
 /// The title the heading prints, of the titles the form has given its Item
-/// (`key.title`, then `key.former`), so that a 10-K for 2005 names its Item
-/// 4 "Submission of Matters to a Vote of Security Holders". The words
-/// (`title_words`) of the printed title are compared with each title's: the
-/// title must hold the first of them, and the one with the most words in
-/// common, in order, wins, counted over as many of the printed words as the
-/// title has and two more; then the one with the fewest words not printed:
-/// one printed whole, or else the shorter one. Titles have grown over time,
-/// so a heading that prints only words that an earlier title shares with
-/// the current one gets the earlier title, as one that prints the earlier
-/// title whole does: "Market for the Company's Common Stock and Related
-/// Shareholder Matters" (1999) or "Directors and Executive Officers of the
-/// Company" (2001). A former title also needs at least half of its words
-/// printed, and more than half when the printed title shares a word with
-/// the current one, so that "Issuer Purchases of Equity Securities", which
-/// 10-Qs print as a caption under the current Item 2 title, keeps that title
-/// rather than taking the one of 2004 that holds it. On a tie, and when no
-/// title fits, the current title stays. The lines after the printed title go
-/// on with it while all of their words but at most one, and most of them,
-/// are words of the title, as a heading printed over several lines does
-/// ("SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT" then
-/// "AND RELATED STOCKHOLDER MATTERS"), also with a word misspelled
-/// ("STOCKHOLDER MATTERS AND ISSUE PURCHASES OF EQUITY SECURITIES").
-fn printed_title(key: &Key, printed: &str, next: &str) -> &'static str {
+/// (`Key::titles`), so that a 10-K for 2005 names its Item 4 "Submission of
+/// Matters to a Vote of Security Holders". The words (`title_words`) of the
+/// printed title are compared with each title's: the title must hold the
+/// first of them, and the one with the most words in common, in order,
+/// wins, counted over as many of the printed words as the title has and two
+/// more; then the one with the fewest words not printed: one printed whole,
+/// or else the shorter one. Titles have grown over time, so a heading that
+/// prints only words that an earlier title shares with the current one gets
+/// the earlier title, as one that prints the earlier title whole does:
+/// "Market for the Company's Common Stock and Related Shareholder Matters"
+/// (1999) or "Directors and Executive Officers of the Company" (2001). A
+/// former title also needs at least half of its words printed, and more
+/// than half when the printed title shares a word with the current one, so
+/// that "Issuer Purchases of Equity Securities", which 10-Qs print as a
+/// caption under the current Item 2 title, keeps that title rather than
+/// taking the one of 2004 that holds it. On a tie, and when no title fits,
+/// the current title stays. The lines after the printed title go on with it
+/// while all of their words but at most one, and most of them, are words of
+/// the title, as a heading printed over several lines does ("SECURITY
+/// OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT" then "AND RELATED
+/// STOCKHOLDER MATTERS"), also with a word misspelled ("STOCKHOLDER MATTERS
+/// AND ISSUE PURCHASES OF EQUITY SECURITIES") or with lines without a word
+/// between them, such as an underline.
+///
+/// With the dates of the report, the title in force for them
+/// (`Key::title_for`) stays unless the heading prints another title whole,
+/// with more words in common, or as many and the title in force not whole,
+/// as a filing that keeps an outdated title does ("Security Ownership of
+/// Certain Beneficial Owners and Management" in 2005). A title that took
+/// effect after the filing date needs more words in common: a filer that
+/// follows it early prints its new words, so "ITEM 6 (a). Exhibits" in 2000
+/// keeps "Exhibits and Reports on Form 8-K". A heading that shares no word
+/// with the title in force prints another title, which then needs only half
+/// of its words, as without the dates ("Item 15. Principal Accounting Fees
+/// and Services" in a 10-K filed in 2004 that kept the numbering of
+/// mid-2003, when Item 15 was the exhibits Item). So does one that prints
+/// every word another title adds to the title in force, also with a word
+/// of both changed, as a filer that follows a new title before its
+/// compliance date does. So a heading that prints no title ("ITEMS 10 -
+/// 13."), other words, or words of the title in force and of another title
+/// but not all of the other ("Directors and Executive Officers" in 2015)
+/// gets the title in force.
+fn printed_title(key: &Key, printed: &str, next: &str, dates: Option<Dates>) -> &'static str {
     if key.former.is_empty() {
         return key.title;
     }
     let printed = title_words(printed);
     let next: Vec<Vec<String>> = next.lines().map(title_words).collect();
+    // Each title, whether it holds the first printed word, its words in
+    // common with the heading, its words not printed, and the heading's
+    // words read with it.
+    let fits: Vec<(&'static str, bool, usize, usize, Vec<&String>)> = key
+        .titles()
+        .map(|title| {
+            let words = title_words(title);
+            let goes_on = |line: &&Vec<String>| {
+                let other = line.iter().filter(|w| !words.contains(w)).count();
+                other <= 1 && 2 * other < line.len()
+            };
+            let mut seq: Vec<&String> = printed.iter().collect();
+            for line in next.iter().filter(|line| !line.is_empty()).take_while(goes_on) {
+                seq.extend(line);
+            }
+            seq.truncate(words.len() + 2);
+            let common = common_in_order(&seq, &words);
+            let first = printed.first().is_some_and(|w| words.contains(w));
+            (title, first, common, words.len() - common, seq)
+        })
+        .collect();
+    if let Some(dates) = dates {
+        let in_force = key.title_for(dates);
+        let in_force_words = title_words(in_force);
+        // A heading that shares no word with the title in force prints
+        // another title, also with a word changed.
+        let other = !in_force_words.iter().any(|w| printed.contains(w));
+        let (_, _, common, missing, _) = *fits.iter().find(|f| f.0 == in_force).expect("a title of the Item");
+        let mut best = (in_force, common, missing);
+        for (title, first, common, missing, seq) in &fits {
+            let (title, first, common, missing) = (*title, *first, *common, *missing);
+            // So does one that prints every word another title adds to the
+            // title in force, also with a word of both changed, as a filer
+            // that follows a new title before its compliance date does
+            // ("Market for the Company's Common Equity, Related Stockholder
+            // Matters and Issuer Purchases of Equity Securities" in a 10-K
+            // for 2003).
+            let mut added = title_words(title).into_iter().filter(|w| !in_force_words.contains(w)).peekable();
+            let adds = added.peek().is_some() && added.all(|w| seq.contains(&&w));
+            let printed = missing == 0 || adds || (other && 2 * common >= common + missing);
+            // A title that took effect after the filing date is printed by
+            // a filer that follows it early, with its new words.
+            let tie = common == best.1 && missing < best.2 && key.first_day(title).filed <= dates.filed;
+            if first && printed && (common > best.1 || tie) {
+                best = (title, common, missing);
+            }
+        }
+        return best.0;
+    }
     let current = title_words(key.title);
     let shares_current = printed.iter().any(|w| current.contains(w));
     // The best title so far, with its words in common and its words not
     // printed.
     let mut best = (key.title, 0, usize::MAX);
-    for (i, &title) in std::iter::once(&key.title).chain(key.former).enumerate() {
-        let words = title_words(title);
-        if !printed.first().is_some_and(|w| words.contains(w)) {
+    for (i, &(title, first, common, missing, _)) in fits.iter().enumerate() {
+        if !first {
             continue;
         }
-        let goes_on = |line: &&Vec<String>| {
-            let other = line.iter().filter(|w| !words.contains(w)).count();
-            !line.is_empty() && other <= 1 && 2 * other < line.len()
-        };
-        let mut seq: Vec<&String> = printed.iter().collect();
-        for line in next.iter().take_while(goes_on) {
-            seq.extend(line);
-        }
-        seq.truncate(words.len() + 2);
-        let common = common_in_order(&seq, &words);
-        let missing = words.len() - common;
         let better = common > best.1 || (common == best.1 && missing < best.2);
-        let enough = if shares_current { 2 * common > words.len() } else { 2 * common >= words.len() };
+        let words = common + missing;
+        let enough = if shares_current { 2 * common > words } else { 2 * common >= words };
         if better && (i == 0 || enough) {
             best = (title, common, missing);
         }
@@ -2213,6 +4094,11 @@ fn common_in_order(a: &[&String], b: &[String]) -> usize {
 
 /// Order chain states by total score. On a tie the earlier Item wins, so an
 /// unmarked 10-Q "Item 2" between Part I Item 1 and Part II Item 6 stays in Part I.
+/// Two states are equal only when they have the same total and the same
+/// key. The chain search in `split_sections` relies on that: it keeps one
+/// best state for each key, so the order must never call states of
+/// different keys equal, or the state it picks among them would depend on
+/// how they are stored.
 fn better(a_total: f64, a_key: usize, b_total: f64, b_key: usize) -> std::cmp::Ordering {
     a_total.total_cmp(&b_total).then(b_key.cmp(&a_key))
 }
@@ -2228,25 +4114,110 @@ fn better(a_total: f64, a_key: usize, b_total: f64, b_key: usize) -> std::cmp::O
 /// 10-Ks for 2003 printed too. Each Item counts once, however often it is
 /// printed.
 fn numbering_fit(cands: &[Candidate], keys: &[Key], other: &[Key]) -> usize {
+    // The title keys of both lists, made once rather than for each Item.
+    let ours: Vec<String> = keys.iter().map(|k| title_key(k.title)).collect();
+    let others: Vec<String> = other.iter().map(|k| title_key(k.title)).collect();
     keys.iter()
-        .filter(|k| {
-            let title = title_key(k.title);
+        .zip(&ours)
+        .filter(|&(k, title)| {
             // The numbers a list gives this title to.
-            let numbers = |list: &[Key]| -> Vec<&'static str> {
-                list.iter().filter(|o| same_title(&title, &title_key(o.title))).map(|o| o.item).collect()
+            let numbers = |list: &[Key], titles: &[String]| -> Vec<&'static str> {
+                list.iter().zip(titles).filter(|(_, t)| same_title(title, t)).map(|(o, _)| o.item).collect()
             };
-            let theirs = numbers(other);
-            numbers(keys).iter().all(|&n| n == k.item)
+            let theirs = numbers(other, &others);
+            numbers(keys, &ours).iter().all(|&n| n == k.item)
                 && theirs.iter().any(|&n| n != k.item)
                 && !theirs.contains(&k.item)
-                && cands.iter().any(|c| c.label == k.item && same_title(&c.title, &title))
+                && cands.iter().any(|c| c.label == k.item && same_title(&c.title, title))
         })
         .count()
 }
 
 /// Split filing text (from [`crate::html_to_text`]) into Item sections, in document order.
+///
+/// A section's title is the standard title its heading prints, of the
+/// current and earlier titles of its Item, and the current title when the
+/// heading prints none of them. [`extract_sections_dated`] also uses the
+/// report's dates.
 pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
-    let cands = candidates(text, kind);
+    split_sections(text, kind, None)
+}
+
+/// Split filing text into Item sections, as [`extract_sections`] does, and
+/// title them as the form titled its Items for a report filed on
+/// `filing_date` that covers the period ending on `report_date` (the fiscal
+/// year or quarter, or for an 8-K the day of the earliest event it
+/// reports), the `filing_date` and `report_date` of a [`crate::Filing`]. A
+/// heading that prints no standard title, such as a bare "Item 6.", a
+/// combined "ITEMS 10 - 13." or a heading with other words, gets the title
+/// in force for those dates ("Selected Financial Data" for 2020,
+/// "\[Reserved\]" for 2022), and so does one that prints only words shared
+/// by two titles. A heading that prints another of the Item's titles whole,
+/// with more of its words, gets that title, as a filing that keeps an
+/// outdated title, or follows a new one early, does. Only titles differ from
+/// what [`extract_sections`] returns.
+///
+/// The dates come from the SEC releases that renamed Items of Forms 10-K,
+/// 10-Q, 8-K, 10-KSB and 10-QSB, from the 1997 release that added "Use of
+/// Proceeds" to Part II Item 2 of Form 10-Q to the 2021 release that removed
+/// 10-K Item 6, "Selected Financial Data". A title takes effect for filings
+/// made on or after the release's effective date, and where the release
+/// gave filers until a compliance date, only for reports of periods ending
+/// on or after that date: a 10-K for 2003 filed in March 2004 keeps Item 5's
+/// title without issuer purchases, which were due from periods ending on
+/// March 15, 2004. Without `report_date`, the filing date stands for the
+/// period, so a report filed after a compliance date is taken to cover a
+/// period after it. An amendment is titled by its own filing date, which
+/// matters only for the titles that changed with no compliance date (10-K
+/// Item 4 in 2010 and 2012, for example). When the form had no such Item
+/// for those dates (10-K Item 16 from August 2003 to June 2016), the Item's
+/// last title before, or else its first title, stands in for the title in
+/// force.
+///
+/// # Errors
+///
+/// [`Error::Invalid`] when `filing_date` or `report_date` is not a day of
+/// the calendar written `YYYY-MM-DD` (surrounding spaces are ignored).
+pub fn extract_sections_dated(
+    text: &str,
+    kind: FormKind,
+    filing_date: &str,
+    report_date: Option<&str>,
+) -> Result<Vec<Section>> {
+    let dates = report_dates(filing_date, report_date)?;
+    Ok(split_sections(text, kind, Some(dates)))
+}
+
+/// Check the dates of [`extract_sections_dated`] without splitting a text.
+pub(crate) fn check_report_dates(filing_date: &str, report_date: Option<&str>) -> Result<()> {
+    report_dates(filing_date, report_date).map(drop)
+}
+
+/// The dates that decide a section's title, each a day of the calendar
+/// written `YYYY-MM-DD`, surrounding spaces ignored.
+fn report_dates<'a>(filing_date: &'a str, report_date: Option<&'a str>) -> Result<Dates<'a>> {
+    let day = |name: &str, date: &'a str| {
+        let day = date.trim();
+        let days_in_month = |y: u16, m: u32| match m {
+            2 if y.is_multiple_of(4) && (!y.is_multiple_of(100) || y.is_multiple_of(400)) => 29,
+            2 => 28,
+            4 | 6 | 9 | 11 => 30,
+            _ => 31,
+        };
+        let real = day.len() == 10 && parse_date(day).is_ok_and(|(y, m, d)| d <= days_in_month(y, m));
+        real.then_some(day)
+            .ok_or_else(|| Error::Invalid(format!("{name} must be a day written YYYY-MM-DD, got {date:?}")))
+    };
+    let filed = day("filing_date", filing_date)?;
+    let period = report_date.map(|d| day("report_date", d)).transpose()?.unwrap_or(filed);
+    Ok(Dates { filed, period })
+}
+
+/// Item sections, titled for the report's dates when they are given.
+fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Section> {
+    // The lines worth testing for an Item heading, found once.
+    let lines = item_word_lines(text);
+    let cands = candidates(text, kind, &lines);
     // A filing that prints the Items of the form its kind replaced or was
     // replaced by (a 10-KSB numbered as a 10-K, a 10-Q numbered as a 10-QSB)
     // is split with that form's Items when its headings fit them better.
@@ -2255,7 +4226,7 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             if numbering_fit(&cands, keys_for(other), keys_for(kind))
                 > numbering_fit(&cands, keys_for(kind), keys_for(other)) =>
         {
-            (other, candidates(text, other))
+            (other, candidates(text, other, &lines))
         }
         _ => (kind, cands),
     };
@@ -2269,22 +4240,37 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
         prev: Option<usize>,
     }
     let mut states: Vec<State> = Vec::new();
+    // The best state of each key so far (by `better`, and the last of equal
+    // ones, as `max_by` picks), from the candidates before the current one.
+    // The best state of an earlier candidate and an earlier key is the best
+    // of these for the keys before it, since states of different keys are
+    // never equal: a candidate compares one state for each key rather than
+    // every state before it.
+    let mut best_of_key: Vec<Option<usize>> = vec![None; keys.len()];
     for (ci, cand) in cands.iter().enumerate() {
         // A PART line fixes the part; otherwise a title that names one part does.
         let part = cand.part.or(cand.title_part);
         let fits = |key: &Key| key.item == cand.label && (part.is_none() || key.part == part);
+        let first = states.len();
         for (ki, _) in keys.iter().enumerate().filter(|(_, key)| fits(key)) {
-            let best = states
-                .iter()
-                .enumerate()
-                .filter(|(_, s)| s.cand < ci && s.key < ki)
-                .max_by(|(_, a), (_, b)| better(a.total, a.key, b.total, b.key));
+            let best = best_of_key[..ki].iter().flatten().copied().max_by(|&a, &b| {
+                let order = better(states[a].total, states[a].key, states[b].total, states[b].key);
+                debug_assert!(order.is_ne(), "states of different keys are never equal");
+                order
+            });
             states.push(State {
                 cand: ci,
                 key: ki,
-                total: cand.score + best.map_or(0.0, |(_, s)| s.total),
-                prev: best.map(|(i, _)| i),
+                total: cand.score + best.map_or(0.0, |s| states[s].total),
+                prev: best,
             });
+        }
+        // Only now, so that a candidate's states do not follow each other.
+        for (s, state) in states.iter().enumerate().skip(first) {
+            let k = state.key;
+            if best_of_key[k].is_none_or(|b| better(state.total, k, states[b].total, k).is_ge()) {
+                best_of_key[k] = Some(s);
+            }
         }
     }
     let Some(mut cur) =
@@ -2305,6 +4291,13 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
     }
     let filled = add_lettered(&cands, keys, &mut picks);
     let mut cands = cands;
+    if kind != FormKind::EightK {
+        for (cand, ki) in roman_items(text, &lines, &cands, keys, &picks) {
+            let at = picks.partition_point(|&(p, _)| cands[p].pos < cand.pos);
+            cands.push(cand);
+            picks.insert(at, (cands.len() - 1, ki));
+        }
+    }
     if kind.annual()
         && let Some(item_1) = unnumbered_item_1(text, &cands, keys, &picks)
     {
@@ -2405,6 +4398,8 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             let start = cand.pos;
             let next = starts.get(i + 1).copied().unwrap_or(doc_end);
             let end = stops.iter().copied().find(|&p| p > start && p < next).unwrap_or(next).max(start);
+            // A 10-Q's Part I Item ends where text of Part II begins.
+            let end = if key.part == Some("I") { part_two_preamble(text, start, end).unwrap_or(end) } else { end };
             let last = i + 1 == picks.len();
             // A heading that opens text belonging to no Item, which ends the
             // section with the page headers printed above it.
@@ -2427,7 +4422,10 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
             } else {
                 None
             };
-            let end = cut.map_or(end, |c| page_headers_above(text, body_start(text, cand, key, c), c, end));
+            let end = cut.map_or(end, |c| {
+                let body = body_start(text, cand, key, c);
+                letterhead_above(text, body, c, end).unwrap_or_else(|| page_headers_above(text, body, c, end))
+            });
             let item_id = key.item.to_ascii_lowercase();
             let id = match key.part {
                 Some(part) => format!("part_{}_item_{item_id}", if part == "I" { 1 } else { 2 }),
@@ -2437,7 +4435,7 @@ pub fn extract_sections(text: &str, kind: FormKind) -> Vec<Section> {
                 id,
                 part: key.part.map(str::to_owned),
                 item: key.item.to_owned(),
-                title: printed_title(key, &cand.printed, &cand.printed_next).to_owned(),
+                title: printed_title(key, &cand.printed, &cand.printed_next, dates).to_owned(),
                 heading: cand.heading.clone(),
                 start,
                 end,
@@ -2668,11 +4666,11 @@ mod tests {
                         caused this report to be signed.\n";
         // The line after the Item is the report's signatures heading, and an
         // exhibit repeats the Item's heading: the signature block's sentence
-        // comes between them; or, wrapped where the sentence test cannot read
+        // comes between them; or, worded so that the sentence test cannot read
         // it, no signatures follow the exhibit's copy; or the copy comes long
         // after.
-        let wrapped = "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has\n\
-                       duly caused this report to be signed.\n";
+        let wrapped = "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant\n\
+                       caused this report to be signed.\n";
         for text in [
             item_9_01(&format!("SIGNATURES\n{sentence}"), "") + "SIGNATURES\n",
             item_9_01(&format!("SIGNATURES\n{wrapped}"), ""),
@@ -2697,6 +4695,121 @@ mod tests {
         let text = "Item 8.01 Other Events.\nWe did things.\n\
                     Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused \
                     this report to be signed.\nEXHIBIT INDEX\n99.1 Press release";
+        let s = extract_sections(text, FormKind::EightK);
+        assert_eq!(s[0].text, "Item 8.01 Other Events.\nWe did things.");
+    }
+
+    #[test]
+    fn wrapped_signature_sentence_ends_last_item_without_heading() {
+        // The sentence wrapped after the registrant's name, inside its
+        // opening words, and over three lines with "duly" and "caused" apart.
+        for sentence in [
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the Bank\n\
+             has duly caused this report to be signed on its behalf by the undersigned\n",
+            "Pursuant to the requirements of Section 13 or 15(d) of the Securities\n\
+             Exchange Act of 1934, the registrant has duly caused this report to\n",
+            "Pursuant to the  requirements of Section 13 or 15(d) of the Securities  Exchange\n\
+             Act of 1934, The Example Life Assurance Society of the United States has duly\n\
+             caused this report to be signed on its behalf by the undersigned, thereunto duly\n",
+        ] {
+            let text = format!(
+                "PART II  OTHER INFORMATION\nItem 1-5.   Not applicable.\nItem 6.     Exhibits and Reports on Form 8-K\n\
+                 None\n{sentence}thereunto duly authorized.\nEXAMPLE FINANCIAL CORPORATION\nDate: May 8, 2002\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_6"], "{sentence}");
+            assert_eq!(s[1].text, "Item 6.     Exhibits and Reports on Form 8-K\nNone", "{sentence}");
+        }
+        // A sentence that only starts like it is the Item's text when what
+        // the registrant caused is no report ("duly caused it"), or when
+        // "caused this" comes three lines on or far into a line.
+        let far = format!("the Company files its reports.\nThe Board, {}duly caused this.", BODY.repeat(4));
+        let later = [
+            "the Company\nfiles its reports.\nThe Board duly caused it.",
+            "the Company\nfiles its reports.\nThe Board\nduly caused this change.",
+            far.as_str(),
+        ];
+        for later in later {
+            let text = format!(
+                "Item 8.01 Other Events.\nPursuant to the requirements of the Securities Exchange Act of 1934, {later}\n\
+                 More text.\n"
+            );
+            let s = extract_sections(&text, FormKind::EightK);
+            assert!(s[0].text.ends_with("More text."), "{later}");
+        }
+    }
+
+    #[test]
+    fn signature_sentences_of_other_wordings_or_wrapped_twice_end_the_last_item() {
+        // Forms 10-KSB and 10-QSB prescribe "In accordance with ..." and
+        // "caused" without "duly", and filers write "Sections 13", "the
+        // Section 13", lowercase or capitals, "the Exchange Act", "the
+        // Securities Act of 1934", "requirement of" and "caused its annual
+        // report". A long registrant name or a narrow column puts "duly
+        // caused" on a third line.
+        for sentence in [
+            "In accordance with the requirements of the Exchange Act, the registrant caused this report to be signed\n",
+            "In accordance with Section 13 or 15(d) of the Exchange Act, the registrant caused this report to be\n",
+            "In accordance with Section 13 or 15(d) of the Securities Exchange\nAct of 1934, the registrant caused \
+             this report to be signed\n",
+            "Pursuant to the requirements of Sections 13 or 15(d) of the Securities\nExchange Act of 1934, the \
+             registrant has duly caused this report to be\n",
+            "Pursuant to the requirements of section 13 or 15(d) of the Securities Exchange Act of 1934, the \
+             registrant has duly caused this report to be signed\n",
+            "PURSUANT TO THE REQUIREMENTS OF THE SECTION 13 OF THE SECURITIES EXCHANGE ACT\nOF 1934, THE BANK HAS \
+             DULY CAUSED THIS REPORT TO BE SIGNED\n",
+            "Pursuant to the requirements of the Securities Act of 1934, the registrant has duly caused this report\n",
+            "Pursuant to the requirement of the Securities Exchange Act of 1934, the\nregistrant has caused its \
+             annual report to be signed\n",
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the\nregistrant, Example American \
+             Life Insurance Company of New York, has\nduly caused this report to be signed on its behalf by the \
+             undersigned\n",
+            "Pursuant to the requirements of Section 13 or 15(d) of\nthe Securities Exchange Act of 1934, the \
+             registrant has\nduly caused this report to be signed\n",
+        ] {
+            let text = format!(
+                "PART II  OTHER INFORMATION\nItem 1.     Legal Proceedings\nNone.\nItem 6.     Exhibits\nNone\n\
+                 {sentence}thereunto duly authorized.\nEXAMPLE FINANCIAL CORPORATION\nDate: May 8, 2002\n\
+                 EXHIBIT INDEX\n31.1 Certification\n{}\n",
+                BODY.repeat(30)
+            );
+            for kind in [FormKind::TenQ, FormKind::TenQsb] {
+                let s = extract_sections(&text, kind);
+                assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_6"], "{sentence}");
+                assert_eq!(s[1].text, "Item 6.     Exhibits\nNone", "{sentence}");
+            }
+        }
+    }
+
+    #[test]
+    fn signature_sentence_before_an_attached_documents_signatures_heading_ends_the_last_item() {
+        // The report prints no signatures heading of its own, and the plan's
+        // annual report filed as an exhibit prints one.
+        for sentence in [
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this \
+             report to be signed on its behalf.\n",
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the\nregistrant has duly caused this \
+             report to be signed on its behalf.\n",
+        ] {
+            let text = format!(
+                "PART II.  OTHER INFORMATION\nItem 1.  Legal Proceedings\nNone.\nItem 6.  Exhibits and Reports on Form 8-K\n\
+                 (a) Exhibits\n99  Annual report of the Savings Plan on Form 11-K\n{sentence}ACME CORPORATION\n\
+                 Date: May 14, 1999          By: /s/ John Doe\nEXHIBIT 99\nACME SAVINGS PLAN\n{}\nSIGNATURES\n\
+                 The Plan. Pursuant to the requirements of the Securities Exchange Act of 1934, the trustees have duly \
+                 caused this annual report to be signed.\n",
+                BODY.repeat(30)
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_6"], "{sentence}");
+            assert_eq!(
+                s[1].text,
+                "Item 6.  Exhibits and Reports on Form 8-K\n(a) Exhibits\n99  Annual report of the Savings Plan on Form 11-K",
+                "{sentence}"
+            );
+        }
+        // A signatures heading above the sentence still ends the Item there.
+        let text = "Item 8.01 Other Events.\nWe did things.\nSIGNATURES\nPursuant to the requirements of the Securities \
+                    Exchange Act of 1934, the registrant has duly caused this report to be signed.\n";
         let s = extract_sections(text, FormKind::EightK);
         assert_eq!(s[0].text, "Item 8.01 Other Events.\nWe did things.");
     }
@@ -2839,6 +4952,44 @@ mod tests {
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_14", "item_15"]);
         assert_eq!(s[1].text, "Item 15. Exhibits\n31.1\tCertification");
+        // An index heading over the contents and their column header, and
+        // the pages' header "Index to Financial Statements" around a blank
+        // page, go with the attached document.
+        for opening in [
+            "INDEX TO CONSOLIDATED FINANCIAL STATEMENTS\nITEM\tPAGE\n",
+            "Index to Financial Statements\n[THIS PAGE INTENTIONALLY LEFT BLANK]\nIndex to Financial Statements\n\
+             FINANCIAL SECTION\n",
+            "Index to Financial Statements\nThis page intentionally left blank.\n\nIndex to Financial Statements\n",
+        ] {
+            let text = format!(
+                "Item 14. Principal Accounting Fees\nSee proxy.\nItem 15. Exhibits\nSee the Exhibit Index.\n\
+                 {opening}{contents}{report}\nSignatures\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[1].text, "Item 15. Exhibits\nSee the Exhibit Index.", "{opening}");
+        }
+        // Lines of the Item between the index heading and the contents, and
+        // sentences that name the index or a blank page, keep their place.
+        for (opening, kept) in [
+            (
+                "Index to Financial Statements\nSee page 25.\nFinancial:\n",
+                "Index to Financial Statements\nSee page 25.",
+            ),
+            (
+                "Index to Financial Statements on page 25 lists them.\n",
+                "Index to Financial Statements on page 25 lists them.",
+            ),
+            (
+                "Index to Financial Statements\nThe remainder of this page is intentionally left blank.\n",
+                "Index to Financial Statements\nThe remainder of this page is intentionally left blank.",
+            ),
+        ] {
+            let text = format!(
+                "Item 14. Principal Accounting Fees\nSee proxy.\nItem 15. Exhibits\n{opening}{contents}{report}\nSignatures\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[1].text, format!("Item 15. Exhibits\n{kept}"), "{opening}");
+        }
     }
 
     #[test]
@@ -3323,6 +5474,114 @@ Pursuant to ...
     }
 
     #[test]
+    fn cover_rows_that_name_several_items_are_no_headings() {
+        // A 10-K that prints no Item headings, and a row of the cover's list
+        // of documents incorporated by reference that names Item 1, or joins
+        // Items with "and" or "through", with or without its Part, also after
+        // the row of another document.
+        let body = BODY.repeat(30);
+        for row in [
+            "Items 1, 1A, 2 and 3",
+            "Items 1-3",
+            "Part III – Items 10 through 14",
+            "Part III – Items 10 and 11",
+            "Items 10 and 11",
+            "ITEMS 10 THROUGH 14.",
+            "Items 5, 6, 7, 7A and 8\nPortions of the Proxy Statement for the 2018 Annual Meeting\nItems 10 and 11",
+            // A row of one Item with its Part, and rows that join Parts.
+            "Part II – Item 5\nPortions of the Proxy Statement for the 2018 Annual Meeting\nPart III – Items 10 and 11",
+            "Part II – Items 5, 6, 7 and 8\nPortions of the Proxy Statement for the 2018 Annual Meeting\nPart IV – Item 15",
+            "Part I – Items 1, 1A, 2 and 3; Part II – Items 5, 6, 7,\n7A, 8 and 9A; and Part IV– Item 15.\n\
+             Portions of the Proxy Statement for the 2018 Annual Meeting\nPart III – Items 10 through 14",
+        ] {
+            let cover = format!(
+                "FORM 10-K\nDOCUMENTS INCORPORATED BY REFERENCE\n\
+                 Document\tPart of Form 10-K into which incorporated\n\
+                 Portions of the Annual Report to Shareholders for 2017\t\n{row}\n\
+                 FORM 10-K CROSS-REFERENCE INDEX\n1\tBusiness\t2-20\n{body}{body}\n"
+            );
+            let s = extract_sections(&format!("{cover}SIGNATURES\n"), FormKind::TenK);
+            assert_eq!(ids(&s), [] as [&str; 0], "{row}");
+            let text =
+                format!("{cover}PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_15"], "{row}");
+        }
+    }
+
+    #[test]
+    fn headings_of_several_items_after_a_covers_list_stay() {
+        let body = BODY.repeat(30);
+        let info = format!("The information is incorporated by reference to the proxy statement.\n{body}");
+        let tail = format!("PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n");
+        let list =
+            "DOCUMENTS INCORPORATED BY REFERENCE\nPortions of the Proxy Statement are incorporated into Part III.\n";
+        // A 10-K/A that amends only Items 10 to 14 starts with a heading of
+        // all of them, after a list that says "None" or that no document is
+        // incorporated, a Part line, an explanatory note, another Item, or a
+        // long text.
+        for before in [
+            "DOCUMENTS INCORPORATED BY REFERENCE: None\n".to_owned(),
+            "DOCUMENTS INCORPORATED BY REFERENCE\nNone.\n".to_owned(),
+            "DOCUMENTS INCORPORATED BY REFERENCE\nNo documents are incorporated by reference.\n".to_owned(),
+            "DOCUMENTS INCORPORATED BY REFERENCE\n\
+             There are no documents incorporated by reference in this Amendment.\n"
+                .to_owned(),
+            format!("{list}PART III\n"),
+            format!("{list}EXPLANATORY NOTE\nThis amendment adds the information required by Part III.\n"),
+            format!("{list}Item 9. Changes in and Disagreements with Accountants\nNone.\n"),
+            format!("{list}PART II – ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\n"),
+            format!("{list}{body}\n"),
+        ] {
+            let text = format!("FORM 10-K/A\n{before}ITEMS 10 THROUGH 14.\n{info}\n{tail}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s).iter().rev().take(2).collect::<Vec<_>>(), [&"item_15", &"item_10"], "{before}");
+        }
+        // A heading of one Item is no row.
+        let text = format!(
+            "FORM 10-K/A\n{list}Item 10. Directors, Executive Officers and Corporate Governance\n{info}\n{tail}"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_10", "item_15"]);
+        // A heading of several Items prints the title of the first on the
+        // next line.
+        let text = format!(
+            "FORM 10-K/A\n{list}ITEMS 7 AND 7A.\nMANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_7", "item_8"]);
+        let text = format!("FORM 10-K\n{list}ITEMS 1, 1A AND 2.\nBUSINESS AND PROPERTIES\n{body}\n{tail}");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_15"]);
+        let text =
+            format!("FORM 10-K/A\n{list}PART II – ITEM 5\nMARKET FOR REGISTRANT'S COMMON EQUITY\n{body}\n{tail}");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_5", "item_15"]);
+        // Or the title that the first Item had before 2006, after a note
+        // that is no explanatory note.
+        let text = format!(
+            "FORM 10-K/A\n{list}INTRODUCTORY NOTE\nThis amendment adds the information required by Part III.\n\
+             ITEMS 10 THROUGH 13.\nDIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT\n{body}\n{tail}"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_10", "item_15"]);
+        // A heading of one Item with its Part has no other row next to it:
+        // a 10-K/A that amends the exhibits Item, with its title until 2004
+        // or another line after it, and a 10-K whose Item headings print
+        // their Part.
+        for after in ["EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON FORM 8-K", "(a) Documents filed"] {
+            let text = format!(
+                "FORM 10-K/A\n{list}The registrant hereby amends Part IV of its annual report.\n\
+                 PART IV, ITEM 14\n{after}\n{body}\nSIGNATURES\n"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_14"], "{after}");
+        }
+        for item_1 in ["Lorem ipsum.".to_owned(), body.clone()] {
+            let text = format!(
+                "FORM 10-K\n{list}PART I, ITEM 1.\nGENERAL DEVELOPMENT OF BUSINESS\n{item_1}\n\
+                 PART I, ITEM 2.\nPROPERTIES\n{body}\n{tail}"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2", "item_15"]);
+        }
+    }
+
+    #[test]
     fn first_item_lines_of_amendments_and_bodies_stay_headings() {
         // A 10-K/A that amends only Part III starts at Item 10. Its titled
         // headings stay, also after an explanatory note that lists the Items
@@ -3434,12 +5693,56 @@ Pursuant to ...
     }
 
     #[test]
+    fn unnumbered_business_heading_with_page_headers_starts_item_one() {
+        // Item 1's pages print "PART I" and "Business" again as page headers,
+        // with no contents list before, a contents list with Item numbers and
+        // pages, one without pages, or one without Item numbers or pages; also
+        // with an Item line between the copies. And a contents list without
+        // Item numbers or pages before a body that prints the pair once, also
+        // when no bare Part line follows the list's "Business".
+        let body = BODY.repeat(30);
+        let pages = format!("4\nPART I\nBusiness\n{body}\n5\nPART I\nBusiness\n{body}\n");
+        let item_line = format!("Item 7 of this report describes our results.\n{body}\n{pages}");
+        let no_numbers = "PART I\nBusiness\nRisk Factors\nProperties\nPART II\nMarket\nPART III\nPART IV\n";
+        let mut layouts: Vec<(&str, &str)> = Vec::new();
+        for contents in [
+            "",
+            "PART I\nItem 1.\tBusiness\t4\nItem 1A.\tRisk Factors\t13\nItem 2.\tProperties\t20\n\
+             PART II\nItem 5.\tMarket\t21\n",
+            "PART I\nItem 1. Business\nItem 1A. Risk Factors\nItem 2. Properties\nPART II\nItem 5. Market\n",
+            no_numbers,
+        ] {
+            layouts.extend([(contents, pages.as_str()), (contents, item_line.as_str())]);
+        }
+        layouts.push((no_numbers, ""));
+        // Contents lists without Item numbers whose next Part line prints a
+        // page or a title, or that list only Part I.
+        for contents in [
+            "PART I\nBusiness\nRisk Factors\nProperties\nPART II\t20\nMarket\n",
+            "PART I\nBusiness\nRisk Factors\nProperties\nPART II - MARKET AND FINANCIAL INFORMATION\nMarket\n",
+            "PART I\nBusiness\nRisk Factors\nProperties\n",
+        ] {
+            layouts.extend([(contents, ""), (contents, pages.as_str())]);
+        }
+        let rest =
+            format!("ITEM 1A. RISK FACTORS\n{body}\nITEM 2. PROPERTIES\n{body}\nPART II\nITEM 5. MARKET\n{body}\n");
+        for (contents, after) in layouts {
+            let text = format!("{contents}FORWARD-LOOKING STATEMENTS\n{body}\nPART I\nBUSINESS\n{body}\n{after}{rest}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_1a", "item_2", "item_5"], "{contents:.30} / {after:.30}");
+            assert_eq!(s[0].start, text.find("PART I\nBUSINESS").unwrap() + 7, "{contents:.30} / {after:.30}");
+        }
+    }
+
+    #[test]
     fn unnumbered_business_heading_starts_no_item_elsewhere() {
         // A Part I with no Item numbers at all, an Item line between PART I
         // and the first numbered heading, another title, no PART I line or
         // another PART line, a first numbered heading after Item 1A, a
-        // numbered Item 1, "PART I" and "Business" printed again as page
-        // headers, and a 10-Q whose Part I prints its title without a number.
+        // numbered Item 1, the title printed twice and never right after
+        // PART I, a contents list without Item numbers whose copy has PART II
+        // after it while the body's has no PART I line above it, and a 10-Q
+        // whose Part I prints its title without a number.
         let body = BODY.repeat(30);
         let annual = |text: &str| ids(&extract_sections(text, FormKind::TenK)).join(" ");
         for (text, items) in [
@@ -3465,9 +5768,13 @@ Pursuant to ...
             ),
             (format!("PART I\nBUSINESS\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\n"), "item_1 item_2"),
             (
+                format!("PART I\nOverview\nBusiness\n{body}\nBusiness\n{body}\nITEM 1A. RISK FACTORS\n{body}\n"),
+                "item_1a",
+            ),
+            (
                 format!(
-                    "PART I\nBUSINESS\n{body}\n4\nPART I\nBusiness\n{body}\n5\nPART I\nBusiness\n{body}\n\
-                     ITEM 1A. RISK FACTORS\n{body}\n"
+                    "PART I\nBusiness\nRisk Factors\nPART II\nMarket for Registrant's Common Equity\n\
+                     Business\n{body}\nPART I\n{body}\nITEM 1A. RISK FACTORS\n{body}\n"
                 ),
                 "item_1a",
             ),
@@ -3480,6 +5787,243 @@ Pursuant to ...
         );
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn item_numbered_in_roman_numerals_starts_its_item() {
+        // "ITEM I." with the letter I, the other headings with digits.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nITEM I.  BUSINESS\nGeneral\n{body}\nItem 2.  PROPERTIES\n{body}\n\
+             ITEM 3.  LEGAL PROCEEDINGS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3"]);
+        assert_eq!((s[0].heading.as_str(), s[0].title.as_str()), ("ITEM I.  BUSINESS", "Business"));
+        assert!(s[0].text.starts_with("ITEM I.  BUSINESS\nGeneral\nLorem"));
+        // A 10-Q whose contents list prints the number in digits.
+        let text = format!(
+            "PART I FINANCIAL INFORMATION\nItem 1\tFinancial Statements\t3-7\n\
+             Item 2\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\t21\n\
+             PART II OTHER INFORMATION\t35\nItem 6 Exhibits\t35\n\
+             PART I. FINANCIAL INFORMATION\nITEM I. FINANCIAL STATEMENTS\n{body}\n\
+             ITEM 2. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS\n{body}\n\
+             PART II. OTHER INFORMATION\nITEM 6. EXHIBITS\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+        assert_eq!(s[0].heading, "ITEM I. FINANCIAL STATEMENTS");
+        // Two Items in roman numerals, one printed again as a running header,
+        // and a former title; a contents entry in roman numerals has the next
+        // entry below it.
+        let text = format!(
+            "ITEM I. BUSINESS\t3\nItem 3. Legal Proceedings\t9\nItem 5. Market for Registrant's Common Equity\t11\n\
+             PART I\nITEM I. BUSINESS\n{body}\nITEM I. BUSINESS (continued)\n{body}\nITEM II. PROPERTIES\n{body}\n\
+             Item 3. Legal Proceedings\n{body}\nITEM IV. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNone.\n\
+             Item 5. Market for Registrant's Common Equity\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3", "item_4", "item_5"]);
+        assert_eq!(s[0].start, text.find("PART I\n").unwrap() + 7);
+        assert_eq!(s[3].title, "Submission of Matters to a Vote of Security Holders");
+    }
+
+    #[test]
+    fn roman_numerals_start_no_item_elsewhere() {
+        // Another title (the executive officers caption numbered "X"), the
+        // Item found in digits, an Item out of place either way, a contents
+        // entry, a wrapped cross-reference, a heading after the signatures,
+        // a lowercase numeral and a title in lowercase.
+        let body = BODY.repeat(30);
+        let annual = |text: &str| ids(&extract_sections(text, FormKind::TenK)).join(" ");
+        for (text, items) in [
+            (
+                format!(
+                    "Item 4. Submission of Matters to a Vote of Security Holders\nNone.\n\
+                     ITEM X. EXECUTIVE OFFICERS OF THE COMPANY\n{body}\nItem 5. Market for Common Equity\n{body}\n"
+                ),
+                "item_4 item_5",
+            ),
+            (format!("PART I\nITEM I. GENERAL\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (
+                format!("PART I\nItem 1. Business\n{body}\nITEM I. BUSINESS\n{body}\nItem 2. Properties\n{body}\n"),
+                "item_1 item_2",
+            ),
+            (
+                format!("Item 2. Properties\n{body}\nITEM I. BUSINESS\n{body}\nItem 3. Legal Proceedings\n{body}\n"),
+                "item_2 item_3",
+            ),
+            (
+                format!(
+                    "PART I\nITEM II. PROPERTIES\n{body}\nItem 1. Business\n{body}\nItem 3. Legal Proceedings\n{body}\n"
+                ),
+                "item_1 item_3",
+            ),
+            (
+                format!(
+                    "ITEM I. BUSINESS\nItem 2. Properties\nItem 3. Legal Proceedings\n\
+                     PART I\n{body}\nItem 2. Properties\n{body}\nItem 3. Legal Proceedings\n{body}\n"
+                ),
+                "item_2 item_3",
+            ),
+            (
+                format!(
+                    "PART I\nThe business is described in\nITEM I. BUSINESS of the annual report.\n{body}\nItem 2. Properties\n{body}\n"
+                ),
+                "item_2",
+            ),
+            (format!("PART I\nItem i. Business\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (format!("PART I\nItem I business is described below.\n{body}\nItem 2. Properties\n{body}\n"), "item_2"),
+            (
+                format!(
+                    "Item 13. Certain Relationships and Related Transactions\n{body}\nSIGNATURES\n{body}\n\
+                     ITEM XV. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\n"
+                ),
+                "item_13",
+            ),
+        ] {
+            assert_eq!(annual(&text), items, "{text:.60}");
+        }
+    }
+
+    #[test]
+    fn part_title_printed_with_an_item_number_above_the_heading_is_no_heading() {
+        // "Item 1. Financial Information (Unaudited)", Part I's title, just
+        // above "Item 1. Financial Statements (Unaudited)" in a 10-QSB, and
+        // "Item 1. Other Information" above "Item 1. Legal Proceedings" in a
+        // 10-Q.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Part I   Financial Information\nItem 1.  Financial Statements (Unaudited)\n\
+             Item 2.  Management's Discussion and Analysis or Plan of Operation ........ 3\n\
+             Item 3.  Controls and Procedures ........ 3\nPart II  Other Information\n\
+             Item 1.  Legal Proceedings ........ 4\n\
+             PART I\nItem 1.  Financial Information (Unaudited)\nItem 1.  Financial Statements (Unaudited)\n{body}\n\
+             Item 2.  Management's Discussion and Analysis or Plan of Operation\n{body}\n\
+             Item 3.  Controls and Procedures\n{body}\nPart II Other Information\nItem 1. Legal Proceedings\n{body}\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQsb);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_3", "part_2_item_1"]);
+        assert_eq!(s[0].heading, "Item 1.  Financial Statements (Unaudited)");
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 1. Other Information\n\nItem 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(s[2].heading, "Item 1. Legal Proceedings");
+    }
+
+    #[test]
+    fn item_lines_above_the_heading_with_other_titles_stay() {
+        // A line between the two, a second line with no standard title, a
+        // first line with another title, Part II's title that is Item 5's own,
+        // and a second line of another Item: the first line stays the heading.
+        let body = BODY.repeat(30);
+        for (first, second) in [
+            ("Item 1. Financial Information", "The statements follow.\nItem 1. Financial Statements"),
+            ("Item 1. Financial Information", "Item 1. Balance Sheets"),
+            ("Item 1. Financial Data", "Item 1. Financial Statements"),
+            ("Item 5. Other Information", "Item 5. Other information about the quarter"),
+            ("Item 1. Other Information", "Item 2. Legal Proceedings"),
+        ] {
+            let text = format!(
+                "PART II\nItem 4. Mine Safety Disclosures\nNone.\n{first}\n{second}\n{body}\nItem 6. Exhibits\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            let heading = s.iter().find(|s| s.item != "4" && s.item != "6").map(|s| s.heading.as_str());
+            assert_eq!(heading, Some(first), "{first} / {second}");
+        }
+    }
+
+    #[test]
+    fn text_after_the_part_two_line_ends_part_one() {
+        // A note on forward-looking statements between "PART II. OTHER
+        // INFORMATION" and Part II's first heading, also after a title line
+        // or a running header of Part II; a 10-QSB whose Part II says it has
+        // nothing to report under its Items before its only heading; and a
+        // 10-Q whose Part II prints no Item heading.
+        let body = BODY.repeat(30);
+        for (part_two, after) in [
+            ("PART II. OTHER INFORMATION", "Special Note Regarding Forward-Looking Statements"),
+            ("PART II", "OTHER INFORMATION\nSpecial Note Regarding Forward-Looking Statements"),
+            ("Part II — Other Information", "Forward-Looking Statements\nPart II — Other Information"),
+        ] {
+            let text = format!(
+                "PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements.\n{body}\n\
+                 Item 4. Controls and Procedures.\n{body}\n{part_two}\n{after}\n{body}\n\
+                 Item 1. Legal Proceedings.\n{body}\nItem 6. Exhibits.\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1", "part_2_item_6"], "{part_two}");
+            assert_eq!(s[1].end, text.find(part_two).unwrap(), "{part_two}");
+            assert!(s[1].text.ends_with("tempor."), "{part_two}");
+        }
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 3. Controls and Procedures\n{body}\n\
+             PART II - OTHER INFORMATION\nThere is nothing to report under Items 1 through 5.\n\
+             Item 6. Exhibits and Reports on Form 8-K\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQsb);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_3", "part_2_item_6"]);
+        assert_eq!(s[1].end, text.find("PART II - OTHER").unwrap());
+        // Part II prints no Item heading at all.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II - OTHER INFORMATION\nLegal Proceedings. None.\nExhibits. See the exhibit index.\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2"]);
+        assert_eq!(s[1].end, text.find("PART II - OTHER").unwrap());
+    }
+
+    #[test]
+    fn part_two_line_inside_a_sentence_ends_no_item() {
+        // MD&A cites "Item 1A of Part II", and the sentence wraps before
+        // "Part II.", which is left alone on its line.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             Our business is subject to risks. For a discussion of these risks, see Item 1A of\nPart II.\n\
+             Our liquidity remains strong, and we expect to fund our operations from cash on hand.\n{body}\n\
+             Item 4. Controls and Procedures\n{body}\nPART II - OTHER INFORMATION\n\
+             Item 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert_eq!(s[1].end, s[2].start);
+    }
+
+    #[test]
+    fn part_two_line_just_above_its_first_heading_stays_in_part_one() {
+        // "PART II" just above Part II's first heading, or with only Part II's
+        // title, a page header printed on other pages, a page footer, a line
+        // without letters or another Part II line after it; a cross-reference
+        // that starts with "Part II"; and Part II's running header above more
+        // text of Part II's first Item.
+        let body = BODY.repeat(30);
+        for between in [
+            "PART II. OTHER INFORMATION",
+            "PART II\nOTHER INFORMATION",
+            "PART II\nACME CORPORATION",
+            "PART II\n--------",
+            "PART II\nPart II. Other Information",
+            "Part II, Item 1A of the annual report lists our risk factors.\nOur controls are effective.\nPART II",
+            "PART II - OTHER INFORMATION\nPage 25 of 31",
+            "PART II - OTHER INFORMATION\nACME Corp. Form 10-Q, Page 25",
+        ] {
+            let text = format!(
+                "ACME CORPORATION\nPART I\nItem 1. Financial Statements\n{body}\nACME CORPORATION\n\
+                 Item 4. Controls and Procedures\n{body}\n{between}\nItem 1. Legal Proceedings\n{body}\n\
+                 PART II – OTHER INFORMATION\nThe second page of the legal proceedings.\n{body}\n\
+                 Item 6. Exhibits\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1", "part_2_item_6"], "{between}");
+            assert_eq!(s[1].end, s[2].start, "{between}");
+            assert_eq!(s[2].end, s[3].start, "{between}");
+        }
     }
 
     #[test]
@@ -3684,18 +6228,203 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_2", "part_1_item_3", "part_2_item_1", "part_2_item_6"]);
         // An exhibit after the signatures repeats Item 4 with more text. Item
-        // 3 follows MD&A and stays.
+        // 3 follows MD&A and stays, and so does Item 4: the exhibit's copy
+        // comes after the signatures (a heading or the signature sentence).
+        let sentence = "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly \
+                        caused this report to be signed.\n";
+        for signatures in [format!("SIGNATURES\n{sentence}"), sentence.to_owned()] {
+            let text = format!(
+                "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+                 Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot applicable.\n\
+                 Item 4. Controls and Procedures\nOur disclosure controls are effective.\nPART II\n\
+                 Item 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n31.1 Certification\n{signatures}\
+                 Exhibit 99.1\nPART I\nItem 4. Controls and Procedures\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            let all =
+                ["part_1_item_1", "part_1_item_2", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"];
+            assert_eq!(ids(&s), all, "{signatures}");
+            assert!(s[1].text.ends_with(body.trim()));
+            assert_eq!(
+                s[2].text,
+                "Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot applicable."
+            );
+            assert_eq!(s[3].text, "Item 4. Controls and Procedures\nOur disclosure controls are effective.\nPART II");
+            assert_eq!(s[5].text, "Item 6. Exhibits\n31.1 Certification");
+        }
+    }
+
+    #[test]
+    fn copy_of_a_body_heading_after_the_signatures_is_no_body_heading() {
+        // Item 8 only points to the statements, which open after the
+        // signatures under Item 8's heading again.
+        let body = BODY.repeat(30);
+        let signed = "SIGNATURES\nPursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of \
+                      1934, the registrant has duly caused this report to be signed.\n";
         let text = format!(
-            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
-             Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot applicable.\n\
-             Item 4. Controls and Procedures\nOur disclosure controls are effective.\nPART II\n\
-             Item 1. Legal Proceedings\n{body}\nItem 6. Exhibits\n31.1 Certification\nSIGNATURES\nPursuant to...\n\
-             Exhibit 99.1\nPART I\nItem 4. Controls and Procedures\n{body}\n"
+            "PART II\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n\
+             Our audited consolidated financial statements begin on page F-1 of this annual report.\n\
+             Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure.\nNone.\n\
+             Item 9A. Controls and Procedures.\n{body}\nPART IV\nItem 15. Exhibits and Financial Statement Schedules.\n\
+             {body}\n{signed}\
+             Item 8. Financial Statements and Supplementary Data.\nINDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n\
+             {body}{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_7", "item_7a", "item_8", "item_9", "item_9a", "item_15"]);
+        assert_eq!(
+            s[2].text,
+            "Item 8. Financial Statements and Supplementary Data\n\
+             Our audited consolidated financial statements begin on page F-1 of this annual report."
+        );
+        assert!(s[5].text.ends_with(body.trim()));
+        // An exhibit repeats the exhibits Item, which Item 16 follows.
+        let text = format!(
+            "Item 14. Principal Accountant Fees and Services\n{body}\nItem 15. Exhibits and Financial Statement Schedules\n\
+             See the Exhibit Index.\nItem 16. Form 10-K Summary\nNone.\n{signed}Exhibit 13\n\
+             Item 15. Exhibits and Financial Statement Schedules of the Annual Report\n{}\n",
+            BODY.repeat(300)
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_14", "item_15", "item_16"]);
+        assert_eq!(s[1].text, "Item 15. Exhibits and Financial Statement Schedules\nSee the Exhibit Index.");
+        // Contents rows before the body name Items that the report prints
+        // after its signatures (Part IV): the row is a contents entry and the
+        // heading after the signatures starts the Item, also when a later
+        // Item's text comes before the contents.
+        for before in ["", "PART IV\nItem 15. Additional Exhibits\n{body}\n"] {
+            let text = format!(
+                "{before}TABLE OF CONTENTS\nPART I\nItem 1. Business\nItem 2. Properties\nPART IV\n\
+                 Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\nSignatures\n\
+                 PART I\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\n{signed}\
+                 PART IV\nItem 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\n{body}\n"
+            )
+            .replace("{body}", &body);
+            let s = extract_sections(&text, FormKind::TenK);
+            let item_14 = s.iter().find(|s| s.id == "item_14").expect("Item 14");
+            let heading = "Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\nLorem";
+            assert!(item_14.text.starts_with(heading), "{before}");
+        }
+        // A contents list without pages ends with a "Signatures" row, below
+        // a note that cites an Item with text of its own: the row is no
+        // signature block, so the body headings after it stay.
+        let text = format!(
+            "FORM 10-Q/A\nEXPLANATORY NOTE\nPart I – Item 4. Controls and Procedures\n{body}\nTABLE OF CONTENTS\n\
+             PART I\nItem 1. Financial Statements\nItem 4. Controls and Procedures\nPART II\n\
+             Item 1. Legal Proceedings\nItem 6. Exhibits\nSignatures\nPART I\nItem 1. Financial Statements\n{body}\n\
+             Item 4. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\n{body}\n\
+             Item 6. Exhibits\n{body}\n{signed}"
         );
         let s = extract_sections(&text, FormKind::TenQ);
-        assert_eq!(ids(&s)[..3], ["part_1_item_1", "part_1_item_2", "part_1_item_3"]);
-        assert!(s[1].text.ends_with(body.trim()));
-        assert!(s[2].text.starts_with("Item 3. Quantitative and Qualitative Disclosures About Market Risk\nNot"));
+        let part_2: Vec<(&str, usize)> =
+            s.iter().filter(|s| s.part.as_deref() == Some("II")).map(|s| (s.id.as_str(), s.start)).collect();
+        let at = |heading: &str| text.find(&format!("{heading}\nLorem")).expect("body heading");
+        assert_eq!(
+            part_2,
+            [("part_2_item_1", at("Item 1. Legal Proceedings")), ("part_2_item_6", at("Item 6. Exhibits"))]
+        );
+    }
+
+    #[test]
+    fn copies_before_the_signatures_out_of_the_bodys_order_are_no_body_headings() {
+        // The report prints Item 8's heading only after its signatures, over
+        // the statements. A line inside MD&A that starts with Item 8's
+        // heading, a row of an index of Items printed just before the
+        // signatures, and a contents row below an explanatory note with text
+        // of its own do not sit where Item 8's heading belongs: the copy
+        // after the signatures starts Item 8, and the Items around stay whole.
+        let body = BODY.repeat(30);
+        let signed = "SIGNATURES\nPursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of \
+                      1934, the registrant has duly caused this report to be signed.\nACME CORP.\n";
+        let statements = format!(
+            "Item 8. Financial Statements and Supplementary Data\nINDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n{body}{body}\n"
+        );
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             Our lease commitments are described in the notes to the consolidated financial statements.\n\
+             Item 8. Financial Statements and Supplementary Data, Note 12, describes them in more detail.\n{body}\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+             Item 9. Changes in and Disagreements with Accountants\nNone.\nItem 9A. Controls and Procedures\n{body}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\n{signed}{statements}"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_7a", "item_9", "item_9a", "item_15"]);
+        assert!(s[1].text.ends_with(&format!("Note 12, describes them in more detail.\n{}", body.trim())));
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+             Item 9. Changes in and Disagreements with Accountants\nNone.\nItem 9A. Controls and Procedures\n{body}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nINDEX OF ITEMS\nItem 1. Business\n\
+             Item 7. Management's Discussion and Analysis\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n\
+             Item 8. Financial Statements and Supplementary Data\n\
+             Item 9. Changes in and Disagreements with Accountants\nItem 9A. Controls and Procedures\n\
+             Item 15. Exhibits and Financial Statement Schedules\n{signed}{statements}"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_7a", "item_9", "item_9a", "item_15"]);
+        assert!(!s[4].text.contains("Item 15."));
+        let item_15 = format!("Item 15. Exhibits and Financial Statement Schedules\n{}", body.trim());
+        assert_eq!(s[5].start, text.find(&item_15).unwrap());
+        // The amendment's note cites Item 1 with text of its own, and the
+        // report prints Item 14 after its signatures.
+        let text = format!(
+            "FORM 10-K/A\nEXPLANATORY NOTE\nThis amendment amends the following Item of the original report:\n\
+             Item 1. Business\n{body}\nTABLE OF CONTENTS\nPART I\nItem 1. Business\nItem 2. Properties\nPART II\n\
+             Item 8. Financial Statements and Supplementary Data\nPART IV\n\
+             Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\nSignatures\nPART I\n\
+             Item 1. Business\n{body}\nItem 2. Properties\n{body}\nPART II\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\n{signed}PART IV\n\
+             Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_8", "item_14"]);
+        let heading = "Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\nLorem";
+        assert_eq!(s[3].start, text.find(heading).unwrap());
+    }
+
+    #[test]
+    fn copy_of_the_first_item_after_the_signatures_is_no_body_heading() {
+        // An exhibit after the signatures prints the statements of a
+        // guarantor under the heading of Part I Item 1 again, with more
+        // text, with a contents list or without one, and in either wording
+        // of the signature sentence.
+        let body = BODY.repeat(30);
+        let contents = "INDEX\nPART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n\
+                        Item 2. Management's Discussion and Analysis\nItem 4. Controls and Procedures\n\
+                        PART II. OTHER INFORMATION\nItem 1. Legal Proceedings\nItem 6. Exhibits\nSignatures\n";
+        let sentences = [
+            "Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this \
+             report to be signed on its behalf by the undersigned.\n",
+            "In accordance with the requirements of the Exchange Act, the registrant caused this report to be signed \
+             on its behalf by the undersigned.\n",
+        ];
+        for (toc, sentence) in ["", contents].into_iter().flat_map(|toc| sentences.map(|s| (toc, s))) {
+            let text = format!(
+                "ACME CORP\nFORM 10-Q\n{toc}PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n{body}\n\
+                 Item 2. Management's Discussion and Analysis\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+                 PART II. OTHER INFORMATION\nItem 1. Legal Proceedings\nNone.\nItem 6. Exhibits\n\
+                 99.1 Financial statements of the guarantor subsidiary\nSIGNATURES\n{sentence}ACME CORP\n\
+                 EXHIBIT 99.1\nACME GUARANTOR LLC\nPART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n\
+                 {body}{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            let all = ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"];
+            assert_eq!(ids(&s), all, "{toc}{sentence}");
+            assert_eq!(s[0].start, text.find(&format!("Item 1. Financial Statements\n{}", body.trim())).unwrap());
+            assert!(s[0].text.ends_with(body.trim()));
+        }
+        // A 10-K's Item 1, short, which an exhibit repeats.
+        let text = format!(
+            "PART I\nItem 1. Business\nWe make widgets.\nItem 1A. Risk Factors\n{body}\nItem 2. Properties\n{body}\n\
+             SIGNATURES\nPursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of 1934, the \
+             registrant has duly caused this report to be signed.\nEXHIBIT 99.1\nItem 1. Business\n{body}{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2"]);
+        assert_eq!(s[0].text, "Item 1. Business\nWe make widgets.");
     }
 
     #[test]
@@ -3710,6 +6439,7 @@ Pursuant to ...
             ("\t", ["5-8", "9-10", "10-11"]),
             (" ........ ", ["5–8", "9–10", "10–11"]),
             ("     ", ["5", "9", "10"]),
+            ("     ", ["5 - 8", "9 - 10, 12", "10 - 11, 14"]),
         ] {
             let [notes, mdna, risk] = pages;
             let text = format!(
@@ -3762,6 +6492,110 @@ Pursuant to ...
             s[0].heading,
             "Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations"
         );
+    }
+
+    #[test]
+    fn explanatory_note_items_above_contents_without_pages_are_no_headings() {
+        // The note lists the Items it amends, with text after its last line,
+        // above a contents list whose rows print no pages. Its lines match
+        // the contents rows, which match the body headings: they list the
+        // Items too, and its Item 1, whose title the body does not print,
+        // goes with them.
+        let body = BODY.repeat(30);
+        for note_text in [format!("{body}\n"), "No other Items are amended.\n".to_owned()] {
+            let text = format!(
+                "FORM 10-Q/A\nEXPLANATORY NOTE\nThis amendment restates the following items:\n\
+                 Part I – Item 1. Financial Statements\n\
+                 Part I – Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 Part I – Item 4. Controls and Procedures\n{note_text}Part I. Financial Information\n\
+                 Item 1.\tConsolidated Financial Statements\nConsolidated Balance Sheets\n\
+                 Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 Item 3.\tQuantitative and Qualitative Disclosures About Market Risk\n\
+                 Item 4.\tControls and Procedures\nPart II. Other Information\nItem 1.\tLegal Proceedings\n\
+                 Item 6.\tExhibits\nSignatures\nConsolidated Balance Sheets\n{body}{body}\n\
+                 Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+                 Item 3.\tQuantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+                 Item 4.\tControls and Procedures\n{body}\nPART II. OTHER INFORMATION\nItem 1.\tLegal Proceedings\n{body}\n\
+                 Item 6.\tExhibits\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            let all = ["part_1_item_2", "part_1_item_3", "part_1_item_4", "part_2_item_1", "part_2_item_6"];
+            assert_eq!(ids(&s), all, "{note_text}");
+            assert_eq!(s[0].start, text.find("Item 2.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\nLorem").unwrap());
+        }
+        // A body heading whose later short copy lists the Item again, above a
+        // third copy, stays: it is not before the body.
+        let short = BODY.repeat(12);
+        let text = format!(
+            "TABLE OF CONTENTS\nItem 1. Financial Statements\nItem 2. Management's Discussion and Analysis\n\
+             Item 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             INDEX\nItem 1. Financial Statements\nItem 2. Management's Discussion and Analysis\n\
+             Item 1. Financial Statements\n{short}\nItem 2. Management's Discussion and Analysis\n{short}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2"]);
+        assert!(s[0].text.ends_with(body.trim()));
+        // The statements come before a contents list of the other Items, and
+        // an index of Items after the body lists Item 1 again: that copy is
+        // no contents entry, so the statements' heading stays.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}{body}\nTABLE OF CONTENTS\n\
+             Item 2. Management's Discussion and Analysis\nItem 4. Controls and Procedures\n\
+             Item 2. Management's Discussion and Analysis\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             INDEX OF ITEMS\nItem 1. Financial Statements\nItem 2. Management's Discussion and Analysis\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s)[0], "part_1_item_1");
+        assert_eq!(s[0].start, text.find("Item 1. Financial Statements").unwrap());
+    }
+
+    #[test]
+    fn cross_references_inside_early_items_list_no_items_without_a_contents_list() {
+        // No contents list: lines inside Part I Items 1 and 2 that start with
+        // Part II Item 1's heading are cross-references, not an explanatory
+        // note's lines, so Part I's headings near them stay.
+        let xref = "The claims are summarized in the commitments note.\n\
+                    Item 1. Legal Proceedings, in Part II, describes them further.\n";
+        let text = format!(
+            "PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n{}\n{xref}{}\n\
+             Item 2. Management's Discussion and Analysis\n{}\n{xref}{}\nItem 4. Controls and Procedures\n{}\n\
+             PART II. OTHER INFORMATION\nItem 1. Legal Proceedings\n{}\nItem 6. Exhibits\n31.1 Certification\n\
+             SIGNATURES\nPursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly \
+             caused this report to be signed.\n",
+            BODY.repeat(6),
+            BODY.repeat(36),
+            BODY.repeat(20),
+            BODY.repeat(10),
+            BODY.repeat(10),
+            BODY.repeat(30),
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        let all = ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"];
+        assert_eq!(ids(&s), all);
+        assert_eq!(s[0].start, text.find("Item 1. Financial Statements").unwrap());
+        // Short Items, and a line inside MD&A that starts with Item 8's
+        // heading, which the report repeats after its signatures: Items 1
+        // and 7 stay.
+        let short = BODY.repeat(20);
+        let text = format!(
+            "PART I\nItem 1. Business\n{short}\nPART II\nItem 7. Management's Discussion and Analysis\n{short}\n\
+             Our commitments are described in the notes to the consolidated financial statements.\n\
+             Item 8. Financial Statements and Supplementary Data, Note 12, describes the leases in detail.\n{}\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{short}\n\
+             Item 8. Financial Statements and Supplementary Data\n\
+             Our audited consolidated financial statements begin on page F-1 of this annual report.\n\
+             Item 9. Changes in and Disagreements with Accountants\nNone.\nItem 9A. Controls and Procedures\n{short}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{short}\nSIGNATURES\n\
+             Pursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of 1934, the registrant \
+             has duly caused this report to be signed.\nACME CORP.\n\
+             Item 8. Financial Statements and Supplementary Data\nINDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n{}\n",
+            BODY.repeat(60),
+            BODY.repeat(80),
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s)[..2], ["item_1", "item_7"]);
+        assert!(s[0].text.starts_with("Item 1. Business\nLorem") && !s[0].text.contains("Item 7."));
+        assert_eq!(s[1].start, text.find("Item 7. Management's Discussion and Analysis").unwrap());
     }
 
     #[test]
@@ -3830,6 +6664,386 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_1", "part_2_item_6"]);
         assert!(s[3].text.starts_with("Item 6. Exhibits\n31.1\t"));
+    }
+
+    #[test]
+    fn heading_that_ends_with_a_footnote_number_stays() {
+        // A heading printed with a footnote cell ends with a number after a
+        // tab or two spaces, as a contents row ends with its page, but its
+        // text follows it, not the line of another Item, and the line above
+        // it prints no page or is not near the previous Item line. Also when
+        // a running header of its own Item follows within the page, with or
+        // without a page, and after a contents list without pages.
+        let body = BODY.repeat(30);
+        let page = BODY.repeat(12);
+        let mdna = "Item 7.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\t1";
+        for (before, heading, after) in [
+            ("Item 6. [Reserved]\n", mdna, String::new()),
+            (
+                "Item 6. [Reserved]\n",
+                mdna,
+                format!("{page}\nItem 7. Management's Discussion and Analysis (continued)\n"),
+            ),
+            (
+                "Item 6. [Reserved]\nPART II\n",
+                "Item 7.  Management's Discussion and Analysis of Financial Condition   2",
+                String::new(),
+            ),
+            (
+                &format!("Item 6. Selected Financial Data\n{body}\nNumber of stores   214   198   176\n"),
+                mdna,
+                String::new(),
+            ),
+            // A running header that prints the title in full, with the page
+            // or without it.
+            (
+                "Item 6. [Reserved]\n",
+                mdna,
+                format!(
+                    "{page}\nItem 7.\tManagement's Discussion and Analysis of Financial Condition and Results of \
+                     Operations\t2\n"
+                ),
+            ),
+            (
+                "Item 6. [Reserved]\n",
+                mdna,
+                format!(
+                    "{page}\nItem 7. Management's Discussion and Analysis of Financial Condition and Results of \
+                     Operations\n"
+                ),
+            ),
+        ] {
+            let text = format!(
+                "Item 5. Market for Registrant's Common Equity\n{body}\n{before}{heading}\n{after}{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_5", "item_6", "item_7", "item_8"], "{heading}");
+            assert_eq!(s[2].heading, heading);
+        }
+        // A contents list without pages before the body.
+        let text = format!(
+            "Item 5. Market for Registrant's Common Equity\nItem 6. [Reserved]\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             Item 8. Financial Statements and Supplementary Data\n\
+             Item 5. Market for Registrant's Common Equity\n{body}\nItem 6. [Reserved]\n{mdna}\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5", "item_6", "item_7", "item_8"]);
+        assert_eq!(s[2].heading, mdna);
+    }
+
+    #[test]
+    fn contents_rows_with_pages_are_rows_next_to_other_item_lines() {
+        // The body prints no Part I Item headings and no Item 1A heading. The
+        // last row follows a row with a page and a Part's line, or a row that
+        // starts with its Part, and the body's long text follows it.
+        let body = BODY.repeat(30);
+        for (first, part_1, part_2) in
+            [("Index\tPage\n", "", "PART II\n"), ("PART I\n", "", "PART II\n"), ("", "PART I - ", "PART II - ")]
+        {
+            let text = format!(
+                "FORM 10-Q\n{first}{part_1}Item 1. Financial Statements\t3\n\
+                 {part_1}Item 2. Management's Discussion and Analysis of Financial Condition and Results of \
+                 Operations\t10\n\
+                 {part_2}Item 1A. Risk Factors\t18\nCONSOLIDATED BALANCE SHEETS\n{body}{body}\n\
+                 MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\nPART II - OTHER INFORMATION\nItem 6. Exhibits\n\
+                 {body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenQ);
+            assert_eq!(ids(&s), ["part_2_item_6"], "{first:?} {part_1:?}");
+            assert!(s[0].text.starts_with("Item 6. Exhibits\nLorem"));
+        }
+        // The first row of a list follows a line with no page, and the next
+        // row prints its page on a line of its own.
+        let text = format!(
+            "Page\nITEM 9B. OTHER INFORMATION\t96\nPART III\n\
+             ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE\nREGISTRANT\n96\n\
+             ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE REGISTRANT\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_10"]);
+        assert!(
+            s[0].text
+                .starts_with("ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE OF THE REGISTRANT\n")
+        );
+    }
+
+    #[test]
+    fn cross_reference_index_whose_page_column_lists_pages_is_contents() {
+        // An annual report, then the Form 10-K part, which opens with a
+        // cross-reference index. Rows print a list of pages, "cover" or
+        // "N/A", often on the last line of a wrapped title, between Part
+        // lines. The last row prints no page, and the body prints no other
+        // Item heading before the heading of that Item.
+        let body = BODY.repeat(30);
+        let index = |item_13: &str| {
+            format!(
+                "Part I                                                  Pages\n\
+             Item 1.     Business                                    3-30, 64\n\
+             Item 2.     Properties                                  45-46, 66\n\
+             Item 3.     Legal Proceedings                           58, 66\n\
+             Item 4.     Submission of Matters to a Vote of\n\
+             Security Holders                           N/A\n\
+             Part II\n\
+             Item 5.     Market for Registrant's Common\n\
+             Equity and Related Shareholder\n\
+             Matters                                    cover, 66, 68\n\
+             Item 6.     Selected Financial Data                     29\n\
+             Item 7.     Management's Discussion and\n\
+             Analysis of Financial Condition\n\
+             and Results of Operations                  3-30\n\
+             Item 7a.    Quantitative and Qualitative\n\
+             Disclosures about Market Risk              9-11\n\
+             Item 8.     Financial Statements and\n\
+             Supplementary Data                         33-63\n\
+             Item 9.     Changes in and Disagreements with\n\
+             Accountants on Accounting and\n\
+             Financial Disclosure                       66\n\
+             Part III*\n\
+             Item 10.    Directors and Executive Officers of\n\
+             the Registrant                             4-5, 15\n\
+             Item 11.    Executive Compensation                      8-14, 16-23\n\
+             Item 12.    Security Ownership of Certain\n\
+             Beneficial Owners and\n\
+             Management                                 2-4\n\
+             {item_13}\n\
+             Part IV**\n\
+             Item 14.    Exhibits, Financial Statement Schedules,\n\
+             and Reports on Form 8-K\n"
+            )
+        };
+        // Item 13's page column, as printed, then naming the cover or saying
+        // that no page answers it, also on the Item line.
+        let wrapped =
+            |column: &str| format!("Item 13.    Certain Relationships and Related\nTransactions     {column}");
+        let mut rows: Vec<String> = ["8-9", "N/A", "Not applicable.", "None", "*", "†", "cover", "Cover page, 3"]
+            .into_iter()
+            .map(wrapped)
+            .collect();
+        rows.push("Item 13.    Certain Relationships and Related Transactions     *".to_owned());
+        for item_13 in &rows {
+            let text = format!(
+                "ANNUAL REPORT TO SHAREHOLDERS\n{body}{body}\nForm 10-K\n\
+                 Certain information is incorporated by reference from the Annual Report as indicated below.\n\
+                 {}* The information required by Part III is incorporated by reference from the Proxy \
+                 Statement.\nBusiness\n{body}\nProperties\n{body}\nPart IV.\n\
+                 Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K.\n\
+                 (a) Documents Filed as Part of this Report\n{body}\nSignatures\nPursuant to the requirements \
+                 of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed.\n",
+                index(item_13)
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_14"], "{item_13}");
+            assert_eq!(s[0].heading, "Item 14. Exhibits, Financial Statement Schedules, and Reports on Form 8-K.");
+        }
+    }
+
+    #[test]
+    fn page_columns_after_a_contents_list_keep_the_body_headings() {
+        let body = BODY.repeat(30);
+        let page = BODY.repeat(12);
+        // The body of a cross-reference 10-K cites the pages of the annual
+        // report under headings that come earlier in the form than the last
+        // row of the contents list.
+        let text = format!(
+            "PART I\nItem 1. Business\t3\nItem 2. Properties\t12\nItem 3. Legal Proceedings\t14\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\t40\n\
+             PART I\nItem 1. Business\nThe information appears in the Annual Report on pages   3-30\n\
+             Item 2. Properties\nThe information appears in the Annual Report on page   31\n\
+             Item 3. Legal Proceedings\n{body}\nPART IV\nItem 15. Exhibits and Financial Statement Schedules\n\
+             {body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3", "item_15"]);
+        assert_eq!(s[0].heading, "Item 1. Business");
+        // A list of Part I's rows, then Part II's headings: Item 5's text is
+        // long, or does not end with a page column.
+        for item_5 in [format!("{body}\nTotal number of holders of record   212"), "Not applicable.".to_owned()] {
+            let text = format!(
+                "PART I\nItem 1. Business\t3\nItem 2. Properties\t12\nItem 3. Legal Proceedings\t14\n\
+                 PART II\nItem 5. Market for Registrant's Common Equity\n{item_5}\n\
+                 Item 6. Selected Financial Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_5", "item_6"], "{item_5}");
+        }
+        // A heading just after the contents, or far after its rows, followed
+        // by a running header of its own Item and no other Item.
+        let text = format!(
+            "Item 1. Business\t3\nItem 2. Properties\t12\nItem 15. Exhibits and Financial Statement Schedules\t40\n\
+             PART I\nItem 1. Business\n{page}\nItem 1. Business (continued)\n{body}\nItem 2. Properties\n{body}\n\
+             PART IV\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_15"]);
+        assert_eq!(s[0].heading, "Item 1. Business");
+        let text = format!(
+            "Item 1. Business\t3\nItem 2. Properties\t12\nItem 3. Legal Proceedings\t14\n{body}\n\
+             Item 5. Market for Registrant's Common Equity\n{page}\n\
+             Item 5. Market for Registrant's Common Equity (continued)\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5"]);
+        assert_eq!(s[0].heading, "Item 5. Market for Registrant's Common Equity");
+        // Answers printed in a page column's place in the body ("Not
+        // Applicable") are no pages.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II  OTHER INFORMATION\n\
+             Item 1    Legal Proceedings                Not Applicable\n\
+             Item 2    Change in Securities             Not Applicable\n\
+             Item 3    Defaults Upon Senior Securities  Not Applicable\n\
+             Item 5    Other Information                Not Applicable\n\
+             Item 6    Exhibits and Reports on Form 8-K\n(a)  Exhibits: 27 Financial Data Schedule\nSIGNATURE\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            [
+                "part_1_item_1",
+                "part_1_item_2",
+                "part_2_item_1",
+                "part_2_item_2",
+                "part_2_item_3",
+                "part_2_item_5",
+                "part_2_item_6"
+            ]
+        );
+    }
+
+    #[test]
+    fn contents_of_one_item_with_a_page_is_contents() {
+        // An amendment of one Item prints a contents list with that Item's
+        // row and a row that names no Item, such as "Signatures", or with that
+        // Item's row alone, and an explanatory note after it.
+        let body = BODY.repeat(30);
+        let note = "EXPLANATORY NOTE\nThis Amendment No. 1 is filed only to amend the Item below.\n";
+        // The row's next line prints a page too; the body's heading has
+        // another title, so only that line makes the row a row.
+        let text = format!(
+            "FORM 10-K/A\nPage\nPART II\nItem 9A.\tControls and Procedures\t3\nSignatures\t5\n{note}\
+             PART II\nItem 9A. Evaluation of Disclosure Controls\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9a"]);
+        assert!(s[0].text.starts_with("Item 9A. Evaluation of Disclosure Controls\nLorem"));
+        let text = format!(
+            "FORM 10-Q/A\nINDEX\nPART I - FINANCIAL INFORMATION\tPage\nItem 4.  Controls and Procedures\t2\n\n\
+             SIGNATURES\t3\n\n{note}PART I - FINANCIAL INFORMATION\nItem 4.  Evaluation of Disclosure Controls\n\
+             {body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_4"]);
+        assert!(s[0].text.starts_with("Item 4.  Evaluation of Disclosure Controls\nLorem"));
+        // The row alone, its title printed again by the body's heading.
+        for heading in [
+            "Item 15. Exhibits and Financial Statement Schedules",
+            "ITEM 15.  EXHIBITS AND FINANCIAL STATEMENT SCHEDULES.",
+            "ITEM 15.\nEXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+        ] {
+            let text = format!(
+                "FORM 10-K/A\nTABLE OF CONTENTS\nPage\nPART IV\n\
+                 Item 15.\tExhibits and Financial Statement Schedules\t2\n{note}PART IV\n{heading}\n{body}\n\
+                 SIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_15"], "{heading}");
+            assert!(s[0].text.starts_with(heading), "{heading}");
+        }
+    }
+
+    #[test]
+    fn one_page_number_in_a_table_of_answers_makes_no_contents_rows() {
+        // A 10-Q's Part II answers its Items in a table, and one cell holds a
+        // page number. The rows that say "None" stay headings.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             PART II - OTHER INFORMATION\n\
+             Item 1.\tLegal Proceedings\tNone\n\
+             Item 1A.\tRisk Factors\t28\n\
+             Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds\tNone\n\
+             Item 3.\tDefaults Upon Senior Securities\tNone\n\
+             Item 4.\tMine Safety Disclosures\tNot applicable\n\
+             Item 5.\tOther Information\tNone\n\
+             Item 6.\tExhibits\n31.1\tCertification of the Chief Executive Officer\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        for id in ["part_2_item_1", "part_2_item_2", "part_2_item_3", "part_2_item_4", "part_2_item_5"] {
+            assert!(ids(&s).contains(&id), "{id}");
+        }
+        // Two rows that print pages make a contents list of the rows between
+        // and around them.
+        let text = format!(
+            "PART II - OTHER INFORMATION\n\
+             Item 1.\tLegal Proceedings\tNone\n\
+             Item 1A.\tRisk Factors\t28\n\
+             Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds\tNone\n\
+             Item 6.\tExhibits\t30\n\
+             PART I\nItem 1. Financial Statements\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             PART II - OTHER INFORMATION\nItem 1A. Risk Factors\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1a", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn running_headers_of_an_item_take_no_heading_after_a_row() {
+        // Items 5 and 6 are incorporated with a table of pages in the body,
+        // and the full heading of Item 7 follows it. Its running headers
+        // shorten the title or add "(Continued)". Or a short Item's heading
+        // prints a footnote's number just before Item 7.
+        let body = BODY.repeat(30);
+        let page = BODY.repeat(40);
+        let mdna = "ITEM 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS";
+        let start = format!(
+            "PART I\nITEM 1.  BUSINESS\n{body}\nITEM 4.  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\n\
+             None.\nPART II\n"
+        );
+        for (before, header) in [
+            (
+                "The information required by Items 5 and 6 is incorporated by reference to these pages:\n\
+                 Item 5.\tMarket for Registrant's Common Equity and Related Stockholder Matters\t37\n\
+                 Item 6.\tSelected Financial Data\t18\n",
+                "ITEM 7.  MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)",
+            ),
+            (
+                "Item 5.\tMarket for Registrant's Common Equity\t37\nItem 6.\tSelected Financial Data\t18\n",
+                &format!("{mdna} (Continued)"),
+            ),
+            ("Item 6.  [Reserved]  1\n", "Item 7.  Management's Discussion and Analysis (continued)"),
+        ] {
+            let text = format!(
+                "{start}{before}{mdna}\n{page}\n{header}\n{body}\n\
+                 ITEM 8.  FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            let item_7 = s.iter().find(|s| s.id == "item_7").expect("Item 7");
+            assert_eq!(item_7.heading, mdna, "{header}");
+            assert_eq!(&ids(&s)[..2], ["item_1", "item_4"], "{header}");
+        }
+    }
+
+    #[test]
+    fn running_header_that_prints_the_page_is_no_body_heading() {
+        // MD&A prints a line of Item 1A just after its heading, and its pages
+        // start with a running header that prints the page.
+        let body = BODY.repeat(30);
+        let page = BODY.repeat(30);
+        let mdna = "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS";
+        let text = format!(
+            "PART I\nITEM 1. BUSINESS\n{body}\nITEM 1A. RISK FACTORS\n{body}\nPART II\n{mdna}\n\
+             Our results depend on the risks that the annual report describes.\nItem 1A. Risk Factors\n{page}\n\
+             ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)    25\n{page}\n\
+             ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)    26\n{page}\n\
+             ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_7", "item_8"]);
+        assert_eq!(s[2].heading, mdna);
+        assert_eq!(s[1].end, s[2].start);
     }
 
     #[test]
@@ -4399,6 +7613,162 @@ Pursuant to ...
     }
 
     #[test]
+    fn item_line_that_cites_a_document_inside_a_later_item_is_not_a_heading() {
+        // Item 8 points to statements after the signatures, and Item 9A cites
+        // it in a sentence of its own.
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(60);
+        let line = "Item 8. Financial Statements and Supplementary Data, of this report describes the notes.";
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nPART II\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\nThe statements start on page F-1.\n\
+             Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure\nNone.\n\
+             Item 9A. Controls and Procedures\n{body}\nThe notes are due in 2030.\n{line}\n{long}\n\
+             Item 9B. Other Information\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_8", "item_9", "item_9a", "item_9b"]);
+        assert_eq!(s[2].heading, "Item 8. Financial Statements and Supplementary Data");
+        assert!(s[4].text.contains(&format!("\n{line}\n")));
+        // The same in the last Item, with no Item line after it.
+        let text = format!(
+            "PART II\nItem 8. Financial Statements and Supplementary Data\nThe statements start on page F-1.\n\
+             Item 9A. Controls and Procedures\n{body}\n\
+             Item 15. Exhibits and Financial Statement Schedules\n{body}\nThe schedules are omitted.\n{line}\n{long}\n\
+             SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_9a", "item_15"]);
+        assert!(s[2].text.contains(&format!("\n{line}\n")));
+        // A 10-Q's Item 5 that cites Part II Item 1A, and an 8-K's Item 8.01
+        // that cites Item 7.01.
+        let text = format!(
+            "PART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\n{body}\n\
+             PART II. OTHER INFORMATION\nItem 1A. Risk Factors\nThere have been no material changes.\n\
+             Item 5. Other Information\n{body}\nThe plan was adopted.\n\
+             Item 1A. Risk Factors, of our Annual Report on Form 10-K for 2019 describes the risks.\n{long}\n\
+             Item 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_2_item_1a", "part_2_item_5", "part_2_item_6"]);
+        assert_eq!(s[1].heading, "Item 1A. Risk Factors");
+        let text = format!(
+            "Item 7.01 Regulation FD Disclosure\nSee Item 8.01.\nItem 8.01 Other Events\n{body}\n\
+             The press release is attached.\nItem 7.01 Regulation FD Disclosure, of this report furnishes it.\n\
+             {long}\nItem 9.01 Financial Statements and Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::EightK);
+        assert_eq!(ids(&s), ["item_7.01", "item_8.01", "item_9.01"]);
+        assert_eq!(s[0].heading, "Item 7.01 Regulation FD Disclosure");
+    }
+
+    #[test]
+    fn many_lines_that_cite_an_item_inside_a_later_item_take_little_time() {
+        // One Item 7 heading, then 2,000 Item 9A headings, each followed by a
+        // line that cites Item 7, or by the same words in a sentence that
+        // makes no candidate. Finding that each citing line sits inside a
+        // later Item must not walk back over all the lines before it, which
+        // took nine times as long as the plain text.
+        let filler = "The Company sells products and services to customers in several markets.\n";
+        let mdna = "Management's Discussion and Analysis of Financial Condition and Results of Operations";
+        let text = |line: &str| {
+            let block = format!(
+                "Item 9A. Controls and Procedures\n{filler}{line}Item 7. {mdna}, of our Annual Report \
+                 on Form 10-K for 2019 describes this.\n{filler}"
+            );
+            format!("Item 7. {mdna}\nText.\n{}", block.repeat(2000))
+        };
+        let (citing, plain) = (text(""), text("The text under "));
+        let time = |text: &str| {
+            (0..2)
+                .map(|_| {
+                    let start = std::time::Instant::now();
+                    let s = extract_sections(text, FormKind::TenK);
+                    assert_eq!(ids(&s), ["item_7", "item_9a"]);
+                    start.elapsed()
+                })
+                .min()
+                .unwrap()
+        };
+        let (citing, plain) = (time(&citing), time(&plain));
+        assert!(citing < plain * 4, "{citing:?} for the citing lines, {plain:?} for the plain text");
+    }
+
+    #[test]
+    fn item_lines_that_cite_a_document_after_a_contents_list_stay() {
+        // A run-in heading of the body's first Item after a contents list that
+        // prints the Item and later ones: the body's next heading goes back to
+        // an Item the list printed.
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(60);
+        let run_in = "Item 1. Business, of the Company's 1998 Annual Report to Shareholders is incorporated herein by \
+                      reference.";
+        let text = format!(
+            "TABLE OF CONTENTS\nItem 1. Business\nItem 7. Management's Discussion and Analysis\n\
+             Item 8. Financial Statements and Supplementary Data\nPART I\n{run_in}\n{long}\nPART II\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_8"]);
+        assert_eq!(s[0].heading, run_in);
+        // A run-in heading of a later Item: the body's heading of an earlier
+        // Item comes between it and the list.
+        let run_in = "Item 7. Management's Discussion and Analysis of the Company's 1998 Annual Report is incorporated \
+                      herein by reference.";
+        let text = format!(
+            "TABLE OF CONTENTS\nItem 1. Business\nItem 7. Management's Discussion and Analysis\n\
+             Item 8. Financial Statements and Supplementary Data\nPART I\nItem 1. Business\n{body}\nPART II\n\
+             {run_in}\n{long}\nItem 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_8"]);
+        assert_eq!(s[1].heading, run_in);
+    }
+
+    #[test]
+    fn item_line_after_a_line_that_names_a_caption_is_not_a_heading() {
+        // A cross-reference that names no document, wrapped after "under the
+        // caption", before Item 7's heading and inside Item 7A after it.
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(60);
+        let reference = "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                         in the 1998 Annual Report.";
+        for above in ["is set forth under the caption", "under the headings", "in the section entitled", "captioned"] {
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\nPART II\nItem 6. Selected Financial Data\n{body}\n\
+                 The discussion of liquidity {above}\n{reference}\n{long}\n\
+                 Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 {body}\nItem 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_6", "item_7", "item_8"], "{above}");
+            assert!(s[1].text.contains(reference), "{above}");
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\nPART II\n\
+                 Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 The discussion follows Item 8.\n\
+                 Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n{body}\n\
+                 The discussion of liquidity {above}\n{reference}\n{long}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_7", "item_7a", "item_8"], "{above}");
+            assert!(s[2].text.contains(reference), "{above}");
+        }
+        let after = |above: &str| continues_sentence(&format!("{above}\nItem 7. Title"), above.len() + 1);
+        for above in ["under the caption", "the section titled", "under the captions", "(heading"] {
+            assert!(after(above), "{above:?}");
+        }
+        // Capitals, as a table header prints them, and a caption word with a
+        // period.
+        for above in ["Item and Caption", "CAPTION", "HEADING", "under this heading."] {
+            assert!(!after(above), "{above:?}");
+        }
+    }
+
+    #[test]
     fn titles_that_name_a_document_after_the_item_title_cite_it() {
         assert!(cites_document("1A", "Risk Factors, of our Annual Report on Form 10-K for 2019 describes", TEN_K));
         assert!(cites_document("1A", "Risk Factors in this report", TEN_Q));
@@ -4924,9 +8294,85 @@ Pursuant to ...
     }
 
     #[test]
+    fn auditors_letterhead_above_a_cut_report_goes_with_it() {
+        // The firm's name, which signs the report, and its address down to
+        // the city, state and ZIP code line just above the report heading,
+        // also with a rule under the name that the statements print too.
+        let body = BODY.repeat(30);
+        let item_9 = |letterhead: &str, heading: &str| {
+            format!(
+                "Item 8. Financial Statements\nSee Item 14 for index.\n\
+                 Item 9. Changes in and Disagreements with Accountants\nNone.\n{letterhead}{heading}\n\
+                 The Board of Directors:\n{body}\nKPMG Peat Marwick LLP\nAllentown, PA\nJanuary 30, 1998\n\
+                 Consolidated Balance Sheets\n---------------------\n{body}\nItem 10. Directors and Executive Officers\n\
+                 {body}\n"
+            )
+        };
+        let report = "Independent Auditors' Report";
+        for letterhead in [
+            "KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA 18104\n",
+            "KPMG Peat Marwick LLP\n\nOne Liberty Place\nSuite 1200\nPhiladelphia, Pennsylvania 19103-7301\n",
+            "KPMG Peat Marwick LLP\nNew York, New York 10017\n",
+            "KPMG Peat Marwick LLP\n---------------------\n4905 Tilghman Street\nAllentown, PA 18104\n",
+        ] {
+            let s = extract_sections(&item_9(letterhead, report), FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_10"], "{letterhead}");
+            assert_eq!(s[1].text, "Item 9. Changes in and Disagreements with Accountants\nNone.", "{letterhead}");
+        }
+        // A name the report does not print again, an address without a ZIP
+        // code or with more than three lines, a heading that is no auditors'
+        // report, a long line of text between the name and the ZIP code, and
+        // a letterhead that is the Item's first line of text stay.
+        let stays = [
+            ("Example & Co. LLP\n4905 Tilghman Street\nAllentown, PA 18104\n", report),
+            ("KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA\n", report),
+            (
+                "KPMG Peat Marwick LLP\nOne Liberty Place\n1650 Market Street\nSuite 1200\nPhiladelphia, PA 19103\n",
+                report,
+            ),
+            ("KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA 18104\n", "INDEX TO FINANCIAL STATEMENTS"),
+            (
+                "KPMG Peat Marwick LLP\nThe new accountants have their office at 4905 Tilghman Street in\n\
+                 Allentown, PA 18104\n",
+                report,
+            ),
+        ];
+        for (letterhead, heading) in stays {
+            let s = extract_sections(&item_9(letterhead, heading), FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_10"], "{letterhead}");
+            assert!(s[1].text.ends_with(letterhead.trim()), "{letterhead}");
+        }
+        let text = item_9("KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA 18104\n", report)
+            .replace("Accountants\nNone.\n", "Accountants\n");
+        let s = extract_sections(&text, FormKind::TenK);
+        assert!(s[1].text.ends_with("Allentown, PA 18104"));
+        // An address that the Item's text leads into stays, also when the
+        // report prints the firm's name or the company's again: the line
+        // above it ends no sentence.
+        let leads = [
+            (
+                "The new accountants may be reached at:\n",
+                "KPMG Peat Marwick LLP\n4905 Tilghman Street\nAllentown, PA 18104\n",
+            ),
+            (
+                "Shareholders may obtain the letter by writing to:\nInvestor Relations\n",
+                "Allen Organ Company\n150 Locust Street\nMacungie, PA 18062\n",
+            ),
+        ];
+        for (lead, address) in leads {
+            let text = item_9(&format!("{lead}{address}"), report)
+                .replace("The Board of Directors:\n", "The Board of Directors\nAllen Organ Company\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_10"], "{lead}");
+            assert!(s[1].text.ends_with(&format!("None.\n{lead}{}", address.trim())), "{lead}");
+        }
+    }
+
+    #[test]
     fn lines_above_a_cut_that_are_not_page_headers_stay() {
-        // The Item's first line of text, a letterhead printed once, numbers,
-        // long lines, and header lines past the third all stay.
+        // The Item's first line of text, a firm's name printed once with no
+        // address, numbers, long lines, and header lines past the third all
+        // stay.
         let body = BODY.repeat(30);
         let long = "The Company had no disagreements with its former accountants on any matter of accounting principles \
                     or practices.";
@@ -5396,6 +8842,319 @@ Pursuant to ...
             let s = extract_sections(&text, FormKind::TenK);
             assert_eq!(ids(&s), ["item_8", "item_9", "item_15"], "{before}{after}");
             assert_eq!(s[2].end, text.find(report).unwrap(), "{before}{after}");
+        }
+    }
+
+    #[test]
+    fn heading_patterns_match_only_lines_that_start_with_item_or_part() {
+        // Case folding gives the letters of "item" and "part" no form
+        // outside ASCII, which `starts_like_heading` relies on.
+        let letters = Regex::new(r"(?i:[itempar])").unwrap();
+        let others: String = (128..=u32::from(char::MAX)).filter_map(char::from_u32).collect();
+        assert_eq!(letters.find(&others).map(|m| m.as_str()), None);
+        // The heading lines found among the lines that hold "item" are the
+        // matches of a search of the whole text.
+        let text = "Item 1. Business\n item 2. Properties\r\n\tPART II - ITEM 5 Market\nPart I\nİtem 1. Business\n\
+                    ıtem 2. Properties\nItemſ 3. Legal Proceedings\nITEMS 7 AND 7A.\nIteM 2.02 Results\n\
+                    \u{a0}Item 9. Changes\nthe line item 4 of\nITEM II. PROPERTIES\nPART I, ITEM IV. CONTROLS\n\
+                    Ιtem 1. Business\nitem\n \t PaRt IV: iTeMs 15 exhibits\nKart I Item 1\nPaſt I Item 1\n\
+                    ſtem 1. Business\nPart II\u{2014}Item 1A. Risk Factors\nItem\t9A(T). Controls\nitem 8. Financial Statements";
+        let lines = item_word_lines(text);
+        let spans = |c: Captures| -> Vec<Option<(usize, usize)>> {
+            c.iter().map(|g| g.map(|m| (m.start(), m.end()))).collect()
+        };
+        for (heading, count) in [(&*PERIODIC_HEADING, 10), (&*CURRENT_HEADING, 1), (&*ROMAN_HEADING, 2)] {
+            let whole: Vec<_> = heading.captures_iter(text).map(spans).collect();
+            let by_line: Vec<_> = heading_matches(heading, text, &lines).map(spans).collect();
+            assert_eq!(by_line, whole);
+            let found: Vec<&str> = heading.find_iter(text).map(|m| m.as_str()).collect();
+            assert_eq!(found.len(), count, "{found:?}");
+        }
+    }
+
+    #[test]
+    fn row_with_a_page_is_no_contents_entry_of_a_heading_after_another_item() {
+        // "Item 1." prints a page and is in no contents list. The line that
+        // prints its title again comes after Item 2, so it is not the
+        // heading that the row lists, and Item 1 starts at the row.
+        let text = format!(
+            "Item 1.\tBusiness\t3\n{}\nItem 2. Properties\n{}\nItem 1. Business\n{}\n\
+             Item 3. Legal Proceedings\n{}\nSIGNATURES\n",
+            BODY.repeat(40),
+            BODY.repeat(40),
+            BODY.repeat(20),
+            BODY.repeat(40)
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3"]);
+        assert_eq!(s[0].start, 0);
+        // In its own run of Item 1 lines the row lists the heading that
+        // prints its title in full, after few or many lines that do not,
+        // and Item 1 starts after the row.
+        for shorter in [0, 3, 12, 40] {
+            let text = format!(
+                "Item 1.\tBusiness Overview\t3\n{}Item 1. Business Overview\n{}\nItem 2. Properties\n{}\nSIGNATURES\n",
+                "Item 1. Business\n".repeat(shorter),
+                BODY.repeat(40),
+                BODY.repeat(40)
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_2"]);
+            assert_eq!(s[0].start, "Item 1.\tBusiness Overview\t3\n".len(), "{shorter}");
+        }
+    }
+
+    #[test]
+    fn nearest_and_same_titled_find_the_candidates_that_same_title_pairs() {
+        let titled = [
+            ("1", "business"),
+            ("1", "businessoverview"),
+            ("2", "business"),
+            ("1", "busin"),
+            ("1", "abc"),
+            ("7", "managementsdiscussionandanalysis"),
+            ("1", "businessx"),
+            ("1", "business"),
+            ("7", "manag"),
+            ("7", "managementsdiscussion"),
+            ("1", "businessoverviewandmore"),
+            ("7", "management"),
+            ("1", ""),
+            ("7", "marketrisk"),
+            ("1", "étatsfinanciers"),
+            ("7", "managers"),
+            ("1", "états"),
+            ("1", "businessoverview"),
+            ("2", "busines"),
+            ("1", "busi"),
+        ];
+        let cands: Vec<Candidate> = titled.iter().map(|&(label, title)| added_candidate("", 0, label, title)).collect();
+        let pairs =
+            |a: usize, b: usize| cands[a].label == cands[b].label && same_title(&cands[a].title, &cands[b].title);
+        let groups = TitleGroups::new(&cands);
+        let (mut before, mut after) = (Nearest::new(&groups), Nearest::new(&groups));
+        for i in 0..cands.len() {
+            assert_eq!(before.find(i), (0..i).rev().find(|&j| pairs(i, j)), "before {i}");
+            before.add(i);
+        }
+        for i in (0..cands.len()).rev() {
+            assert_eq!(after.find(i), (i + 1..cands.len()).find(|&j| pairs(i, j)), "after {i}");
+            after.add(i);
+        }
+        // And all of those added that pair with a candidate, in order.
+        let added = |j: &usize| j % 5 != 3;
+        let mut listed = SameTitled::new(&groups);
+        (0..cands.len()).filter(added).for_each(|j| listed.add(j));
+        for i in 0..cands.len() {
+            for from in [0, i, i + 1] {
+                let pairing: Vec<usize> = (from..cands.len()).filter(added).filter(|&j| pairs(i, j)).collect();
+                assert_eq!(listed.from(i, from).collect::<Vec<_>>(), pairing, "{i} from {from}");
+            }
+        }
+    }
+
+    #[test]
+    fn row_titles_and_row_headings_answer_as_prints_title_for_each_pair() {
+        let printed = [
+            ("1", "Business"),
+            ("1", "Business\t3"),
+            ("1", "Business Overview"),
+            ("1", "BUSINESS (continued)"),
+            ("7", "Management's Discussion and Analysis"),
+            ("7", "Management's Discussion and Analysis\t12"),
+            ("7", "MANAGEMENT’S DISCUSSION & ANALYSIS (Continued)  14"),
+            ("7", "Management's Discussion"),
+            ("7", "Management's Discussion and Analysis of Financial Condition"),
+            ("1", "Business Overview (cont'd)"),
+            ("1", "Business Overview, continued, and Properties"),
+            ("1", "Business Overview continued and Properties (continued)"),
+            ("1", "Businesses"),
+            ("2", "Business"),
+            ("1", "Busi"),
+            ("1", ""),
+            ("7", "Managements Discussions\tN/A"),
+            ("7", "Management"),
+            ("1", "Business Overview and Properties ..... 5"),
+            ("1", "The Business"),
+            ("7", "Management's Discussion and Analysis (continued)"),
+            ("1", "Business continued"),
+            ("1", "Business Overview\t4"),
+            ("7", "Management's Discussion and Analysis of Operations"),
+        ];
+        // Each line twice, so that every pair comes in both orders.
+        let cands: Vec<Candidate> =
+            printed.iter().chain(&printed).map(|&(label, printed)| added_candidate("", 0, label, printed)).collect();
+        let n = cands.len();
+        let pairs =
+            |a: usize, b: usize| cands[a].label == cands[b].label && same_title(&cands[a].title, &cands[b].title);
+        let prints = |a: usize, b: usize| cands[a].label == cands[b].label && prints_title(&cands[a], &cands[b]);
+        let groups = TitleGroups::new(&cands);
+        let (mut some_printed, mut some_not) = (0, 0);
+        for skip in [2, 3, 5, n] {
+            let added = |j: &usize| j % skip != 1;
+            let mut titles = RowTitles::new(&groups);
+            for (i, c) in cands.iter().enumerate() {
+                let all = (0..i).filter(added).filter(|&j| pairs(j, i)).all(|j| prints(j, i));
+                assert_eq!(titles.all_printed_by(i, c), all, "{i} without every {skip}th");
+                if (0..i).filter(added).any(|j| pairs(j, i)) {
+                    *if all { &mut some_printed } else { &mut some_not } += 1;
+                }
+                if added(&i) {
+                    titles.add(i, c);
+                }
+            }
+            let headings = RowHeadings::new(&groups, &cands, (0..n).filter(added));
+            for (a, c) in cands.iter().enumerate() {
+                let first = (a + 1..n).filter(added).find(|&b| prints(a, b));
+                assert_eq!(headings.first_after(a, c), first, "{a} without every {skip}th");
+            }
+        }
+        assert!(some_printed > 20 && some_not > 20, "{some_printed} {some_not}");
+    }
+
+    #[test]
+    fn line_copies_counts_the_lines_that_print_a_line_alone() {
+        // As it was first written: every place the line is found at, with
+        // blanks only before and after it on its line.
+        let slow = |text: &str, line: &str| {
+            let blank = |s: &str| s.trim().is_empty();
+            text.match_indices(line)
+                .filter(|&(i, _)| {
+                    blank(text[..i].rsplit('\n').next().unwrap_or(""))
+                        && blank(text[i + line.len()..].split('\n').next().unwrap_or(""))
+                })
+                .count()
+        };
+        let texts = [
+            "",
+            "\n",
+            "A",
+            "  A \r\nA A\n\tA\nA\u{a0}\n A\n\nB A\nAA\n A  A\n",
+            "None.\n  None. \nNone. None.\nnone.\n \n\t\n",
+            "Page 1\r\nPage 1 of 2\r\n  Page 1\r",
+            "é é\né\n  é é  \n",
+        ];
+        for text in texts {
+            let counts = line_counts(text);
+            for line in ["", "A", "A A", "None.", "Page 1", "é", "é é", "B", "missing"] {
+                assert_eq!(line_copies(text, line), slow(text, line), "{line:?} in {text:?}");
+                if !line.is_empty() {
+                    assert_eq!(counts.get(line).copied().unwrap_or(0), slow(text, line), "{line:?} in {text:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn signatures_of_a_text_answer_as_a_search_from_each_place() {
+        let sentence = "Pursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of 1934, \
+                        the registrant has duly caused this report to be signed.";
+        let wrapped = "In accordance with the requirements of the Exchange Act, the\nregistrant\ncaused this report";
+        let text = format!(
+            "Item 1. Business\nSIGNATURES\nItem 1. Business\n{BODY}\n{sentence}\n item 2. Properties\n{wrapped}\n\
+             The storm caused this delay.\nItem 5. Other Information\n{sentence} It also caused its filing.\n\
+             Signature(s)\nItem 9B. Other Information\ncaused this\nPART IV ITEM 15. Exhibits\n{BODY}\n"
+        );
+        for text in [text.clone(), text.replace('\n', "\r\n"), text[..text.len() / 2].to_owned(), String::new()] {
+            let signatures = Signatures::new(&text);
+            let sentences: Vec<(usize, usize)> = signature_sentences(&text).collect();
+            let headings: Vec<usize> = PERIODIC_HEADING.find_iter(&text).map(|m| m.start()).collect();
+            assert!(text.is_empty() || (headings.len() >= 3 && sentences.len() >= 2));
+            for &heading in &headings {
+                assert_eq!(signatures.follow(heading), signatures_after(&text, heading + 1).is_some(), "{heading}");
+                for &to in &headings {
+                    let between = sentences.iter().find(|&&(start, end)| start >= heading && end <= to);
+                    assert_eq!(signatures.sentence_between(heading, to), between.map(|&(start, _)| start));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn signature_sentences_of_a_line_that_holds_caused_many_times() {
+        let opening = "Pursuant to the requirements of Section 13 of the Exchange Act, the registrant";
+        // The sentence may run for 250 characters after the opening words on
+        // their line, so only the first of these ends one.
+        let line = format!("{opening}{}", " caused this report and that".repeat(40));
+        let text = format!("Above.\n{line}\nBelow.\nIt caused its own end.\n");
+        let found: Vec<(usize, usize)> = signature_sentences(&text).collect();
+        let ends: Vec<usize> = line.match_indices("caused this").map(|(i, m)| 7 + i + m.len()).collect();
+        let after_opening = 7 + "Pursuant to the requirements of Section 13".len();
+        let fits = |end: usize| text[after_opening..end - "caused this".len()].chars().count() <= 250;
+        let expected: Vec<(usize, usize)> = ends.iter().filter(|&&end| fits(end)).map(|&end| (7, end)).collect();
+        assert_eq!(found, expected);
+        assert_eq!(expected.len(), 8);
+        // Lines above the one that holds "caused" open the sentence too.
+        let text =
+            format!("{opening}\nExample Company\nhas duly caused this report, and caused its seal, to be set.\n");
+        let found: Vec<(usize, usize)> = signature_sentences(&text).collect();
+        let caused: Vec<(usize, &str)> = found.iter().map(|&(start, end)| (start, &text[end - 10..end])).collect();
+        assert_eq!(caused, [(0, "aused this"), (0, "caused its")]);
+        // The names before "caused" may fill three lines of 250 characters,
+        // of any width.
+        for name in ["é", "😀"] {
+            let (short, long) = (name.repeat(249), name.repeat(250));
+            let text = format!("Pursuant to Section 13 {short}\n{long}\n{short} caused this report\n");
+            assert_eq!(signature_sentences(&text).count(), 1);
+            let text = format!("Pursuant to Section 13 {long}\n{long}\n{short} caused this report\n");
+            assert_eq!(signature_sentences(&text).count(), 0);
+        }
+    }
+
+    /// `signature_sentences` as it is defined: each "caused" looks up from
+    /// its own line.
+    fn sentences_searched_for_each_caused(text: &str) -> Vec<(usize, usize)> {
+        let line_start = |pos: usize| text[..pos].rfind('\n').map_or(0, |n| n + 1);
+        let sentence = |caused: regex::Match| {
+            let mut start = line_start(caused.start());
+            for _ in 0..4 {
+                if let Some(opening) = SIGNATURE_OPENING.find(&text[start..caused.start()]) {
+                    let rest = &text[start + opening.end()..caused.start()];
+                    let fits = rest.split('\n').all(|l| l.chars().count() <= 250);
+                    return (fits && rest.matches('\n').count() <= 2).then_some((start, caused.end()));
+                }
+                if start == 0 {
+                    break;
+                }
+                start = line_start(start - 1);
+            }
+            None
+        };
+        SIGNATURE_CAUSED.find_iter(text).filter_map(sentence).collect()
+    }
+
+    #[test]
+    fn signature_sentence_of_a_caused_that_ends_on_the_next_line() {
+        // The second "caused" starts on the fourth line and ends on the
+        // fifth. The third one is on the fifth line, which is the fourth
+        // below the line of the opening words, too far for a sentence.
+        let text = "Pursuant\nto\nSection\n13 the registrant has duly caused this report to be signed x caused\n\
+                    this y caused this";
+        let found: Vec<(usize, usize)> = signature_sentences(text).collect();
+        assert_eq!(found, [(0, 58), (0, 92)]);
+        assert_eq!(found, sentences_searched_for_each_caused(text));
+        // One more line above the opening words, and one line fewer.
+        let above = format!("Above.\n{text}");
+        let found: Vec<(usize, usize)> = signature_sentences(&above).collect();
+        assert_eq!(found, [(7, 65), (7, 99)]);
+        let text = "Pursuant to\nSection\n13 the registrant has duly caused this report to be signed x caused\n\
+                    this y caused this";
+        let found: Vec<(usize, usize)> = signature_sentences(text).collect();
+        assert_eq!(found.len(), 3);
+        assert_eq!(found, sentences_searched_for_each_caused(text));
+        // Lines made of these pieces in every order, with "caused" and its
+        // "this" on one line, on two, or apart.
+        let pieces =
+            ["Pursuant to", "Section 13", " caused", "this", " caused its", "\n", "\n", " ", "x", "caused\n\nthis"];
+        let mut seed = 7u64;
+        for _ in 0..4000 {
+            let mut text = String::new();
+            for _ in 0..12 {
+                seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                text.push_str(pieces[(seed >> 33) as usize % pieces.len()]);
+            }
+            let found: Vec<(usize, usize)> = signature_sentences(&text).collect();
+            assert_eq!(found, sentences_searched_for_each_caused(&text), "{text:?}");
         }
     }
 
@@ -6285,7 +10044,7 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_3", "item_4", "item_5", "item_14"]);
         assert_eq!(s[1].title, "Submission of Matters to a Vote of Security Holders");
-        assert_eq!(s[2].title, TEN_K[7].former[0]);
+        assert_eq!(s[2].title, "Market for Registrant's Common Equity and Related Stockholder Matters");
         // Nor does a 10-Q's Part II "Item 4. Submission of Matters ..." move
         // it to the 10-QSB's Items when Part I Item 4 is printed as "Item 4T".
         let text = format!(
@@ -6516,5 +10275,351 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenKsb);
         assert_eq!(ids(&s), ["item_4", "item_5", "item_6", "item_7"]);
         assert_eq!(s[1].title, "Market for Common Equity and Related Stockholder Matters");
+    }
+
+    /// Sections titled for a report filed on `filed`, its period unknown.
+    fn dated(text: &str, kind: FormKind, filed: &str) -> Vec<Section> {
+        extract_sections_dated(text, kind, filed, None).unwrap()
+    }
+
+    /// The dates of a report filed on `filed`, its period unknown.
+    fn on(filed: &str) -> Dates<'_> {
+        Dates { filed, period: filed }
+    }
+
+    #[test]
+    fn title_dates_follow_each_items_titles() {
+        let date = |d: &str| d.len() == 10 && crate::index::parse_date(d).is_ok();
+        for keys in [TEN_K, TEN_Q, EIGHT_K, TEN_KSB, TEN_QSB] {
+            for key in keys {
+                let item = (key.part, key.item);
+                if key.former.is_empty() {
+                    assert_eq!(key.since, EARLIEST, "{item:?}");
+                    continue;
+                }
+                // Effective dates in order, the first one possibly before
+                // EDGAR, the others real days, and the current title last;
+                // a compliance date, when there is one, on or after its
+                // effective date.
+                let days: Vec<Since> = key.history().map(|(since, _)| since).collect();
+                assert!(days.windows(2).all(|w| w[0].filed < w[1].filed), "{item:?}");
+                assert!(
+                    days.iter().enumerate().all(|(i, d)| date(d.filed) || (i == 0 && d.filed.is_empty())),
+                    "{item:?}"
+                );
+                assert!(
+                    days.iter().all(|d| d.period.is_empty() || (date(d.period) && d.period >= d.filed)),
+                    "{item:?}"
+                );
+                for (since, title) in key.history() {
+                    let dates = Dates { filed: since.filed, period: since.period.max(since.filed) };
+                    assert_eq!(key.title_on(dates), Some(title).filter(|t| !t.is_empty()), "{item:?}");
+                }
+                assert_eq!(key.title_on(on("2099-01-01")), Some(key.title), "{item:?}");
+                let titles: Vec<&str> = key.titles().collect();
+                assert!(titles.iter().enumerate().all(|(i, t)| !titles[..i].contains(t)), "{item:?}");
+            }
+        }
+        // 10-K Item 15 was the exhibits Item twice, and Item 16 had no title
+        // from August 2003 to June 2016. The fees, Item 15 from May 2003,
+        // were due from fiscal years ending after December 15, 2003, so a
+        // 10-K filed in June 2003 still had the exhibits as Item 15, and no
+        // Item 16.
+        let item = |label: &str| TEN_K.iter().find(|k| k.item == label).unwrap();
+        assert_eq!(item("15").titles().collect::<Vec<_>>().len(), 3);
+        assert_eq!(item("15").title_on(on("2002-06-30")), None);
+        assert_eq!(item("15").title_on(on("2003-06-30")), Some(OLD_EXHIBITS));
+        assert_eq!(item("15").title_on(on("2004-03-01")), Some(OLD_EXHIBITS));
+        assert_eq!(item("16").title_on(on("2003-06-30")), None);
+        assert_eq!(item("16").title_on(on("2010-03-01")), None);
+        assert_eq!(item("4").title_on(on("2010-02-27")), Some("Submission of Matters to a Vote of Security Holders"));
+        assert_eq!(item("4").title_on(on("2010-02-28")), Some("(Removed and Reserved)"));
+        // Item 5 named issuer purchases for periods ending on or after March
+        // 15, 2004, whenever the report was filed after the effective date.
+        let old_5 = "Market for Registrant's Common Equity and Related Stockholder Matters";
+        let report = |filed, period| Dates { filed, period };
+        assert_eq!(item("5").title_on(on("2004-03-12")), Some(old_5));
+        assert_eq!(item("5").title_on(report("2004-03-30", "2003-12-31")), Some(old_5));
+        assert_eq!(item("5").title_on(report("2004-05-10", "2004-03-31")), Some(item("5").title));
+        assert_eq!(item("5").title_on(on("2004-03-15")), Some(item("5").title));
+        // An Item the form did not have on the date stands in with its last
+        // title before, or else its first one.
+        assert_eq!(item("16").title_for(on("2003-06-30")), OLD_EXHIBITS);
+        assert_eq!(item("16").title_for(on("2004-03-15")), OLD_EXHIBITS);
+        assert_eq!(item("16").title_for(on("2010-03-01")), OLD_EXHIBITS);
+        assert_eq!(item("16").title_for(on("2017-03-01")), item("16").title);
+        assert_eq!(item("15").title_for(on("2001-03-01")), OLD_EXHIBITS);
+    }
+
+    #[test]
+    fn headings_that_name_no_title_get_the_title_of_their_filing_date() {
+        let body = BODY.repeat(30);
+        // A 10-K for 1996 that combines Items 10 to 13, a 10-K for 1999 whose
+        // Item 13 prints other words, and bare headings.
+        let text = format!(
+            "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\nITEMS 10 - 13.\n{body}\n\
+             ITEM 14. EXHIBITS\n{body}\nSIGNATURES\n"
+        );
+        let title = |date: &str| dated(&text, FormKind::TenK, date)[1].title.clone();
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].title, TEN_K[16].title);
+        assert_eq!(title("1997-03-28"), "Directors and Executive Officers of the Registrant");
+        assert_eq!(title("2007-03-01"), TEN_K[16].title);
+        let text = format!(
+            "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT\n{body}\n\
+             ITEM 13. ARRANGEMENTS WITH NAMED EXECUTIVE OFFICERS\n{body}\nSIGNATURES\n"
+        );
+        let s = dated(&text, FormKind::TenK, "1999-12-22");
+        assert_eq!(
+            titles(&s),
+            ["Security Ownership of Certain Beneficial Owners and Management", TEN_K[19].former[0].1]
+        );
+        let text = format!(
+            "Item 3. Legal Proceedings\nNone.\nItem 4.\nNone.\nItem 5.\n{body}\nItem 6.\n{body}\n\
+             Item 7. Management's Discussion and Analysis\n{body}\nItem 14.\n{body}\nSIGNATURES\n"
+        );
+        let titles_on =
+            |date: &str| -> Vec<String> { dated(&text, FormKind::TenK, date).into_iter().map(|s| s.title).collect() };
+        let old_5 = "Market for Registrant's Common Equity and Related Stockholder Matters";
+        let fees = "Principal Accountant Fees and Services";
+        let (submission, reserved) = (OLD_ITEM_4[0].1, OLD_ITEM_4[1].1);
+        let cases: [(&str, [&str; 4]); 6] = [
+            ("1998-03-01", [submission, old_5, "Selected Financial Data", OLD_EXHIBITS]),
+            ("2003-03-01", [submission, old_5, "Selected Financial Data", "Controls and Procedures"]),
+            ("2005-03-01", [submission, TEN_K[7].title, "Selected Financial Data", fees]),
+            ("2011-03-01", [reserved, TEN_K[7].title, "Selected Financial Data", fees]),
+            ("2013-03-01", [TEN_K[6].title, TEN_K[7].title, "Selected Financial Data", fees]),
+            ("2022-03-01", [TEN_K[6].title, TEN_K[7].title, "[Reserved]", fees]),
+        ];
+        for (date, want) in cases {
+            let got = titles_on(date);
+            assert_eq!(got[1..4], want[..3], "{date}");
+            assert_eq!(got[5], want[3], "{date}");
+        }
+        // Without dates, the current titles. A date written another way, or
+        // a day the calendar does not have, is an error, and surrounding
+        // spaces are ignored, as in the dates of a filing list.
+        let current: Vec<&str> = ["3", "4", "5", "6", "7", "14"]
+            .iter()
+            .map(|&n| TEN_K.iter().find(|k| k.item == n).unwrap().title)
+            .collect();
+        assert_eq!(titles(&extract_sections(&text, FormKind::TenK)), current);
+        let bad = [
+            "",
+            "2005",
+            "2005-03",
+            "March 1, 2005",
+            "2005-3-1",
+            "x2005-03-01",
+            "20050301",
+            "2005-03-01T00:00:00",
+            "2005-02-29",
+            "2005-04-31",
+            "2005-13-01",
+        ];
+        for date in bad {
+            let err = extract_sections_dated(&text, FormKind::TenK, date, None).unwrap_err();
+            assert!(matches!(err, Error::Invalid(_)), "{date:?}");
+            assert!(err.to_string().starts_with("filing_date must be a day written YYYY-MM-DD"), "{err}");
+            let err = extract_sections_dated(&text, FormKind::TenK, "2005-03-01", Some(date)).unwrap_err();
+            assert!(err.to_string().starts_with("report_date must be"), "{err}");
+        }
+        assert_eq!(titles_on(" 2004-02-29 "), titles_on("2004-02-29"));
+        assert!(extract_sections_dated(&text, FormKind::TenK, "2000-02-29", Some(" 1999-12-31\n")).is_ok());
+        // Words of two titles, the current one's in force: "Directors and
+        // Executive Officers" in 2015, and a 10-KSB for 2003 that prints the
+        // same words for Item 9, titled as in 2003.
+        let text = format!(
+            "Item 10. Directors and Executive Officers\n{body}\nItem 11. Executive Compensation\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(extract_sections(&text, FormKind::TenK)[0].title, TEN_K[16].former[0].1);
+        assert_eq!(dated(&text, FormKind::TenK, "2015-02-27")[0].title, TEN_K[16].title);
+        let text = format!(
+            "ITEM 9.    DIRECTORS AND EXECUTIVE OFFICERS\n{body}\nITEM 10.   EXECUTIVE COMPENSATION\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(extract_sections(&text, FormKind::TenKsb)[0].title, TEN_KSB[11].title);
+        assert_eq!(dated(&text, FormKind::TenKsb, "2004-01-29")[0].title, TEN_KSB[11].former[0].1);
+        // A 10-Q's Part II Item 2 printed bare, in 1996, 1999, early 2004
+        // and 2005, and an 8-K of 2005 that prints part of Item 5.02's title.
+        let text = format!(
+            "PART II\nItem 1. Legal Proceedings\nNone.\nItem 2.\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        for (date, title) in [
+            ("1996-05-01", "Changes in Securities"),
+            ("1999-05-01", "Changes in Securities and Use of Proceeds"),
+            ("2004-05-01", "Changes in Securities, Use of Proceeds and Issuer Purchases of Equity Securities"),
+            ("2005-05-01", "Unregistered Sales of Equity Securities and Use of Proceeds"),
+        ] {
+            assert_eq!(dated(&text, FormKind::TenQ, date)[1].title, title, "{date}");
+        }
+        let text = format!("Item 5.02 Departure of Directors\n{body}\nItem 9.01 Financial Statements and Exhibits\n");
+        let title = |date: &str| dated(&text, FormKind::EightK, date)[0].title.clone();
+        assert_eq!(title("2005-06-01"), EIGHT_K[17].former[0].1);
+        assert_eq!(title("2010-06-01"), EIGHT_K[17].title);
+    }
+
+    #[test]
+    fn titles_wait_for_the_compliance_dates_of_their_releases() {
+        let body = BODY.repeat(30);
+        let titles_for = |text: &str, kind: FormKind, filed: &str, period: Option<&str>| -> Vec<String> {
+            extract_sections_dated(text, kind, filed, period).unwrap().into_iter().map(|s| s.title).collect()
+        };
+        // Issuer purchases joined Item 5 for periods ending on or after March
+        // 15, 2004: a 10-K for 2003 filed in March 2004 with other words keeps
+        // the earlier title, as a 10-KSB for October 2003 does.
+        let text = format!(
+            "Item 4. Submission of Matters to a Vote of Security Holders\nNone.\n\
+             Item 5. Market for Registrant's Common Stock and Related Security Holder Matters\n{body}\n\
+             Item 6. Selected Financial Data\n{body}\nSIGNATURES\n"
+        );
+        let old_5 = TEN_K[7].former[0].1;
+        assert_eq!(titles_for(&text, FormKind::TenK, "2004-03-12", None)[1], old_5);
+        assert_eq!(titles_for(&text, FormKind::TenK, "2004-03-30", Some("2003-12-31"))[1], old_5);
+        assert_eq!(titles_for(&text, FormKind::TenK, "2004-06-10", Some("2004-03-31"))[1], TEN_K[7].title);
+        // Without the period, a report filed after the compliance date is
+        // taken to cover a period after it.
+        assert_eq!(titles_for(&text, FormKind::TenK, "2004-03-30", None)[1], TEN_K[7].title);
+        let text = format!(
+            "ITEM 5. MARKET FOR THE COMPANY'S COMMON STOCK AND RELATED\nSTOCKHOLDER MATTERS\n{body}\n\
+             ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(titles_for(&text, FormKind::TenKsb, "2004-01-29", Some("2003-10-31"))[0], TEN_KSB[5].former[0].1);
+        // A 10-K for September 2006 filed in December 2006: the new titles of
+        // Items 10 and 13 were due from fiscal years ending on or after
+        // December 15, 2006.
+        let text = format!(
+            "ITEM 10. DIRECTORS AND EXECUTIVE OFFICERS\n{body}\nITEM 11. EXECUTIVE COMPENSATION\n{body}\n\
+             ITEM 13. CERTAIN RELATIONSHIPS\n{body}\nSIGNATURES\n"
+        );
+        let old = [TEN_K[16].former[0].1, TEN_K[17].title, TEN_K[19].former[0].1];
+        assert_eq!(titles_for(&text, FormKind::TenK, "2006-12-14", None), old);
+        assert_eq!(titles_for(&text, FormKind::TenK, "2006-12-28", Some("2006-09-30")), old);
+        assert_eq!(titles_for(&text, FormKind::TenK, "2007-03-01", Some("2006-12-31"))[0], TEN_K[16].title);
+        // A bare Item 6 of a 10-K for 2020, filed in 2021 before the fiscal
+        // years for which Item 6 was reserved, and of a 10-K/A filed in 2022
+        // for 2019.
+        let text = format!("Item 5. Market\n{body}\nItem 6.\n{body}\nItem 7. Management's Discussion\n{body}\n");
+        let item_6 = |filed, period| titles_for(&text, FormKind::TenK, filed, period)[1].clone();
+        assert_eq!(item_6("2021-03-01", None), "Selected Financial Data");
+        assert_eq!(item_6("2021-03-01", Some("2020-12-31")), "Selected Financial Data");
+        assert_eq!(item_6("2021-09-15", Some("2021-06-30")), "Selected Financial Data");
+        assert_eq!(item_6("2021-10-29", Some("2021-08-31")), "[Reserved]");
+        assert_eq!(item_6("2022-04-01", Some("2019-12-31")), "Selected Financial Data");
+        // A 10-K for June 2002 filed in September 2002 with the old numbering:
+        // controls and procedures were due for periods ending after August
+        // 29, 2002, and Item 14 was still the exhibits Item.
+        let text = format!(
+            "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS\n{body}\n\
+             ITEM 14. EXHIBITS\n(a) Exhibits filed: see the index.\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(titles_for(&text, FormKind::TenK, "2002-09-27", Some("2002-06-30"))[1], OLD_EXHIBITS);
+        assert_eq!(titles_for(&text, FormKind::TenK, "2002-12-20", Some("2002-09-30"))[1], "Controls and Procedures");
+        // 8-K Item 5.02 took its new title for events on or after November 7,
+        // 2006, the report date of an 8-K.
+        let text = format!("Item 5.02 Departure of Directors\n{body}\nItem 9.01 Financial Statements and Exhibits\n");
+        let title = |period| titles_for(&text, FormKind::EightK, "2006-11-09", Some(period))[0].clone();
+        assert_eq!(title("2006-11-03"), EIGHT_K[17].former[0].1);
+        assert_eq!(title("2006-11-07"), EIGHT_K[17].title);
+        // A heading that prints the new title before the compliance date gets
+        // it, whole or with a word of both titles changed, and so does one
+        // that prints the words the new title adds, but not one that prints
+        // only words of the earlier title.
+        for (heading, title) in [
+            (
+                "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of \
+                 Equity Securities",
+                TEN_K[7].title,
+            ),
+            (
+                "ITEM 5. MARKET FOR THE COMPANY'S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF \
+                 EQUITY SECURITIES",
+                TEN_K[7].title,
+            ),
+            ("ITEM 5. MARKET FOR THE COMPANY'S COMMON EQUITY, ISSUER PURCHASES OF EQUITY SECURITIES", TEN_K[7].title),
+            ("ITEM 5. MARKET FOR THE COMPANY'S COMMON EQUITY AND RELATED STOCKHOLDER MATTERS", old_5),
+        ] {
+            let text = format!("{heading}\n{body}\nItem 6. Selected Financial Data\n{body}\nSIGNATURES\n");
+            assert_eq!(titles_for(&text, FormKind::TenK, "2004-03-10", Some("2003-12-31"))[0], title, "{heading}");
+        }
+    }
+
+    #[test]
+    fn ksb_item_5_has_the_caption_of_release_33_8335() {
+        // Release 33-8335 (68 FR 64952), amendment 12, set the caption of
+        // 10-KSB Item 5; a 10-KSB for 2005 that prints the Item bare gets it.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNone.\nITEM 5.\n{body}\n\
+             ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION\n{body}\nSIGNATURES\n"
+        );
+        let caption = "Market for Common Equity, Related Stockholder Matters and Small Business Issuer Purchases of Equity Securities";
+        assert_eq!(dated(&text, FormKind::TenKsb, "2006-03-30")[1].title, caption);
+        assert_eq!(extract_sections(&text, FormKind::TenKsb)[1].title, caption);
+    }
+
+    #[test]
+    fn items_the_form_did_not_have_keep_their_nearest_title() {
+        // A 10-K filed in 2004 with the numbering of mid-2003, whose Item 16,
+        // printed "Exhibits" or bare, is the exhibits Item: the form had no
+        // Item 16 from August 2003 until the Form 10-K Summary of 2016.
+        let body = BODY.repeat(30);
+        for item_16 in ["Item 16. Exhibits", "Item 16."] {
+            let text = format!(
+                "Item 14. Controls and Procedures\n{body}\nItem 15. Principal Accountant Fees and Services\n{body}\n\
+                 {item_16}\n(a) The following exhibits are filed.\n{body}\nSIGNATURES\n"
+            );
+            for date in ["2003-07-01", "2004-03-15", "2010-03-01"] {
+                assert_eq!(dated(&text, FormKind::TenK, date)[2].title, OLD_EXHIBITS, "{item_16} {date}");
+            }
+            assert_eq!(dated(&text, FormKind::TenK, "2017-03-01")[2].title, "Form 10-K Summary", "{item_16}");
+        }
+    }
+
+    #[test]
+    fn headings_that_print_another_title_keep_it_whatever_the_filing_date() {
+        let body = BODY.repeat(30);
+        // A 10-K for 2023 that prints the titles of 2005, also the old Item
+        // 12 title, which the current one starts with, and one printed over
+        // two lines with an underline between them (2002).
+        let text = format!(
+            "ITEM 4 — SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS\nNone.\n\
+             ITEM 6 — SELECTED FINANCIAL DATA\n{body}\n\
+             ITEM 12. Security Ownership of Certain Beneficial Owners and\n-------------\nManagement.\n{body}\n\
+             ITEM 13 — CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS\n{body}\nSIGNATURES\n"
+        );
+        let old: Vec<&str> =
+            ["4", "6", "12", "13"].iter().map(|&n| TEN_K.iter().find(|k| k.item == n).unwrap().former[0].1).collect();
+        for date in ["2002-03-01", "2024-03-14"] {
+            assert_eq!(titles(&dated(&text, FormKind::TenK, date)), old, "{date}");
+        }
+        // A 10-K for 2003 filed in March 2004 with the numbering of mid-2003:
+        // Item 14 controls, Item 15 the fees, misspelled, and Item 16 the
+        // exhibits, which had no Item 16 in 2004.
+        let text = format!(
+            "Item 9A. Controls and Procedures\n{body}\nItem 14. Controls and Procedures\n{body}\n\
+             Item 15. Principal Accounting Fees and Services\n{body}\n\
+             Item 16. Exhibits, Financial Statement Schedules, and Reports on Form 8-K\n{body}\nSIGNATURES\n"
+        );
+        let s = dated(&text, FormKind::TenK, "2004-03-12");
+        assert_eq!(
+            titles(&s)[1..],
+            ["Controls and Procedures", "Principal Accountant Fees and Services", OLD_EXHIBITS]
+        );
+        // A filer that follows the numbering of a release before it takes
+        // effect prints the new title whole; one that prints the words of
+        // the title in force does not get a later title that holds fewer.
+        let text = format!(
+            "Item 9. Changes in and Disagreements with Accountants\nNone.\n\
+             Item 14. Principal Accountant Fees and Services\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(dated(&text, FormKind::TenK, "2003-07-15")[1].title, TEN_K[20].title);
+        let text = format!(
+            "PART II\nItem 1. Legal Proceedings\nNone.\nITEM 6 (a). Exhibits\n{body}\n(b) Reports on Form 8-K\nNone.\n"
+        );
+        let title = |date: &str| dated(&text, FormKind::TenQ, date)[1].title.clone();
+        assert_eq!(title("2000-11-13"), "Exhibits and Reports on Form 8-K");
+        assert_eq!(title("2006-11-13"), "Exhibits");
+        // Items the form did not have on the date keep their only title.
+        let text = format!("Item 1. Business\n{body}\nItem 1A. Risk Factors\n{body}\nItem 2. Properties\n{body}\n");
+        assert_eq!(dated(&text, FormKind::TenK, "2000-03-01")[1].title, "Risk Factors");
     }
 }

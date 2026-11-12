@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::html::{Table, document_to_text, document_to_text_and_tables};
 use crate::index::parse_date;
 use crate::profile::{SubmissionsProfile, text_or_empty, text_or_none};
-use crate::sections::{FormKind, Section, extract_sections};
+use crate::sections::{FormKind, Section, check_report_dates, extract_sections_dated};
 
 /// One EDGAR filing, as listed by the SEC submissions API.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -409,12 +409,17 @@ impl Client {
     }
 
     /// Item sections of a 10-K, 10-Q, 8-K, 10-KSB or 10-QSB filing (and their
-    /// amendments and variants). Other forms are an [`Error::Invalid`].
+    /// amendments and variants), titled for its filing date and period of
+    /// report ([`extract_sections_dated`]; an empty `report_date` counts as
+    /// none). Other forms, and dates not written `YYYY-MM-DD`, are an
+    /// [`Error::Invalid`], before anything is downloaded.
     pub fn filing_sections(&self, filing: &Filing) -> Result<Vec<Section>> {
         let kind = FormKind::from_form(&filing.form).ok_or_else(|| {
             Error::Invalid(format!("sections are supported for a {} filing, not {}", FormKind::FORMS, filing.form))
         })?;
-        Ok(extract_sections(&self.filing_text(filing)?, kind))
+        let report_date = filing.report_date.as_deref().filter(|d| !d.trim().is_empty());
+        check_report_dates(&filing.filing_date, report_date)?;
+        extract_sections_dated(&self.filing_text(filing)?, kind, &filing.filing_date, report_date)
     }
 
     /// Tables of a filing's primary document, with offsets into the text that

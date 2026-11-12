@@ -12,7 +12,8 @@ use std::time::{Duration, Instant};
 
 use parsec_edgar::{
     Client, Company, Error, FULL_TEXT_MAX_RESULTS, FULL_TEXT_PAGE_SIZE, Filing, FilingQuery, FormKind, FullTextHit,
-    FullTextQuery, FullTextResults, Section, Table, document_is_html, document_to_text_and_tables, extract_sections,
+    FullTextQuery, FullTextResults, Section, Table, document_is_html, document_to_text_and_tables,
+    extract_sections_dated,
 };
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
@@ -842,7 +843,8 @@ impl Drop for Waiting<'_> {
 fn load_doc(client: &Client, filing: &Filing, attachment: Option<String>) -> Result<Doc, String> {
     let Some(name) = attachment else {
         let raw = client.primary_document(filing).map_err(explain)?;
-        return Ok(parse_doc(&raw, FormKind::from_form(&filing.form), None));
+        let dates = (filing.filing_date.as_str(), filing.report_date.as_deref());
+        return parse_doc(&raw, FormKind::from_form(&filing.form).map(|kind| (kind, dates)), None).map_err(explain);
     };
     let raw = client.get_text(&format!("{}/{name}", filing.folder_url())).map_err(|e| match e {
         Error::Status { status: 404, .. } => format!(
@@ -852,14 +854,25 @@ fn load_doc(client: &Client, filing: &Filing, attachment: Option<String>) -> Res
         ),
         e => explain(e),
     })?;
-    Ok(parse_doc(&raw, None, Some(name)))
+    parse_doc(&raw, None, Some(name)).map_err(explain)
 }
 
-/// Text, tables and, for a form with Items, sections of one downloaded document.
-fn parse_doc(raw: &str, kind: Option<FormKind>, document: Option<String>) -> Doc {
+/// Text, tables and, for a form with Items (`sections`, with the filing
+/// date and the period of report), sections of one downloaded document,
+/// titled for those dates.
+fn parse_doc(
+    raw: &str,
+    sections: Option<(FormKind, (&str, Option<&str>))>,
+    document: Option<String>,
+) -> Result<Doc, Error> {
     let (text, tables) = document_to_text_and_tables(raw);
-    let sections = kind.map(|kind| extract_sections(&text, kind));
-    Doc { document, total_chars: text.chars().count(), text, sections, tables, html: document_is_html(raw) }
+    let sections = match sections {
+        Some((kind, (filing_date, report_date))) => {
+            Some(extract_sections_dated(&text, kind, filing_date, report_date)?)
+        }
+        None => None,
+    };
+    Ok(Doc { document, total_chars: text.chars().count(), text, sections, tables, html: document_is_html(raw) })
 }
 
 /// A document is a file name from a search hit, such as `ex99-1.htm`: no paths,
@@ -1935,7 +1948,25 @@ mod tests {
 
     /// A document parsed as load_doc parses one, as a 10-K when `ten_k`.
     fn parsed(raw: &str, ten_k: bool) -> Doc {
-        parse_doc(raw, ten_k.then_some(FormKind::TenK), None)
+        parse_doc(raw, ten_k.then_some((FormKind::TenK, ("2024-11-01", None))), None).unwrap()
+    }
+
+    /// A filing's sections are titled for its filing date and period of
+    /// report: a bare "Item 6." is "Selected Financial Data" in 2019 and
+    /// "[Reserved]" in 2022, and in a 10-K/A for 2019 filed in 2022.
+    #[test]
+    fn documents_title_their_sections_by_the_filing_date() {
+        let body = "We make things. ".repeat(100);
+        let raw = format!(
+            "<html><body><p>Item 5. Market</p><p>{body}</p><p>Item 6.</p><p>{body}</p>\
+             <p>Item 7. Management's Discussion</p><p>{body}</p></body></html>"
+        );
+        let parse = |dates| parse_doc(&raw, Some((FormKind::TenK, dates)), None);
+        let title = |dates| parse(dates).unwrap().sections.unwrap()[1].title.clone();
+        assert_eq!(title(("2019-03-01", None)), "Selected Financial Data");
+        assert_eq!(title(("2022-03-01", None)), "[Reserved]");
+        assert_eq!(title(("2022-03-01", Some("2019-12-31"))), "Selected Financial Data");
+        assert!(parse(("2022-02-30", None)).is_err());
     }
 
     fn at(offset: usize, row: usize, char: usize) -> TableCursor {
