@@ -281,17 +281,22 @@
 //! 10, titled "Directors and Executive Officers of the Registrant" until
 //! 2006). With the report's dates ([`extract_sections_dated`]), the title in
 //! force for them, by the effective dates of the SEC releases that renamed
-//! the Items and, where a release set one, the compliance date for the
-//! period the report covers, is kept unless the heading prints another
-//! title whole (a filing that keeps an outdated title) or shares no word
-//! with the title in force; so a heading that prints no title ("ITEMS 10 -
-//! 13.") or only some words of a title gets the title of its dates. Apart
-//! from a heading numbered in roman numerals, that choice never decides
-//! which lines are headings: the rules above that compare a line with
-//! an Item's title (a comma after the Item number, Item 1 printed without a
-//! number, a lettered sub-item, the line below a cover's row) use the current
-//! title only, so "Item 10, Directors and Executive Officers of the
-//! Registrant" (the title before 2006) is no heading.
+//! the Items and, where a release set one, the compliance date for the period
+//! the report covers, is kept unless the heading prints another title whole
+//! (a filing that keeps an outdated title) or shares no word with the title
+//! in force; so a heading that prints no title ("ITEMS 10 - 13.") or only
+//! some words of a title gets the title of its dates. A release counts only
+//! when it took effect by the period's due date (90 days after a fiscal year,
+//! 45 after a quarter, and 15 or 5 more under Rule 12b-25, to the Monday when
+//! that is on a weekend; an 8-K goes by its filing date alone), so an
+//! amendment filed years later ("10-K/A" for 2009, filed in 2013) keeps the
+//! titles its original report could have had. Apart from a heading numbered
+//! in roman numerals, that choice never decides which lines are headings: the
+//! rules above that compare a line with an Item's title (a comma after the
+//! Item number, Item 1 printed without a number, a lettered sub-item, the
+//! line below a cover's row) use the current title only, so "Item 10,
+//! Directors and Executive Officers of the Registrant" (the title before
+//! 2006) is no heading.
 
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -441,9 +446,13 @@ impl Since {
         Since { filed, period: "" }
     }
 
-    /// Whether the title was in force for a report with these dates.
+    /// Whether the title was in force for a report with these dates. Its
+    /// effective date must also come by the day the original report was due
+    /// (`Dates::due`), so an amendment filed later keeps the titles that its
+    /// original report could have had. A compliance date always comes before
+    /// that day for the periods it applies to.
     fn applies(self, dates: Dates) -> bool {
-        self.filed <= dates.filed && self.period <= dates.period
+        self.filed <= dates.filed && self.period <= dates.period && self.filed <= dates.due
     }
 }
 
@@ -455,6 +464,13 @@ impl Since {
 struct Dates<'a> {
     filed: &'a str,
     period: &'a str,
+    /// The last day on which the original report for the period could have
+    /// been filed on time: the period's end plus the form's longest due date
+    /// with the extension of Rule 12b-25, 90 and 15 days for an annual
+    /// report, 45 and 5 days for a quarterly one, moved to the Monday when it
+    /// falls on a weekend. For an 8-K, whose period is the event's day, it is
+    /// the filing date.
+    due: &'a str,
 }
 
 impl Key {
@@ -5009,7 +5025,18 @@ pub fn extract_sections_dated(
     report_date: Option<&str>,
 ) -> Result<Vec<Section>> {
     let dates = report_dates(filing_date, report_date)?;
-    Ok(split_sections(text, kind, Some(dates)))
+    // The original report of a period that ended long before the filing
+    // date (an amendment, or a late report) was due by then.
+    let days = if kind.annual() {
+        Some(105)
+    } else if kind.quarterly() {
+        Some(50)
+    } else {
+        None
+    };
+    let due = days.map(|n| due_day(dates.period, n));
+    let due = due.as_deref().unwrap_or(dates.filed);
+    Ok(split_sections(text, kind, Some(Dates { due, ..dates })))
 }
 
 /// Check the dates of [`extract_sections_dated`] without splitting a text.
@@ -5034,7 +5061,48 @@ fn report_dates<'a>(filing_date: &'a str, report_date: Option<&'a str>) -> Resul
     };
     let filed = day("filing_date", filing_date)?;
     let period = report_date.map(|d| day("report_date", d)).transpose()?.unwrap_or(filed);
-    Ok(Dates { filed, period })
+    Ok(Dates { filed, period, due: filed })
+}
+
+/// The days from March 1 of the year 0 to `date`, a real day written
+/// YYYY-MM-DD: years count from March so that the leap day ends a year.
+fn day_number(date: &str) -> i64 {
+    let (y, m, d) = parse_date(date).expect("a checked date");
+    let (y, m, d) = (i64::from(y), i64::from(m), i64::from(d));
+    let (y, m) = if m <= 2 { (y - 1, m + 9) } else { (y, m - 3) };
+    365 * y + y / 4 - y / 100 + y / 400 + (153 * m + 2) / 5 + d - 1
+}
+
+/// The day `days` days after `date`, a real day written YYYY-MM-DD, or the
+/// last day of the year 9999 when it would come after it, so that the days
+/// this returns compare as text.
+fn add_days(date: &str, days: i64) -> String {
+    let number = (day_number(date) + days).min(day_number("9999-12-31"));
+    let mut y = (10_000 * number + 14_780) / 3_652_425;
+    let mut day_of_year = number - (365 * y + y / 4 - y / 100 + y / 400);
+    if day_of_year < 0 {
+        y -= 1;
+        day_of_year = number - (365 * y + y / 4 - y / 100 + y / 400);
+    }
+    let mi = (100 * day_of_year + 52) / 3_060;
+    let month = (mi + 2) % 12 + 1;
+    let year = y + (mi + 2) / 12;
+    let day = day_of_year - (mi * 306 + 5) / 10 + 1;
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
+/// The day a report was due that had `days` days from the end of its period:
+/// a due date that falls on a Saturday or a Sunday moves to the Monday
+/// (Exchange Act Rule 0-3). Holidays are not counted.
+fn due_day(period: &str, days: i64) -> String {
+    const SATURDAY: i64 = 3;
+    const SUNDAY: i64 = 4;
+    let on = match (day_number(period) + days) % 7 {
+        SATURDAY => days + 2,
+        SUNDAY => days + 1,
+        _ => days,
+    };
+    add_days(period, on)
 }
 
 /// Best chain of (candidate, key) pairs where both candidate position and
@@ -12097,7 +12165,7 @@ Pursuant to ...
 
     /// The dates of a report filed on `filed`, its period unknown.
     fn on(filed: &str) -> Dates<'_> {
-        Dates { filed, period: filed }
+        Dates { filed, period: filed, due: filed }
     }
 
     #[test]
@@ -12125,7 +12193,7 @@ Pursuant to ...
                     "{item:?}"
                 );
                 for (since, title) in key.history() {
-                    let dates = Dates { filed: since.filed, period: since.period.max(since.filed) };
+                    let dates = Dates { filed: since.filed, period: since.period.max(since.filed), due: since.filed };
                     assert_eq!(key.title_on(dates), Some(title).filter(|t| !t.is_empty()), "{item:?}");
                 }
                 assert_eq!(key.title_on(on("2099-01-01")), Some(key.title), "{item:?}");
@@ -12150,7 +12218,7 @@ Pursuant to ...
         // Item 5 named issuer purchases for periods ending on or after March
         // 15, 2004, whenever the report was filed after the effective date.
         let old_5 = "Market for Registrant's Common Equity and Related Stockholder Matters";
-        let report = |filed, period| Dates { filed, period };
+        let report = |filed, period| Dates { filed, period, due: filed };
         assert_eq!(item("5").title_on(on("2004-03-12")), Some(old_5));
         assert_eq!(item("5").title_on(report("2004-03-30", "2003-12-31")), Some(old_5));
         assert_eq!(item("5").title_on(report("2004-05-10", "2004-03-31")), Some(item("5").title));
@@ -12385,6 +12453,99 @@ Pursuant to ...
             }
             assert_eq!(dated(&text, FormKind::TenK, "2017-03-01")[2].title, "Form 10-K Summary", "{item_16}");
         }
+    }
+
+    #[test]
+    fn add_days_counts_calendar_days() {
+        // Day by day from 1899-12-25 over 140 years, through the leap days
+        // of 1900 (none), 1904 and 2000.
+        let (mut y, mut m, mut d) = (1899u16, 12u32, 25u32);
+        let start = "1899-12-25";
+        for n in 0..140 * 366 {
+            assert_eq!(add_days(start, n), format!("{y:04}-{m:02}-{d:02}"), "{n}");
+            let leap = y.is_multiple_of(4) && (!y.is_multiple_of(100) || y.is_multiple_of(400));
+            let days = match m {
+                2 if leap => 29,
+                2 => 28,
+                4 | 6 | 9 | 11 => 30,
+                _ => 31,
+            };
+            (y, m, d) = if d < days {
+                (y, m, d + 1)
+            } else if m < 12 {
+                (y, m + 1, 1)
+            } else {
+                (y + 1, 1, 1)
+            };
+        }
+        assert_eq!(add_days("2009-12-31", 105), "2010-04-15");
+        assert_eq!(add_days("2008-03-31", 50), "2008-05-20");
+        // No day after the year 9999, which would not compare as text.
+        assert_eq!(add_days("9999-12-01", 30), "9999-12-31");
+        assert_eq!(add_days("9999-12-01", 31), "9999-12-31");
+        assert_eq!(add_days("9999-12-31", 105), "9999-12-31");
+        assert_eq!(due_day("9999-12-31", 105), "9999-12-31");
+    }
+
+    #[test]
+    fn a_due_date_on_a_weekend_moves_to_the_monday() {
+        // 2004-08-20 was a Friday.
+        assert_eq!(due_day("2004-07-01", 50), "2004-08-20");
+        assert_eq!(due_day("2004-07-02", 50), "2004-08-23");
+        assert_eq!(due_day("2004-07-03", 50), "2004-08-23");
+        assert_eq!(due_day("2004-07-04", 50), "2004-08-23");
+        assert_eq!(due_day("2004-07-05", 50), "2004-08-24");
+        // Every due date over 30 years is a weekday at most 2 days later.
+        for n in 0..30 * 366 {
+            let period = add_days("1995-01-01", n);
+            let (plain, due) = (day_number(&add_days(&period, 105)), day_number(&due_day(&period, 105)));
+            assert!((0..=2).contains(&(due - plain)), "{period}");
+            assert!(![3, 4].contains(&(due % 7)), "{period}");
+            assert_eq!(due == plain, ![3, 4].contains(&(plain % 7)), "{period}");
+        }
+        // A 10-Q for the quarter that ended on Saturday, July 3, 2004 was due
+        // on Monday, August 23, the day Part II Item 6 became "Exhibits".
+        let body = BODY.repeat(30);
+        let ten_q = format!("PART II\nITEM 5. OTHER INFORMATION\n{body}\nITEM 6.\n{body}\nSIGNATURES\n");
+        let title = |filed, period| {
+            extract_sections_dated(&ten_q, FormKind::TenQ, filed, Some(period)).unwrap()[1].title.clone()
+        };
+        assert_eq!(title("2004-08-23", "2004-07-03"), "Exhibits");
+        assert_eq!(title("2005-02-01", "2004-07-03"), "Exhibits");
+        assert_eq!(title("2005-02-01", "2004-07-02"), "Exhibits");
+        assert_eq!(title("2005-02-01", "2004-07-01"), "Exhibits and Reports on Form 8-K");
+    }
+
+    #[test]
+    fn amendments_keep_the_titles_their_original_reports_could_have_had() {
+        // A 10-K/A filed in 2013 for fiscal 2009 with a bare "ITEM 4.": the
+        // original was due by 2010-04-15, before Item 4 became "Mine Safety
+        // Disclosures" in 2012, after it became "(Removed and Reserved)".
+        let body = BODY.repeat(30);
+        let title = |text: &str, kind, filed, period| {
+            extract_sections_dated(text, kind, filed, period).unwrap()[0].title.clone()
+        };
+        let ten_k = format!("ITEM 4.\n{body}\nITEM 5. MARKET\n{body}\nSIGNATURES\n");
+        assert_eq!(title(&ten_k, FormKind::TenK, "2013-05-01", Some("2009-12-31")), "(Removed and Reserved)");
+        assert_eq!(title(&ten_k, FormKind::TenK, "2013-05-01", Some("2008-12-31")), OLD_ITEM_4[0].1);
+        // Without the period, or with one whose report was due after the
+        // change, the filing date decides.
+        assert_eq!(title(&ten_k, FormKind::TenK, "2013-05-01", None), "Mine Safety Disclosures");
+        assert_eq!(title(&ten_k, FormKind::TenK, "2013-05-01", Some("2011-12-31")), "Mine Safety Disclosures");
+        // The report was due 105 days after the period: a title of that day
+        // applies, one of the day after does not.
+        assert_eq!(title(&ten_k, FormKind::TenK, "2013-05-01", Some("2011-10-14")), "Mine Safety Disclosures");
+        assert_eq!(title(&ten_k, FormKind::TenK, "2013-05-01", Some("2011-10-13")), "(Removed and Reserved)");
+        // A 10-Q/A filed in 2013 for the first quarter of 2008, due 50 days
+        // after it.
+        let ten_q = format!("PART II\nITEM 4.\n{body}\nITEM 5. OTHER INFORMATION\n{body}\nSIGNATURES\n");
+        let q = |period| title(&ten_q, FormKind::TenQ, "2013-05-01", Some(period));
+        assert_eq!(q("2008-03-31"), OLD_ITEM_4[0].1);
+        assert_eq!(q("2011-12-08"), "Mine Safety Disclosures");
+        assert_eq!(q("2011-12-07"), "(Removed and Reserved)");
+        // A heading that prints its title keeps it.
+        let printed = ten_k.replace("ITEM 4.\n", "ITEM 4. MINE SAFETY DISCLOSURES\n");
+        assert_eq!(title(&printed, FormKind::TenK, "2013-05-01", Some("2009-12-31")), "Mine Safety Disclosures");
     }
 
     #[test]
