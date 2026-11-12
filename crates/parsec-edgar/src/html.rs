@@ -963,9 +963,16 @@ fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
 /// Includes ...", "(2) Excludes ...", "* Restated"); sentences,
 /// lines that end with a "." after a word of five or more letters or with a
 /// number ("... Instruction I to Form 10-K."), while "MetLife, Inc." and
-/// "J.P. Morgan Chase & Co." are headers; and lines that tell how to read
-/// the page (see `LEGEND`): references to the notes or the auditors' report
-/// under each financial statement, units of a table and dates.
+/// "J.P. Morgan Chase & Co." are headers.
+///
+/// A line that tells how to read the page (see `LEGEND`), a reference to
+/// the notes or the auditors' report under each financial statement, the
+/// units of a table or a date, never goes. One that passes the test of a
+/// running header is part of a block all the same, as the date is in
+/// "Acme Corp." over "December 31, 2024 and 2023" over "Note 2 - Accounting
+/// Policies (Continued)". Past a legend only a legend, a name or a header
+/// that says it continues goes on the block: a heading under a date or
+/// under the units of a table stays.
 fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: &[bool]) -> Vec<usize> {
     const MIN_COPIES: u32 = 5;
     const MAX_DEPTH: usize = 6;
@@ -982,7 +989,6 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             && line.chars().filter(|c| c.is_alphabetic()).take(2).count() == 2
             && !is_sentence(line)
             && !FOOTNOTE.is_match(line)
-            && !LEGEND.is_match(line)
     };
     // The kept lines, as indexes into `lines`, and the lines of each page, as
     // a range of them.
@@ -1027,6 +1033,8 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     // The texts that go everywhere, headers that say they continue and
     // names, with their copies in table data.
     let mut everywhere: Vec<Everywhere> = Vec::new();
+    // Whether each text is a legend (see `LEGEND`), which never goes.
+    let mut legend: Vec<bool> = Vec::new();
     let mut id = vec![NONE; kept.len()];
     let mut at_edge: Vec<Vec<usize>> = Vec::new();
     for (p, page) in pages.iter().enumerate() {
@@ -1036,12 +1044,14 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             let (n, t) = &mut copies[text[k]];
             if *t == UNSEEN {
                 *t = if *n >= MIN_COPIES && can_head(line) {
+                    let stays = LEGEND.is_match(line);
                     let continues = CONTINUED.is_match(line);
-                    let heading = !continues && (crate::sections::ends_items(line) || !names_filer(line));
+                    let heading = !continues && (stays || crate::sections::ends_items(line) || !names_filer(line));
                     if !heading {
                         everywhere.push(Everywhere { text: texts.len(), tabled: tabled[text[k]], continues, line });
                     }
                     texts.push((*n, heading));
+                    legend.push(stays);
                     at_edge.push(Vec::new());
                     texts.len() - 1
                 } else {
@@ -1082,9 +1092,21 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     // The lengths of the header and footer blocks of each page.
     let mut blocks = vec![(0, 0); pages.len()];
     let block_of = |page: &Range<usize>, in_set: &[bool]| {
-        let inside = |k: &usize| id[*k] != NONE && in_set[id[*k]];
-        let top = page.clone().take(MAX_DEPTH).take_while(inside).count();
-        let bottom = (page.start + top..page.end).rev().take(MAX_DEPTH).take_while(inside).count();
+        // The lines of a block, from the edge of the page inward. Past a
+        // legend, only a legend, a name or a header that says it continues
+        // goes on the block.
+        let block = |from_edge: &mut dyn Iterator<Item = usize>| {
+            let mut past_legend = false;
+            let inside = |k: &usize| {
+                let t = id[*k];
+                let inside = t != NONE && in_set[t] && (!past_legend || legend[t] || !texts[t].1);
+                past_legend |= inside && legend[t];
+                inside
+            };
+            from_edge.take(MAX_DEPTH).take_while(inside).count()
+        };
+        let top = block(&mut page.clone());
+        let bottom = block(&mut (page.start + top..page.end).rev());
         (top, bottom)
     };
     // Add the copies in the blocks of a page to the counts, or take them
@@ -1141,6 +1163,9 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     for (p, (page, &(top, bottom))) in pages.iter().zip(&blocks).enumerate() {
         for k in (page.start..page.start + top).chain(page.end - bottom..page.end) {
             let t = id[k];
+            if legend[t] {
+                continue;
+            }
             if texts[t].1 {
                 let starts_run = last_page[t] == NONE || last_page[t] + 2 < p;
                 last_page[t] = p;
@@ -2557,6 +2582,70 @@ mod tests {
         let notes = "Notes (Continued)";
         let html = doc(&[&[notes, acme], &["Beta Power LLC"]], 3, true);
         assert_eq!((count(&html, notes), count(&html, acme)), (3, 0));
+    }
+
+    /// A legend printed with the running header of each page stays, and a
+    /// name or a header that says it continues goes from under it or, at
+    /// the foot of the page, from over it. A heading there stays.
+    #[test]
+    fn running_headers_dropped_past_a_legend() {
+        let count =
+            |pages: &[Vec<String>], line: &str| html_to_text(&printed(pages)).lines().filter(|l| *l == line).count();
+        let (date, units, notes) = ("December 31, 2024 and 2023", "(In thousands)", "Note 2 - Policies (Continued)");
+        for legends in [&[date][..], &[units], &[date, units], &["(000's omitted)", "As of June 30, 2023", date]] {
+            let top = [&["Acme Corporation"], legends, &[notes, "Acme Corp."]].concat();
+            let pages = framed(&top, &[], 1..7);
+            for line in ["Acme Corporation", notes, "Acme Corp."] {
+                assert_eq!(count(&pages, line), 0, "{line} under {legends:?}");
+            }
+            for legend in legends {
+                assert_eq!(count(&pages, legend), 6, "{legend}");
+            }
+            // The same at the foot of the page, in the other order.
+            let bottom: Vec<&str> = top.iter().rev().copied().collect();
+            let pages = framed(&[], &bottom, 1..7);
+            assert_eq!((count(&pages, notes), count(&pages, "Acme Corp."), count(&pages, legends[0])), (0, 0, 6));
+        }
+        // A heading past a legend stays, and so does what is past the
+        // heading.
+        for heading in ["Notes to Financial Statements", "Segment Information", "Item 8. Financial Statements"] {
+            let pages = framed(&["Acme Corporation", date, heading, notes], &[], 1..7);
+            assert_eq!(
+                (count(&pages, "Acme Corporation"), count(&pages, date), count(&pages, heading), count(&pages, notes)),
+                (0, 6, 6, 6),
+                "{heading}"
+            );
+        }
+        // A legend that is mostly in the middle of pages is in no block.
+        let mut pages = framed(&[units, notes], &[], 1..7);
+        for page in &mut pages {
+            page.extend([units.to_string(), "More text.".to_string(), units.to_string(), "End.".to_string()]);
+        }
+        assert_eq!((count(&pages, units), count(&pages, notes)), (18, 6));
+        // Nor is one with fewer than five copies.
+        let mut pages = framed(&[notes], &[], 1..7);
+        for page in &mut pages[..4] {
+            page.insert(0, date.to_string());
+        }
+        assert_eq!((count(&pages, date), count(&pages, notes)), (4, 6));
+        // A legend names no second filer, even one that ends like a name:
+        // the copies of the name in tables are left out of its count.
+        for legend in [date, "In thousands - Beta Corp."] {
+            let html: String = (1..11)
+                .map(|n| {
+                    let table = "<table><tr><td>Acme Corporation</td></tr><tr><td>Sales</td><td>12</td></tr></table>";
+                    let table = if n < 4 { table.replace("Sales", &format!("Sales {n}")) } else { String::new() };
+                    let page_break = "<div style=\"page-break-after: always\"></div>";
+                    format!("<p>Acme Corporation</p><p>{legend}</p><p>Text of page {n}.</p>{table}{page_break}")
+                })
+                .collect();
+            let text = html_to_text(&html);
+            assert_eq!((text.matches("Acme Corporation").count(), text.matches(legend).count()), (3, 10), "{legend}");
+        }
+        // The legend counts among the six lines of a block.
+        let top = ["Acme Corp.", date, units, "As of June 30, 2023", "Tabular dollars", "Beta LLC", notes];
+        let pages = framed(&top, &[], 1..7);
+        assert_eq!((count(&pages, "Beta LLC"), count(&pages, notes)), (0, 6));
     }
 
     #[test]
