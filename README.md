@@ -1,5 +1,10 @@
 # parsec-edgar
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ciscoriordan/parsec-edgar/main/assets/readme-dark.svg">
+  <img alt="Parsec" src="https://raw.githubusercontent.com/ciscoriordan/parsec-edgar/main/assets/readme-light.svg">
+</picture>
+
 Fast SEC EDGAR client and filing parser written in Rust, with Python bindings and a command-line tool.
 
 - Look up companies by ticker or CIK
