@@ -726,6 +726,8 @@ fn kept_lines<'a>(
     let mut number: Option<(Option<u32>, usize, bool)> = None;
     let mut page: Option<u32> = None;
     let mut kept_end: Option<usize> = None;
+    // Where each bare page number in digits that was dropped starts, and its value.
+    let mut bare: Vec<(usize, u32)> = Vec::new();
     for line in text.lines() {
         let start = line.as_ptr() as usize - text.as_ptr() as usize;
         while cell_lines.next_if(|&p| p < start).is_some() {}
@@ -748,6 +750,7 @@ fn kept_lines<'a>(
         if !cell && let Some(c) = PAGE_NUMBER.captures(line) {
             ended(number.take(), &mut page);
             let value = c.get(1).or(c.get(4)).and_then(|m| m.as_str().parse().ok());
+            bare.extend(value.map(|v| (start, v)));
             number = Some((value, end, kept_end.is_some_and(|k| same_page(k, start))));
             continue;
         }
@@ -772,6 +775,7 @@ fn kept_lines<'a>(
             breaks.get(after).is_some_and(|&b| b <= next) || (i + 1 == lines.len() && !breaks.is_empty())
         })
         .collect();
+    unjoin_page_numbers(&mut lines, &starts, &ends_page, &bare);
     let mut gone = vec![false; lines.len()];
     for i in page_furniture(&lines, &is_cell, &rows, &ends_page, &after_number) {
         gone[i] = true;
@@ -797,6 +801,40 @@ fn kept_lines<'a>(
         }
     }
     lines.into_iter().zip(gone).filter(|&(_, gone)| !gone).map(|(l, _)| l).collect()
+}
+
+/// Take the page number off the end of the last line of a page in a text
+/// filing that prints it on the same line as the text, after a wide space:
+/// "supplies.                             2". The line must end a page
+/// (`ends_page`), and the bare page numbers on both sides of it must number
+/// the pages around it (`bare`, as the offset in the text where each starts,
+/// in order, and its value): the one printed before it must be the number
+/// before or the same number, printed at the top of the page, and the one
+/// printed after it the number after. The text before the space must have
+/// no run of three spaces or a tab, as the columns of a table row do.
+/// `starts` are the offsets of the lines in the text. HTML has no such
+/// lines, as its spaces collapse.
+fn unjoin_page_numbers(lines: &mut [&str], starts: &[usize], ends_page: &[bool], bare: &[(usize, u32)]) {
+    // The narrowest space before the number: ten spaces.
+    const SPACE: &str = "          ";
+    static JOINED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\S.*?\S)( +)(\d{1,3})$").unwrap());
+    for i in 0..lines.len() {
+        if !ends_page[i] || !lines[i].ends_with(|c: char| c.is_ascii_digit()) || !lines[i].contains(SPACE) {
+            continue;
+        }
+        let Some(c) = JOINED.captures(lines[i]) else { continue };
+        let (words, number) = (c.get(1).expect("group 1 always matches"), &c[3]);
+        if c[2].len() < SPACE.len() || words.as_str().contains("   ") || words.as_str().contains('\t') {
+            continue;
+        }
+        let Ok(n) = number.parse::<u32>() else { continue };
+        let at = bare.partition_point(|&(s, _)| s < starts[i]);
+        let before = at.checked_sub(1).is_some_and(|b| bare[b].1 + 1 == n || bare[b].1 == n);
+        let after = bare.get(at).is_some_and(|&(_, v)| v == n + 1);
+        if before && after {
+            lines[i] = &lines[i][..words.end()];
+        }
+    }
 }
 
 /// Running page headers and footers that print no page number, such as
@@ -2369,6 +2407,48 @@ mod tests {
         // A row of cells in a text filing.
         let raw: String = (1..7).map(|n| format!("Acme\tCorporation\nText of page {n}.\n<PAGE>\n")).collect();
         assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).matches("Acme\t").count(), 6);
+    }
+
+    /// A text filing that prints a page's number at the end of its last line,
+    /// after a wide space, loses the number when it is the one after the page
+    /// number printed before it, or the number printed at the top of its
+    /// page, and the one before the page number printed after it.
+    #[test]
+    fn page_numbers_joined_to_a_last_line_dropped() {
+        let filing = |pages: &[&str]| {
+            let raw: String = pages.iter().map(|p| format!("{p}\n<PAGE>\n")).collect();
+            document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>"))
+        };
+        let gap = " ".repeat(30);
+        let joined = format!("Pilot training systems and\nsupplies.{gap}2");
+        for pages in [
+            [format!("Text.\n{gap}1"), joined.clone(), format!("Text.\n{gap}3")],
+            ["Text.".to_string(), format!("{gap}2\n{joined}"), format!("{gap}3\nText.")],
+        ] {
+            let pages = pages.each_ref().map(String::as_str);
+            assert_eq!(filing(&pages), "Text.\nPilot training systems and\nsupplies.\nText.\n", "{pages:?}");
+        }
+        // With a page number on one side only, it stays.
+        for pages in [
+            [format!("Text.\n{gap}1"), joined.clone(), "Text.".to_string()],
+            ["Text.".to_string(), joined.clone(), format!("Text.\n{gap}3")],
+            [format!("Text.\n{gap}3"), joined.clone(), format!("Text.\n{gap}3")],
+        ] {
+            let pages = pages.each_ref().map(String::as_str);
+            assert!(filing(&pages).contains(&format!("supplies.{gap}2\n")), "{pages:?}");
+        }
+        // A narrower space, a number that is no next page, a table row and a
+        // line that does not end its page keep their numbers.
+        for (page, line) in [
+            (format!("Text.\nsupplies.{}2", " ".repeat(9)), "supplies.         2"),
+            (format!("Text.\nsupplies.{gap}7"), "supplies.                              7"),
+            (format!("Text.\nTokyo,   Japan{gap}2"), "Tokyo,   Japan                              2"),
+            (format!("Text.\nTokyo,\tJapan{gap}2"), "Tokyo,\tJapan                              2"),
+            (format!("supplies.{gap}2\nText."), "supplies.                              2"),
+        ] {
+            let text = filing(&[&format!("Text.\n{gap}1"), &page, &format!("Text.\n{gap}3")]);
+            assert!(text.contains(&format!("{line}\n")), "{text}");
+        }
     }
 
     /// Old text filings that number their page tags, as in "<Page 2>".
