@@ -1,0 +1,77 @@
+{
+  "accession": "0001096906-06-000264",
+  "cik": 1027876,
+  "company": "TERRA SYSTEMS CORP",
+  "form": "10QSB",
+  "filing_date": "2006-04-10",
+  "url": "https://www.sec.gov/Archives/edgar/data/1027876/000109690606000264/terra10qsb063003.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-qsb"
+  ],
+  "labeled": true,
+  "notes": "10-QSB, plain text, filed 2006 for the quarter ended June 30, 2003. The contents (48 to 70) are not labeled. Part I Item 1 is printed 'Item I. Financial Statements' with a roman numeral (line 72) and is labeled there. Part I Items 2 (332) and 3 (463). AMBIGUOUS: Part II is misnumbered. It prints Item 1 Legal Proceedings (483), Item 2 Unregistered Sales (509), Item 3 Defaults (517), then 'Item 4.  Other Information' (519) and 'Item 5.  Exhibits' (523); the form's Item 4 (Submission of Matters) is left out, so Other Information and Exhibits carry numbers one lower than the form's. They are labeled by their printed numbers, Part II Items 4 and 5, both marked uncertain, and Part II Item 6 is listed absent. The alternative labels them by title as Part II Items 5 and 6 with Item 4 absent. Ends at SIGNATURES (531). Part II Item 3 (None) marked incorporated.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item I. Financial Statements",
+      "occurrence": 0,
+      "next": "TERRA SYSTEMS, INC AND SUBSIDIARY"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2.  Management's Discussion and Plan of Operation",
+      "occurrence": 0,
+      "next": "Special Cautionary Statement Regarding F"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3.  Controls and Procedures",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.  Legal Proceedings",
+      "occurrence": 0,
+      "next": "Threatened Litigation -- The Company and"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.  Unregistered Sales of Equity Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "During the three  months  ending  June 3"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3.  Defaults on Senior Securities",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.  Other Information",
+      "occurrence": 0,
+      "next": "As noted above, this Quarterly Report wa",
+      "uncertain": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5.  Exhibits",
+      "occurrence": 0,
+      "next": "None",
+      "uncertain": true
+    }
+  ],
+  "absent": [
+    "part_2_item_6"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with the requirements of t"
+  }
+}

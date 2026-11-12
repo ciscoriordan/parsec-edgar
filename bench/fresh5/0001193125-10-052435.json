@@ -1,0 +1,145 @@
+{
+  "accession": "0001193125-10-052435",
+  "cik": 855658,
+  "company": "LATTICE SEMICONDUCTOR CORP",
+  "form": "10-K",
+  "filing_date": "2010-03-10",
+  "url": "https://www.sec.gov/Archives/edgar/data/855658/000119312510052435/d10k.htm",
+  "agent": "DFIN",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-K for fiscal 2009. The contents (39 to 67) are not labeled. All Items 1 to 15 with 1A, 1B, 7A, 9A, 9B have one body heading; nothing absent. Item 4 is printed 'Item 4. [Reserved]' with no body (322), labeled and not marked. Item 9B says 'None.'; the introductory paragraph under PART III (1295 to 1296) stays in it, as the labels have no way to give text under a Part heading to no Item. Item 15 ends at SIGNATURES (1428). Marked incorporated: 1B, 9, 9B (None), 11, 13, 14 (proxy statement).",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1. Business.",
+      "occurrence": 0,
+      "next": "Lattice Semiconductor Corporation (“Latt"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A. Risk Factors",
+      "occurrence": 0,
+      "next": "The following risk factors and other inf"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B. Unresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2. Properties.",
+      "occurrence": 0,
+      "next": "Our corporate headquarters consists of l"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "On June 11, 2007, a patent infringement "
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4. [Reserved]",
+      "occurrence": 0,
+      "next": "PART II"
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters & Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6. Selected Financial Data.",
+      "occurrence": 0,
+      "next": "Year Ended"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "Credit Market Risks"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8. Financial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "Index to Consolidated Financial Statemen"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9. Changes in and Disagreements with Accountants On Accounting and Financial Disclosure.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "Conclusion Regarding the Effectiveness o"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B. Other Information.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10. Directors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "Information regarding our directors that"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11. Executive Compensation.",
+      "occurrence": 0,
+      "next": "The information contained under the capt",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "The information contained under the capt"
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13. Certain Relationships and Related Transactions, and Director Independence.",
+      "occurrence": 0,
+      "next": "The information contained under the capt",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14. Principal Accountant Fees and Services.",
+      "occurrence": 0,
+      "next": "The information contained under the capt",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15. Exhibits, Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(a) List of Documents Filed as Part of t"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

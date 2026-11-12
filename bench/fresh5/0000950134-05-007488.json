@@ -1,0 +1,137 @@
+{
+  "accession": "0000950134-05-007488",
+  "cik": 1042173,
+  "company": "SCIENTIFIC LEARNING CORP",
+  "form": "10-K",
+  "filing_date": "2005-04-15",
+  "url": "https://www.sec.gov/Archives/edgar/data/1042173/000095013405007488/f07372e10vk.htm",
+  "agent": "",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "10-K for 2004. The contents (36 to 65) are not labeled; the forward-looking note under PART I (66 to 67) belongs to no Item. Items 1 to 15 with 7A, 9A and 9B, one heading each; nothing absent (Items 1A and 1B did not exist yet). An unnumbered 'EXECUTIVE OFFICERS' section follows Item 4's 'None.' and stays in Item 4, so Item 4 is not marked. Item 15 prints Schedule II inside its own part (a)(2), then the exhibit list (with a repeated 'Exhibit No.' column header) and the Form 8-K reports, and ends at SIGNATURES (1025); the Index to Exhibits follows the signatures. Marked incorporated: 3 (None), 9 (None), 9B (Not Applicable), 10 to 14.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "We develop and distribute the Fast ForWo"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "We lease approximately 30,500 square fee"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR THE REGISTRANT’S COMMON EQUITY AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "(a) Market Information. Our common stock"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. Selected Financial Data",
+      "occurrence": 0,
+      "next": "In thousands, except per share amounts"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Interest Rate Risk"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Report of Ernst & Young LLP, Independent"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Disclosure controls and procedures are d"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "Not Applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "Information required by this item concer",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "Information required by this item concer",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "Information required by this item concer",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "Information required by this item concer",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a) Documents filed as part of this repo"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

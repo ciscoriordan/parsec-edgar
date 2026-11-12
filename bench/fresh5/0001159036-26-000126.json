@@ -1,0 +1,31 @@
+{
+  "accession": "0001159036-26-000126",
+  "cik": 1159036,
+  "company": "HALOZYME THERAPEUTICS, INC.",
+  "form": "8-K",
+  "filing_date": "2026-09-18",
+  "url": "https://www.sec.gov/Archives/edgar/data/1159036/000115903626000126/halo-20260917.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "8-K. Items 8.01 (35) and 9.01 (38); ends at SIGNATURES (44). Nothing ambiguous.",
+  "items": [
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01 Other Events",
+      "occurrence": 0,
+      "next": "On September 17, 2026, Halozyme Therapeu"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01 Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

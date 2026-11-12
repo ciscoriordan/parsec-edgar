@@ -1,0 +1,119 @@
+{
+  "accession": "0000950131-03-001421",
+  "cik": 101199,
+  "company": "UNITED FIRE GROUP INC",
+  "form": "10-K",
+  "filing_date": "2003-03-18",
+  "url": "https://www.sec.gov/Archives/edgar/data/101199/000095013103001421/d10k.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "insurer"
+  ],
+  "labeled": true,
+  "notes": "10-K for 2002, plain text, insurer (United Fire & Casualty, EDGAR's current name United Fire Group). The contents (45 to 66) are not labeled. Items 1 to 15 with 7A in the numbering of early 2003 (Item 14 Controls and Procedures, Item 15 exhibits), one heading each; nothing absent. Items 10 to 13 are printed in full. Item 15 lists the statements, schedules and exhibits and ends at SIGNATURES (4467). Marked incorporated: Item 4 (no matters submitted).",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "GENERAL DESCRIPTION"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2.   PROPERTIES",
+      "occurrence": 0,
+      "next": "We own two buildings and related parking"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3.   LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "We considered all of our pending litigat"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4.   SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "There were no matters submitted to a vot",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5.   MARKET FOR REGISTRANT'S COMMON EQUITY AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "United Fire's common stock is traded on "
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6.  SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "========================================"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7.   MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND",
+      "occurrence": 0,
+      "next": "RESULTS OF OPERATIONS"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Our main objectives in managing our inve"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Consolidated Balance Sheets"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.   CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 0,
+      "next": "FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10.  DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "Served as"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11.    EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "Executive compensation includes the amou"
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP BY CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "(a) Security ownership of certain benefi"
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "Byron G. Riley, a director, is a member "
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "In order to ensure that the information "
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15.     EXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "Page"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

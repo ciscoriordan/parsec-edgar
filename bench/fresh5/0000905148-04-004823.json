@@ -1,0 +1,33 @@
+{
+  "accession": "0000905148-04-004823",
+  "cik": 895421,
+  "company": "MORGAN STANLEY",
+  "form": "8-K",
+  "filing_date": "2004-11-12",
+  "url": "https://www.sec.gov/Archives/edgar/data/895421/000090514804004823/efc4-2022_5582058form8k.txt",
+  "agent": "Sidley Austin LLP",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "8-K, plain text. Item 8.01 (line 31) and Item 9.01 (line 50), each with one heading; ends at SIGNATURES (62). Nothing ambiguous.",
+  "items": [
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01.  Other Events",
+      "occurrence": 0,
+      "next": "Exhibits are filed herewith in connectio"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01. Financial Statements and Exhibits",
+      "occurrence": 0,
+      "next": "(c) Exhibits"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

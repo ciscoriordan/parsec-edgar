@@ -1,0 +1,70 @@
+{
+  "accession": "0001144204-16-128037",
+  "cik": 1615892,
+  "company": "Axar Acquisition Corp.",
+  "form": "8-K",
+  "filing_date": "2016-10-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/1615892/000114420416128037/v450517_8k.htm",
+  "agent": "Vintage Filings",
+  "tags": [],
+  "labeled": true,
+  "notes": "8-K. Items 1.01, 3.03, 5.01, 5.02, 5.03, 5.07, 8.01, 9.01, one heading each; ends at SIGNATURE (90), with the EXHIBIT INDEX after the signature. Items 3.03 and 5.01 only refer to other Items and Item 9.01 only incorporates the exhibit index after the signature; all three are marked incorporated (unscored).",
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "Item 1.01. Entry into a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "On October 7, 2016, following the approv"
+    },
+    {
+      "id": "item_3.03",
+      "text": "Item 3.03 Material Modification to Rights of Security Holders.",
+      "occurrence": 0,
+      "next": "Reference is made to the description of ",
+      "incorporated": true
+    },
+    {
+      "id": "item_5.01",
+      "text": "Item 5.01. Changes in Control of Registrant.",
+      "occurrence": 0,
+      "next": "Reference is made to the disclosure set ",
+      "incorporated": true
+    },
+    {
+      "id": "item_5.02",
+      "text": "Item 5.02. Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers; Compensatory Arrangements of Certain Officers.",
+      "occurrence": 0,
+      "next": "As previously disclosed by the Company, "
+    },
+    {
+      "id": "item_5.03",
+      "text": "Item 5.03 Amendments to Articles of Incorporation or Bylaws; Change in Fiscal Year.",
+      "occurrence": 0,
+      "next": "Following the Closing and the approval o"
+    },
+    {
+      "id": "item_5.07",
+      "text": "Item 5.07. Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "On October 6, 2016, we held a special me"
+    },
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01. Other Events.",
+      "occurrence": 0,
+      "next": "On October 7, 2016 and following approva"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01. Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

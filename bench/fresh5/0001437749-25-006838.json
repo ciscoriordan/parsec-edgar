@@ -1,0 +1,164 @@
+{
+  "accession": "0001437749-25-006838",
+  "cik": 1792849,
+  "company": "HighPeak Energy, Inc.",
+  "form": "10-K",
+  "filing_date": "2025-03-10",
+  "url": "https://www.sec.gov/Archives/edgar/data/1792849/000143774925006838/hpe20241231_10k.htm",
+  "agent": "",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-K for 2024. The contents (51 to 77) and the glossary and cautionary statements before PART I (to line 209) are not labeled and belong to no Item. COMBINED HEADING: 'ITEMS 1 AND 2. BUSINESS AND PROPERTIES' (211) is one heading for Items 1 and 2; it is labeled as Item 1 and marked uncertain, with Item 2 listed absent, following the fresh3 WellCare and fresh4 Royal Caribbean labels for a heading that names several Items. The body prints no PART III heading: Item 10 (2201) follows Item 9C directly, and line 2202, which begins 'Item 10 will be incorporated by reference', is Item 10's body text, not a heading. 'ITEM 6. RESERVED' (1065) has no body and is not marked. Item 16 'None.' ends at SIGNATURES (2280). Marked incorporated: 1B, 9, 16 (None), 4, 9C (Not applicable), 10 to 13.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEMS 1 AND 2. BUSINESS AND PROPERTIES",
+      "occurrence": 0,
+      "next": "Overview",
+      "uncertain": true
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A. RISK FACTORS",
+      "occurrence": 0,
+      "next": "There are many factors that may affect o"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_1c",
+      "text": "ITEM 1C. CYBERSECURITY",
+      "occurrence": 0,
+      "next": "Overview"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The Company may be a party to various pr"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "Market Information"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. RESERVED",
+      "occurrence": 0,
+      "next": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANAL"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS {START HERE}",
+      "occurrence": 0,
+      "next": "The following discussion and analysis sh"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "The Company’s major market risk exposure"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "INDEX TO CONSOLIDATED FINANCIAL STATEMEN"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "Trading Plans"
+    },
+    {
+      "id": "item_9c",
+      "text": "ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "Item 10 will be incorporated by referenc",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required in response to ",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "The information required in response to ",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required in response to ",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "Our independent registered public accoun"
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "(a)\tListing of Financial Statements"
+    },
+    {
+      "id": "item_16",
+      "text": "ITEM 16. FORM 10-K SUMMARY",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    }
+  ],
+  "absent": [
+    "item_2"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

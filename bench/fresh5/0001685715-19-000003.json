@@ -1,0 +1,31 @@
+{
+  "accession": "0001685715-19-000003",
+  "cik": 1685715,
+  "company": "Jagged Peak Energy Inc.",
+  "form": "8-K",
+  "filing_date": "2019-02-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/1685715/000168571519000003/a2018q4pr8-k.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "8-K. Items 2.02 (31) and 9.01 (35); ends at SIGNATURES (39). Nothing ambiguous.",
+  "items": [
+    {
+      "id": "item_2.02",
+      "text": "Item 2.02\tResults of Operations and Financial Condition.",
+      "occurrence": 0,
+      "next": "The following information is furnished p"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01\tFinancial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

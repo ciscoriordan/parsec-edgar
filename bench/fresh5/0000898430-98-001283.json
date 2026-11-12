@@ -1,0 +1,98 @@
+{
+  "accession": "0000898430-98-001283",
+  "cik": 718937,
+  "company": "STAAR SURGICAL CO",
+  "form": "10-K",
+  "filing_date": "1998-04-01",
+  "url": "https://www.sec.gov/Archives/edgar/data/718937/000089843098001283/0000898430-98-001283.txt",
+  "agent": "DFIN",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "10-K for fiscal 1997, plain text. The contents (57 to 110) are not labeled. Items 1 to 9 and 14 each have one body heading. COMBINED HEADING: Part III is one heading, 'ITEMS 10., 11., 12. AND 13.' (1502); it is labeled as Item 10, marked uncertain, with Items 11, 12 and 13 listed absent, as in the fresh3 WellCare and fresh4 Royal Caribbean labels. Line 1382, 'Item 1.', is the end of a sentence in MD&A ('See \"Business--Regulatory Requirements\" in Item 1.'), not a heading. Item 7 is at the second copy of its heading (894; the first is the contents). Item 7A has no heading and no text; it is not listed absent because market risk disclosure did not yet apply to a company of this size for fiscal 1997 (Photoelectron 1998 precedent in fresh4; the fresh3 Cellular Communications label argues the other way). Item 14 runs through the exhibit list and the Form 8-K paragraph to SIGNATURES (1656); the F-pages follow the signatures. Marked incorporated: 3 (Not applicable), 4 (no matters), 8 (points to the F-pages), 9, 10.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "GENERAL"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "The Company's Monrovia, California, faci"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. PENDING LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "There were no matters submitted to a vot",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR THE REGISTRANT'S COMMON STOCK AND RELATED SECURITY HOLDER",
+      "occurrence": 0,
+      "next": "MATTERS"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. SELECTED CONSOLIDATED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "The following table sets forth selected "
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND",
+      "occurrence": 1,
+      "next": "RESULTS OF OPERATIONS"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Financial Statements and the Report of I",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 1,
+      "next": "FINANCIAL DISCLOSURE",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEMS 10., 11., 12. AND 13.",
+      "occurrence": 0,
+      "next": "Information required by Part III (Items ",
+      "incorporated": true,
+      "uncertain": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. EXHIBITS, FINANCIAL STATEMENTS, SCHEDULES AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a)(1) Financial statements required by "
+    }
+  ],
+  "absent": [
+    "item_11",
+    "item_12",
+    "item_13"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "accession": "0000820789-99-000001",
+  "cik": 820789,
+  "company": "EARTHWORKS ENTERTAINMENT INC",
+  "form": "10QSB",
+  "filing_date": "1999-02-17",
+  "url": "https://www.sec.gov/Archives/edgar/data/820789/000082078999000001/0000820789-99-000001.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-qsb"
+  ],
+  "labeled": true,
+  "items": [
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.     Legal Proceedings",
+      "occurrence": 0,
+      "next": "On May 15, 1995 the Company terminated a"
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.     Changes in Securities",
+      "occurrence": 0,
+      "next": "NONE",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3.     Defaults Upon Senior Securities",
+      "occurrence": 0,
+      "next": "NONE",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.     Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "NONE",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5.     Other Information",
+      "occurrence": 0,
+      "next": "NONE",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.     Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "NONE",
+      "incorporated": true
+    }
+  ],
+  "absent": [
+    "part_1_item_1",
+    "part_1_item_2"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "In accordance with the requirements of t"
+  },
+  "notes": "Part I has no Item headings: the index lists the statements and MD&A without Item numbers, the statements start at line 46 and MD&A has the unnumbered heading 'MANAGEMENT'S DISCUSSION AND ANALYSIS' (256). Part I Items 1 and 2 listed absent, not labeled at unnumbered headings, as in the Chevron 1999, American Filtrona 1997 and Harleysville 2002 labels. Part II Items 1 to 6 labeled (324 to 337); Items 2 to 6 say 'NONE': incorporated. End at SIGNATURES (339)."
+}

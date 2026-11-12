@@ -1,0 +1,106 @@
+{
+  "accession": "0000074925-97-000006",
+  "cik": 74925,
+  "company": "ORIGINAL SIXTEEN TO ONE MINE INC /CA/",
+  "form": "10KSB",
+  "filing_date": "1997-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/74925/000007492597000006/0000074925-97-000006.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "10-KSB for 1996, plain text. Headings are 'ITEM n:' with a colon, Items 1 to 13 in 10-KSB numbering (with 10-K style titles); nothing absent. Item 13 (610) keeps the INDEX TO EXHIBITS printed right after it (619) and ends at SIGNATURES (626). The financial statements follow the signatures; their index page prints '(ITEM 14 (a) 1 and 2)' (line 655), which is a caption, not an Item heading, and is not labeled. Marked incorporated: Items 3, 4 (Not applicable), 7 (points to the statements at the end), 8 and 12 (None).",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1:  BUSINESS",
+      "occurrence": 0,
+      "next": "Description of Business"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2:  PROPERTIES",
+      "occurrence": 0,
+      "next": "Properties"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3:  LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4:  SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5:  MARKET FOR THE REGISTRANT'S COMMON EQUITY AND",
+      "occurrence": 0,
+      "next": "RELATED STOCKHOLDER MATTERS"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6:  MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF",
+      "occurrence": 0,
+      "next": "OPERATION"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7:  FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "The financial statements of the Company ",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8:  CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON",
+      "occurrence": 0,
+      "next": "ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "incorporated": true
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9:  DIRECTORS AND EXECUTIVE OFFICERS OF REGISTRANT",
+      "occurrence": 0,
+      "next": "Officers and Directors"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10:  EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "Remuneration of Directors and Executive "
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11:  SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND",
+      "occurrence": 0,
+      "next": "MANAGEMENT"
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12:  CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13:  EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON",
+      "occurrence": 0,
+      "next": "FORM 8-K"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

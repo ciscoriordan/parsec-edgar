@@ -1,0 +1,69 @@
+{
+  "accession": "0001437749-24-034932",
+  "cik": 1642122,
+  "company": "Associated Capital Group, Inc.",
+  "form": "10-Q",
+  "filing_date": "2024-11-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/1642122/000143774924034932/ac20240930_10q.htm",
+  "agent": "",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended September 30, 2024. AMBIGUOUS: Part I Item 1 has no body heading. The contents (35 to 62) list 'Item 1. Unaudited Condensed Consolidated Financial Statements' and the statements follow the contents directly at line 63 with no Part I or Item 1 heading, so Part I Item 1 is listed absent and the statements belong to no Item, as in the fresh3 0001213900-23-041982 and fresh4 Commvault labels. The alternative is the contents entry at line 36. Body headings use a colon: 'ITEM 2:' (528), 'ITEM 3:' (663), 'ITEM 4.' (665); Part II 'ITEM 1:' (680), 'ITEM 1A:' (682), 'ITEM 2:' (684), 'ITEM 6: (a) Exhibits' (692); ends at SIGNATURES (721). Part II Items 3, 4, 5 absent (the contents say omitted Items are not applicable). Marked incorporated: Part I Item 3 and Part II Item 1A (smaller reporting companies not required).",
+  "items": [
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2: MANAGEMENT’S DISCUSSION AND ANALYSIS (“MD&A”) OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "Introduction"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3: Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "Smaller reporting companies are not requ",
+      "incorporated": true
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4. Controls and Procedures",
+      "occurrence": 0,
+      "next": "Disclosure Controls and Procedures"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "ITEM 1: Legal Proceedings",
+      "occurrence": 0,
+      "next": "Currently, we are not subject to any leg"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "ITEM 1A: Risk Factors.",
+      "occurrence": 0,
+      "next": "Smaller reporting companies are not requ",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "ITEM 2: Unregistered Sales of Equity Securities And Use Of Proceeds",
+      "occurrence": 0,
+      "next": "The following table provides information"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6: (a) Exhibits",
+      "occurrence": 0,
+      "next": "Exhibit"
+    }
+  ],
+  "absent": [
+    "part_1_item_1",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

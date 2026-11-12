@@ -1,0 +1,150 @@
+{
+  "accession": "0001403475-14-000013",
+  "cik": 1403475,
+  "company": "Bank of Marin Bancorp",
+  "form": "10-K",
+  "filing_date": "2014-03-17",
+  "url": "https://www.sec.gov/Archives/edgar/data/1403475/000140347514000013/bmrc-20131231x10k.htm",
+  "agent": "self",
+  "tags": [
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "10-K for 2013, bank. The contents (43 to 110) are not labeled; the forward-looking statements under PART I (111 to 124) belong to no Item. All Items 1 to 15 with 1A, 1B, 7A, 9A, 9B have one body heading; nothing absent. Items 1 to 7 are printed without a period after the number ('ITEM 1 BUSINESS'). The text keeps page footers such as 'Page-115' as separate lines. Item 15 ends at SIGNATURES (2381); an EXHIBIT INDEX follows the signatures. Marked incorporated: 1B (None), 4 (Not applicable), 9, 9B (None), 10 to 14.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1 BUSINESS",
+      "occurrence": 0,
+      "next": "Bank of Marin (the “Bank”) was incorpora"
+    },
+    {
+      "id": "item_1a",
+      "text": "ITEM 1A RISK FACTORS",
+      "occurrence": 0,
+      "next": "An investment in our common stock is sub"
+    },
+    {
+      "id": "item_1b",
+      "text": "ITEM 1B UNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2 PROPERTIES",
+      "occurrence": 0,
+      "next": "We lease our corporate headquarters buil"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3 LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "We may be party to legal actions which a"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4 MINE SAFETY DISCLOSURES",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5 MARKET FOR REGISTRANT'S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "Bancorp common stock trades on the NASDA"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6 SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "2013\t2012\t2011\t2010\t2009\t2012/2013"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7 MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion of financial co"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. Quantitative and Qualitative Disclosure about Market Risk",
+      "occurrence": 0,
+      "next": "Market risk is defined as the risk of lo"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Report of Independent Registered Public "
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9.\tCHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "(A) Evaluation of Disclosure Controls an"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12.\tSECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND",
+      "occurrence": 0,
+      "next": "RELATED STOCKHOLDER MATTERS",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13.\tCERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by this Item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15.\tExhibits and Financial Statement Schedules",
+      "occurrence": 0,
+      "next": "(A) Documents Filed as Part of this Repo"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "accession": "0001628280-17-001689",
+  "cik": 1458891,
+  "company": "Noble Corp",
+  "form": "10-K",
+  "filing_date": "2017-02-24",
+  "url": "https://www.sec.gov/Archives/edgar/data/1458891/000162828017001689/nefy201610-k.htm",
+  "agent": "Workiva",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-K for 2016, a combined report of two registrants (Noble Corporation plc and its Cayman subsidiary). The contents (59 to 86) are not labeled. All Items 1 to 16 with 1A, 1B, 7A, 9A, 9B have one body heading; nothing absent. Item 16 'None.' ends at the first SIGNATURES (2675); a second SIGNATURES page (for the second registrant, 2705) and the INDEX TO EXHIBITS follow. Marked incorporated: 1B (None), 3 (refers to a note), 4 (Not applicable), 9, 9B (None), 11 to 14, 16 (None). Item 10 prints the executive officers and is not marked.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBusiness.",
+      "occurrence": 0,
+      "next": "General"
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRisk Factors.",
+      "occurrence": 0,
+      "next": "You should carefully consider the follow"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.\tUnresolved Staff Comments.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tProperties.",
+      "occurrence": 0,
+      "next": "Drilling Fleet"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLegal Proceedings.",
+      "occurrence": 0,
+      "next": "Information regarding legal proceedings ",
+      "incorporated": true
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tMine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMarket for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities.",
+      "occurrence": 0,
+      "next": "Market for Shares and Related Shareholde"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\tSelected Financial Data.",
+      "occurrence": 0,
+      "next": "The following table sets forth selected "
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tManagement’s Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "The following discussion is intended to "
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQuantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "Market risk is the potential for loss du"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFinancial Statements and Supplementary Data.",
+      "occurrence": 0,
+      "next": "The following financial statements are f"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tChanges in and Disagreements With Accountants on Accounting and Financial Disclosure",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tControls and Procedures.",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOther Information.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDirectors, Executive Officers and Corporate Governance.",
+      "occurrence": 0,
+      "next": "The sections entitled “Election of Direc"
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tExecutive Compensation.",
+      "occurrence": 0,
+      "next": "The sections entitled “Executive Compens",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSecurity Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters.",
+      "occurrence": 0,
+      "next": "The sections entitled “Equity Compensati",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCertain Relationships and Related Transactions and Director Independence.",
+      "occurrence": 0,
+      "next": "The sections entitled “Additional Inform",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPrincipal Accounting Fees and Services.",
+      "occurrence": 0,
+      "next": "The section entitled “Auditors” appearin",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tExhibits, Financial Statement Schedules.",
+      "occurrence": 0,
+      "next": "(a)\tThe following documents are filed as"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16.\tForm 10-K Summary.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

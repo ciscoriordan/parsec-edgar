@@ -1,0 +1,118 @@
+{
+  "accession": "0000930661-01-501852",
+  "cik": 878520,
+  "company": "Hilltop Securities Holdings LLC",
+  "form": "10-K405",
+  "filing_date": "2001-09-27",
+  "url": "https://www.sec.gov/Archives/edgar/data/878520/000093066101501852/d10k405.txt",
+  "agent": "DFIN",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "10-K405 for the fiscal year ended June 29, 2001, plain text (Southwest Securities Group, EDGAR's current name Hilltop Securities Holdings). Items 1 to 14 with 7A, one heading each; nothing absent. Item 7A only refers to MD&A; Item 8 points to the F-pages but also prints the quarterly data. Item 14 ends at SIGNATURES (1813); the F-pages follow the signatures and belong to no Item. Marked incorporated: 4 (None), 7A, 9, 10 to 13.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.    Business",
+      "occurrence": 0,
+      "next": "(a)  General Development of Business"
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.       Properties",
+      "occurrence": 0,
+      "next": "Our executive offices are located in app"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.       Legal Proceedings",
+      "occurrence": 0,
+      "next": "On April 17, 1998, a judgment was entere"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.       Submission of Matters to a Vote of Security Holders",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.  Market for Registrant's Common Equity and Related Stockholder Matters",
+      "occurrence": 0,
+      "next": "Our common stock trades on the New York "
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.  Selected Financial Data",
+      "occurrence": 0,
+      "next": "SELECTED FINANCIAL DATA"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.   Management's Discussion and Analysis of Financial Condition and",
+      "occurrence": 0,
+      "next": "Results of Operations"
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.  Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.   Financial Statements and Supplementary Data",
+      "occurrence": 0,
+      "next": "(a) Financial statements, schedules and "
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.    Changes in and Disagreements with Accountants on Accounting and",
+      "occurrence": 0,
+      "next": "Financial Disclosure",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.   Directors and Executive Officers of the Registrant",
+      "occurrence": 0,
+      "next": "For information with respect to our exec",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.   Executive Compensation",
+      "occurrence": 0,
+      "next": "The information under the subheading \"Ex",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.   Security Ownership of Certain Beneficial Owners and Management",
+      "occurrence": 0,
+      "next": "The information under the subheading \"St",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.   Certain Relationships and Related Transactions",
+      "occurrence": 0,
+      "next": "The information under the heading \"Propo",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.   Exhibits, Financial Statement Schedules, and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a)  List of documents filed as a part o"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

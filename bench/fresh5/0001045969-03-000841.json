@@ -1,0 +1,109 @@
+{
+  "accession": "0001045969-03-000841",
+  "cik": 1056748,
+  "company": "EARTHFIRST TECHNOLOGIES INC",
+  "form": "10KSB",
+  "filing_date": "2003-03-31",
+  "url": "https://www.sec.gov/Archives/edgar/data/1056748/000104596903000841/d10ksb.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap",
+    "10-ksb"
+  ],
+  "labeled": true,
+  "notes": "10-KSB for 2002, plain text. The contents (43 to 63) are not labeled; the forward-looking preamble under PART I (64 to 91) belongs to no Item. Items 1 to 14 in 10-KSB numbering, one heading each; nothing absent. Item 13 (1084) holds only '(a)  Exhibits' before Item 14. AMBIGUOUS: Item 14 Controls and Procedures (1086) is the last Item and is followed, with no heading, by the company name and a one-person signature block (1107 to 1110), then the auditors' report, the financial statements and the certifications; the SIGNATURES heading comes only at line 2149, near the end of the document. Item 14 is labeled to end at the company-name line above the signature block (1107), marked uncertain; the statements belong to no Item. The filing end is the SIGNATURES heading (2149). Alternative: put the filing end at line 1107 too. Marked incorporated: Item 4 (None). Reconciled: the filing end is the signing block after Item 14 (second labeling), in place of an end on Item 14 alone.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. DESCRIPTION OF BUSINESS",
+      "occurrence": 0,
+      "next": "OVERVIEW"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. DESCRIPTION OF PROPERTIES",
+      "occurrence": 0,
+      "next": "The Company maintains a 10,000 square-fo"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The Company has performed extensive rese"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR COMMON EQUITY AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "EarthFirst shares trade on The National "
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION",
+      "occurrence": 0,
+      "next": "The following discussion and analysis pr"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "The consolidated 2002 financial statemen"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 0,
+      "next": "FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. DIRECTORS, EXECUTIVE OFFICERS, PROMOTERS AND CONTROL PERSONS; COMPLIANCE",
+      "occurrence": 0,
+      "next": "WITH SECTION 16(a) OF THE EXCHANGE ACT."
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The following table sets forth informati"
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "The following table sets forth certain i"
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS.",
+      "occurrence": 0,
+      "next": "On December 15, 2000, EarthFirst Technol"
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. EXHIBITS, LIST AND REPORTS ON FORM 10-KSB.",
+      "occurrence": 0,
+      "next": "(a)  Exhibits"
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "As required by Rule 13a-15 under the Sec",
+      "uncertain": true
+    }
+  ],
+  "end": {
+    "text": "EarthFirst Technologies, Incorporated and Subsidiaries",
+    "occurrence": 0,
+    "next": "/s/ John Stanton              Chief Exec"
+  }
+}

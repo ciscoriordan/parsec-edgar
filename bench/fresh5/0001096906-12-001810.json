@@ -1,0 +1,135 @@
+{
+  "accession": "0001096906-12-001810",
+  "cik": 925661,
+  "company": "SECTOR 10, Inc.",
+  "form": "10-K",
+  "filing_date": "2012-07-16",
+  "url": "https://www.sec.gov/Archives/edgar/data/925661/000109690612001810/sector1010k20120331.htm",
+  "agent": "",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "10-K for the fiscal year ended March 31, 2012, small company. The contents (36 to 64) are not labeled. Items 1 to 15 with 7A, 9A, 9B have one body heading each, with small-business titles ('DESCRIPTION OF BUSINESS', 'PLAN OF OPERATION') and Item 4 still titled 'SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS'. MISSING ITEMS: Items 1A and 1B have no heading and are listed absent; risk-factor text is printed under Item 7A instead. Item 8 prints the statements. Item 15 'EXHIBITS' ends at SIGNATURES (789). Marked incorporated: 6 and 9B (None).",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. DESCRIPTION OF BUSINESS",
+      "occurrence": 0,
+      "next": "SPECIAL NOTE REGARDING FORWARD-LOOKING S"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. DESCRIPTION OF PROPERTIES",
+      "occurrence": 0,
+      "next": "The Company’s administrative offices are"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "The Company is aware of the following si"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS",
+      "occurrence": 0,
+      "next": "The shareholders approved the Company am"
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND SMALL BUSINESS ISSUER PURCHASER OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "The pending litigation has impacted the "
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION",
+      "occurrence": 0,
+      "next": "Plan of Operation"
+    },
+    {
+      "id": "item_7a",
+      "text": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "Risks Related to our Business and Operat"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS",
+      "occurrence": 0,
+      "next": "NOTE: The financial statements, related "
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "Due to the late filing of the Form 10-K "
+    },
+    {
+      "id": "item_9a",
+      "text": "ITEM 9A. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Critical Accounting Policies"
+    },
+    {
+      "id": "item_9b",
+      "text": "ITEM 9B. OTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS AND EXECUTIVE OFFICERS OF THE REGISTRANT",
+      "occurrence": 0,
+      "next": "Information Regarding Present Directors "
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The following tables set forth certain s"
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "The following table sets forth, as of Ma"
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS",
+      "occurrence": 0,
+      "next": "During the Year ended March 31, 2011:"
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. PRINCIPAL ACCOUNTANTS FEES AND SERVICES -",
+      "occurrence": 0,
+      "next": "2012\t2011"
+    },
+    {
+      "id": "item_15",
+      "text": "ITEM 15. EXHIBITS",
+      "occurrence": 0,
+      "next": "31.1\tCertification of the Chief Executiv"
+    }
+  ],
+  "absent": [
+    "item_1a",
+    "item_1b"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "accession": "0001120970-19-000058",
+  "cik": 1120970,
+  "company": "Comstock Inc.",
+  "form": "10-Q",
+  "filing_date": "2019-08-14",
+  "url": "https://www.sec.gov/Archives/edgar/data/1120970/000112097019000058/lode-20190630x10q.htm",
+  "agent": "self",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended June 30, 2019 (Comstock Mining). The contents (37 to 55) are not labeled; the forward-looking notice (56 to 58) belongs to no Item. All 11 Items have one body heading: Part I Items 1 (60), 2 (527), 3 (697), 4 (699); Part II Items 1 (708), 1A, 2, 3, 4, 5, 6 (727); ends at SIGNATURES (746). Marked incorporated: Part I Item 3 and Part II Item 1A (no material changes, refer to the 10-K), Part II Item 3 (None).",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "COMSTOCK MINING INC. AND SUBSIDIARIES"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management’s Discussion and Analysis of Financial Condition and Results of Operations.",
+      "occurrence": 0,
+      "next": "The following discussion provides inform"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "occurrence": 0,
+      "next": "There have been no material changes in t",
+      "incorporated": true
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4. CONTROLS AND PROCEDURES.",
+      "occurrence": 0,
+      "next": "A. Disclosure"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings.",
+      "occurrence": 0,
+      "next": "The Company’s mining and exploration act"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "There have not been any material changes",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds.",
+      "occurrence": 0,
+      "next": "On July 18, 2019, the Company issued MCU"
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3. Defaults Upon Senior Securities.",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4. Mine Safety Disclosures.",
+      "occurrence": 0,
+      "next": "Pursuant to the Dodd-Frank Wall Street R"
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5. Other Information.",
+      "occurrence": 0,
+      "next": "Failure to Satisfy a Continued Listing R"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits.",
+      "occurrence": 0,
+      "next": "The exhibits required to be filed as a p"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

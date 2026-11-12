@@ -1,0 +1,63 @@
+{
+  "accession": "0000912057-01-515361",
+  "cik": 1043961,
+  "company": "Precipio, Inc.",
+  "form": "10-Q",
+  "filing_date": "2001-05-14",
+  "url": "https://www.sec.gov/Archives/edgar/data/1043961/000091205701515361/a2048526z10-q.htm",
+  "agent": "Toppan Merrill",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended March 31, 2001 (Transgenomic, EDGAR's current name Precipio). The contents (30 to 42) and the QuickLinks list after the signatures (295 to 305) are not labeled. Body: Part I Items 1 (44), 2 (237), 3 (267); Part II Items 1 (270), 2 (272), 6 (274); ends at the first SIGNATURES (285). Part II Items 3, 4, 5 absent. Part II Item 1 is a one-sentence nil answer, marked incorporated (unscored).",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "Transgenomic, Inc. and Subsidiaries"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+      "occurrence": 0,
+      "next": "The following discussion should be read "
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures About Market Risk",
+      "occurrence": 0,
+      "next": "The primary objective of our investment "
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1. Legal Proceedings",
+      "occurrence": 0,
+      "next": "We are not a party to, and none of our a",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Changes in Securities and Use of Proceeds",
+      "occurrence": 0,
+      "next": "(d) The amount of net proceeds from our "
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits and Reports on Form 8-K",
+      "occurrence": 0,
+      "next": "(a)"
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

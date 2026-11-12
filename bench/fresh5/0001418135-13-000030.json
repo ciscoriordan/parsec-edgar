@@ -1,0 +1,74 @@
+{
+  "accession": "0001418135-13-000030",
+  "cik": 1418135,
+  "company": "Keurig Dr Pepper Inc.",
+  "form": "10-Q",
+  "filing_date": "2013-04-24",
+  "url": "https://www.sec.gov/Archives/edgar/data/1418135/000141813513000030/dps-10qx33113.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended March 31, 2013 (Dr Pepper Snapple Group, EDGAR's current name Keurig Dr Pepper). The contents (32 to 46) are not labeled. Lines 47 to 49 print the title of the income statement above 'PART I - FINANCIAL INFORMATION' (a page-layout artifact); they belong to no Item and Part I Item 1 starts at its heading (51). Part I Items 1 (51), 2 (790), 3 (1013), 4 (1032); Part II Items 1 (1036), 1A (1038), 2 (1040), 6 (1049); ends at SIGNATURES (1082). Part II Items 3, 4, 5 absent. Part II Items 1 and 1A only refer elsewhere, marked incorporated.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1.\tFinancial Statements (Unaudited).",
+      "occurrence": 0,
+      "next": "For the"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "ITEM 2. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "You should read the following discussion"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "ITEM 3. Quantitative and Qualitative Disclosures About Market Risk.",
+      "occurrence": 0,
+      "next": "We are exposed to market risks arising f"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "ITEM 4. CONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Based on evaluation of the effectiveness"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.\tLegal Proceedings.",
+      "occurrence": 0,
+      "next": "Information regarding legal proceedings ",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A. Risk Factors.",
+      "occurrence": 0,
+      "next": "There have been no material changes that",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2. Unregistered Sales of Equity Securities and Use of Proceeds.",
+      "occurrence": 0,
+      "next": "We repurchased approximately 2.3 million"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6. Exhibits.",
+      "occurrence": 0,
+      "next": "2.1\tSeparation and Distribution Agreemen"
+    }
+  ],
+  "absent": [
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

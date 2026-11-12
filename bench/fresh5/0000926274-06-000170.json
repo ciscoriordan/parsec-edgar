@@ -1,0 +1,92 @@
+{
+  "accession": "0000926274-06-000170",
+  "cik": 745456,
+  "company": "MONROE BANCORP",
+  "form": "10-Q",
+  "filing_date": "2006-08-08",
+  "url": "https://www.sec.gov/Archives/edgar/data/745456/000092627406000170/mon-606q.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "bank"
+  ],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended June 30, 2006, plain text, bank. The contents (46 to 67) are not labeled. Every Item has one body heading: Part I Items 1 (69), 2 (533, wraps; first line), 3 (1146), 4 (1249); Part II Items 1 (1268), 1A (1304), 2, 3, 4, 5, 6 (1338). Headings are underlined with a row of dashes on the next line. Item 6's exhibit list runs to SIGNATURES (1418); a second Exhibit Index follows the signatures. Marked incorporated: Part II 1A (refers to the 10-K), 2, 3, 5 (Not applicable).",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "Item 1. Financial Statements",
+      "occurrence": 0,
+      "next": "MONROE BANCORP AND SUBSIDIARY"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's Discussion and Analysis of Financial Condition and",
+      "occurrence": 0,
+      "next": "Results of Operations"
+    },
+    {
+      "id": "part_1_item_3",
+      "text": "Item 3. Quantitative and Qualitative Disclosures about Market Risk",
+      "occurrence": 0,
+      "next": "----------------------------------------"
+    },
+    {
+      "id": "part_1_item_4",
+      "text": "Item 4. Controls and Procedures.",
+      "occurrence": 0,
+      "next": "--------------------------------"
+    },
+    {
+      "id": "part_2_item_1",
+      "text": "Item 1.   Legal Proceedings.",
+      "occurrence": 0,
+      "next": "-------   ------------------"
+    },
+    {
+      "id": "part_2_item_1a",
+      "text": "Item 1A.  Risk Factors.",
+      "occurrence": 0,
+      "next": "--------  -------------",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_2",
+      "text": "Item 2.   Unregistered Sales of Equity Securities and Use of Proceeds.",
+      "occurrence": 0,
+      "next": "-------   ------------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_3",
+      "text": "Item 3.   Defaults upon Senior Securities.",
+      "occurrence": 0,
+      "next": "-------   ------------------------------",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_4",
+      "text": "Item 4.   Submission of Matters to a Vote of Security Holders.",
+      "occurrence": 0,
+      "next": "-------   ------------------------------"
+    },
+    {
+      "id": "part_2_item_5",
+      "text": "Item 5.   Other Information.",
+      "occurrence": 0,
+      "next": "-------   ------------------",
+      "incorporated": true
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "Item 6.   Exhibits.",
+      "occurrence": 0,
+      "next": "-------   ---------"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

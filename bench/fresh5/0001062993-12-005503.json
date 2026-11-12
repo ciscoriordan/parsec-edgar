@@ -1,0 +1,33 @@
+{
+  "accession": "0001062993-12-005503",
+  "cik": 1368275,
+  "company": "W&E Source Corp.",
+  "form": "8-K",
+  "filing_date": "2012-12-20",
+  "url": "https://www.sec.gov/Archives/edgar/data/1368275/000106299312005503/form8k.htm",
+  "agent": "",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "8-K. Items 1.01 (21) and 3.02 (29); ends at SIGNATURE (31). Item 3.02 refers back to Item 1.01 but adds its own exemption paragraph, so it is not marked incorporated.",
+  "items": [
+    {
+      "id": "item_1.01",
+      "text": "Item 1.01. Entry into a Material Definitive Agreement.",
+      "occurrence": 0,
+      "next": "On December 15, 2012, Airchin Travel (Be"
+    },
+    {
+      "id": "item_3.02",
+      "text": "Item 3.02 Unregistered Sale of Equity Securities",
+      "occurrence": 0,
+      "next": "As described in more detail in Item 1.01"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

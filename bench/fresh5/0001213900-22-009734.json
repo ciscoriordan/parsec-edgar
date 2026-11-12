@@ -1,0 +1,45 @@
+{
+  "accession": "0001213900-22-009734",
+  "cik": 1513525,
+  "company": "Azora Therapeutics, Inc. (DE)",
+  "form": "8-K",
+  "filing_date": "2022-02-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/1513525/000121390022009734/ea156141-8k_adialpharma.htm",
+  "agent": "EdgarAgents",
+  "tags": [
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "8-K (Adial Pharmaceuticals, EDGAR's current name Azora Therapeutics). Items 5.03, 7.01, 8.01, 9.01; ends at SIGNATURES (49). Nothing ambiguous.",
+  "items": [
+    {
+      "id": "item_5.03",
+      "text": "Item 5.03. Amendments to Articles of Incorporation or Bylaws; Change in Fiscal Year.",
+      "occurrence": 0,
+      "next": "On February 22, 2022, the Board of Direc"
+    },
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01 Regulation FD Disclosure.",
+      "occurrence": 0,
+      "next": "On February 24, 2022, Adial Pharmaceutic"
+    },
+    {
+      "id": "item_8.01",
+      "text": "Item 8.01. Other Events.",
+      "occurrence": 0,
+      "next": "On February 24, 2022, the Company issued"
+    },
+    {
+      "id": "item_9.01",
+      "text": "Item 9.01. Financial Statements and Exhibits.",
+      "occurrence": 0,
+      "next": "(d) Exhibits."
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

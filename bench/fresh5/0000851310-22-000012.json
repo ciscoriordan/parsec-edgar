@@ -1,0 +1,162 @@
+{
+  "accession": "0000851310-22-000012",
+  "cik": 851310,
+  "company": "HARMONIC INC.",
+  "form": "10-K",
+  "filing_date": "2022-02-28",
+  "url": "https://www.sec.gov/Archives/edgar/data/851310/000085131022000012/hlit-20211231.htm",
+  "agent": "self",
+  "tags": [],
+  "labeled": true,
+  "notes": "10-K for 2021. The contents (49 to 112) are not labeled. All Items 1 to 16 with 1A, 1B, 7A, 9A, 9B, 9C have one body heading; nothing absent (Item 1C did not exist yet). 'Item 6. [RESERVED]' (511) has no body and is not marked. The introductory paragraph under PART III stays in Item 9C. Item 16 'None.' ends at SIGNATURES (1732). Marked incorporated: 1B, 9, 9B, 16 (None), 4, 9C (Not applicable), 10 to 14.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "Item 1.\tBUSINESS",
+      "occurrence": 0,
+      "next": "We are a leading global provider of (i) "
+    },
+    {
+      "id": "item_1a",
+      "text": "Item 1A.\tRISK FACTORS",
+      "occurrence": 0,
+      "next": "Risks Related to Our Business and Our In"
+    },
+    {
+      "id": "item_1b",
+      "text": "Item 1B.\tUNRESOLVED STAFF COMMENTS",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_2",
+      "text": "Item 2.\tPROPERTIES",
+      "occurrence": 0,
+      "next": "All of our facilities are leased, includ"
+    },
+    {
+      "id": "item_3",
+      "text": "Item 3.\tLEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "From time to time, we are involved in la"
+    },
+    {
+      "id": "item_4",
+      "text": "Item 4.\tMINE SAFETY DISCLOSURE",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_5",
+      "text": "Item 5.\tMARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY SECURITIES",
+      "occurrence": 0,
+      "next": "Market Information of our Common Stock"
+    },
+    {
+      "id": "item_6",
+      "text": "Item 6.\t[RESERVED]",
+      "occurrence": 0,
+      "next": "Item 7.\tMANAGEMENT’S DISCUSSION AND ANAL"
+    },
+    {
+      "id": "item_7",
+      "text": "Item 7.\tMANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "occurrence": 0,
+      "next": "The following discussion should be read "
+    },
+    {
+      "id": "item_7a",
+      "text": "Item 7A.\tQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK.",
+      "occurrence": 0,
+      "next": "Foreign Currency Exchange Risk"
+    },
+    {
+      "id": "item_8",
+      "text": "Item 8.\tFINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "Index to Consolidated Financial Statemen"
+    },
+    {
+      "id": "item_9",
+      "text": "Item 9.\tCHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9a",
+      "text": "Item 9A.\tCONTROLS AND PROCEDURES",
+      "occurrence": 0,
+      "next": "Evaluation of Disclosure Controls and Pr"
+    },
+    {
+      "id": "item_9b",
+      "text": "Item 9B.\tOTHER INFORMATION",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    },
+    {
+      "id": "item_9c",
+      "text": "Item 9C.\tDISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS",
+      "occurrence": 0,
+      "next": "Not applicable.",
+      "incorporated": true
+    },
+    {
+      "id": "item_10",
+      "text": "Item 10.\tDIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "Item 11.\tEXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "Item 12.\tSECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS",
+      "occurrence": 0,
+      "next": "Information related to security ownershi",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "Item 13.\tCERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "Item 14.\tPRINCIPAL ACCOUNTING FEES AND SERVICES",
+      "occurrence": 0,
+      "next": "The information required by this item wi",
+      "incorporated": true
+    },
+    {
+      "id": "item_15",
+      "text": "Item 15.\tEXHIBITS AND FINANCIAL STATEMENT SCHEDULES",
+      "occurrence": 0,
+      "next": "1. Financial Statements. See Index to Co"
+    },
+    {
+      "id": "item_16",
+      "text": "Item 16.\tFORM 10-K SUMMARY",
+      "occurrence": 0,
+      "next": "None.",
+      "incorporated": true
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of Section "
+  }
+}

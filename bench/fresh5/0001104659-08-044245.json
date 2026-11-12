@@ -1,0 +1,25 @@
+{
+  "accession": "0001104659-08-044245",
+  "cik": 1289419,
+  "company": "Morningstar, Inc.",
+  "form": "8-K",
+  "filing_date": "2008-07-07",
+  "url": "https://www.sec.gov/Archives/edgar/data/1289419/000110465908044245/a08-18108_18k.htm",
+  "agent": "Toppan Merrill",
+  "tags": [],
+  "labeled": true,
+  "notes": "8-K. One Item, 7.01 (line 32), holding a long investor Q&A; ends at SIGNATURES (61). Nothing ambiguous.",
+  "items": [
+    {
+      "id": "item_7.01",
+      "text": "Item 7.01. Regulation FD Disclosure.",
+      "occurrence": 0,
+      "next": "The following information is included in"
+    }
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}

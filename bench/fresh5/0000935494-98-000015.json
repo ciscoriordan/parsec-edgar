@@ -1,0 +1,47 @@
+{
+  "accession": "0000935494-98-000015",
+  "cik": 935494,
+  "company": "NATIONAL INSTRUMENTS CORP",
+  "form": "10-Q",
+  "filing_date": "1998-11-13",
+  "url": "https://www.sec.gov/Archives/edgar/data/935494/000093549498000015/0000935494-98-000015.txt",
+  "agent": "self",
+  "tags": [
+    "plain-text"
+  ],
+  "labeled": true,
+  "notes": "10-Q for the quarter ended September 30, 1998, plain text. The index (lines 36 to 49) is not labeled. Body: Part I Item 1 (51), Item 2 (318, heading wraps onto a second line; first line labeled), Part II Item 6 (814); ends at SIGNATURE (820), with the INDEX TO EXHIBITS after it. Part II prints only Item 6, so Part II Items 1 to 5 are absent. JUDGMENT (unscored): Part I Item 3 (market risk) is listed absent because the form defined it for a 1998 quarter, as in the fresh3 Cellular Communications of Puerto Rico label, although a company of this size did not owe it yet.",
+  "items": [
+    {
+      "id": "part_1_item_1",
+      "text": "ITEM 1.     Financial Statements",
+      "occurrence": 0,
+      "next": "NATIONAL INSTRUMENTS CORPORATION"
+    },
+    {
+      "id": "part_1_item_2",
+      "text": "Item 2. Management's  Discussion and Analysis of Financial Condition and Results",
+      "occurrence": 0,
+      "next": "of Operations"
+    },
+    {
+      "id": "part_2_item_6",
+      "text": "ITEM 6.     EXHIBITS AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(a)   Exhibits."
+    }
+  ],
+  "absent": [
+    "part_1_item_3",
+    "part_2_item_1",
+    "part_2_item_2",
+    "part_2_item_3",
+    "part_2_item_4",
+    "part_2_item_5"
+  ],
+  "end": {
+    "text": "SIGNATURE",
+    "occurrence": 0,
+    "next": "Pursuant to the  requirements  of the Se"
+  }
+}

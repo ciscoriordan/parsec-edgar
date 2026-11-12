@@ -1,0 +1,113 @@
+{
+  "accession": "0000916641-99-000193",
+  "cik": 1044612,
+  "company": "AMF BOWLING INC",
+  "form": "10-K",
+  "filing_date": "1999-03-19",
+  "url": "https://www.sec.gov/Archives/edgar/data/1044612/000091664199000193/0000916641-99-000193.txt",
+  "agent": "",
+  "tags": [
+    "plain-text",
+    "small-cap"
+  ],
+  "labeled": true,
+  "notes": "10-K for 1998, plain text. Items 1 to 14 (pre-2003 numbering), one heading each. Item 7A is listed absent: it applied to fiscal 1998 and the document has no market risk heading or text at all. An unnumbered 'EXECUTIVE OFFICERS OF AMF BOWLING' section follows Item 4's 'None.' and stays in Item 4, so Item 4 is not marked incorporated. Item 8 prints the full statements (1613 to 4779). Item 14 runs through the exhibit list and its footnotes to SIGNATURES (5061). Marked incorporated: Items 10 to 13 (proxy statement). Size: the cover says non-affiliates held shares worth $69.4 million, which put this filing in the small slot although AMF Bowling was a large business.",
+  "items": [
+    {
+      "id": "item_1",
+      "text": "ITEM 1. BUSINESS",
+      "occurrence": 0,
+      "next": "GENERAL DEVELOPMENT OF BUSINESS"
+    },
+    {
+      "id": "item_2",
+      "text": "ITEM 2. PROPERTIES",
+      "occurrence": 0,
+      "next": "BOWLING CENTERS"
+    },
+    {
+      "id": "item_3",
+      "text": "ITEM 3. LEGAL PROCEEDINGS",
+      "occurrence": 0,
+      "next": "In June 1998, Harbin Hai Heng Bowling En"
+    },
+    {
+      "id": "item_4",
+      "text": "ITEM 4. SUBMISSION OF MATTERS TO A VOTE OF SECURITY HOLDERS.",
+      "occurrence": 0,
+      "next": "None."
+    },
+    {
+      "id": "item_5",
+      "text": "ITEM 5. MARKET FOR AMF BOWLING COMMON STOCK AND SECURITIES AND RELATED",
+      "occurrence": 0,
+      "next": "STOCKHOLDER MATTERS"
+    },
+    {
+      "id": "item_6",
+      "text": "ITEM 6. SELECTED FINANCIAL DATA",
+      "occurrence": 0,
+      "next": "The selected financial data set forth be"
+    },
+    {
+      "id": "item_7",
+      "text": "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS",
+      "occurrence": 0,
+      "next": "OF OPERATIONS"
+    },
+    {
+      "id": "item_8",
+      "text": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "occurrence": 0,
+      "next": "INDEX"
+    },
+    {
+      "id": "item_9",
+      "text": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND",
+      "occurrence": 0,
+      "next": "FINANCIAL DISCLOSURE"
+    },
+    {
+      "id": "item_10",
+      "text": "ITEM 10. DIRECTORS AND EXECUTIVE OFFICERS",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_11",
+      "text": "ITEM 11. EXECUTIVE COMPENSATION",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_12",
+      "text": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_13",
+      "text": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTION",
+      "occurrence": 0,
+      "next": "The information required by this item is",
+      "incorporated": true
+    },
+    {
+      "id": "item_14",
+      "text": "ITEM 14. EXHIBITS, FINANCIAL STATEMENTS, SCHEDULES AND REPORTS ON FORM 8-K",
+      "occurrence": 0,
+      "next": "(A) FINANCIAL STATEMENTS AND SCHEDULES"
+    }
+  ],
+  "absent": [
+    "item_7a"
+  ],
+  "end": {
+    "text": "SIGNATURES",
+    "occurrence": 0,
+    "next": "Pursuant to the requirements of the Secu"
+  }
+}
