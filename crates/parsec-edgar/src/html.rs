@@ -79,7 +79,7 @@ pub fn html_to_text(html: &str) -> String {
     let doc = Html::parse_document(html);
     let mut out = Out::default();
     render(doc.tree.root(), &mut out);
-    join_lines(&kept_lines(&out.buf, &out.cell_lines, &out.cell_rows, &out.breaks))
+    join_lines(&kept_lines(&out.buf, &out.cell_lines, &out.cell_rows, &data_rows(&out.table_rows), &out.breaks))
 }
 
 /// Convert an HTML document to clean plain text, exactly as [`html_to_text`]
@@ -97,7 +97,7 @@ pub fn html_to_text_and_tables(html: &str) -> (String, Vec<Table>) {
     let doc = Html::parse_document(html);
     let mut out = Out { rows: Some(Vec::new()), ..Out::default() };
     render(doc.tree.root(), &mut out);
-    let lines = kept_lines(&out.buf, &out.cell_lines, &out.cell_rows, &out.breaks);
+    let lines = kept_lines(&out.buf, &out.cell_lines, &out.cell_rows, &data_rows(&out.table_rows), &out.breaks);
     let text = join_lines(&lines);
     let tables = locate_tables(&out.buf, &lines, &text, out.rows.unwrap_or_default());
     (text, tables)
@@ -164,7 +164,7 @@ fn plain_text(s: &str) -> String {
         last = all.end();
     }
     text.push_str(&s[last..]);
-    join_lines(&kept_lines(&text, &[], &[], &breaks))
+    join_lines(&kept_lines(&text, &[], &[], &[], &breaks))
 }
 
 #[derive(Default)]
@@ -186,6 +186,10 @@ struct Out {
     /// at most 1,000 characters is, in order. Such a row is removed as a whole
     /// when it repeats on several pages as a running header or footer.
     cell_rows: Vec<Range<usize>>,
+    /// Where in `buf` each table row of at most 1,000 characters is, in any
+    /// order, with its table and whether it has two or more cells with text
+    /// (see `data_rows`).
+    table_rows: Vec<(Range<usize>, NodeId, bool)>,
     /// Where in `buf` a printed page ends, in order: before or after each
     /// element styled to break the page there.
     breaks: Vec<usize>,
@@ -460,6 +464,9 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
                     out.cell_lines.extend(cell.out.cell_lines.iter().map(|&p| moved(p)));
                     out.cell_rows.extend(cell.out.cell_rows.iter().map(|r| moved(r.start)..moved(r.end)));
                 }
+                out.table_rows.extend(
+                    cell.out.table_rows.iter().map(|(r, t, n)| (moved(within(r.start))..moved(within(r.end)), *t, *n)),
+                );
                 if let (Some(rows), Some(inner)) = (&mut out.rows, &mut cell.out.rows) {
                     for mut row in inner.drain(..) {
                         for r in &mut row.cells {
@@ -488,6 +495,10 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
     if all_lines {
         out.cell_rows.push(row_start..out.buf.len());
     }
+    if short {
+        let table = enclosing_table(tr).unwrap_or(tr.id());
+        out.table_rows.push((row_start..out.buf.len(), table, cells.len() > 1));
+    }
     if let (Some(rows), Some(table)) = (&mut out.rows, enclosing_table(tr)) {
         let in_thead = tr.parent().and_then(|p| p.value().as_element().map(|e| e.name() == "thead"));
         let header = in_thead == Some(true) || cells.iter().all(|c| c.th);
@@ -495,6 +506,16 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
     }
     out.has_table = true;
     out.newline();
+}
+
+/// The rows of `table_rows` (see `Out::table_rows`) that hold table data: the
+/// rows of tables with a row of two or more cells. A table whose rows have
+/// one cell each only lays out text, as a running header printed in a table
+/// of its own does, while a row of one cell in a table of data, such as a
+/// header row over several columns, is data.
+fn data_rows(table_rows: &[(Range<usize>, NodeId, bool)]) -> Vec<Range<usize>> {
+    let tables: HashSet<NodeId> = table_rows.iter().filter(|(_, _, several)| *several).map(|(_, t, _)| *t).collect();
+    table_rows.iter().filter(|(_, t, _)| tables.contains(t)).map(|(r, _, _)| r.clone()).collect()
 }
 
 fn enclosing_table(tr: NodeRef<Node>) -> Option<NodeId> {
@@ -678,8 +699,16 @@ static LABELED: LazyLock<Regex> = LazyLock::new(|| {
 /// dropped together when the row is. A printed page ends at each of the
 /// sorted offsets `breaks`, and at the end of the text when there are any.
 /// A page number with a prefix that ends a page stays when it is the page of
-/// a contents entry (see `page_furniture`).
-fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>], breaks: &[usize]) -> Vec<&'a str> {
+/// a contents entry (see `page_furniture`). The lines inside the byte ranges
+/// `table_rows`, the rows of tables of data (see `data_rows`), are never
+/// running headers.
+fn kept_lines<'a>(
+    text: &'a str,
+    cell_lines: &[usize],
+    cell_rows: &[Range<usize>],
+    table_rows: &[Range<usize>],
+    breaks: &[usize],
+) -> Vec<&'a str> {
     debug_assert!(cell_lines.is_sorted(), "cell lines are recorded in text order");
     debug_assert!(cell_rows.is_sorted_by_key(|r| r.start), "cell rows are recorded in text order");
     debug_assert!(breaks.is_sorted(), "page breaks are recorded in text order");
@@ -743,8 +772,335 @@ fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>
             breaks.get(after).is_some_and(|&b| b <= next) || (i + 1 == lines.len() && !breaks.is_empty())
         })
         .collect();
-    let furniture = page_furniture(&lines, &is_cell, &rows, &ends_page, &after_number);
-    lines.into_iter().enumerate().filter(|(i, _)| !furniture.contains(i)).map(|(_, l)| l).collect()
+    let mut gone = vec![false; lines.len()];
+    for i in page_furniture(&lines, &is_cell, &rows, &ends_page, &after_number) {
+        gone[i] = true;
+    }
+    if ends_page.contains(&true) {
+        // The table rows as sorted ranges that do not overlap.
+        let mut table_rows = table_rows.to_vec();
+        table_rows.sort_unstable_by_key(|r| r.start);
+        let mut merged: Vec<Range<usize>> = Vec::with_capacity(table_rows.len());
+        for r in table_rows {
+            match merged.last_mut() {
+                Some(last) if r.start <= last.end => last.end = last.end.max(r.end),
+                _ => merged.push(r),
+            }
+        }
+        let in_table: Vec<bool> = starts
+            .iter()
+            .zip(&is_cell)
+            .map(|(&s, &cell)| cell || merged.get(merged.partition_point(|r| r.end <= s)).is_some_and(|r| r.start <= s))
+            .collect();
+        for i in running_headers(&lines, &in_table, &ends_page, &gone) {
+            gone[i] = true;
+        }
+    }
+    lines.into_iter().zip(gone).filter(|&(_, gone)| !gone).map(|(l, _)| l).collect()
+}
+
+/// Running page headers and footers that print no page number, such as
+/// "MetLife, Inc." over "Notes to the Consolidated Financial Statements —
+/// (Continued)" at the top of each page, as indexes into `lines`. Only a
+/// document with page breaks (`ends_page`) has them: the lines of each page
+/// are the lines kept between two breaks, with the lines that are `gone`
+/// (page numbers and other page furniture) left out.
+///
+/// The header block of a page is the run of up to six lines at its top whose
+/// texts are running headers, and its footer block the same at its bottom
+/// (what is left of the page below the header block). A text is a running
+/// header when it has at least five copies, nine in ten of them are in such
+/// blocks, and the pages of those copies have text of their own, a line
+/// printed only once in the document: the pages with such a line, plus one
+/// for any pages without, number at least half of the copies in blocks. So
+/// a caption printed over many tables, which is seldom at the edge of a
+/// page, stays, and so do pages printed again word for word, such as a
+/// "[THIS PAGE INTENTIONALLY LEFT BLANK]" page. The texts are found as a set
+/// that passes the test with the blocks it gives: starting from every text
+/// with five copies, one at the edge of a page, texts that fail are taken
+/// out one at a time, which shortens the blocks of their pages, until all
+/// pass. Each page's blocks are worked out again only when a text at its
+/// edge is taken out, so the work stays linear in the lines.
+///
+/// Every copy in a block goes, and only those: a copy in the middle of a
+/// page stays. The copy that starts each run of pages with a text in a
+/// block stays, as the heading that the pages after it repeat ("Notes to
+/// Consolidated Financial Statements", "Executive Compensation"), unless
+/// the text names the filer (see `names_filer`) or says it continues a heading
+/// (see `CONTINUED`); a run goes on over one page without the text, as on
+/// facing pages. A heading at which section splitting ends an Item (see
+/// `sections::ends_items`), such as "Independent Auditors' Report", stays
+/// so even when it looks like a name. Lines that can never be running
+/// headers here, and end a block: lines of table data (`in_table`: cells
+/// and the rows of tables of data, see `data_rows`), so a table's header
+/// row repeated over its continued pages stays a row of the table, and
+/// lines with a tab, as rows of several cells in a text filing have; lines
+/// that start with "Item" or "Part", which section splitting reads as Item
+/// headings and Part lines, so a header below such a line stays too; lines
+/// over 120 characters or with fewer than two letters; footnotes ("1
+/// Includes ...", "(2) Excludes ...", "* Restated"); sentences,
+/// lines that end with a "." after a word of five or more letters or with a
+/// number ("... Instruction I to Form 10-K."), while "MetLife, Inc." and
+/// "J.P. Morgan Chase & Co." are headers; and lines that tell how to read
+/// the page (see `LEGEND`): references to the notes or the auditors' report
+/// under each financial statement, units of a table and dates.
+fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: &[bool]) -> Vec<usize> {
+    const MIN_COPIES: u32 = 5;
+    const MAX_DEPTH: usize = 6;
+    const MAX_LEN: usize = 120;
+    const NONE: usize = usize::MAX;
+    const UNSEEN: usize = NONE - 1;
+    static FOOTNOTE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^(?:\d{1,2}\s+|\(\d{1,2}\)\s*|[*†‡]+\s*)\p{L}").unwrap());
+    // Whether a text can be a running header (see above).
+    let can_head = |line: &str| {
+        line.len() <= MAX_LEN
+            && !line.contains('\t')
+            && !starts_like_heading(line)
+            && line.chars().filter(|c| c.is_alphabetic()).take(2).count() == 2
+            && !is_sentence(line)
+            && !FOOTNOTE.is_match(line)
+            && !LEGEND.is_match(line)
+    };
+    // The kept lines, as indexes into `lines`, and the lines of each page, as
+    // a range of them.
+    let mut kept = Vec::with_capacity(lines.len());
+    let mut pages = Vec::new();
+    for (i, &ends) in ends_page.iter().enumerate() {
+        if !gone[i] {
+            kept.push(i);
+        }
+        if ends {
+            let start = pages.last().map_or(0, |p: &Range<usize>| p.end);
+            pages.push(start..kept.len());
+        }
+    }
+    pages.push(pages.last().map_or(0, |p| p.end)..kept.len());
+    // The text of each kept line, numbered in the order the texts first
+    // appear; and for each text, its copies and, once a copy at the edge of
+    // a page has been seen, its number among the texts that can be running
+    // headers, or NONE when it cannot be one.
+    let mut numbers: HashMap<&str, usize> = HashMap::with_capacity(kept.len());
+    let mut copies: Vec<(u32, usize)> = Vec::new();
+    let text: Vec<usize> = kept
+        .iter()
+        .map(|&i| {
+            let n = *numbers.entry(lines[i]).or_insert_with(|| {
+                copies.push((0, UNSEEN));
+                copies.len() - 1
+            });
+            copies[n].0 += 1;
+            n
+        })
+        .collect();
+    // The texts that can be running headers, with their copies and whether
+    // each is a heading that stays where its run of pages starts; the number
+    // of the text of each kept line at the edge of a page that can be one,
+    // or NONE; and the pages where each text is at the edge.
+    let mut texts: Vec<(u32, bool)> = Vec::new();
+    let mut id = vec![NONE; kept.len()];
+    let mut at_edge: Vec<Vec<usize>> = Vec::new();
+    for (p, page) in pages.iter().enumerate() {
+        let top = page.start..page.end.min(page.start + MAX_DEPTH);
+        for k in top.clone().chain(page.end.saturating_sub(MAX_DEPTH).max(top.end)..page.end) {
+            let line = lines[kept[k]];
+            let (n, t) = &mut copies[text[k]];
+            if *t == UNSEEN {
+                *t = if *n >= MIN_COPIES && can_head(line) {
+                    texts.push((
+                        *n,
+                        !CONTINUED.is_match(line) && (crate::sections::ends_items(line) || !names_filer(line)),
+                    ));
+                    at_edge.push(Vec::new());
+                    texts.len() - 1
+                } else {
+                    NONE
+                };
+            }
+            if *t == NONE || in_table[kept[k]] {
+                continue;
+            }
+            id[k] = *t;
+            if at_edge[*t].last() != Some(&p) {
+                at_edge[*t].push(p);
+            }
+        }
+    }
+    if texts.is_empty() {
+        return Vec::new();
+    }
+    // Whether each page has text of its own: a line printed only once in the
+    // document.
+    let own: Vec<bool> = pages.iter().map(|page| page.clone().any(|k| copies[text[k]].0 == 1)).collect();
+    // For each text, its copies in blocks, and the pages with those copies
+    // that have text of their own and that do not.
+    let mut edges = vec![0u32; texts.len()];
+    let mut own_pages = vec![0u32; texts.len()];
+    let mut other_pages = vec![0u32; texts.len()];
+    let mut in_set = vec![true; texts.len()];
+    // The lengths of the header and footer blocks of each page.
+    let mut blocks = vec![(0, 0); pages.len()];
+    let block_of = |page: &Range<usize>, in_set: &[bool]| {
+        let inside = |k: &usize| id[*k] != NONE && in_set[id[*k]];
+        let top = page.clone().take(MAX_DEPTH).take_while(inside).count();
+        let bottom = (page.start + top..page.end).rev().take(MAX_DEPTH).take_while(inside).count();
+        (top, bottom)
+    };
+    // Add the copies in the blocks of a page to the counts, or take them
+    // out, and return the texts of those copies.
+    let mut in_blocks = Vec::with_capacity(2 * MAX_DEPTH);
+    let mut count = |p: usize, (top, bottom): (usize, usize), add: bool, counts: [&mut [u32]; 3]| {
+        let page = &pages[p];
+        in_blocks.clear();
+        in_blocks.extend((page.start..page.start + top).chain(page.end - bottom..page.end).map(|k| id[k]));
+        in_blocks.sort_unstable();
+        let [edges, own_pages, other_pages] = counts;
+        let mut touched = Vec::new();
+        for same in in_blocks.chunk_by(|a, b| a == b) {
+            let t = same[0];
+            let change = [same.len() as u32, u32::from(own[p]), u32::from(!own[p])];
+            for (count, change) in [&mut edges[t], &mut own_pages[t], &mut other_pages[t]].into_iter().zip(change) {
+                if add {
+                    *count += change;
+                } else {
+                    *count -= change;
+                }
+            }
+            touched.push(t);
+        }
+        touched
+    };
+    for (p, page) in pages.iter().enumerate() {
+        blocks[p] = block_of(page, &in_set);
+        count(p, blocks[p], true, [&mut edges, &mut own_pages, &mut other_pages]);
+    }
+    let passes = |t: usize, edges: &[u32], own_pages: &[u32], other_pages: &[u32]| {
+        edges[t] * 10 >= texts[t].0 * 9 && (own_pages[t] + u32::from(other_pages[t] > 0)) * 2 >= edges[t]
+    };
+    let mut failing: Vec<usize> = (0..texts.len()).filter(|&t| !passes(t, &edges, &own_pages, &other_pages)).collect();
+    while let Some(t) = failing.pop() {
+        if !in_set[t] || passes(t, &edges, &own_pages, &other_pages) {
+            continue;
+        }
+        in_set[t] = false;
+        for &p in &at_edge[t] {
+            let new = block_of(&pages[p], &in_set);
+            if new == blocks[p] {
+                continue;
+            }
+            let mut touched = count(p, blocks[p], false, [&mut edges, &mut own_pages, &mut other_pages]);
+            touched.extend(count(p, new, true, [&mut edges, &mut own_pages, &mut other_pages]));
+            blocks[p] = new;
+            failing.extend(touched.into_iter().filter(|&u| in_set[u] && !passes(u, &edges, &own_pages, &other_pages)));
+        }
+    }
+    // The page where each heading was last in a block.
+    let mut last_page = vec![NONE; texts.len()];
+    let mut found = Vec::new();
+    for (p, (page, &(top, bottom))) in pages.iter().zip(&blocks).enumerate() {
+        for k in (page.start..page.start + top).chain(page.end - bottom..page.end) {
+            let t = id[k];
+            if texts[t].1 {
+                let starts_run = last_page[t] == NONE || last_page[t] + 2 < p;
+                last_page[t] = p;
+                if starts_run {
+                    continue;
+                }
+            }
+            found.push(kept[k]);
+        }
+    }
+    found
+}
+
+/// A line that tells how to read a page rather than heading it: a reference
+/// to the notes or to the auditors' report under a financial statement ("See
+/// accompanying notes", "The accompanying notes are an integral part of
+/// these statements"), the units of a table ("(In millions, except per share
+/// data)", "(Tabular dollars in thousands)") or the date or period it covers
+/// ("December 31, 2024 and 2023", "As of June 30, 2023", "For the years ended
+/// December 31, 2012 and 2011").
+static LEGEND: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?i)^\(?(?:see|the accompanying)\b|\bintegral part\b|\bin (?:thousands|millions|billions)\b|\btabular dollars\b",
+        r"|^(?:[\w ,]*\b(?:ended|ending|as of|at|through)\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?",
+        r"\s+\d{1,2},?\s+\d{4}(?:\s*(?:,|and|&)\s*(?:and\s+)?\d{4})*\.?$",
+    ))
+    .unwrap()
+});
+
+/// A note that goes with the filer's name, in parentheses or brackets:
+/// "(A Development Stage Company)", "(A Wholly-Owned Subsidiary of MetLife,
+/// Inc.)", "[FORMERLY JOSHUA TREE FINISHERS, INC.]".
+static NAME_NOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^(?:\(a\b.*\)|\[formerly\b.*\])$").unwrap());
+
+/// The end of a name with its legal form: "Inc.", "Corp.", "Corporation",
+/// "& Co.", "L.P.", "LLC", "Ltd.", "plc", "N.A.", "Bancorp", or "and
+/// Subsidiaries", "& Subsidiary", "and its wholly-owned subsidiary", "and
+/// subsidiary companies".
+static LEGAL_FORM: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?i)(?:\b(?:inc|incorporated|corp|corporation|co|l\.\s?p|llc|ltd|limited|plc|n\.\s?a|s\.\s?a",
+        r"|bancorp|bancorporation|bancshares|bankshares)\b\.?",
+        r"|(?:\band|&)\s+(?:its\s+)?(?:wholly[- ]owned\s+)?subsidiar(?:y|ies)\b(?:\s+companies\b)?)[,)\]]*$",
+    ))
+    .unwrap()
+});
+
+/// Whether a running header names the filer rather than heading the text.
+/// A name is a note that goes with it (see `NAME_NOTE`), or a line with no
+/// word that only a heading would have ("our", "to", "about", "with",
+/// "for", or "the" after the first word) that ends with a legal form (see
+/// `LEGAL_FORM`), or with "Company", "Bank", "Trust", "Group" or "Holdings"
+/// after at least two words of the name other than a first "The" and with
+/// no "of": "THE WALT DISNEY COMPANY", "Metropolitan Life Insurance
+/// Company". So "THE COMPANY", "Investment Trust", "Executive Officers of
+/// the Company", "Information About Our Company", "Condensed Financial
+/// Statements of Parent Company" and "Notes to Financial Statements of XYZ
+/// Corp. and Subsidiaries" head the text.
+fn names_filer(line: &str) -> bool {
+    if NAME_NOTE.is_match(line) {
+        return true;
+    }
+    let words: Vec<String> =
+        line.split_whitespace().map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase()).collect();
+    if words
+        .iter()
+        .enumerate()
+        .any(|(i, w)| matches!(w.as_str(), "our" | "to" | "about" | "with" | "for") || i > 0 && w == "the")
+    {
+        return false;
+    }
+    if LEGAL_FORM.is_match(line) {
+        return true;
+    }
+    let first = usize::from(words.first().is_some_and(|w| w == "the"));
+    words.len() >= first + 3
+        && !words.iter().any(|w| w == "of")
+        && words
+            .last()
+            .is_some_and(|w| matches!(w.as_str(), "company" | "bank" | "trust" | "group" | "holding" | "holdings"))
+}
+
+/// A running header that says it continues a heading: "(Continued)",
+/// "cont'd" or "(cont.)".
+static CONTINUED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bcont(?:inued\b|['’]d\b|\.)").unwrap());
+
+/// Whether a line starts, after spaces and tabs, with "item" or "part" in
+/// any case, as every Item heading and Part line that section splitting
+/// reads does.
+fn starts_like_heading(line: &str) -> bool {
+    let rest = line.trim_start_matches([' ', '\t']).as_bytes();
+    rest.get(..4).is_some_and(|word| word.eq_ignore_ascii_case(b"item") || word.eq_ignore_ascii_case(b"part"))
+}
+
+/// Whether a line ends a sentence: with a "." (inside any closing ")") after
+/// a word of five or more letters or a word with a digit, not after an
+/// abbreviation such as "Inc." or "Co.".
+fn is_sentence(line: &str) -> bool {
+    let Some(rest) = line.trim_end_matches([')', ' ']).strip_suffix('.') else { return false };
+    let word = rest.rsplit(char::is_whitespace).next().unwrap_or("");
+    word.chars().filter(|c| c.is_alphabetic()).count() >= 5 || word.contains(|c: char| c.is_ascii_digit())
 }
 
 /// A bare page number dropped just before a kept line, on that line's page.
@@ -1678,6 +2034,341 @@ mod tests {
             "Item 14. Principal Accountant Fees and Services\nItem 15. Exhibits and Financial Statement Schedules\n\
              Signatures\nS-1\nText.\nSigned by the registrant.\nSigned by the directors.\nSigned by more directors.\nEnd.\n"
         );
+    }
+
+    /// HTML of printed pages, each given as its paragraphs, with a page break
+    /// after each page.
+    fn printed(pages: &[Vec<String>]) -> String {
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        pages.iter().map(|page| page.iter().map(|p| format!("<p>{p}</p>")).collect::<String>() + page_break).collect()
+    }
+
+    /// `pages` pages, page `n` made of `top`, "Text of page n." and `bottom`,
+    /// each with "{}" replaced by `n`.
+    fn framed(top: &[&str], bottom: &[&str], pages: std::ops::Range<u32>) -> Vec<Vec<String>> {
+        pages
+            .map(|n| {
+                let fill = |l: &&str| l.replace("{}", &n.to_string());
+                let text = format!("Text of page {n}.");
+                top.iter().map(fill).chain([text]).chain(bottom.iter().map(fill)).collect()
+            })
+            .collect()
+    }
+
+    /// Lines printed at the top or the foot of most pages without a page
+    /// number go where the filing marks its page breaks, also when they sit
+    /// below or above another such line, while a caption printed as often in
+    /// the middle of the pages stays.
+    #[test]
+    fn running_headers_without_page_numbers_dropped() {
+        let mut pages = vec![vec!["Annual Report".to_string(), "MetLife, Inc.".to_string(), "Cover.".to_string()]];
+        for n in 1..11 {
+            pages.push(vec![
+                "MetLife, Inc.".into(),
+                "Notes to the Consolidated Financial Statements — (Continued)".into(),
+                format!("Text of page {n}."),
+                "(In millions)".into(),
+                format!("More text of page {n}."),
+                "J.P. Morgan Chase & Co.".into(),
+                format!("Acme Corporation Annual Report {}", n + 40),
+            ]);
+        }
+        let mut want = "Annual Report\nMetLife, Inc.\nCover.\n".to_string();
+        for n in 1..11 {
+            want += &format!("Text of page {n}.\n(In millions)\nMore text of page {n}.\n");
+        }
+        let html = printed(&pages);
+        assert_eq!(tables_of(&html).0, want);
+        assert_eq!(html_to_text(&html), want);
+        // A text filing's pages.
+        let raw: String = pages.iter().map(|p| p.join("\n") + "\n<PAGE>\n").collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")), want);
+        // Nine copies in ten at the edges of pages: those go, the other stays.
+        let mut pages = framed(&["Acme Corporation"], &["End of page {}."], 1..10);
+        pages[4].insert(2, "Acme Corporation".into());
+        let text = html_to_text(&printed(&pages));
+        assert_eq!(text.matches("Acme Corporation").count(), 1, "{text}");
+        // Six lines deep at the top of each page; the seventh line is no
+        // header.
+        let top = [
+            "Acme Corp.",
+            "Notes (Continued)",
+            "Beta Tool Holdings",
+            "Gamma LLC",
+            "Delta Tool Group",
+            "(A Delaware Corporation)",
+            "Seventh line",
+        ];
+        let text = html_to_text(&printed(&framed(&top, &[], 1..7)));
+        assert_eq!(text.lines().filter(|l| top.contains(l)).collect::<Vec<_>>(), ["Seventh line"; 6]);
+        // Pages with no text of their own count as one page: four of seven
+        // pages are enough.
+        let mut pages = framed(&["Acme Corporation"], &[], 1..4);
+        pages.extend(vec![vec!["Acme Corporation".to_string(), "Blank page".to_string()]; 4]);
+        let text = html_to_text(&printed(&pages));
+        assert!(!text.contains("Acme"), "{text}");
+        // A table of one cell per row only lays out its text.
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        let html: String = (1..7)
+            .map(|n| {
+                format!(
+                    "<table><tr><td>Acme Inc.</td></tr><tr><td></td><td>Notes (continued)</td></tr></table><p>Text {n}.</p>{page_break}"
+                )
+            })
+            .collect();
+        assert_eq!(html_to_text(&html), (1..7).map(|n| format!("Text {n}.\n")).collect::<String>());
+    }
+
+    /// A heading that is also the running header of the pages after it stays
+    /// at the top of the first page of each run of pages it heads, also when
+    /// it is printed on every other page only, while a header that says it
+    /// continues the heading, and the company name over it, go; a heading at
+    /// which an Item ends stays even when it looks like a name.
+    #[test]
+    fn headings_printed_as_running_headers_stay_once() {
+        let notes = "Notes to Consolidated Financial Statements";
+        // Two runs of pages two pages apart, and a run of continued pages.
+        let mut pages = framed(&["Acme Corporation", notes], &[], 1..8);
+        pages.extend(framed(&["Acme Corporation"], &[], 8..10));
+        pages.extend(framed(&["Acme Corporation", notes], &[], 10..13));
+        pages.extend(framed(
+            &["Acme Corporation", "Notes to Consolidated Financial Statements (Continued)"],
+            &[],
+            13..18,
+        ));
+        let text = html_to_text(&printed(&pages));
+        let lines: Vec<&str> = text.lines().filter(|l| !l.starts_with("Text")).collect();
+        assert_eq!(lines, [notes; 2], "{text}");
+        assert!(text.starts_with(&format!("{notes}\nText of page 1.\n")), "{text}");
+        assert!(text.contains(&format!("Text of page 9.\n{notes}\nText of page 10.\n")), "{text}");
+        // On facing pages.
+        let pages: Vec<Vec<String>> = (1..13)
+            .map(|n| {
+                let top = if n % 2 == 1 { vec![notes.to_string()] } else { vec!["Acme Corporation".to_string()] };
+                top.into_iter().chain([format!("Text of page {n}.")]).collect()
+            })
+            .collect();
+        let text = html_to_text(&printed(&pages));
+        assert_eq!(text.lines().filter(|l| !l.starts_with("Text")).collect::<Vec<_>>(), [notes], "{text}");
+        // Other headings and Item titles.
+        for title in [
+            "Management's Discussion and Analysis",
+            "Glossary of Terms",
+            "Schedule II",
+            "EXHIBIT INDEX",
+            "Exhibits",
+            "Index to Financial Statements",
+            "Supplemental Financial Information",
+            "Supplementary Data",
+            "Report of Independent Registered Public Accounting Firm",
+            "Selected Financial Data",
+            "The Consolidated Balance Sheets",
+            "Condensed Statements of Operations",
+            "BUSINESS",
+            "Risk Factors",
+            "Properties",
+            "Legal Proceedings",
+            "Signatures",
+            "Power of Attorney",
+            "Quantitative and Qualitative Disclosures About Market Risk",
+            "Financial Statements and Supplementary Data",
+            "Controls and Procedures",
+            "Executive Compensation",
+            "Segment Information",
+            "Business Overview",
+            "Independent Auditors' Report",
+            "Consent of Independent Registered Public Accounting Firm",
+            "Schedule II of Acme Holdings, Inc.",
+            "Bank Regulation",
+            // Headings that end with a word of a name.
+            "THE COMPANY",
+            "Description of the Company",
+            "Information About Our Company",
+            "Executive Officers of the Company",
+            "Bank Holdings",
+            "THE BANK",
+            "Regulation of the Bank",
+            "Supervision and Regulation of Holding Companies",
+            "Condensed Consolidating Financial Statements of Parent Company",
+            "Notes to Financial Statements of XYZ Corp. and Subsidiaries",
+            "Investment Trust",
+            "Limited Partners",
+            "Our Business Group",
+            "Transactions with Affiliated Companies",
+            "Guarantor Subsidiaries",
+            "Investments in Subsidiaries",
+            "Acme Companies",
+            "Report to the Board of Acme Inc.",
+            "Letter about Acme Inc.",
+            "Notes for Acme Corp.",
+            "Business with Acme Corp.",
+            "Our Acme Corp.",
+            "(A) Restatement",
+            "Restated Results (a Summary)",
+            "Loans Made by the Bank",
+            "THE PARENT COMPANY",
+        ] {
+            let pages = framed(&[title], &[], 1..8);
+            let text = html_to_text(&printed(&pages));
+            assert_eq!(text.lines().filter(|&l| l == title).count(), 1, "{text}");
+            let raw: String = pages.iter().map(|p| p.join("\n") + "\n<PAGE>\n").collect();
+            let text = document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>"));
+            assert_eq!(text.lines().filter(|&l| l == title).count(), 1, "{text}");
+        }
+        // Headers that continue a heading, or name the filer.
+        for header in [
+            "Notes to Financial Statements, cont'd",
+            "Notes to Financial Statements (cont.)",
+            "Acme Corporation",
+            "ACME INC.",
+            "THE FIRST SIGNATURE BANK",
+            "Pfizer Inc. and Subsidiary Companies",
+            "Acme Bancorporation",
+            "Acme Bankshares",
+            "Cellular Communications of Puerto Rico, Inc.",
+            "Acme Bancorp, Inc. and Subsidiaries",
+            "Acme Holdings & Its Wholly-Owned Subsidiary",
+            "(A Delaware Limited Partnership)",
+            "[Formerly Acme Mining]",
+            "Acme Bancorp",
+            "THE ACME TOOL COMPANY",
+            "Acme & Co.",
+            "Acme Energy Partners, L.P.",
+            "Acme Ltd.",
+            "Acme Limited",
+            "Acme PLC",
+            "Acme Bank, N.A.",
+            "Acme S.A.",
+            "Acme Bancshares",
+            "Acme Royalty Trust",
+            "First Citizens Bancshares, Inc.,",
+            "Acme Incorporated",
+            "Acme Tool Holding",
+            "Acme LLC",
+            "Acme Tool Group",
+            "(Formerly Acme Holdings)",
+        ] {
+            let text = html_to_text(&printed(&framed(&[header], &[], 1..8)));
+            assert!(!text.contains(header), "{text}");
+        }
+    }
+
+    /// Lines at the edges of pages stay when they are no running header:
+    /// too few copies, or too many in the middle of pages; Item headings and
+    /// Part lines, and the lines below them; table rows and cells, as a
+    /// table's header row repeated on its continued pages; long lines and
+    /// lines of fewer than two letters; sentences and footnotes under the
+    /// statements; pages printed again word for word, with no text of their
+    /// own; and any line of a document without page breaks.
+    #[test]
+    fn page_edge_lines_that_are_no_running_headers_stay() {
+        let cases: Vec<(Vec<Vec<String>>, &str, usize)> = vec![
+            (framed(&["Acme Corporation"], &[], 1..5), "Acme Corporation", 4),
+            (
+                {
+                    let mut pages = framed(&["Acme Corporation"], &["End of page {}."], 1..9);
+                    pages[2].insert(2, "Acme Corporation".into());
+                    pages[5].insert(2, "Acme Corporation".into());
+                    pages
+                },
+                "Acme Corporation",
+                10,
+            ),
+            (
+                {
+                    let mut pages = framed(&["Acme Corporation", "Notes (Continued)"], &[], 1..7);
+                    for (n, page) in pages.iter_mut().enumerate() {
+                        page.push("Acme Corporation".into());
+                        page.push(format!("End of page {n}."));
+                    }
+                    pages
+                },
+                "Notes (Continued)",
+                6,
+            ),
+            (
+                {
+                    // Once the header above it goes, a footer on other pages
+                    // has too few copies at the edges.
+                    let mut pages = framed(&["Acme Corporation", "Notes (Continued)"], &[], 1..7);
+                    for page in &mut pages {
+                        page.push("Acme Corporation".into());
+                        page.push(format!("End of {}", page[2]));
+                    }
+                    pages.extend(framed(&[], &["Notes (Continued)"], 7..13));
+                    pages
+                },
+                "Notes (Continued)",
+                12,
+            ),
+            (
+                {
+                    // Pages of the header alone count once.
+                    let mut pages = framed(&["Acme Corporation"], &[], 1..7);
+                    pages.extend(vec![vec!["Acme Corporation".to_string()]; 2]);
+                    for page in &mut pages[..2] {
+                        page.push("Acme Corporation".into());
+                        page.push(format!("End of {}", page[1]));
+                    }
+                    pages
+                },
+                "Acme Corporation",
+                10,
+            ),
+            (framed(&["PART II", "Notes (Continued)"], &[], 1..7), "PART II", 6),
+            (framed(&["PART II", "Notes (Continued)"], &[], 1..7), "Notes (Continued)", 6),
+            (framed(&["Item 8. Financial Statements"], &[], 1..7), "Item 8.", 6),
+            (framed(&[&"Acme Corporation Annual Report ".repeat(5)], &[], 1..7), "Acme Corporation Annual", 6),
+            (framed(&["-- A --"], &[], 1..7), "-- A --", 6),
+            (framed(&[], &["See accompanying notes to the financial statements."], 1..7), "See accompanying", 6),
+            (framed(&[], &["Omitted pursuant to Instruction I to Form 10-K."], 1..7), "Omitted", 6),
+            (framed(&[], &["1 Includes results of Acme Ltd"], 1..7), "1 Includes", 6),
+            (framed(&[], &["(2) Excludes Acme Ltd"], 1..7), "(2) Excludes", 6),
+            (framed(&[], &["* Restated"], 1..7), "* Restated", 6),
+            (framed(&[], &["See Notes to Consolidated Financial Statements"], 1..7), "See Notes", 6),
+            (framed(&[], &["(see accompanying notes)"], 1..7), "(see", 6),
+            (framed(&[], &["The accompanying notes are part of these statements"], 1..7), "The accompanying", 6),
+            (framed(&[], &["Notes are an integral part of these statements"], 1..7), "Notes are", 6),
+            (framed(&["(In thousands, except per share data)"], &[], 1..7), "(In thousands", 6),
+            (framed(&["(Dollars in millions)"], &[], 1..7), "(Dollars", 6),
+            (framed(&["(in billions)"], &[], 1..7), "(in billions", 6),
+            (framed(&["Tabular dollars"], &[], 1..7), "Tabular", 6),
+            (framed(&["December 31, 2024 and 2023"], &[], 1..7), "December 31", 6),
+            (framed(&["Sept. 30, 2024, 2023 & 2022"], &[], 1..7), "Sept. 30", 6),
+            (framed(&["As of June 30, 2023"], &[], 1..7), "As of June", 6),
+            (framed(&["For the years ended December 31, 2024 and 2023"], &[], 1..7), "For the years", 6),
+            (vec![vec!["[THIS PAGE INTENTIONALLY LEFT BLANK]".to_string()]; 6], "[THIS PAGE", 6),
+        ];
+        for (pages, start, copies) in cases {
+            let html = printed(&pages);
+            let text = html_to_text(&html);
+            assert_eq!(text.lines().filter(|l| l.starts_with(start)).count(), copies, "{start}: {text}");
+            // Without page breaks nothing goes.
+            let html = html.replace("page-break-after: always", "");
+            assert_eq!(html_to_text(&html).lines().filter(|l| l.starts_with(start)).count(), copies, "{start}");
+        }
+        // Rows of a table at the top of each page, printed as a line of cells
+        // or cell by cell, or a row of one cell in a table of data.
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        for (row, lines) in [
+            ("<td>Year</td><td>2024</td>", 1),
+            ("<td>Acme<br>Corporation</td><td>Annual Report</td>", 3),
+            ("<td colspan=\"2\">Incorporated by Reference</td></tr><tr><td>Exhibit</td><td>Form</td>", 2),
+        ] {
+            let html: String =
+                (1..7).map(|n| format!("<table><tr>{row}</tr></table><p>Text of page {n}.</p>{page_break}")).collect();
+            let text = html_to_text(&html);
+            assert_eq!(text.lines().filter(|l| !l.starts_with("Text")).count(), 6 * lines, "{text}");
+        }
+        // A cell of one line beside a long cell in a layout table.
+        let long = "Text of the page. ".repeat(60);
+        let html: String = (1..7)
+            .map(|n| format!("<table><tr><td>Acme Corporation</td><td>{long}{n}</td></tr></table>{page_break}"))
+            .collect();
+        assert_eq!(html_to_text(&html).matches("Acme Corporation").count(), 6);
+        // A row of cells in a text filing.
+        let raw: String = (1..7).map(|n| format!("Acme\tCorporation\nText of page {n}.\n<PAGE>\n")).collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).matches("Acme\t").count(), 6);
     }
 
     /// Old text filings that number their page tags, as in "<Page 2>".
