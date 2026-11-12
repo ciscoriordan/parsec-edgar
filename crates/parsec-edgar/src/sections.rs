@@ -39,6 +39,19 @@
 //! followed by a running header of its own Item that prints the page, or by
 //! an index of Items after the body, is no such row; that running header
 //! ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS (Continued)   25") is one.
+//! Running headers that print the title in full with the page, when at least
+//! two of them follow a line of the Item with that title and print
+//! different pages, are no contents rows and no headings: the line
+//! they repeat starts the Item, and its text runs on through them, also past
+//! a stray line of another Item before the first of them ("Item 1A. Risk
+//! Factors" inside MD&A). One such line alone may be a heading printed with
+//! a footnote's number after a contents list without pages, and a line that
+//! prints a lower number than a page printed before it in the body is one
+//! too. When the chain of headings takes a line of another Item between
+//! the repeated line and its last header, the headers are read again as any
+//! other line: the Item goes on there, so either the chain reads a stray
+//! line as a heading or it leaves the repeated line out. So are the headers
+//! of a line that goes as a contents entry.
 //! Item lines above a contents list that the list repeats, as a 10-Q/A's
 //! explanatory note prints the Items it amends, go with the list, with pages
 //! or without, when no Item line with text of its own comes before them.
@@ -1165,6 +1178,10 @@ struct Candidate {
     /// Distance to the next heading of a different Item.
     gap: usize,
     score: f64,
+    /// A running header that prints the title in full and the page, with
+    /// the place of the line that it repeats (`paged_rows`). It never starts
+    /// its Item, and that line's text runs on through it.
+    repeats: Option<usize>,
 }
 
 /// A title that starts with a form's name, then a capitalized word: `10-K
@@ -1604,8 +1621,9 @@ fn cover_row(text: &str, start: usize, end: usize, label: &str, keys: &[Key], ki
 }
 
 /// The candidates for the Item headings of `text`, read from `lines`, the
-/// lines that hold "item" (`item_word_lines`).
-fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)]) -> Vec<Candidate> {
+/// lines that hold "item" (`item_word_lines`). The running headers of the
+/// lines at the positions in `unread` are read as any other line.
+fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)], unread: &HashSet<usize>) -> Vec<Candidate> {
     let keys = keys_for(kind);
     let re = if kind == FormKind::EightK { &*CURRENT_HEADING } else { &*PERIODIC_HEADING };
     let cands: Vec<Candidate> = heading_matches(re, text, lines)
@@ -1687,6 +1705,7 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)]) -> Vec<Candi
                 cites,
                 gap: 0,
                 score: 0.0,
+                repeats: None,
             })
         })
         .collect();
@@ -1701,11 +1720,20 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)]) -> Vec<Candi
     let mut cands: Vec<Candidate> =
         cands.into_iter().zip(part_title).filter(|&(_, part_title)| !part_title).map(|(c, _)| c).collect();
     set_gaps(&mut cands, text.len());
-    let cands = drop_item_references(drop_contents_entries(cands, text, keys), keys, kind.annual());
+    let cands = drop_item_references(drop_contents_entries(cands, text, keys, unread), keys, kind.annual());
     let mut cands = drop_running_headers(cands, keys);
     // Score by the gap to the next heading of a different Item, so repeated
     // running headers of one Item do not split its score.
     set_gaps(&mut cands, text.len());
+    // A line followed by running headers that repeat it in full with the
+    // page has text up to where the last of them has, also past a line of
+    // another Item between them.
+    for i in 0..cands.len() {
+        let Some(at) = cands[i].repeats else { continue };
+        let Ok(j) = cands.binary_search_by_key(&at, |c| c.pos) else { continue };
+        let end = cands[i].pos + cands[i].gap;
+        cands[j].gap = cands[j].gap.max(end - at);
+    }
     for c in &mut cands {
         c.score = (c.gap as f64).ln_1p();
     }
@@ -2474,19 +2502,13 @@ const SAME_BLOCK: usize = 2000;
 /// earlier in the form's order with text of its own comes before it. It never
 /// goes when it is the later copy of a heading printed twice. Short entries
 /// just after a dropped listing entry go with it. The body headings of dropped
-/// contents entries are marked `listed`.
-fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec<Candidate> {
+/// contents entries are marked `listed`. Running headers that print the
+/// title in full (`paged_rows`) are neither entries nor later copies, and are
+/// marked `repeats` with the place of the line they repeat, which has no
+/// later copy; the headers of a line at a place in `unread`, or of a line
+/// that goes, are read as any other line.
+fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key], unread: &HashSet<usize>) -> Vec<Candidate> {
     let n = cands.len();
-    // A contents entry, the body heading it was matched with, and pairs whose
-    // later copy is no longer than the earlier one.
-    let mut contents = vec![false; n];
-    let mut body = vec![false; n];
-    // The later copy of any matched pair, which the spread below must not take.
-    let mut paired = vec![false; n];
-    let mut later_copies: Vec<(usize, usize)> = Vec::new();
-    // Pairs whose later copy comes after the signature block's sentence, which
-    // starts at the third value.
-    let mut signed_pairs: Vec<(usize, usize, usize)> = Vec::new();
     // The signature block's sentences and the signatures heading lines of
     // the whole text, looked for only when a rule asks.
     let signatures = Signatures::new(text);
@@ -2498,20 +2520,79 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // Rows that print a page number are contents rows, also when no body
     // heading repeats them, and never the body copy of a pair.
     let groups = TitleGroups::new(&cands);
-    let paged = paged_rows(&cands, text, keys, SAME_BLOCK, &next_other, &groups);
+    let (paged, mut headers) = paged_rows(&cands, text, keys, SAME_BLOCK, &next_other, &groups);
+    for h in &mut headers {
+        *h = h.filter(|&j| !unread.contains(&cands[j].pos));
+    }
+    let read = |headers: &[Option<usize>]| {
+        contents_entries(&cands, text, keys, &signatures, &next_other, &groups, &paged, headers)
+    };
+    let (mut contents, mut after, mut body) = read(&headers);
+    // Running headers of a line that goes as a contents entry repeat no body
+    // heading: they are read again as any other line.
+    if headers.iter().flatten().any(|&j| contents[j] || after[j]) {
+        for h in headers.iter_mut() {
+            if h.is_some_and(|j| contents[j] || after[j]) {
+                *h = None;
+            }
+        }
+        (contents, after, body) = read(&headers);
+    }
+    let cands_pos: Vec<usize> = cands.iter().map(|c| c.pos).collect();
+    cands
+        .into_iter()
+        .enumerate()
+        .filter(|&(i, _)| !contents[i] && !after[i])
+        .map(|(i, c)| Candidate { listed: body[i], repeats: headers[i].map(|j| cands_pos[j]), ..c })
+        .collect()
+}
+
+/// The contents entries of `drop_contents_entries`, the short entries just
+/// after them and the body headings matched with them, with the rows and
+/// running headers that `paged_rows` found.
+#[allow(clippy::too_many_arguments)]
+fn contents_entries(
+    cands: &[Candidate],
+    text: &str,
+    keys: &[Key],
+    signatures: &Signatures,
+    next_other: &[Option<usize>],
+    groups: &TitleGroups,
+    paged: &[bool],
+    headers: &[Option<usize>],
+) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
+    let n = cands.len();
+    // A contents entry, the body heading it was matched with, and pairs whose
+    // later copy is no longer than the earlier one.
+    let mut contents = vec![false; n];
+    let mut body = vec![false; n];
+    // The later copy of any matched pair, which the spread below must not take.
+    let mut paired = vec![false; n];
+    let mut later_copies: Vec<(usize, usize)> = Vec::new();
+    // Pairs whose later copy comes after the signature block's sentence, which
+    // starts at the third value.
+    let mut signed_pairs: Vec<(usize, usize, usize)> = Vec::new();
+    // Rows and running headers are never the later copy of a pair.
+    let skip: Vec<bool> = (0..n).map(|i| paged[i] || headers[i].is_some()).collect();
     // The later copy of each candidate: the first line of its Item with the
     // same title that is no paged row, after the next line of another Item.
     // From the last candidate back, with the lines after that line of
     // another Item added before the copy is looked up (`Nearest`), so that
     // the time does not grow with the square of the number of lines.
     let mut later_copy: Vec<Option<usize>> = vec![None; n];
-    let mut after = Nearest::new(&groups);
+    let mut after = Nearest::new(groups);
     let mut added_from = n;
+    // A line that running headers repeat is followed by its own text, and is
+    // no earlier copy of a later line.
+    let mut repeated = vec![false; n];
+    for j in headers.iter().flatten() {
+        repeated[*j] = true;
+    }
     for a in (0..n).rev() {
-        let Some(other) = next_other[a] else { continue };
+        let Some(other) = next_other[a].filter(|_| !repeated[a]) else { continue };
         while added_from > other + 1 {
             added_from -= 1;
-            if !paged[added_from] {
+            if !skip[added_from] {
                 after.add(added_from);
             }
         }
@@ -2560,7 +2641,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
     // Whether the earlier copy of each pair is in body order, from the last
     // pair back, so that `BodyOrder` reads the lines after it once for the
     // copies of one Item before one sentence.
-    let mut body_order = BodyOrder { cands: &cands, keys, rows: &rows, repeats: &repeats, read: HashMap::new() };
+    let mut body_order = BodyOrder { cands, keys, rows: &rows, repeats: &repeats, read: HashMap::new() };
     let mut in_body_order = vec![false; n];
     for &(a, _, signed) in signed_pairs.iter().rev() {
         // The nearest candidate before `a` with text of its own, of another
@@ -2607,8 +2688,8 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         let end = next_other[a].unwrap_or(n);
         if by_title.get().is_none() {
             let no_rows: &SameTitled = no_rows.get_or_init(|| {
-                let mut lines = SameTitled::new(&groups);
-                (0..n).filter(|&i| !paged[i]).for_each(|i| lines.add(i));
+                let mut lines = SameTitled::new(groups);
+                (0..n).filter(|&i| !skip[i]).for_each(|i| lines.add(i));
                 lines
             });
             let mut in_order = no_rows.from(a, a + 1).take_while(|&b| b < end);
@@ -2621,7 +2702,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
             }
         }
         by_title
-            .get_or_init(|| RowHeadings::new(&groups, &cands, (0..n).filter(|&i| !paged[i])))
+            .get_or_init(|| RowHeadings::new(groups, cands, (0..n).filter(|&i| !skip[i])))
             .first_after(a, &cands[a])
             .filter(|&b| b < end)
     };
@@ -2660,7 +2741,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
         if heading.label == entry.label
             && same_title(&entry.title, &heading.title)
             && heading.pos - entry.pos <= SAME_BLOCK
-            && lists_signatures(text, entry.pos, heading.pos, &signatures)
+            && lists_signatures(text, entry.pos, heading.pos, signatures)
         {
             contents[a - 1] = true;
             body[a] = true;
@@ -2742,12 +2823,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key]) -> Vec
             after[i] = true;
         }
     }
-    cands
-        .into_iter()
-        .enumerate()
-        .filter(|&(i, _)| !contents[i] && !after[i])
-        .map(|(i, c)| Candidate { listed: body[i], ..c })
-        .collect()
+    (contents, after, body)
 }
 
 /// The printed title of a candidate without its page column. With the title
@@ -3009,7 +3085,21 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 /// row, repeats that heading on a later page when it shortens the title or
 /// adds "(continued)" (`prints_title`). A body heading printed with a
 /// footnote's number after a contents list without pages prints the entry's
-/// title in full.
+/// title in full. So does a running header that prints the whole title with
+/// the page ("ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL
+/// CONDITION AND RESULTS OF OPERATIONS   25"), but it comes on every page:
+/// two such lines with one title that print different pages (the page
+/// value, whatever the tab, spaces or dot leaders before it), each compared
+/// with the last one before it, are running headers, returned each with the
+/// line it repeats (the nearest line before it with its title that is no
+/// row, the header before it after the first). They are no rows. A
+/// footnote's number is printed once, or again with the same number, and
+/// lower than a page printed before it by a line in the body (after an Item
+/// with text of its own); such a line is no running header. Neither is one
+/// with a line of another Item that prints a page between it and the line
+/// it repeats. The line repeated may be a contents entry, as the line above
+/// a heading with a footnote's number is when a contents list without pages
+/// lists it (`drop_contents_entries` then reads the headers again).
 fn paged_rows(
     cands: &[Candidate],
     text: &str,
@@ -3017,7 +3107,7 @@ fn paged_rows(
     block: usize,
     next_other: &[Option<usize>],
     groups: &TitleGroups,
-) -> Vec<bool> {
+) -> (Vec<bool>, Vec<Option<usize>>) {
     let ends_with_pages = |l: &str| ROW_PAGES.is_match(l.trim_end());
     let ends_with_entry = |l: &str| ENTRY_PAGES.is_match(l.trim_end());
     let n = cands.len();
@@ -3089,8 +3179,25 @@ fn paged_rows(
     let mut added = 0;
     let mut titles = RowTitles::new(groups);
     let mut listed = 0;
+    // The lines that print a page and, in full, the title of every line of
+    // their Item before them that is no row and has their title, with the
+    // nearest of those lines.
+    let mut in_full: Vec<(usize, usize)> = Vec::new();
+    // The last line so far that prints a page, and for each such line the
+    // last one before it of another title group, so that whether one of
+    // another Item comes between two lines is known without reading the
+    // lines between them.
+    let mut last_paged: Option<usize> = None;
+    let mut other_before: Vec<Option<usize>> = vec![None; n];
     for i in 0..n {
-        if paged[i] || !own_pages(i) {
+        if !own_pages(i) {
+            continue;
+        }
+        // The last line before this one of another Item that prints a page.
+        let other_paged = last_paged.and_then(|r| if groups.of[r] == groups.of[i] { other_before[r] } else { Some(r) });
+        other_before[i] = other_paged;
+        last_paged = Some(i);
+        if paged[i] {
             continue;
         }
         // Whether a line before this one is a row is settled now.
@@ -3099,14 +3206,74 @@ fn paged_rows(
         paged[i] = match no_rows.find(i) {
             None => false,
             Some(j) if !prints_title(&cands[j], &cands[i]) => true,
-            Some(_) => {
+            Some(j) => {
                 (listed..i).filter(|&j| !paged[j]).for_each(|j| titles.add(j, &cands[j]));
                 listed = i;
-                !titles.all_printed_by(i, &cands[i])
+                let all = titles.all_printed_by(i, &cands[i]);
+                // Not when a line of another Item that prints a page comes
+                // between them, a running header or a contents row: the line
+                // repeated is then inside another Item or a list.
+                if all && other_paged.is_none_or(|r| r < j) {
+                    in_full.push((i, j));
+                }
+                !all
             }
         };
     }
-    paged
+    // Those lines are running headers when another of them with that title
+    // prints another page, each compared with the last one of its title
+    // only. Each is kept with the line it repeats.
+    let mut headers: Vec<Option<usize>> = vec![None; n];
+    let earliest = earliest_text_before(cands, keys, block);
+    let in_body =
+        |j: usize| form_places(&cands[j], keys).next_back().is_some_and(|last| earliest[j].is_some_and(|e| e < last));
+    // Pages go up through the body: a line that prints a lower page in
+    // digits than a line in the body before it is no running header (a
+    // heading with a footnote mark after its title).
+    let digits = |i: usize| page_value(line_at(text, cands[i].pos)).and_then(|p| p.parse::<u32>().ok());
+    let mut highest = vec![0; n];
+    for i in 1..n {
+        let k = i - 1;
+        let page = if own_pages(k) && in_body(k) { digits(k).unwrap_or(0) } else { 0 };
+        highest[i] = highest[k].max(page);
+    }
+    let mut last_in_full: HashMap<usize, (usize, usize)> = HashMap::new();
+    for (i, j) in in_full {
+        let Some(group) = groups.of[i] else { continue };
+        if digits(i).is_some_and(|p| p < highest[i]) {
+            continue;
+        }
+        if let Some((k, repeats)) = last_in_full.insert(group, (i, j))
+            && page_value(line_at(text, cands[k].pos)) != page_value(line_at(text, cands[i].pos))
+        {
+            headers[k] = Some(repeats);
+            headers[i] = Some(j);
+        }
+    }
+    (paged, headers)
+}
+
+/// For each candidate, the earliest place in the form's order of the Items
+/// with text of their own (more than `block` characters before the next
+/// Item) before it.
+fn earliest_text_before(cands: &[Candidate], keys: &[Key], block: usize) -> Vec<Option<usize>> {
+    let mut earliest = None;
+    let mut before = Vec::with_capacity(cands.len());
+    for c in cands {
+        before.push(earliest);
+        if c.gap > block
+            && let Some(first) = form_places(c, keys).next()
+        {
+            earliest = Some(earliest.map_or(first, |e: usize| e.min(first)));
+        }
+    }
+    before
+}
+
+/// The page printed at the end of a line, without the tab, spaces or dot
+/// leaders before it and the spaces inside it: `25`, `F-3`.
+fn page_value(line: &str) -> Option<String> {
+    ROW_PAGES.find(line.trim_end()).map(|m| m.as_str().chars().filter(|&ch| ch != '.' && !ch.is_whitespace()).collect())
 }
 
 /// The line that starts at `start`, without its line break.
@@ -3980,6 +4147,7 @@ fn added_candidate(text: &str, pos: usize, label: &str, printed: &str) -> Candid
         cites: false,
         gap: 0,
         score: 0.0,
+        repeats: None,
     }
 }
 
@@ -4329,26 +4497,10 @@ fn report_dates<'a>(filing_date: &'a str, report_date: Option<&'a str>) -> Resul
     Ok(Dates { filed, period })
 }
 
-/// Item sections, titled for the report's dates when they are given.
-fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Section> {
-    // The lines worth testing for an Item heading, found once.
-    let lines = item_word_lines(text);
-    let cands = candidates(text, kind, &lines);
-    // A filing that prints the Items of the form its kind replaced or was
-    // replaced by (a 10-KSB numbered as a 10-K, a 10-Q numbered as a 10-QSB)
-    // is split with that form's Items when its headings fit them better.
-    let (kind, cands) = match kind.other_numbering() {
-        Some(other)
-            if numbering_fit(&cands, keys_for(other), keys_for(kind))
-                > numbering_fit(&cands, keys_for(kind), keys_for(other)) =>
-        {
-            (other, candidates(text, other, &lines))
-        }
-        _ => (kind, cands),
-    };
-    let keys = keys_for(kind);
-
-    // Best chain where both candidate position and Item order increase.
+/// Best chain of (candidate, key) pairs where both candidate position and
+/// Item order increase, in document order. Running headers (`repeats`) take
+/// no part: the line they repeat stands for them.
+fn best_chain(cands: &[Candidate], keys: &[Key]) -> Vec<(usize, usize)> {
     struct State {
         cand: usize,
         key: usize,
@@ -4363,7 +4515,7 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
     // never equal: a candidate compares one state for each key rather than
     // every state before it.
     let mut best_of_key: Vec<Option<usize>> = vec![None; keys.len()];
-    for (ci, cand) in cands.iter().enumerate() {
+    for (ci, cand) in cands.iter().enumerate().filter(|(_, c)| c.repeats.is_none()) {
         // A PART line fixes the part; otherwise a title that names one part does.
         let part = cand.part.or(cand.title_part);
         let fits = |key: &Key| key.item == cand.label && (part.is_none() || key.part == part);
@@ -4401,7 +4553,69 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
     }
     chain.reverse();
     // (candidate, key) pairs in document order.
-    let mut picks: Vec<(usize, usize)> = chain.iter().map(|&s| (states[s].cand, states[s].key)).collect();
+    chain.iter().map(|&s| (states[s].cand, states[s].key)).collect()
+}
+
+/// The lines that running headers repeat (by position) where the chain
+/// `picks` takes a line between such a line and its last header, which is
+/// a line of another Item. The headers say that the Item goes on there: either the chain
+/// reads a stray line inside it as a heading, or it leaves the line out for
+/// a line of an earlier Item (as when that Item's heading reads as a
+/// contents entry and a stray line of it is taken instead).
+fn unread_headers(cands: &[Candidate], picks: &[(usize, usize)]) -> Option<HashSet<usize>> {
+    let picked: Vec<usize> = picks.iter().map(|&(c, _)| cands[c].pos).collect();
+    // The last header of each line that headers repeat.
+    let mut last: HashMap<usize, usize> = HashMap::new();
+    for h in cands {
+        if let Some(at) = h.repeats {
+            last.insert(at, h.pos);
+        }
+    }
+    let read: HashSet<usize> = last
+        .into_iter()
+        .filter(|&(at, end)| {
+            let from = picked.partition_point(|&p| p <= at);
+            let to = picked.partition_point(|&p| p < end);
+            from < to
+        })
+        .map(|(at, _)| at)
+        .collect();
+    (!read.is_empty()).then_some(read)
+}
+
+/// Item sections, titled for the report's dates when they are given.
+fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Section> {
+    // The lines worth testing for an Item heading, found once.
+    let lines = item_word_lines(text);
+    let cands = candidates(text, kind, &lines, &HashSet::new());
+    // A filing that prints the Items of the form its kind replaced or was
+    // replaced by (a 10-KSB numbered as a 10-K, a 10-Q numbered as a 10-QSB)
+    // is split with that form's Items when its headings fit them better.
+    let (kind, cands) = match kind.other_numbering() {
+        Some(other)
+            if numbering_fit(&cands, keys_for(other), keys_for(kind))
+                > numbering_fit(&cands, keys_for(kind), keys_for(other)) =>
+        {
+            (other, candidates(text, other, &lines, &HashSet::new()))
+        }
+        _ => (kind, cands),
+    };
+    let keys = keys_for(kind);
+
+    let mut picks = best_chain(&cands, keys);
+    // Running headers among which the chain takes a line of another Item
+    // are read as headings of their own, as other lines are.
+    let cands = match unread_headers(&cands, &picks) {
+        Some(read) => {
+            let cands = candidates(text, kind, &lines, &read);
+            picks = best_chain(&cands, keys);
+            cands
+        }
+        None => cands,
+    };
+    if picks.is_empty() {
+        return Vec::new();
+    }
     if kind.quarterly() {
         add_out_of_order(text, &cands, keys, &mut picks);
     }
@@ -7288,6 +7502,292 @@ Pursuant to ...
         assert_eq!(ids(&s), ["item_1", "item_1a", "item_7", "item_8"]);
         assert_eq!(s[2].heading, mdna);
         assert_eq!(s[1].end, s[2].start);
+    }
+
+    #[test]
+    fn running_headers_that_print_the_title_in_full_and_the_page_are_no_body_headings() {
+        // MD&A prints a line of Item 1A after its heading, and its pages
+        // start with a running header that prints the title in full and the
+        // page, after two spaces or a tab.
+        let body = BODY.repeat(30);
+        let mdna = "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS";
+        let start = format!("PART I\nITEM 1. BUSINESS\n{body}\nITEM 1A. RISK FACTORS\n{body}\nPART II\n");
+        let end = format!("ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n");
+        for gap in ["    ", "\t"] {
+            for first_page in ["Our results depend on the risks that the annual report describes.", body.as_str()] {
+                let text = format!(
+                    "{start}{mdna}\n{first_page}\nItem 1A. Risk Factors\n{body}\n{mdna}{gap}25\n{body}\n\
+                     {mdna}{gap}26\n{body}\n{mdna}{gap}27\n{body}\n{end}"
+                );
+                let s = extract_sections(&text, FormKind::TenK);
+                assert_eq!(ids(&s), ["item_1", "item_1a", "item_7", "item_8"], "{gap:?}");
+                assert_eq!(s[2].heading, mdna);
+                assert_eq!(s[1].end, s[2].start);
+            }
+        }
+        // The same when the heading prints a footnote's number.
+        let text = format!(
+            "{start}{mdna}\t1\n{body}\nItem 1A. Risk Factors\n{body}\n{mdna}\t25\n{body}\n{mdna}\t26\n{body}\n{end}"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_7", "item_8"]);
+        assert_eq!(s[1].end, s[2].start);
+    }
+
+    #[test]
+    fn running_headers_in_full_after_each_heading_keep_every_item() {
+        // Each Item's heading prints no page and its pages start with a
+        // running header that prints the title in full and the page.
+        let body = BODY.repeat(37);
+        let half = BODY.repeat(18);
+        let mdna = "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations";
+        let market = "Item 7A. Quantitative and Qualitative Disclosures About Market Risk";
+        let fs = "Item 8. Financial Statements and Supplementary Data";
+        let short = BODY.repeat(2);
+        let text = format!(
+            "{mdna}\n{body}\n{mdna}\t30\n{body}\n{mdna}\t31\n{body}\n{market}\n{short}\n{market}\t37\n{body}\n\
+             {market}\t38\n{body}\n{fs}\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_7", "item_7a", "item_8"]);
+        assert_eq!(s[1].heading, market);
+        assert_eq!(s[0].end, s[1].start);
+        // Every Item so, Item 1 first, which no Item with text comes before.
+        let mut text = String::new();
+        for (title, page) in
+            [("Item 1. Business", 3), (mdna, 30), (market, 37), (fs, 40), ("Item 9A. Controls and Procedures", 45)]
+        {
+            text += &format!("{title}\n{half}\n{title}\t{page}\n{body}\n{title}\t{}\n{body}\n", page + 1);
+        }
+        let s = extract_sections(&format!("{text}SIGNATURES\n"), FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_7", "item_7a", "item_8", "item_9a"]);
+        for (section, title) in s.iter().zip(["Item 1. Business", mdna, market, fs, "Item 9A. Controls and Procedures"])
+        {
+            assert_eq!(section.heading, title);
+        }
+    }
+
+    #[test]
+    fn running_headers_in_full_compare_the_page_and_not_the_leaders() {
+        // Two lines that print one page after dot leaders of different
+        // lengths print the same page.
+        assert_eq!(
+            page_value("Item 7. Management's Discussion .... 25"),
+            page_value("Item 7. Management's Discussion ........ 25")
+        );
+        assert_eq!(
+            page_value("Item 7. Management's Discussion\t25"),
+            page_value("Item 7. Management's Discussion ..... 25")
+        );
+        assert_ne!(
+            page_value("Item 7. Management's Discussion .... 25"),
+            page_value("Item 7. Management's Discussion .... 26")
+        );
+        assert_eq!(page_value("Item 15. Exhibits\tF - 3").as_deref(), Some("F-3"));
+    }
+
+    #[test]
+    fn heading_with_a_footnote_number_after_a_stray_copy_starts_its_item() {
+        // A copy of MD&A's heading inside Item 6, after Item 6's running
+        // headers and before another line of Item 6, then MD&A's heading
+        // with a footnote's number and its own running headers. The number
+        // is lower than the pages printed before it, so the heading is no
+        // running header of the copy.
+        let body = BODY.repeat(37);
+        let mdna = "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS";
+        let reserved = "ITEM 6. [RESERVED]";
+        let text = format!(
+            "ITEM 5. MARKET FOR REGISTRANT'S COMMON EQUITY\n{body}\n{reserved}\n{body}\n{reserved}\t20\n{body}\n\
+             {reserved}\t21\n{body}\n{mdna}\n{body}\n{reserved}\n{body}\n{mdna}\t1\n{body}\n{mdna}\t25\n{body}\n{mdna}\t26\n{body}\n\
+             ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5", "item_6", "item_7", "item_8"]);
+        assert_eq!(s[2].heading, format!("{mdna}\t1"));
+        assert_eq!(s[1].heading, reserved);
+    }
+
+    #[test]
+    fn running_headers_in_full_around_a_line_the_chain_takes_are_read_as_headings() {
+        // A line of MD&A inside Item 3, between Item 3's heading and its
+        // running headers, and lines of Items 5, 7A and 6 close together
+        // after them. Taken for MD&A's heading, the line would leave Items 5
+        // and 6 out: the headers are read as any other line then, and the
+        // line of MD&A stays inside Item 3.
+        let p = |n: usize| BODY.repeat(n / BODY.len());
+        let legal = "Item 3. Legal Proceedings";
+        let exhibits = "Item 15. Exhibits and Financial Statement Schedules";
+        let text = format!(
+            "Item 1. Business\n{}\nItem 1A. Risk Factors\n{}\nItem 1A. Risk Factors\t4\n{}\n{legal}\n{}\n\
+             Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{}\n\
+             {legal}\t5\n{}\n{legal}\t6\n{}\n{legal}\t7\n{}\n\
+             Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of \
+             Equity Securities\n{}\nItem 7A. Quantitative and Qualitative Disclosures About Market Risk\n{}\n\
+             Item 6. [Reserved]\n{}\nItem 8. Financial Statements and Supplementary Data\n{}\n{exhibits}\n{}\n\
+             {exhibits}\t8\n{}\n{exhibits}\t9\n{}\n{exhibits}\t10\n{}\nSIGNATURES\n",
+            p(1278),
+            p(4094),
+            p(1965),
+            p(357),
+            p(2901),
+            p(5140),
+            p(5199),
+            p(1244),
+            p(130),
+            p(349),
+            p(2202),
+            p(123),
+            p(1201),
+            p(5000),
+            p(5000),
+            p(1000),
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_3", "item_5", "item_6", "item_8", "item_15"]);
+    }
+
+    #[test]
+    fn running_headers_in_full_that_print_the_page_of_the_header_before_stay_headers() {
+        // Item 10 starts on the page whose header printed Item 9A's title,
+        // and its first header prints that page too, after a line of Item
+        // 1A. Only a lower page than one printed before marks a footnote.
+        let body = BODY.repeat(37);
+        let short = BODY.repeat(5);
+        let controls = "ITEM 9A. CONTROLS AND PROCEDURES";
+        let directors = "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE";
+        let text = format!(
+            "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\n{controls}\n{body}\n{controls}\t35\n{body}\n\
+             {controls}\t36\n{short}\n{directors}\n{short}\nItem 1A. Risk Factors\n{short}\n{directors}\t36\n{body}\n\
+             {directors}\t37\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_9a", "item_10"]);
+        assert_eq!(s[2].heading, directors);
+        assert_eq!(s[1].heading, controls);
+    }
+
+    #[test]
+    fn pages_of_contents_rows_do_not_mark_running_headers_as_footnotes() {
+        // The contents list prints higher pages than the running headers of
+        // Item 6, which follow a line of Item 1A inside it: those pages are
+        // printed before the body and say nothing of a footnote.
+        let body = BODY.repeat(37);
+        let reserved = "Item 6. [Reserved]";
+        let text = format!(
+            "Item 1A. Risk Factors\t3\nItem 6. [Reserved]\t14\nItem 15. Exhibits and Financial Statement Schedules\t45\n\
+             Item 1A. Risk Factors\n{body}\n{reserved}\n{body}\nItem 1A. Risk Factors\n{body}\n{reserved}\t15\n{body}\n\
+             {reserved}\t17\n{body}\nItem 15. Exhibits and Financial Statement Schedules\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1a", "item_6", "item_15"]);
+        assert_eq!(s[1].heading, reserved);
+    }
+
+    #[test]
+    fn a_line_inside_another_items_running_headers_is_repeated_by_no_header() {
+        // A line of Item 1A inside Item 1, before Item 1's running headers,
+        // and Item 1A's heading with a footnote's number and its running
+        // headers after them. Item 1A starts at its heading: the line inside
+        // Item 1 is not what its headers repeat.
+        let body = BODY.repeat(37);
+        let short = BODY.repeat(6);
+        let text = format!(
+            "ITEM 1 - BUSINESS\n{short}\nItem 1A. Risk Factors\n{short}\nITEM 1 - BUSINESS  7\n{body}\n\
+             ITEM 1 - BUSINESS  9\n{body}\nITEM 1A - RISK FACTORS\t1\n{short}\nITEM 1A - RISK FACTORS  12\n{body}\n\
+             ITEM 1A - RISK FACTORS  13\n{body}\nITEM 2 - PROPERTIES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2"]);
+        assert_eq!(s[1].heading, "ITEM 1A - RISK FACTORS\t1");
+    }
+
+    #[test]
+    fn a_heading_with_running_headers_in_full_after_a_short_text_and_a_stray_line_starts_its_item() {
+        // Item 7A's heading, a short text and a line of Item 1A, then its
+        // running headers. Its text runs on through them, so the heading
+        // outweighs the line of Item 1A, also with a copy of the heading
+        // in other letters further on, which repeats no contents entry.
+        let body = BODY.repeat(37);
+        let short = BODY.repeat(5);
+        let market = "ITEM 7A.\tQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK";
+        for copy in ["", "Item 7A. Quantitative and Qualitative Disclosures About Market Risk\n"] {
+            let text = format!(
+                "ITEM 6.\t[RESERVED]\n{body}\n{market}\n{short}\nItem 1A. Risk Factors\n{short}\n{market}\t37\n{body}\n\
+                 {market}\t38\n{body}\n{copy}{short}\n\
+                 Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+                 ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_6", "item_7a", "item_8"], "{copy}");
+            assert_eq!(s[1].heading, market, "{copy}");
+        }
+    }
+
+    #[test]
+    fn running_headers_of_a_contents_entry_are_read_as_headings() {
+        // A contents list without pages, then Item 1's heading with dot
+        // leaders and the page, and its running headers the same way. The
+        // line they repeat is a contents entry, so they are read as any
+        // other line, and the first starts Item 1.
+        let body = BODY.repeat(37);
+        let short = BODY.repeat(5);
+        let text = format!(
+            "ITEM 1. BUSINESS\nITEM 1A. RISK FACTORS\nITEM 1. BUSINESS ... 13\n{short}\nITEM 1. BUSINESS ... 15\n{body}\n\
+             ITEM 1A. RISK FACTORS  3\n{body}\nITEM 2. PROPERTIES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2"]);
+        assert_eq!(s[0].heading, "ITEM 1. BUSINESS ... 13");
+    }
+
+    #[test]
+    fn short_items_with_running_headers_in_full_keep_their_headings() {
+        // Item 7A's heading right above a line of Item 1A, two running
+        // headers and a copy of the heading in other letters, at the end of
+        // the text: the heading has no later copy, and starts the Item.
+        let market = "ITEM 7A.\tQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK";
+        let text = format!(
+            "ITEM 6.\t[RESERVED]\t33\n{}\n{market}\nItem 1A. Risk Factors\n{market}\t37\n{}\n{market}\t38\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\nC\n",
+            &BODY.repeat(25)[..1978],
+            &BODY.repeat(6)[..450]
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s).last(), Some(&"item_7a"));
+        assert_eq!(s.last().map(|s| s.heading.as_str()), Some(market));
+        // The exhibits Item's heading over a line of Item 10 and its running
+        // headers: the headers start no Item, so Item 10 does not either.
+        let exhibits = "Item 15. Exhibits and Financial Statement Schedules";
+        let text = format!(
+            "{exhibits}\nItem 10. Directors, Executive Officers and Corporate Governance\n{exhibits}  25\n\
+             Competition in the industry\n{exhibits}  27\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_15"]);
+        assert_eq!(s[0].heading, exhibits);
+    }
+
+    #[test]
+    fn heading_with_a_footnote_number_after_contents_without_pages_stays_when_printed_twice() {
+        // After a contents list without pages, a heading printed with a
+        // footnote's number is no running header: not when it is the only
+        // line of its Item that prints a number, and not when a second line
+        // prints the same number, as two pages do not.
+        let body = BODY.repeat(30);
+        let mdna = "Item 7.\tManagement's Discussion and Analysis of Financial Condition and Results of Operations\t1";
+        for again in ["", mdna] {
+            let text = format!(
+                "Item 5. Market for Registrant's Common Equity\nItem 6. [Reserved]\n\
+                 Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+                 Item 8. Financial Statements and Supplementary Data\n\
+                 Item 5. Market for Registrant's Common Equity\n{body}\nItem 6. [Reserved]\n{mdna}\n{body}\n\
+                 {again}\n{body}\nItem 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_5", "item_6", "item_7", "item_8"], "{again}");
+            assert_eq!(s[2].heading, mdna);
+            assert_eq!(s[1].end, s[2].start);
+        }
     }
 
     #[test]
