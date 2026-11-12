@@ -1374,7 +1374,7 @@ fn page_furniture(
         }
         let apart = mostly(seen.windows(2).filter(|w| w[1].0 > w[0].0 + 1).count(), n - 1);
         let furniture = match place {
-            Place::Label | Place::Chapter | Place::Alone => apart && mostly(page_steps(seen), n - 1),
+            Place::Label | Place::Chapter | Place::Alone | Place::Dashed => apart && mostly(page_steps(seen), n - 1),
             Place::Edge | Place::PageOf | Place::Middle => {
                 let short = letters(before) + letters(after) < MIN_LETTERS;
                 let spaced = before.contains(' ') || after.contains(' ');
@@ -1496,6 +1496,9 @@ enum Place {
     Chapter,
     /// Alone in parentheses or followed by a period: "(12)", "12.".
     Alone,
+    /// Between dashes at the start or end of the line, a wide space from
+    /// its text: "- 12 -          Docket No. 95-052".
+    Dashed,
 }
 
 /// The text before and after a page number, and where it sits. A number at
@@ -1533,7 +1536,8 @@ impl<'a> PageNumber<'a> {
 /// The page numbers of a line that may be a running header or footer, with
 /// the text around them: a bare page number, or one with a prefix alone on
 /// the line (`PAGE_LABEL`), or one alone in parentheses or followed by a
-/// period ("(12)", "12."), or one at the start or end of the line, in a
+/// period ("(12)", "12."), or one between dashes a wide space before or
+/// after the text of its line, or one at the start or end of the line, in a
 /// leading "Page N of M", or in the middle cell of a row of three cells, in
 /// digits or, in the front matter, in roman numerals. A line can have both of
 /// the last two, as "2021 Annual Report<TAB>61<TAB>Part II, Item 8" does.
@@ -1576,6 +1580,18 @@ fn page_numbers<'a>(line: &'a str) -> [Option<PageNumber<'a>>; 2] {
     let alone = line.strip_prefix(open).and_then(|rest| rest.strip_suffix(close));
     if let Some(digits) = alone.filter(|d| (1..=3).contains(&d.len()) && d.bytes().all(|b| b.is_ascii_digit())) {
         return [digits.parse().ok().map(|number| PageNumber::new(number, (open, close, Place::Alone))), None];
+    }
+    // The line of a text filing that starts or ends with a page number
+    // between dashes, three or more spaces from its text. Only a line with
+    // a dash at one end is matched, so the other lines cost nothing.
+    static DASHED: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^(?:- ?(\d{1,3}) ?- {3,}(\S.*)|(\S.*?) {3,}- ?(\d{1,3}) ?-)$").unwrap());
+    if (line.starts_with('-') || line.ends_with('-'))
+        && let Some(c) = DASHED.captures(line)
+        && let Some((number, text)) = c.get(1).zip(c.get(2)).or(c.get(4).zip(c.get(3)))
+    {
+        let key = (text.as_str(), "", Place::Dashed);
+        return [number.as_str().parse().ok().map(|number| PageNumber::new(number, key)), None];
     }
     let numeral = |c: char| c.is_ascii_digit() || matches!(c, 'i' | 'v' | 'x' | 'l' | 'c');
     let edge = line.starts_with(numeral)
@@ -1852,6 +1868,54 @@ mod tests {
         // The middle cell of a row of three.
         let raw: String = (47..57).map(|n| format!("Text of page {n}.\n(Continued)\t{n}\tA\n")).collect();
         assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).lines().count(), 20);
+    }
+
+    /// The running header of a text filing that starts or ends with its
+    /// page number between dashes, a wide space from the text, goes when its
+    /// copies are on pages one to three apart.
+    #[test]
+    fn page_numbers_between_dashes_beside_text_dropped() {
+        let text = |header: &str, pages: &[u32]| {
+            let raw: String = pages
+                .iter()
+                .map(|n| format!("{}\nText of page {n}.\n", header.replace("{}", &n.to_string())))
+                .collect();
+            document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>"))
+        };
+        let pages: Vec<u32> = (8..14).collect();
+        let want: String = pages.iter().map(|n| format!("Text of page {n}.\n")).collect();
+        for header in [
+            "- {} -          Docket No. 95-052",
+            "-{}-   Docket No. 95-052",
+            "Docket Nos. ER95-836-000 and ER95-851-000           - {} -",
+            "A   -{}-",
+        ] {
+            assert_eq!(text(header, &pages), want, "{header}");
+        }
+        // Two spaces from the text; no dash before or after the number, as
+        // a negative number has none; four digits; a word between the
+        // dashes; text on both sides of the number.
+        for header in [
+            "ORDER  - {} -",
+            "- {} -  Docket No. 94-475",
+            "ORDER     - {}",
+            "ORDER     {} -",
+            "{} -     Docket No. 94-475",
+            "- {}     Docket No. 94-475",
+            "ORDER     - No. {} -",
+            "ORDER     - {} -     Docket No. 94-475",
+        ] {
+            assert_eq!(text(header, &pages).lines().count(), 12, "{header}");
+        }
+        assert_eq!(text("ORDER     - {} -", &[1008, 1009, 1010, 1011, 1012, 1013]).lines().count(), 12);
+        // Four copies; numbers that rise more than three at a time or do
+        // not rise; copies on lines next to each other.
+        let header = "- {} -     Docket No. 94-475";
+        assert_eq!(text(header, &[8, 9, 10, 11]).lines().count(), 8);
+        assert_eq!(text(header, &[8, 12, 16, 20, 24, 28]).lines().count(), 12);
+        assert_eq!(text(header, &[8, 8, 8, 9, 9, 9]).lines().count(), 12);
+        let raw: String = pages.iter().map(|n| format!("- {n} -     Docket No. 94-475\n")).collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).lines().count(), 6);
     }
 
     /// "Page N of M" footers that start again at page 1 in each exhibit go,
