@@ -211,7 +211,20 @@
 //! lines printed before it in the Item, with none of the Item's own captions
 //! after it. An exhibit index printed after such statements does not keep them
 //! in the Item, and the Item ends at an index to them printed after its own
-//! text, or else at the report. Statements printed before another Item are
+//! text, or else at the report. When no Item follows it, it also ends at
+//! financial statement schedules printed after its last caption, exhibit
+//! table header or exhibit index, when its list gives the first schedule's
+//! number with a page ("Schedule II - Valuation and Qualifying Accounts .....
+//! 55", or under a line that says "Schedules", "II. Condensed Financial
+//! Information of Registrant<TAB>88"). The schedule starts at a heading:
+//! "Schedule" and the number, then nothing, a dash, colon or period, or a
+//! title in capitals, with at least two lines after it, so a wrapped row of
+//! the exhibit list ("Schedule II thereto (filed as ...") starts none. An
+//! auditors' report, not a consent, at most 60 lines above that heading opens
+//! the schedule, and the filer's name on the line just above ("HERCULES
+//! INCORPORATED") goes with it. A list that gives no page for it ("at the
+//! conclusion of this Item") keeps the schedules in the Item. Statements
+//! printed before another Item are
 //! inside the exhibits Item. Page headers printed just above any of these
 //! headings go with the text after it: up to three lines, each printed again
 //! on a line of its own at least twice after the heading and more often than
@@ -3912,6 +3925,143 @@ fn statements_after_items(text: &str, start: usize, body: usize, end: usize) -> 
     Some(index.unwrap_or(&lines[report]).0)
 }
 
+/// A schedule's number in an entry of the exhibits Item's list that gives
+/// its page: `Schedule II - Valuation and Qualifying Accounts ..... 55`, or
+/// under a line that says "Schedules", `II. Condensed Financial Information
+/// of Registrant<TAB>88`.
+static SCHEDULE_ENTRY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:(?i:schedule)[ \t]+([IVXivx]{1,4})\b|([IVX]{1,4})\.[ \t])").unwrap());
+
+/// A schedule heading's number: `SCHEDULE III — SUPPLEMENTARY INSURANCE`.
+static SCHEDULE_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^schedule[ \t]+([ivx]{1,4})\b").unwrap());
+
+/// The number of a schedule that a trimmed line heads: a heading line of
+/// statements (`statement_heading`) that starts with "Schedule" and a roman
+/// number and ends there ("SCHEDULE II"), goes on with a dash, a colon or a
+/// period ("Schedule II - Valuation and Qualifying Accounts"), or prints
+/// the rest in capitals ("SCHEDULE II VALUATION AND QUALIFYING ACCOUNTS").
+/// A line that reads on in a sentence or an exhibit's description
+/// ("Schedule II thereto (filed as ...", "Schedule II is included ...") is
+/// none, nor is one that says it continues a schedule.
+fn schedule_heading(line: &str) -> Option<String> {
+    static CONTINUED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bcont(?:inued\b|['’]d\b|\.)").unwrap());
+    const WORD: &str = "schedule";
+    if !line.get(..WORD.len()).is_some_and(|w| w.eq_ignore_ascii_case(WORD)) || !statement_heading(line) {
+        return None;
+    }
+    let number = SCHEDULE_NUMBER.captures(line)?.get(1).expect("number");
+    let rest = line[number.end()..].trim_start();
+    let heads = rest.starts_with(['-', '–', '—', ':', '.']) || !rest.contains(char::is_lowercase);
+    (heads && !CONTINUED.is_match(rest)).then(|| number.as_str().to_ascii_uppercase())
+}
+
+/// Whether a trimmed line is the filer's name as printed over a statement
+/// or a schedule: at most 100 characters with no tab, every word but "and"
+/// starting with a capital letter, no "of", "to", "for" or "with", and at
+/// its end a legal form or kind of company ("Inc.", "Corporation",
+/// "Company", "Trust", "Group"), or that and "and Subsidiaries": "HERCULES
+/// INCORPORATED", "Portland General Electric Company and Subsidiaries". So
+/// "None.", "Subsidiaries of Example Corp." and a row of an exhibit list are
+/// no names.
+fn filer_name_line(line: &str) -> bool {
+    const MAX_CHARS: usize = 100;
+    static ENDS_AS_NAME: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"(?i)\b(?:inc|incorporated|corp|corporation|company|co|ltd|limited|l\.p|llc|plc|n\.a|bancorp|bancorporation|bancshares|trust|group|holdings?)\b\.?,?(?:[ \t]+(?:and|&)[ \t]+(?:its[ \t]+)?(?:consolidated[ \t]+)?subsidiar(?:y|ies))?[ \t]*$",
+        )
+        .unwrap()
+    });
+    line.len() <= MAX_CHARS
+        && !line.contains('\t')
+        && line.split_whitespace().all(|w| {
+            let word = w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            !matches!(word.as_str(), "of" | "to" | "for" | "with")
+                && (w.starts_with(|c: char| c.is_uppercase() || !c.is_alphabetic()) || word == "and")
+        })
+        && line.starts_with(char::is_uppercase)
+        && ENDS_AS_NAME.is_match(line)
+}
+
+/// Start of financial statement schedules that the last exhibits Item prints
+/// after all of its own text, when the Item lists them by the report's page
+/// ("Schedule II - Valuation and Qualifying Accounts ..... 55") rather than
+/// saying that they follow it. Like statements printed there, they belong to
+/// no Item. The schedules start at the first schedule heading
+/// (`schedule_heading`) after the Item's last caption or exhibit table
+/// header (`EXHIBITS_ITEM_PART`) or exhibit index heading, when an entry of
+/// the Item's list before that gives the schedule's number with a page: an
+/// entry that starts with "Schedule", or one with the number alone ("II.
+/// ...") in a run of such entries under a line that says "schedule". At
+/// least two lines of the schedule follow its heading in the Item. The
+/// first auditors' report heading between the Item's last own text and the
+/// schedule, a report and not a consent, opens the schedule when it is at
+/// most 60 lines above it; when it is further, statements may come between
+/// and nothing is cut. The filer's name printed on the line just above
+/// (`filer_name_line`) goes with the schedule. A list that names a schedule
+/// with no page ("All required schedules may be found ... at the conclusion
+/// of this Item") keeps the schedules in the Item.
+fn schedules_after_items(text: &str, start: usize, end: usize) -> Option<usize> {
+    const MAX_REPORT_LINES: usize = 60;
+    const MIN_SCHEDULE_LINES: usize = 2;
+    // A line that starts like a schedule heading, which most Items lack: a
+    // search for the word, then a look at what its line prints before it,
+    // is much faster than reading every line.
+    static SCHEDULE_START: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)schedule[ \t]+[ivx]").unwrap());
+    static SCHEDULE_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bschedules?\b").unwrap());
+    let item = &text[start..end];
+    let starts_line = |m: regex::Match| item[..m.start()].rsplit('\n').next().is_some_and(|l| l.trim().is_empty());
+    if !SCHEDULE_START.find_iter(item).any(starts_line) {
+        return None;
+    }
+    let lines: Vec<(usize, &str)> = item_lines(text, start, end).into_iter().filter(|(_, l)| !l.is_empty()).collect();
+    // The last line of the Item's own text: a caption, a table header or
+    // an index heading, each of which holds "exhibit", "schedule" or "8-K",
+    // so only the lines with a few letters of one of them are read.
+    static OWN_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i-u:xh|ched)|(?i:8-?k)").unwrap());
+    let own_text = |line: &str| EXHIBITS_ITEM_PART.is_match(line) || capital_match(&EXHIBITS_INDEX_HEADING, line);
+    let mut after_own = 0;
+    for word in OWN_WORD.find_iter(item) {
+        let at = lines.partition_point(|&(pos, _)| pos <= start + word.start());
+        if at > after_own && own_text(lines[at - 1].1) {
+            after_own = at;
+        }
+    }
+    // The schedules listed with a page, and whether the line above a run
+    // of entries that give a number alone says "schedule".
+    let mut listed: HashSet<String> = HashSet::new();
+    let (mut above, mut under_schedules) = ("", None);
+    for &(_, line) in &lines[..after_own] {
+        // Only a line that starts with a letter of "Schedule" or of a roman
+        // number is read as an entry.
+        let entry = line.starts_with(['S', 's', 'I', 'V', 'X']).then(|| SCHEDULE_ENTRY.captures(line)).flatten();
+        match entry.filter(|_| PAGE_REFERENCE.is_match(line)) {
+            Some(c) if c.get(1).is_some() => _ = listed.insert(c[1].to_ascii_uppercase()),
+            Some(c) if *under_schedules.get_or_insert_with(|| SCHEDULE_WORD.is_match(above)) => {
+                listed.insert(c[2].to_owned());
+            }
+            Some(_) => {}
+            None => (above, under_schedules) = (line, None),
+        }
+    }
+    let after = &lines[after_own..];
+    let opens_report = |line: &str| {
+        statement_heading(line)
+            && AUDITORS_REPORT_HEADING.is_match(line)
+            && !line.to_ascii_lowercase().contains("consent")
+    };
+    for (i, &(_, line)) in after.iter().enumerate() {
+        let Some(number) = schedule_heading(line) else { continue };
+        let report = after[..i].iter().position(|&(_, l)| opens_report(l));
+        let top = report.unwrap_or(i);
+        if !listed.contains(&number) || after.len() - i <= MIN_SCHEDULE_LINES || i - top > MAX_REPORT_LINES {
+            return None;
+        }
+        let name = top.checked_sub(1).filter(|&above| filer_name_line(after[above].1));
+        return Some(after[name.unwrap_or(top)].0);
+    }
+    None
+}
+
 /// Title keys, for finding the first of them that `same_title` pairs with a
 /// key by looking up its prefixes, rather than by comparing it with each.
 struct TitleIndex<'a> {
@@ -4760,8 +4910,9 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
                         .then(|| statements_after_items(text, start, body_start(text, cand, key, end), end))
                         .flatten()
                 });
+                let schedules = last.then(|| schedules_after_items(text, start, end)).flatten();
                 let glossary = last.then(|| glossary_start(text, start, end)).flatten();
-                statements.into_iter().chain(glossary).min()
+                statements.into_iter().chain(schedules).chain(glossary).min()
             } else {
                 None
             };
@@ -9235,6 +9386,145 @@ Pursuant to ...
         assert_eq!(ids(&s), ["item_8", "item_9", "item_15"]);
         assert!(s[2].text.ends_with(notes));
         assert_eq!(s[2].end, text.find("Report of Independent").unwrap());
+    }
+
+    #[test]
+    fn schedules_listed_by_page_after_the_last_exhibits_item_end_it() {
+        // Item 15 lists its schedules with the report's pages and prints them
+        // after its exhibit list, with the company name above each page.
+        let body = BODY.repeat(30);
+        let head = "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\nINDEPENDENT AUDITORS' REPORT\n\
+                    The Board of Directors\nPART IV\nITEM 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON FORM 8-K\n\
+                    (a) (1) Financial Statements: see Item 8.\n";
+        let exhibits = "(3) Exhibits\nExhibit No.\tDescription\n3.1\tCharter\n21\tSubsidiaries\n* Filed herewith.\n";
+        let parent = format!(
+            "EXAMPLE CORP\n(Parent Company)\nSchedule II – Condensed Balance Sheets\n{body}\n\
+             EXAMPLE CORP\n(Parent Company)\nSchedule II – Condensed Statements of Operations\n{body}\n\
+             EXAMPLE CORP\n(Parent Company)\nSchedule II – Condensed Statements of Cash Flows\n{body}\n"
+        );
+        let text = format!(
+            "{head}(2) Schedules:\nII. Condensed Financial Information of Registrant\t88\n{exhibits}{parent}SIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_15"]);
+        assert_eq!(s[1].end, text.find("EXAMPLE CORP\n(Parent Company)").unwrap());
+        // After the reports on Form 8-K, with or without an auditors' report
+        // on the schedule, which then opens it.
+        let listed =
+            "(2) INDEX TO FINANCIAL STATEMENT SCHEDULE\nSchedule II - Valuation and Qualifying Accounts.....  55\n";
+        for report in ["", "INDEPENDENT AUDITORS' REPORT ON SCHEDULE\nTo the Board of Directors\n"] {
+            let text = format!(
+                "{head}{listed}{exhibits}(B) Reports on Form 8-K\nNone were filed.\n{report}SCHEDULE II\n\
+                 VALUATION AND QUALIFYING ACCOUNTS\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            let cut = if report.is_empty() { "SCHEDULE II" } else { report };
+            assert_eq!(s[1].end, text.find(cut).unwrap(), "{report}");
+        }
+        // Of two reports, as when a former auditor's follows, the first opens
+        // the schedule; a consent does not; and the filer's name on the line
+        // above the schedule or the report goes with it, but no other line.
+        let schedule = format!("SCHEDULE II\nVALUATION AND QUALIFYING ACCOUNTS\n{body}\n");
+        let report = "INDEPENDENT AUDITORS' REPORT ON SCHEDULE\nTo the Board of Directors\n";
+        let consent = "INDEPENDENT AUDITORS' CONSENT\nWe consent to the incorporation by reference of our report.\n";
+        let tops = [
+            (format!("{report}REPORT OF INDEPENDENT ACCOUNTANTS\nTo the Board\n"), "INDEPENDENT AUDITORS' REPORT ON"),
+            (consent.to_owned(), "SCHEDULE II\n"),
+            ("EXAMPLE CORPORATION\n".to_owned(), "EXAMPLE CORPORATION\n"),
+            ("Example Electric Company and Subsidiaries\n".to_owned(), "Example Electric Company and Subsidiaries\n"),
+            (format!("EXAMPLE GROUP INC. AND SUBSIDIARIES\n{report}"), "EXAMPLE GROUP INC. AND SUBSIDIARIES\n"),
+            ("Subsidiaries of Example Corp.\n".to_owned(), "SCHEDULE II\n"),
+            ("SUBSIDIARIES OF EXAMPLE CORP.\n".to_owned(), "SCHEDULE II\n"),
+            ("Exhibits not filed by the Company\n".to_owned(), "SCHEDULE II\n"),
+            ("Charter\tExample Corp.\n".to_owned(), "SCHEDULE II\n"),
+            ("23 Example Corp.\n".to_owned(), "SCHEDULE II\n"),
+            ("Report of Independent Accountants on Schedule ..... 54\n".to_owned(), "SCHEDULE II\n"),
+            ("Consent of Example Audit Company\n".to_owned(), "SCHEDULE II\n"),
+            ("None of these were filed by the Company\n".to_owned(), "SCHEDULE II\n"),
+            ("23\tExample Corp.\n".to_owned(), "SCHEDULE II\n"),
+            ("EXAMPLE CORPORATION\nFor the year\n".to_owned(), "SCHEDULE II\n"),
+        ];
+        for (top, cut) in &tops {
+            let text = format!("{head}{listed}{exhibits}(B) Reports on Form 8-K\nNone.\n{top}{schedule}SIGNATURES\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[1].end, text.rfind(cut).unwrap(), "{top}");
+        }
+        // A heading that prints its title in capitals with no dash.
+        let text = format!(
+            "{head}{listed}{exhibits}SCHEDULE II VALUATION AND QUALIFYING ACCOUNTS\nYears ended\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, text.find("SCHEDULE II VALUATION").unwrap());
+        // An entry of a list printed after the Item's own text is no heading.
+        let entry = "Schedule II - Valuation and Qualifying Accounts\t55\n";
+        let text = format!("{head}{listed}{exhibits}{entry}{schedule}SIGNATURES\n");
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, text.find("SCHEDULE II\n").unwrap());
+        // The caption of the schedules is the Item's own text too.
+        let text = format!(
+            "{head}{exhibits}{listed}(c) Financial Statement Schedules\nPrinted below.\n{schedule}SIGNATURES\n"
+        );
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, text.find("SCHEDULE II\n").unwrap());
+        // A number alone counts only right under the line that says
+        // "Schedules", not under a later line.
+        let text = format!(
+            "{head}(2) Schedules:\nI. Summary of Investments\t87\nThe statements listed above:\n\
+             II. Notes to Financial Statements\t88\n{exhibits}{schedule}SIGNATURES\n"
+        );
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, text.find("SIGNATURES").unwrap());
+        // A report 60 lines above the schedule still opens it.
+        let near = format!("{report}{}", "The schedule.\n".repeat(58));
+        let text = format!("{head}{listed}{exhibits}{near}{schedule}SIGNATURES\n");
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, text.find(report).unwrap());
+        // A wrapped row of the exhibit list and a sentence that start like
+        // a schedule heading are passed over.
+        for row in [
+            "10.5\tLoan Agreement dated June 1, 2001 with First Bank, together with\n\
+             Schedule II thereto (filed as Exhibit 10.1 to the Form 10-Q)\n10.6\tLease\n",
+            "99.1\tSchedule II of long-term debt\nSchedule II Debt maturities of the Company\n",
+            "Schedule II is included on page 55 of this report.\n",
+            "Schedule II (continued)\n",
+            "SCHEDULE II, CONTINUED\n",
+        ] {
+            let text = format!("{head}{listed}{exhibits}{row}{schedule}SIGNATURES\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[1].end, text.find("SCHEDULE II\nVALUATION").unwrap(), "{row}");
+            let text = format!("{head}{listed}{exhibits}{row}{body}\nSIGNATURES\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[1].end, text.find("SIGNATURES").unwrap(), "{row}");
+        }
+        // The schedules stay when the list gives no page for them, gives the
+        // page of another schedule, or prints its own text after them, also
+        // an exhibit index; when the line after the exhibit list is a list
+        // entry with a page, or one more line only follows the heading; when
+        // the rows that give a number alone are not under a line that says
+        // "schedule"; when an auditors' report comes more than 60 lines
+        // above the schedule; and when another Item follows.
+        let far = format!("{report}{}", "The statements.\n".repeat(60));
+        let cases = [
+            format!("{head}{listed}{exhibits}{schedule}EXHIBIT INDEX\n3.1\tCharter\n"),
+            format!("{head}{listed}{exhibits}Schedule II - Valuation and Qualifying Accounts\n(see page 55)\n"),
+            format!(
+                "{head}(2) The following are filed:\nI. Financial Statements\t25\nII. Exhibits\t60\n{exhibits}{schedule}"
+            ),
+            format!(
+                "{head}(2) Schedules: see below.\nThe statements:\nI. Balance Sheets\t31\nII. Statements of Income\t32\n\
+                 {exhibits}{schedule}"
+            ),
+            format!("{head}{listed}{exhibits}{far}{schedule}"),
+            format!(
+                "{head}(2) All required schedules are at the conclusion of this Item.\n\
+                 Schedule II - Valuation and Qualifying Accounts\n{exhibits}{schedule}"
+            ),
+            format!("{head}(2) Schedule III - Supplementary Insurance Information\t109\n{exhibits}{schedule}"),
+            format!("{head}{listed}{exhibits}{schedule}(b) Reports on Form 8-K\nNone.\n"),
+            format!("{head}{listed}{exhibits}Schedule II - Valuation and Qualifying Accounts\t55\n{body}\n"),
+            format!("{head}{listed}{exhibits}{schedule}ITEM 16. FORM 10-K SUMMARY\nNone.\n"),
+        ];
+        for (i, case) in cases.iter().enumerate() {
+            let text = format!("{case}SIGNATURES\n");
+            let s = extract_sections(&text, FormKind::TenK);
+            let next = s.get(2).map_or(text.find("SIGNATURES").unwrap(), |s| s.start);
+            assert_eq!(s[1].end, next, "case {i}");
+        }
     }
 
     #[test]
