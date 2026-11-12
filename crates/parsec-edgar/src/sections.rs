@@ -216,7 +216,17 @@
 //! own text: an index with such page numbers, then at least two of the
 //! statements it lists, and none of the Item's own text after them (an exhibit
 //! index, an exhibit list's caption or table header, or a caption such as "(b)
-//! Reports on Form 8-K"). When no Item follows it and the statements Item only
+//! Reports on Form 8-K"). It ends at the index when the first statement
+//! follows its last entry and an index heading opens it, or when it has no
+//! heading and comes after the answer to the Item's exhibits or reports
+//! caption ("(b) Exhibits", then "The exhibits listed on the accompanying
+//! Exhibit Index are filed."), with up to two lines just above it that head
+//! the statements: a date or "FINANCIAL STATEMENTS" in capitals, or the
+//! filer's name when the statements print it again. An index right under a
+//! caption, under a caption of the Item's statements or schedules, or under
+//! an exhibit index or the header of an exhibit table is the Item's own list
+//! and stays, and so do lines above it such as "NONE". When no Item follows
+//! it and the statements Item only
 //! refers to the statements (it prints no block heading), it also ends where
 //! statements with any page numbers, or none, follow all of its own text: an
 //! auditors' report, then headings that repeat the titles of at least three
@@ -3812,14 +3822,21 @@ fn capital_match(re: &Regex, line: &str) -> bool {
 /// followed later in the Item by heading lines with the titles of at least
 /// two of its entries. The Item ends at the index when its heading ("Index to
 /// Financial Statements") opens it and the first statement follows its last
-/// entry, as on a page F-1, and otherwise at the first statement, so an index
-/// printed as the Item's list of statements stays in the Item. The Item's own
-/// text after the statements keeps them in the Item, which then prints them
-/// in its middle: an exhibit index, an exhibit list's caption ("(a)(3)
-/// Exhibits:", "3. Exhibits", "LIST OF EXHIBITS") or table header ("Exhibit
-/// No.", "Exhibit<TAB>Description"), or the caption of another of its parts
-/// ("(b) Reports on Form 8-K", "2. Financial Statement Schedules"); all of
-/// them in `EXHIBITS_ITEM_PART`.
+/// entry, as on a page F-1. An index with no heading that the first statement
+/// follows directly opens the statements too when the nearest of the Item's
+/// own captions before it (`EXHIBITS_ITEM_PART`) is that of its exhibits or
+/// its reports on Form 8-K (`lists_no_statements`), no other part of the Item
+/// (`ITEM_PART_START`) and no exhibit index starts between them, and a line
+/// that answers the caption stays between them. Up to two lines just above
+/// the index go with it when they head the statements (`heads_statements`:
+/// the date, the filer's name). Otherwise the Item ends at the first
+/// statement, so an index printed as the Item's list of statements stays in
+/// the Item. The Item's own text after the statements keeps them in the Item,
+/// which then prints them in its middle: an exhibit index, an exhibit list's
+/// caption ("(a)(3) Exhibits:", "3. Exhibits", "LIST OF EXHIBITS") or table
+/// header ("Exhibit No.", "Exhibit<TAB>Description"), or the caption of
+/// another of its parts ("(b) Reports on Form 8-K", "2. Financial Statement
+/// Schedules"); all of them in `EXHIBITS_ITEM_PART`.
 fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     const MIN_ENTRIES: usize = 3;
     // Other lines allowed between two entries, or between an index and its
@@ -3878,10 +3895,89 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     }
     let opens =
         (first.saturating_sub(MAX_GAP_LINES + 1)..first).find(|&i| STATEMENTS_INDEX_HEADING.is_match(lines[i].1));
-    match opens {
-        Some(i) if statements == last + 1 => Some(lines[i].0),
-        _ => Some(lines[statements].0),
+    if statements != last + 1 {
+        return Some(lines[statements].0);
     }
+    if let Some(i) = opens {
+        return Some(lines[i].0);
+    }
+    // An index with no heading, printed after the answer to the Item's
+    // exhibits or reports caption ("(b) Exhibits", then "The exhibits
+    // listed on the accompanying Exhibit Index are filed."), is no list of
+    // the Item's: it opens the statements, with the lines above it that
+    // head them, such as the date ("DECEMBER 31, 2014").
+    let own_caption = lines[..first].iter().rposition(|&(_, l)| EXHIBITS_ITEM_PART.is_match(l));
+    let Some(caption) = own_caption.filter(|&c| lists_no_statements(lines[c].1)) else {
+        return Some(lines[statements].0);
+    };
+    let between = || (caption + 1..first).filter(|&i| !lines[i].1.is_empty());
+    let own_list = |line: &str| ITEM_PART_START.is_match(line) || capital_match(&EXHIBITS_INDEX_HEADING, line);
+    if between().any(|i| own_list(lines[i].1)) {
+        return Some(lines[statements].0);
+    }
+    let cut_off = &text[lines[first].0..end];
+    let mut top = first;
+    for i in between().rev().take(MAX_GAP_LINES) {
+        if !heads_statements(lines[i].1, cut_off) {
+            break;
+        }
+        top = i;
+    }
+    // The caption's answer stays; with none, the index is the caption's.
+    if !between().any(|i| i < top) {
+        return Some(lines[statements].0);
+    }
+    Some(lines[top].0)
+}
+
+/// A line of the exhibits Item that starts one of its parts: `(a)`, `(3)`,
+/// `(ii)`, `B)`, `3.`.
+static ITEM_PART_START: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^(?:\([a-z]\)|\(\d{1,2}\)|\([ivx]{1,4}\)|[a-z]\)|\d{1,2}\.)(?:[ \t]|$)").unwrap()
+});
+
+/// Whether a caption of the exhibits Item (a line `EXHIBITS_ITEM_PART`
+/// matches) is one that no list of statements answers: the caption of its
+/// exhibits or of its reports on Form 8-K, and not that of its statement
+/// schedules or the header of an exhibit table, whose rows follow it.
+fn lists_no_statements(caption: &str) -> bool {
+    static CAPTION: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"(?i)^(?:(?:item[ \t]*\d{1,2}[ \t]*)?\(|[a-z]\)|\d{1,2}\.|(?:list[ \t]+of[ \t]+)?exhibits[ \t]*[.:]?$)",
+        )
+        .unwrap()
+    });
+    static STATEMENTS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bfinancial[ \t]+statements?\b").unwrap());
+    CAPTION.is_match(caption) && !STATEMENTS.is_match(caption)
+}
+
+/// Whether a trimmed line printed above an index to the statements heads
+/// them rather than answering the Item: a date or the title of the set of
+/// statements, in capitals ("DECEMBER 31, 2014", "YEARS ENDED DECEMBER 31,
+/// 2014 AND 2013", "CONSOLIDATED FINANCIAL STATEMENTS"), or the filer's name
+/// (`filer_name_line`) when the first 20,000 bytes of `cut_off`, the text
+/// from the index on, print it again in any case. So "NONE", "SEE THE
+/// EXHIBIT INDEX" and the names of subsidiaries stay in the Item.
+fn heads_statements(line: &str, cut_off: &str) -> bool {
+    const NAME_WITHIN: usize = 20_000;
+    static SET: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"^(?:(?:AS OF|AT|(?:FOR THE )?(?:FISCAL )?YEARS? ENDED) )?(?:JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER) \d{1,2}, \d{4}(?: AND \d{4})?$|^(?:CONSOLIDATED )?FINANCIAL STATEMENTS$",
+        )
+        .unwrap()
+    });
+    if SET.is_match(line) {
+        return true;
+    }
+    if !filer_name_line(line) {
+        return false;
+    }
+    let mut within = NAME_WITHIN.min(cut_off.len());
+    while !cut_off.is_char_boundary(within) {
+        within -= 1;
+    }
+    let name = line.trim_end_matches(['.', ',']).to_lowercase();
+    cut_off[..within].to_lowercase().contains(&name)
 }
 
 /// Start of financial statements that the exhibits Item prints after all of
@@ -9839,6 +9935,96 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
         assert_eq!(s[0].start, text.find("Item 1. a.").unwrap());
+    }
+
+    #[test]
+    fn index_without_a_heading_after_the_items_captions_goes_with_the_statements() {
+        // Item 15's last caption is its exhibits part; the F-paged statements
+        // follow with the company's name, the date and an index with no
+        // heading, then the report.
+        let body = BODY.repeat(30);
+        let head = "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\nNone.\n\
+                    ITEM 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES\n(a)\tDocuments filed as part of this report.\n";
+        let index = "Report of Independent Registered Public Accounting Firm\tF-1\nConsolidated Balance Sheets\tF-2\n\
+                     Consolidated Statements of Operations\tF-3\nNotes to the Consolidated Financial Statements\tF-4 - F-9\n";
+        let printed = format!(
+            "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\nTo the Board of Example Corp and its shareholders:\n{body}\n\
+             CONSOLIDATED BALANCE SHEETS\n{body}\nCONSOLIDATED STATEMENTS OF OPERATIONS\n{body}\nSIGNATURES\n"
+        );
+        let answer = "The exhibits listed on the accompanying Exhibit Index are filed.\n";
+        let end = |captions: &str, above: &str, between: &str| {
+            let text = format!("{head}{captions}{above}{index}{between}{printed}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_14", "item_15"]);
+            (text.clone(), s[1].end)
+        };
+        let exhibits = format!("(b)\tExhibits\n{answer}");
+        // The lines above the index that head the statements go with them:
+        // the filer's name, which the statements print again, a date and the
+        // title of the set, in capitals, and two lines at most.
+        for (above, cut) in [
+            ("EXAMPLE CORP.\nDECEMBER 31, 2014\n", "EXAMPLE CORP.\nDEC"),
+            ("DECEMBER 31, 2014\n", "DECEMBER"),
+            ("Example Corp.\nYEARS ENDED DECEMBER 31, 2014 AND 2013\n", "Example Corp.\nYEARS"),
+            (
+                "EXAMPLE CORP.\nCONSOLIDATED FINANCIAL STATEMENTS\nDECEMBER 31, 2014\n",
+                "CONSOLIDATED FINANCIAL STATEMENTS\nDEC",
+            ),
+            ("FINANCIAL STATEMENTS\n", "FINANCIAL STATEMENTS\nReport"),
+            ("", index),
+            ("EXAMPLE CORP.\n2014\n", index),
+            ("December 31, 2014\n", index),
+            ("NONE\n", index),
+            ("NOT APPLICABLE\n", index),
+            ("SEE THE EXHIBIT INDEX\n", index),
+            ("CONSOLIDATED BALANCE SHEETS\n", index),
+            ("FILED HEREWITH\nMANAGEMENT CONTRACT OR COMPENSATORY PLAN\n", index),
+            ("OTHER SUB ONE, INC.\nOTHER SUB TWO, INC.\n", index),
+            ("POWER OF ATTORNEY\nEXAMPLE CORP.\n", "EXAMPLE CORP.\nReport"),
+            ("EXAMPLE CORP. AND SUBSIDIARIES\nDECEMBER 31, 2014\n", "DECEMBER"),
+        ] {
+            let (text, at) = end(&exhibits, above, "");
+            assert_eq!(at, text.find(cut).unwrap(), "{above}");
+        }
+        // After the answer to the caption of the reports on Form 8-K too.
+        let (text, at) = end("(b)\tExhibits - see Exhibit Index\n(c)\tReports on Form 8-K\nNONE\n", "", "");
+        assert_eq!(at, text.find(index).unwrap());
+        // A name that the statements print only after their first 20,000
+        // bytes is not known to be the filer's.
+        let far = format!("{}\nOTHER SUB ONE, INC.\n", "The notes.\n".repeat(2000));
+        let (text, at) = end(&exhibits, "OTHER SUB ONE, INC.\n", "");
+        let text = text.replace("SIGNATURES\n", &format!("{far}SIGNATURES\n"));
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, at);
+        let near = text.replace(&"The notes.\n".repeat(2000), "");
+        assert_eq!(extract_sections(&near, FormKind::TenK)[1].end, near.find("OTHER SUB ONE, INC.\nReport").unwrap());
+        // An index that the statements do not follow directly stays.
+        let (text, at) = end(&exhibits, "EXAMPLE CORP.\n", "(The notes are an integral part of these statements.)\n");
+        assert_eq!(at, text.find("REPORT OF INDEPENDENT").unwrap());
+        // The Item's own list of the statements stays: with no caption of its
+        // parts before it; under a caption of its statements or schedules,
+        // also one after the caption of another part; right under a caption,
+        // with no answer to it between them, also below the lines that head
+        // the statements; and as rows under the header of an exhibit table.
+        for captions in [
+            "(1)\tFinancial Statements\nEXAMPLE CORP.\n".to_owned(),
+            format!("(b)\tReports on Form 8-K\nNone.\n(c)\tFinancial Statements\n{answer}"),
+            format!("{exhibits}(c) Financial Statements\n{answer}"),
+            format!("{exhibits}(iii)\tThe following are filed:\n{answer}"),
+            format!("{exhibits}3. See below.\n"),
+            format!("{exhibits}EXHIBIT INDEX\n3.1\tCharter\n21\tSubsidiaries\n"),
+            format!("(2)\tFinancial Statement Schedules\n{answer}"),
+            "(b)\tExhibits\n".to_owned(),
+            "(b)\tExhibits\nEXAMPLE CORP.\nDECEMBER 31, 2014\n".to_owned(),
+            format!("{exhibits}Exhibit No.\tDescription\tPage\n"),
+            format!("{exhibits}Exhibit\n{answer}"),
+        ] {
+            let (text, at) = end(&captions, "", "");
+            assert_eq!(at, text.find("REPORT OF INDEPENDENT").unwrap(), "{captions}");
+        }
+        // The caption in capitals just above the index stays in the Item.
+        let text = format!("{head}LIST OF EXHIBITS\n{answer}{index}{printed}");
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[1].end, text.find(index).unwrap());
     }
 
     #[test]
