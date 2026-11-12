@@ -142,6 +142,18 @@
 //! signatures, and no other Item line comes between it and the next Item found,
 //! as one does below a contents entry. So it never replaces an Item found with
 //! a number in digits, and of its copies (running headers) the first counts.
+//! An Item printed only as lettered sub-headings with no title ("Item 1. a."
+//! over the balance sheets, then "Item 1. b.", ...) starts at the first of
+//! them, "a", when the next lettered sub-heading is the same Item's "b",
+//! before the next Item found; text of its own follows each of the two (no
+//! Item line, no contents row with its page, no line that starts in
+//! lowercase); the form has no Item of that number with the letter A ("Item
+//! 7. a." of a 10-K can be Item 7A); the line just above it is a Part line,
+//! or the nearest Item line above it is the heading of the Item before; it
+//! sits where the Item belongs, before the signatures; the chain has no
+//! heading of that Item; and another Item line, such as a contents entry,
+//! prints the Item's number with one of its standard titles. In a 10-Q the
+//! Part line, or else the Item before, gives the part.
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins, with the index headings
 //! ("Index to Financial Statements") and notes that a page is intentionally
@@ -4407,6 +4419,159 @@ fn roman_items(
     found
 }
 
+/// `Item 1. a.`: a sub-heading of an Item with a lowercase letter and nothing
+/// else, as a filing can print over each of the statements of Part I Item 1.
+static LETTERED_PART: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^[ \t]*(?i:item)[ \t]+(\d{1,2}[A-C]?)[ \t]*[.:][ \t]*([a-z])[.)][ \t]*$").unwrap()
+});
+
+/// An Item printed only as lettered sub-headings with no title ("Item 1. a."
+/// over the balance sheets, then "Item 1. b.", ..., "Item 1. e."), which the
+/// heading pattern does not read. The first of them, with the letter "a",
+/// starts the Item when the next lettered sub-heading is of the same Item
+/// with the letter "b", before the next Item found; text of its own follows
+/// each of the two (no Item line, no contents row with its page, no line that
+/// starts in lowercase); the form has no Item of that number with the letter
+/// A (10-K Item 7A); the line just above it is a Part line, or the nearest
+/// Item line above it is the heading of the Item found just before it; it
+/// sits in the form's order between the Items found before and after it,
+/// before the signatures; the chain has no heading of the Item; and an Item
+/// line before the signatures, such as a contents entry, prints the Item's
+/// number with one of its standard titles. In a 10-Q or 10-QSB the Part line,
+/// or else the Item before, gives the part. A run that starts with another
+/// letter or goes on with another letter than "b" starts nothing, and of
+/// several runs of one Item the first counts. Returns the line as a
+/// candidate, with its key.
+fn lettered_parts(
+    text: &str,
+    lines: &[(usize, usize)],
+    cands: &[Candidate],
+    keys: &[Key],
+    picks: &[(usize, usize)],
+) -> Vec<(Candidate, usize)> {
+    let Some(&(last, _)) = picks.last() else { return Vec::new() };
+    // The lettered sub-headings, found among the lines that end with a
+    // letter and a "." or ")" before reading them.
+    let ends_lettered = |line: &str| matches!(line.trim_end().as_bytes(), [.., b'a'..=b'z', b'.' | b')']);
+    let maybe: Vec<(usize, usize)> =
+        lines.iter().copied().filter(|&(s, e)| ends_lettered(&text[s..e]) && is_item_line(&text[s..e])).collect();
+    if maybe.is_empty() {
+        return Vec::new();
+    }
+    let limit = signatures_after(text, cands[last].pos).unwrap_or(text.len());
+    let lettered: Vec<(std::ops::Range<usize>, &str, &str)> = heading_matches(&LETTERED_PART, text, &maybe)
+        .map(|c| {
+            let m = c.get(0).expect("group 0 always matches");
+            (m.range(), c.get(1).expect("number").as_str(), c.get(2).expect("letter").as_str())
+        })
+        .collect();
+    if lettered.is_empty() {
+        return Vec::new();
+    }
+    let starts: Vec<usize> = picks.iter().map(|&(c, _)| cands[c].pos).collect();
+    // The Item lines before the signatures.
+    let item_lines: Vec<(usize, usize)> =
+        lines.iter().copied().filter(|&(s, e)| s < limit && is_item_line(&text[s..e])).collect();
+    // The runs that start an Item where the chain has none, by their place.
+    let mut runs: Vec<(usize, &str, usize)> = Vec::new();
+    // Text of its own under a sub-heading: no other Item line, no contents
+    // row with its page, and no line that reads on from a sentence.
+    let own_text = |end: usize| {
+        let below = line_below(text, end);
+        !is_item_line(below) && !ROW_PAGES.is_match(below) && below.starts_with(|c: char| !c.is_lowercase())
+    };
+    for (i, (at_line, number, letter)) in lettered.iter().enumerate() {
+        let (pos, number) = (at_line.start, *number);
+        if *letter != "a" {
+            continue;
+        }
+        let at = starts.partition_point(|&p| p < pos);
+        let next = starts.get(at).copied().unwrap_or(limit);
+        let Some((b_line, _, _)) = lettered.get(i + 1).filter(|(p, n, l)| *n == number && *l == "b" && p.start < next)
+        else {
+            continue;
+        };
+        if !own_text(at_line.end) || !own_text(b_line.end) {
+            continue;
+        }
+        // The line just above it, and the nearest Item line above it.
+        let above = line_above(text, pos);
+        let item_above = item_lines[..item_lines.partition_point(|&(s, _)| s < pos)].last().map(|&(s, _)| s);
+        let before = at.checked_sub(1).map(|j| picks[j].1);
+        let part = if PART_LINE.is_match(above) {
+            PART_MARK.captures(above).map(|c| if &c[1] == "II" { "II" } else { "I" })
+        } else if before.is_some() && item_above == at.checked_sub(1).map(|j| starts[j]) {
+            before.and_then(|k| keys[k].part)
+        } else {
+            continue;
+        };
+        let in_part = |k: &Key| k.part.is_none() || k.part == part;
+        let Some(ki) = keys.iter().position(|k| k.item == number && in_part(k)) else {
+            continue;
+        };
+        // "Item 7. a." can be the form's Item 7A.
+        if keys.iter().any(|k| in_part(k) && k.item.strip_prefix(number) == Some("A")) {
+            continue;
+        }
+        let in_place = before.is_none_or(|k| k < ki) && picks.get(at).is_none_or(|&(_, k)| ki < k);
+        if in_place && !picks.iter().any(|&(_, k)| k == ki) {
+            runs.push((pos, number, ki));
+        }
+    }
+    if runs.is_empty() {
+        return Vec::new();
+    }
+    // The Items of those runs whose number an Item line prints with one of
+    // their titles.
+    let wanted: Vec<(usize, Vec<String>)> = {
+        let mut kis: Vec<usize> = runs.iter().map(|&(_, _, ki)| ki).collect();
+        kis.sort_unstable();
+        kis.dedup();
+        kis.into_iter().map(|ki| (ki, keys[ki].titles().map(title_key).collect())).collect()
+    };
+    // A lettered sub-heading prints no title.
+    let untitled: HashSet<usize> = lettered.iter().map(|(at_line, _, _)| at_line.start).collect();
+    let item_lines: Vec<(usize, usize)> = item_lines.into_iter().filter(|(s, _)| !untitled.contains(s)).collect();
+    let mut titled: HashSet<usize> = HashSet::new();
+    for c in heading_matches(&PERIODIC_HEADING, text, &item_lines) {
+        if titled.len() == wanted.len() {
+            break;
+        }
+        let label = c.get(1).expect("label").as_str();
+        let mut wanted = wanted.iter().filter(|&&(ki, _)| keys[ki].item.eq_ignore_ascii_case(label)).peekable();
+        if wanted.peek().is_none() {
+            continue;
+        }
+        let title = title_key(after_dashes(c.get(2).expect("tail").as_str()));
+        for (ki, titles) in wanted {
+            if titles.iter().any(|t| same_title(&title, t)) {
+                titled.insert(*ki);
+            }
+        }
+    }
+    let mut found: Vec<(Candidate, usize)> = Vec::new();
+    for (pos, number, ki) in runs {
+        if titled.contains(&ki) && !found.iter().any(|&(_, k)| k == ki) {
+            found.push((added_candidate(text, pos, number, ""), ki));
+        }
+    }
+    found
+}
+
+/// The nearest line with text above `pos`, a line start, trimmed, or "" when
+/// the 20 lines above it are blank.
+fn line_above(text: &str, pos: usize) -> &str {
+    const MAX_LINES: usize = 20;
+    text[..pos].lines().rev().take(MAX_LINES).map(str::trim).find(|l| !l.is_empty()).unwrap_or("")
+}
+
+/// The nearest line with text below the line that ends at `end`, trimmed, or
+/// "" when the 20 lines below it are blank.
+fn line_below(text: &str, end: usize) -> &str {
+    const MAX_LINES: usize = 20;
+    text[end..].lines().skip(1).take(MAX_LINES).map(str::trim).find(|l| !l.is_empty()).unwrap_or("")
+}
+
 /// The title the heading prints, of the titles the form has given its Item
 /// (`Key::titles`), so that a 10-K for 2005 names its Item 4 "Submission of
 /// Matters to a Vote of Security Holders". The words (`title_words`) of the
@@ -4786,6 +4951,11 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
     let mut cands = cands;
     if kind != FormKind::EightK {
         for (cand, ki) in roman_items(text, &lines, &cands, keys, &picks) {
+            let at = picks.partition_point(|&(p, _)| cands[p].pos < cand.pos);
+            cands.push(cand);
+            picks.insert(at, (cands.len() - 1, ki));
+        }
+        for (cand, ki) in lettered_parts(text, &lines, &cands, keys, &picks) {
             let at = picks.partition_point(|&(p, _)| cands[p].pos < cand.pos);
             cands.push(cand);
             picks.insert(at, (cands.len() - 1, ki));
@@ -9525,6 +9695,150 @@ Pursuant to ...
             let next = s.get(2).map_or(text.find("SIGNATURES").unwrap(), |s| s.start);
             assert_eq!(s[1].end, next, "case {i}");
         }
+    }
+
+    #[test]
+    fn an_item_printed_only_as_lettered_sub_headings_starts_at_the_first() {
+        let body = BODY.repeat(30);
+        let contents = "Part I. Financial Information\nItem 1. Financial Statements\t3\n\
+                        Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\t12\n\
+                        Part II. Other Information\nItem 6. Exhibits\t20\n";
+        let tail = format!(
+            "Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+             Part II. Other Information\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        let quarterly = |above: &str, lettered: &str, contents: &str| format!("{contents}{above}{lettered}{tail}");
+        let run = format!("Item 1. a.\nBALANCE SHEETS\n{body}\nItem 1. b.\nSTATEMENTS OF OPERATIONS\n{body}\n");
+        let text = quarterly("Part I. Financial Information\n", &run, contents);
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+        assert_eq!(s[0].start, text.find("Item 1. a.").unwrap());
+        assert_eq!(s[0].title, "Financial Statements");
+        // After the Item before, in a 10-K.
+        let annual = |lettered: &str| {
+            format!(
+                "Item 7. Management's Discussion and Analysis\t11\nItem 8. Financial Statements and Supplementary Data\t20\n\
+                 Item 9. Changes in and Disagreements with Accountants\t30\nPART II\n\
+                 Item 7. Management's Discussion and Analysis\n{body}\n{lettered}\
+                 Item 9. Changes in and Disagreements with Accountants\n{body}\nSIGNATURES\n"
+            )
+        };
+        let text = annual(&format!("Item 8. a.\n{body}\nItem 8. b.\n{body}\n"));
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_7", "item_8", "item_9"]);
+        assert_eq!(s[1].start, text.find("Item 8. a.").unwrap());
+        // Two such Items, each listed with its title.
+        let text = format!(
+            "Item 6. Selected Financial Data\t11\nItem 8. Financial Statements and Supplementary Data\t20\n\
+             PART II\nItem 5. Market for Registrant's Common Equity\n{body}\nItem 6. a.\n{body}\nItem 6. b.\n{body}\n\
+             PART II\nItem 8. a.\n{body}\nItem 8. b.\n{body}\n\
+             Item 9. Changes in and Disagreements with Accountants\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_5", "item_6", "item_8", "item_9"]);
+        assert_eq!(s[2].start, text.find("Item 8. a.").unwrap());
+        // Not when the line under the first or the second is another Item
+        // line, a contents row with its page, or reads on from a sentence.
+        for under in ["Item 8(a)(1)", "Balance Sheets\t21", "and the notes to them"] {
+            for letter in ["a", "b"] {
+                let run = format!("Item 8. a.\nBALANCE SHEETS\n{body}\nItem 8. b.\nINCOME\n{body}\n");
+                let at = format!("Item 8. {letter}.\n");
+                let text = annual(&run.replace(&at, &format!("{at}{under}\n")));
+                let s = extract_sections(&text, FormKind::TenK);
+                assert_eq!(ids(&s), ["item_7", "item_9"], "{under} under {letter}");
+            }
+        }
+        // Not when the form has the Item with the letter A: "Item 7. a."
+        // can be Item 7A, and in a 10-Q's Part II "Item 1. a." Item 1A.
+        let text = format!(
+            "Item 6. Selected Financial Data\t10\nItem 7. Management's Discussion and Analysis\t11\n\
+             Item 8. Financial Statements and Supplementary Data\t20\nPART II\n\
+             Item 6. Selected Financial Data\n{body}\nItem 7. a.\n{body}\nItem 7. b.\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_6", "item_8"]);
+        let text = format!(
+            "Item 1. Legal Proceedings\t19\nItem 6. Exhibits\t20\nPart I. Financial Information\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{body}\n\
+             Part II. Other Information\nItem 1. a.\n{body}\nItem 1. b.\n{body}\nItem 6. Exhibits\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenQ)), ["part_1_item_2", "part_2_item_6"]);
+        // Not when no "b" follows before the next Item, the line above is
+        // neither a Part line nor the Item before, the contents do not list
+        // the Item with its title, the run starts at "b", or the Part is
+        // another.
+        let one = format!("Item 1. a.\nBALANCE SHEETS\n{body}\n");
+        let late = format!("Item 1. a.\n{body}\nItem 2. Management's Discussion\n{body}\nItem 1. b.\n{body}\n");
+        let from_b = run.replace("1. a.", "1. b.");
+        let skips_b = run.replace("1. b.", "1. c.");
+        let other_b = run.replace("Item 1. b.", "Item 3. b.");
+        let cases = [
+            quarterly("Part I. Financial Information\n", &one, contents),
+            quarterly("Part I. Financial Information\n", &late, contents),
+            quarterly("Part I. Financial Information\n(Unaudited)\n", &run, contents),
+            quarterly("Part I. Financial Information\n", &run, &contents.replace("Financial Statements\t3", "\t3")),
+            quarterly("Part I. Financial Information\n", &from_b, contents),
+            quarterly("Part I. Financial Information\n", &skips_b, contents),
+            quarterly("Part I. Financial Information\n", &other_b, contents),
+            quarterly("Part II. Other Information\n", &run, contents),
+        ];
+        for (i, text) in cases.iter().enumerate() {
+            let s = extract_sections(text, FormKind::TenQ);
+            assert!(!ids(&s).contains(&"part_1_item_1"), "case {i}: {:?}", ids(&s));
+            assert!(!s.iter().any(|s| s.heading.starts_with("Item 1. a.")), "case {i}");
+        }
+        // Not when only a line after the signatures gives the Item its title.
+        let untitled = contents.replace("Financial Statements\t3", "\t3");
+        let text = quarterly("Part I. Financial Information\n", &run, &untitled) + "Item 1. Financial Statements\t3\n";
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_2", "part_2_item_6"]);
+        // Not when an Item line that is no heading comes between it and the
+        // Item before.
+        let text = format!(
+            "Item 8. Financial Statements\t11\nPART II\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             Item 7(a)\n{body}\nItem 8. a.\n{body}\nItem 8. b.\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_7"]);
+        // Not when the chain has a heading of the Item, also one printed
+        // after a later Item, or the Item before it comes later in the form.
+        let text = format!(
+            "{contents}Part I. Financial Information\n{run}Item 2. Management's Discussion and Analysis\n{body}\n\
+             Item 1. Financial Statements\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(s.iter().find(|s| s.id == "part_1_item_1").unwrap().start, text.rfind("Item 1. Financial").unwrap());
+        let text = quarterly("Part I. Financial Information\nItem 1. Financial Statements\n", &run, contents);
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(s[0].start, text.rfind("Item 1. Financial Statements").unwrap());
+        let text = format!(
+            "Item 8. Financial Statements\t20\nItem 9. Changes in and Disagreements with Accountants\t30\n\
+             Item 9. Changes in and Disagreements with Accountants\n{body}\nItem 8. a.\n{body}\nItem 8. b.\n{body}\n\
+             Item 10. Directors and Executive Officers of the Registrant\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9", "item_10"]);
+        // Or the Item after it comes earlier in the form.
+        let text = format!(
+            "Item 7. Management's Discussion and Analysis\t10\nItem 8. Financial Statements\t11\nPART II\n\
+             Item 8. a.\n{body}\nItem 8. b.\n{body}\nItem 7. Management's Discussion and Analysis\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_7"]);
+        // Not after the signatures.
+        let text = format!(
+            "Item 8. Financial Statements and Supplementary Data\t20\nPART II\n\
+             Item 6. Selected Financial Data\n{body}\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             SIGNATURES\n{body}\nPART II\nItem 8. a.\n{body}\nItem 8. b.\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_6", "item_7"]);
+        // Of two runs, the first starts the Item.
+        let text =
+            quarterly(&format!("Part I. Financial Information\n{run}Part I. Financial Information\n"), &run, contents);
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+        assert_eq!(s[0].start, text.find("Item 1. a.").unwrap());
     }
 
     #[test]
