@@ -140,9 +140,9 @@
       "occurrence": 0,
       "next": "(a)\tDocuments filed as part of this repo",
       "end": {
-        "text": "BRAZIL MINERALS, INC.",
-        "occurrence": 1,
-        "next": "DECEMBER 31, 2014"
+        "text": "DECEMBER 31, 2014",
+        "occurrence": 0,
+        "next": "Report of Independent Registered Public "
       }
     }
   ],

@@ -1093,6 +1093,19 @@ static GLOSSARY: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?im)^[ \t]*glossary(?:[ \t]+(?:of|and)[ \t]+[^\n.:;]{1,60})?[ \t]*:?[ \t]*$").unwrap()
 });
 
+/// Whether a trimmed line is one of the headings that end an Item where
+/// text with no Item heading of its own starts (`BLOCK_HEADING`,
+/// `CONTROLS_REPORT`, `GLOSSARY`, `SIGNATURES`, `POWER_OF_ATTORNEY`), for
+/// page cleanup to keep such a heading when the pages after it repeat it as
+/// their running header.
+pub(crate) fn ends_items(line: &str) -> bool {
+    BLOCK_HEADING.is_match(line)
+        || CONTROLS_REPORT.is_match(line)
+        || GLOSSARY.is_match(line)
+        || SIGNATURES.is_match(line)
+        || POWER_OF_ATTORNEY.is_match(line)
+}
+
 /// An entry of an index to financial statements whose pages are numbered
 /// apart from the report's: `Independent Auditors' Report<TAB>F-2`,
 /// `Balance Sheets ........ F-3`, `Notes<TAB>F-7 to F-20`, or the page alone
