@@ -1284,7 +1284,13 @@ fn after_dashes(tail: &str) -> &str {
 }
 
 fn title_key(tail: &str) -> String {
-    tail.chars().filter(|c| c.is_alphabetic()).flat_map(char::to_lowercase).take(30).collect()
+    title_letters(tail).collect()
+}
+
+/// The letters of a title key, for comparing it with one known key without
+/// building it.
+fn title_letters(tail: &str) -> impl Iterator<Item = char> + '_ {
+    tail.chars().filter(|c| c.is_alphabetic()).flat_map(char::to_lowercase).take(30)
 }
 
 /// `Item 9 A. Controls` and `Item 1.A. Risk Factors`: a letter set apart from
@@ -2725,18 +2731,27 @@ impl BodyOrder<'_> {
         }
         let item = (cands[a].label.as_str(), part(&cands[a]));
         let known = self.read.get(&item).copied().filter(|known| known.signed == signed && known.from > a);
-        let (mut first, mut end) = (None, None);
-        let to = known.map_or(cands.len(), |known| known.from);
-        for i in (a + 1..to).take_while(|&i| cands[i].pos < signed).filter(|&i| other(&cands[i]) && !self.repeats[i]) {
-            first.get_or_insert(i);
-            if !precedes(&cands[a], &cands[i]) || has_text(&cands[i]) {
-                end = Some(i);
-                break;
+        let repeats = self.repeats;
+        // The first line that counts and the one that ends the reading,
+        // among the lines after `a` and before `to`.
+        let read = |to: usize| {
+            let (mut first, mut end) = (None, None);
+            for i in (a + 1..to).take_while(|&i| cands[i].pos < signed).filter(|&i| other(&cands[i]) && !repeats[i]) {
+                first.get_or_insert(i);
+                if !precedes(&cands[a], &cands[i]) || has_text(&cands[i]) {
+                    end = Some(i);
+                    break;
+                }
             }
-        }
+            (first, end)
+        };
+        let (mut first, mut end) = read(known.map_or(cands.len(), |known| known.from));
         if let (None, Some(known)) = (end, known) {
             (first, end) = (first.or(known.first), known.end);
         }
+        // What is kept for an Item and part holds only while the reading
+        // asks nothing else about `a` than its Item, its part and its place.
+        debug_assert_eq!((first, end), read(cands.len()));
         self.read.insert(item, LinesAfter { from: a, signed, first, end });
         !first.is_some_and(|i| self.rows[i]) && end.is_none_or(|i| precedes(&cands[a], &cands[i]))
     }
@@ -2806,16 +2821,23 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
         .map(|i| {
             let c = &cands[i];
             let Some(last) = c.joined.as_deref().filter(|_| !c.listed) else { return true };
+            let search = || {
+                let stretch = named(c, last);
+                let end = (i + 1..cands.len()).find(|&j| {
+                    !inside(&cands[j], &stretch) || (cands[j].label == c.label && cands[j].joined.is_none())
+                });
+                end.map_or((cands.len(), false), |j| (j, inside(&cands[j], &stretch)))
+            };
             let stretch_named = (c.label.as_str(), c.part.or(c.title_part), last);
-            if let Some(&(end, heading)) = searched.get(&stretch_named)
-                && end > i
+            if let Some(&found) = searched.get(&stretch_named)
+                && found.0 > i
             {
-                return !heading;
+                // What is kept for a stretch holds only while the search
+                // asks nothing else about the line than what names it.
+                debug_assert_eq!(found, search());
+                return !found.1;
             }
-            let stretch = named(c, last);
-            let end = (i + 1..cands.len())
-                .find(|&j| !inside(&cands[j], &stretch) || (cands[j].label == c.label && cands[j].joined.is_none()));
-            let found = end.map_or((cands.len(), false), |j| (j, inside(&cands[j], &stretch)));
+            let found = search();
             searched.insert(stretch_named, found);
             !found.1
         })
@@ -3346,7 +3368,7 @@ fn part_two_preamble(text: &str, start: usize, end: usize) -> Option<usize> {
     let own_text = lines[at + 1..].iter().any(|&(_, l)| {
         l.contains(char::is_alphabetic)
             && !PART_TWO.is_match(l)
-            && title_key(l) != "otherinformation"
+            && !title_letters(l).eq("otherinformation".chars())
             && !PAGE_FOOTER.is_match(l)
             && printed_once(l)
     });
@@ -3892,14 +3914,15 @@ fn roman_items(
     let Some(first) = headings.first().map(|(c, ..)| c.pos) else { return Vec::new() };
     // The Item lines after the first heading and before the signatures, each
     // with its roman numeral, or "" when it is no roman heading, read once
-    // rather than for each heading above them. A line is read as
-    // `str::lines` gives it, without the `\r` of a `\r\n` line break.
+    // rather than for each heading above them. The `\r` of a `\r\n` line
+    // break is read as the end of the line's title and changes neither
+    // answer. The lines after the signatures are never asked about, and
+    // leaving them out only saves reading them.
     let item_lines: Vec<(usize, &str)> = lines
         .iter()
         .filter(|&&(start, _)| start > first && start < limit)
         .filter_map(|&(start, end)| {
             let line = &text[start..end];
-            let line = if end < text.len() { line.strip_suffix('\r').unwrap_or(line) } else { line };
             let numeral = || ROMAN_HEADING.captures(line).map_or("", |c| c.get(1).expect("numeral").as_str());
             is_item_line(line).then(|| (start, numeral()))
         })
