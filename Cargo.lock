@@ -876,7 +876,7 @@ dependencies = [
 
 [[package]]
 name = "parsec-edgar"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "ego-tree",
  "flate2",
@@ -890,7 +890,7 @@ dependencies = [
 
 [[package]]
 name = "parsec-edgar-bench"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "clap",
  "parsec-edgar",
@@ -901,7 +901,7 @@ dependencies = [
 
 [[package]]
 name = "parsec-edgar-cli"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "axum",
  "clap",
@@ -915,7 +915,7 @@ dependencies = [
 
 [[package]]
 name = "parsec-edgar-python"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "parsec-edgar",
  "parsec-edgar-cli",
