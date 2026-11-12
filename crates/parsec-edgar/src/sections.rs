@@ -249,7 +249,16 @@
 //! caption ("(b) Exhibits", then "The exhibits listed on the accompanying
 //! Exhibit Index are filed."), with up to two lines just above it that head
 //! the statements: a date or "FINANCIAL STATEMENTS" in capitals, or the
-//! filer's name when the statements print it again. An index right under a
+//! filer's name when the statements print it again, in any case and with any
+//! punctuation. Under the filer's name, up to five lines of a cover page go,
+//! also in mixed case: the name, "Financial Statements", "For The Years
+//! Ended", "December 31, 2014 and 2013" and "Table of Contents", with at
+//! least one line other than a date (a name over dates alone signs, as under
+//! an accountants' consent); above such a cover, a caption that reads on as
+//! a sentence ("2. Exhibits listed in the Exhibit Index filed as part of
+//! this Annual Report.") answers itself. The last line of a wrapped sentence
+//! stays in the Item though it reads as a date or a name ("A report on Form
+//! 8-K was filed on", then "DECEMBER 31, 2014"). An index right under a
 //! caption, under a caption of the Item's statements or schedules, or under
 //! an exhibit index or the header of an exhibit table is the Item's own list
 //! and stays, and so do lines above it such as "NONE". When no Item follows
@@ -4045,7 +4054,13 @@ fn capital_match(re: &Regex, line: &str) -> bool {
 /// (`ITEM_PART_START`) and no exhibit index starts between them, and a line
 /// that answers the caption stays between them. Up to two lines just above
 /// the index go with it when they head the statements (`heads_statements`:
-/// the date, the filer's name). Otherwise the Item ends at the first
+/// the date, the filer's name), or up to five when they are the lines of a
+/// cover page (`cover_line`, in any case) under the filer's name printed
+/// again (`names_filer`), one of them other than a date (`cover_date`);
+/// above such a cover, a caption that reads on as a sentence (`reads_on`) is
+/// its own answer. The topmost of those lines stays
+/// when the line above it stops inside a sentence (`continues_sentence`),
+/// whose last line it is. Otherwise the Item ends at the first
 /// statement, so an index printed as the Item's list of statements stays in
 /// the Item. The Item's own text after the statements keeps them in the Item,
 /// which then prints them in its middle: an exhibit index, an exhibit list's
@@ -4058,6 +4073,10 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     // Other lines allowed between two entries, or between an index and its
     // heading.
     const MAX_GAP_LINES: usize = 2;
+    // The most lines of a cover page above an index: the filer's name, the
+    // title of the set, "For the Years Ended", the dates and "Table of
+    // Contents".
+    const MAX_COVER_LINES: usize = 5;
     let lines = item_lines(text, start, end);
     // Title keys of the first index's entries, and its first and last lines.
     let mut titles: Vec<String> = Vec::new();
@@ -4132,15 +4151,34 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
         return Some(lines[statements].0);
     }
     let cut_off = &text[lines[first].0..end];
+    // A cover page of the statements, in any case: the lines just above the
+    // index that a cover prints, up to the filer's name, which the statements
+    // print again.
+    let cover = between().rev().take(MAX_COVER_LINES).take_while(|&i| cover_line(lines[i].1, cut_off)).last();
+    let cover =
+        cover.filter(|&i| names_filer(lines[i].1, cut_off) && between().any(|j| j > i && !cover_date(lines[j].1)));
     let mut top = first;
-    for i in between().rev().take(MAX_GAP_LINES) {
-        if !heads_statements(lines[i].1, cut_off) {
-            break;
-        }
+    if let Some(i) = cover {
         top = i;
+    } else {
+        for i in between().rev().take(MAX_GAP_LINES) {
+            if !heads_statements(lines[i].1, cut_off) {
+                break;
+            }
+            top = i;
+        }
     }
-    // The caption's answer stays; with none, the index is the caption's.
-    if !between().any(|i| i < top) {
+    // The last line of a wrapped sentence stays with it ("A report on Form
+    // 8-K was filed on", then "DECEMBER 31, 2014").
+    if continues_sentence(text, lines[top].0) {
+        top = between().find(|&i| i > top).unwrap_or(first);
+    }
+    // The caption's answer stays; with none, the index is the caption's. A
+    // caption that reads on as a sentence answers itself ("2. Exhibits listed
+    // in the Exhibit Index filed as part of this Annual Report."), which
+    // counts above a cover page.
+    let answered = between().any(|i| i < top) || (cover.is_some() && reads_on(lines[caption].1));
+    if !answered {
         return Some(lines[statements].0);
     }
     Some(lines[top].0)
@@ -4171,11 +4209,10 @@ fn lists_no_statements(caption: &str) -> bool {
 /// them rather than answering the Item: a date or the title of the set of
 /// statements, in capitals ("DECEMBER 31, 2014", "YEARS ENDED DECEMBER 31,
 /// 2014 AND 2013", "CONSOLIDATED FINANCIAL STATEMENTS"), or the filer's name
-/// (`filer_name_line`) when the first 20,000 bytes of `cut_off`, the text
+/// (`names_filer`) when the first 20,000 bytes of `cut_off`, the text
 /// from the index on, print it again in any case. So "NONE", "SEE THE
 /// EXHIBIT INDEX" and the names of subsidiaries stay in the Item.
 fn heads_statements(line: &str, cut_off: &str) -> bool {
-    const NAME_WITHIN: usize = 20_000;
     static SET: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(
             r"^(?:(?:AS OF|AT|(?:FOR THE )?(?:FISCAL )?YEARS? ENDED) )?(?:JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER) \d{1,2}, \d{4}(?: AND \d{4})?$|^(?:CONSOLIDATED )?FINANCIAL STATEMENTS$",
@@ -4185,6 +4222,14 @@ fn heads_statements(line: &str, cut_off: &str) -> bool {
     if SET.is_match(line) {
         return true;
     }
+    names_filer(line, cut_off)
+}
+
+/// Whether a trimmed line is the filer's name (`filer_name_line`) and the
+/// first 20,000 bytes of `cut_off` print it again, in any case and with any
+/// punctuation ("Immudyne Inc." and then "Stockholders of Immudyne, Inc.").
+fn names_filer(line: &str, cut_off: &str) -> bool {
+    const NAME_WITHIN: usize = 20_000;
     if !filer_name_line(line) {
         return false;
     }
@@ -4192,8 +4237,56 @@ fn heads_statements(line: &str, cut_off: &str) -> bool {
     while !cut_off.is_char_boundary(within) {
         within -= 1;
     }
-    let name = line.trim_end_matches(['.', ',']).to_lowercase();
-    cut_off[..within].to_lowercase().contains(&name)
+    let letters =
+        |text: &str| -> String { text.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect() };
+    letters(&cut_off[..within]).contains(&letters(line))
+}
+
+/// The period of a set of statements, in any case: "For the Years Ended",
+/// "As of".
+const COVER_PERIOD: &str = r"(?:as[ \t]+of|at|(?:for[ \t]+the[ \t]+)?(?:fiscal[ \t]+)?years?[ \t]+ended)";
+
+/// Whether a trimmed line is one that a cover page of the statements prints
+/// above their index, in any case: the filer's name printed again
+/// (`names_filer`), the title of the set ("Financial Statements"), its
+/// period ("For The Years Ended", "December 31, 2014 and 2013") or the
+/// index's heading ("Table of Contents", also with the header of its page
+/// column after a tab).
+fn cover_line(line: &str, cut_off: &str) -> bool {
+    static COVER: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(&format!(
+            r"(?i)^(?:(?:consolidated[ \t]+)?financial[ \t]+statements|{COVER_PERIOD}|(?:table[ \t]+of[ \t]+contents|contents|index)(?:\t(?:pages?|table))?)$"
+        ))
+        .unwrap()
+    });
+    COVER.is_match(line) || cover_date(line) || names_filer(line, cut_off)
+}
+
+/// Whether a trimmed line is a date that a cover page of the statements
+/// prints, in any case: "December 31, 2014 and 2013", "As of December 31,
+/// 2014". A name with only dates under it is what a signature prints
+/// ("Arthur Andersen & Co.", then "March 1, 2015", under an accountants'
+/// consent), and no cover.
+fn cover_date(line: &str) -> bool {
+    static DATE: LazyLock<Regex> = LazyLock::new(|| {
+        let month = r"(?:january|february|march|april|may|june|july|august|september|october|november|december)";
+        let day = format!(r"{month}[ \t]+\d{{1,2}},[ \t]+\d{{4}}");
+        Regex::new(&format!(r"(?i)^(?:{COVER_PERIOD}[ \t]+)?{day}(?:[ \t]+and[ \t]+(?:{day}|\d{{4}}))?$")).unwrap()
+    });
+    DATE.is_match(line)
+}
+
+/// Whether a caption of the exhibits Item (a line `EXHIBITS_ITEM_PART`
+/// matches) reads on as a sentence that answers it: at least three words
+/// follow the caption's own, and the line ends with a period ("2. Exhibits
+/// listed in the Exhibit Index filed as part of this Annual Report."). "(b)
+/// Exhibits", "(c) Reports on Form 8-K." and "(a)(3) Exhibits required by
+/// Item 601:" are captions alone.
+fn reads_on(caption: &str) -> bool {
+    const MIN_WORDS: usize = 3;
+    let own = EXHIBITS_ITEM_PART.find(caption).map_or(0, |m| m.end());
+    caption.ends_with('.')
+        && caption[own..].split_whitespace().filter(|w| w.contains(char::is_alphabetic)).count() >= MIN_WORDS
 }
 
 /// Start of financial statements that the exhibits Item prints after all of
@@ -10609,6 +10702,123 @@ Pursuant to ...
     }
 
     #[test]
+    fn cover_page_of_the_statements_above_their_index_goes_with_them() {
+        // Item 15 answers its captions on their lines, and the statements
+        // follow with a cover page in mixed case: the filer's name, the title
+        // of the set, the period and the heading of the index.
+        let body = BODY.repeat(30);
+        let head = "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES\nNone.\n\
+                    ITEM 15. EXHIBITS, FINANCIAL STATEMENT SCHEDULES\n\
+                    The following documents are filed as part of this Annual Report:\n\
+                    1.\tFinancial statements listed in the Index to Financial Statements, beginning on page F-1; and\n";
+        let sentence = "2.\tExhibits listed in the Exhibit Index filed as part of this Annual Report.\n";
+        let index = "Report of Independent Registered Public Accounting Firm\tF-2\nBalance Sheet\tF-3\n\
+                     Statement of Operations\tF-4\nNotes to Financial Statements\tF-7\n";
+        let printed = format!(
+            "Report of Independent Registered Public Accounting Firm\nTo the Board of Directors and\n\
+             Stockholders of Example, Inc.\n{body}\nBalance Sheet\n{body}\nStatement of Operations\n{body}\nSIGNATURES\n"
+        );
+        let cover = "Example Inc.\nFinancial Statements\nFor The Years Ended\nDecember 31, 2014 and 2013\nTable of Contents\tTable\n";
+        let end = |caption: &str, above: &str| {
+            let text = format!("{head}{caption}{above}{index}{printed}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_14", "item_15"]);
+            (text.clone(), s[1].end)
+        };
+        let (text, at) = end(sentence, cover);
+        assert_eq!(at, text.find("Example Inc.\nFinancial").unwrap());
+        // Fewer lines, other periods and headings of the index.
+        for above in [
+            "Example Inc.\nTable of Contents\n",
+            "EXAMPLE INC.\nConsolidated Financial Statements\nAs of December 31, 2014\nIndex\tPage\n",
+            "Example Inc.\nFinancial Statements\nDecember 31, 2014 and December 31, 2013\nContents\n",
+            "Example Inc.\nFinancial Statements\nYears Ended December 31, 2014 and 2013\n",
+            "Example Inc.\nFinancial Statements\nFor the Fiscal Years Ended\nDecember 31, 2014 and 2013\n",
+        ] {
+            let (text, at) = end(sentence, above);
+            assert_eq!(at, text.find(above).unwrap(), "{above}");
+        }
+        // Not without the filer's name at its top, with a name that the
+        // statements do not print again, with a sixth line, or with a line
+        // that a cover does not print: the lines stay, as mixed-case lines
+        // above an index do.
+        for above in [
+            "Financial Statements\nFor The Years Ended\nDecember 31, 2014 and 2013\nTable of Contents\tTable\n",
+            "Other Sub Inc.\nFinancial Statements\nFor The Years Ended\nDecember 31, 2014 and 2013\nTable of Contents\n",
+            "Example Inc.\nFinancial Statements\nFor The Years Ended\nDecember 31, 2014 and 2013\nContents\nIndex\n",
+            "Example Inc.\nFinancial Statements\nSee the notes\nTable of Contents\n",
+            "Example Inc.\nFinancial Statements\nTable of Contents\tSee below\n",
+            "Example Inc.\nFinancial Statements of the Company\nTable of Contents\n",
+            "Example Inc.\nDecember 2014\nTable of Contents\n",
+            // A name with only dates under it signs.
+            "Example Inc.\nDecember 31, 2014\n",
+            "Example Inc.\nMarch 15, 2015\n",
+            "Example Inc.\nAs of December 31, 2014\nDecember 31, 2014 and 2013\n",
+        ] {
+            let (text, at) = end(sentence, above);
+            assert_eq!(at, text.find(index).unwrap(), "{above}");
+        }
+        // So does an accountants' consent, signed with the name of the firm
+        // that signs the report after the index too.
+        let consent = "CONSENT OF INDEPENDENT ACCOUNTANTS\n\
+                       We consent to the incorporation by reference of our report in the registration statements.\n\
+                       Arthur Andersen & Co.\nMarch 1, 2015\n";
+        let signed = printed.replacen(&body, &format!("{body}\nArthur Andersen & Co.\nMarch 1, 2015"), 1);
+        for consent in [consent, consent.split_inclusive('\n').skip(2).collect::<String>().as_str()] {
+            let text = format!("{head}{sentence}{consent}{index}{signed}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(s[1].end, text.find(index).unwrap(), "{consent}");
+        }
+        // A caption alone with the cover right under it: the index is the
+        // caption's, and stays up to the first statement.
+        for caption in [
+            "2.\tExhibits\n",
+            "2.\tExhibits required by Item 601:\n",
+            "2.\tExhibits are listed.\n",
+            "2.\tExhibits 3.1, 3.2 and 23.\n",
+            "(c)\tReports on Form 8-K.\n",
+        ] {
+            let (text, at) = end(caption, cover);
+            assert_eq!(
+                at,
+                text.find("Report of Independent Registered Public Accounting Firm\nTo the").unwrap(),
+                "{caption}"
+            );
+        }
+        // A caption that reads on answers nothing above lines in capitals
+        // with no name: as before, the index is the caption's.
+        let (text, at) = end(sentence, "DECEMBER 31, 2014\n");
+        assert_eq!(at, text.find("Report of Independent Registered Public Accounting Firm\nTo the").unwrap());
+        // Three words after the caption's own answer it.
+        let (text, at) = end("2.\tExhibits are listed below.\n", cover);
+        assert_eq!(at, text.find("Example Inc.\nFinancial").unwrap());
+        // An answer on a line of its own stays above the cover.
+        let (text, at) = end("2.\tExhibits\nSee the Exhibit Index.\n", cover);
+        assert_eq!(at, text.find("Example Inc.\nFinancial").unwrap());
+        // The last line of a wrapped answer is no line of the statements,
+        // though it reads as the date or the filer's name.
+        for (answer, last) in [
+            ("(c)\tReports on Form 8-K\nA report on Form 8-K was filed on\n", "DECEMBER 31, 2014\n"),
+            ("(c)\tReports on Form 8-K\nNone were filed by\n", "Example Inc.\n"),
+            ("(c)\tReports on Form 8-K\nNone were filed in the year ended,\n", "DECEMBER 31, 2014\n"),
+            ("(c)\tReports on Form 8-K\nNone were filed by\n", "Example Inc.\nTable of Contents\n"),
+        ] {
+            let (text, at) = end(&format!("{answer}{last}"), "");
+            let stays = last.split_inclusive('\n').next().unwrap();
+            assert_eq!(at, text.find(stays).unwrap() + stays.len(), "{answer}");
+        }
+        // After a line that ends its sentence, the same lines go.
+        let (text, at) = end("(c)\tReports on Form 8-K\nNone were filed.\n", "DECEMBER 31, 2014\n");
+        assert_eq!(at, text.find("DECEMBER 31, 2014").unwrap());
+        // The name is the filer's when the first 20,000 bytes from the index
+        // on print it again.
+        for (before, again) in [(19_900, true), (20_100, false)] {
+            let cut_off = format!("{}Stockholders of Example, Inc.", "x".repeat(before - "Stockholders of ".len()));
+            assert_eq!(names_filer("Example Inc.", &cut_off), again, "{before}");
+        }
+    }
+
+    #[test]
     fn index_without_a_heading_after_the_items_captions_goes_with_the_statements() {
         // Item 15's last caption is its exhibits part; the F-paged statements
         // follow with the company's name, the date and an index with no
@@ -10632,15 +10842,17 @@ Pursuant to ...
         let exhibits = format!("(b)\tExhibits\n{answer}");
         // The lines above the index that head the statements go with them:
         // the filer's name, which the statements print again, a date and the
-        // title of the set, in capitals, and two lines at most.
+        // title of the set, in capitals, and two lines at most when the
+        // filer's name is not the first of them.
         for (above, cut) in [
             ("EXAMPLE CORP.\nDECEMBER 31, 2014\n", "EXAMPLE CORP.\nDEC"),
             ("DECEMBER 31, 2014\n", "DECEMBER"),
             ("Example Corp.\nYEARS ENDED DECEMBER 31, 2014 AND 2013\n", "Example Corp.\nYEARS"),
             (
-                "EXAMPLE CORP.\nCONSOLIDATED FINANCIAL STATEMENTS\nDECEMBER 31, 2014\n",
+                "OTHER SUB ONE, INC.\nCONSOLIDATED FINANCIAL STATEMENTS\nDECEMBER 31, 2014\n",
                 "CONSOLIDATED FINANCIAL STATEMENTS\nDEC",
             ),
+            ("NONE\nFINANCIAL STATEMENTS\nFINANCIAL STATEMENTS\nDECEMBER 31, 2014\n", "FINANCIAL STATEMENTS\nDEC"),
             ("FINANCIAL STATEMENTS\n", "FINANCIAL STATEMENTS\nReport"),
             ("", index),
             ("EXAMPLE CORP.\n2014\n", index),
