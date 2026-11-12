@@ -154,6 +154,19 @@
 //! heading of that Item; and another Item line, such as a contents entry,
 //! prints the Item's number with one of its standard titles. In a 10-Q the
 //! Part line, or else the Item before, gives the part.
+//! In a 10-K or 10-KSB, an Item heading misprinted with "Exhibit" for "Item"
+//! ("Exhibit 12.  Certain Relationships and Related Transactions.", between
+//! "Item 11." and "Item 13.") starts the Item when nothing follows the number
+//! but one of the Item's titles, current or former, word for word, and the
+//! chain left the Item out between the two Items found around the line. After
+//! the last Item found, such a line starts the form's next Item only, before
+//! the signatures ("Exhibit 14. Principal Accountant Fees and Services" after
+//! "Item 13. Exhibits" in a 10-KSB). Text of the Item's own follows the line,
+//! and neither the line above it nor the one below starts with "Exhibit", as
+//! rows of a list of exhibits do, and the line above does not read on into it
+//! ("... filed as"). Each such stretch of text is searched up to its 1,000th
+//! "exhibit", and only the first eight lines that print "Exhibit" with the
+//! number of an Item left out are read.
 //! The last Item ends at the signatures or where a separately paginated
 //! attached document (an annual report) begins, with the index headings
 //! ("Index to Financial Statements") and notes that a page is intentionally
@@ -4654,6 +4667,11 @@ fn lettered_parts(
     found
 }
 
+/// `Exhibit 12.  Certain Relationships and Related Transactions.`: an Item
+/// heading misprinted with "Exhibit" in place of "Item".
+static EXHIBIT_FOR_ITEM: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[ \t]*(?i:exhibit)[ \t]+(\d{1,2}[A-C]?)[ \t]*\.[ \t]*(\p{Lu}[^\n]*)$").unwrap());
+
 /// The nearest line with text above `pos`, a line start, trimmed, or "" when
 /// the 20 lines above it are blank.
 fn line_above(text: &str, pos: usize) -> &str {
@@ -4666,6 +4684,104 @@ fn line_above(text: &str, pos: usize) -> &str {
 fn line_below(text: &str, end: usize) -> &str {
     const MAX_LINES: usize = 20;
     text[end..].lines().skip(1).take(MAX_LINES).map(str::trim).find(|l| !l.is_empty()).unwrap_or("")
+}
+
+/// "exhibit" in any case, which every line `EXHIBIT_FOR_ITEM` matches holds.
+static EXHIBIT_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i:exhibit)").unwrap());
+
+/// An annual report's Item whose heading is misprinted with "Exhibit" for
+/// "Item" ("Exhibit 12.  Certain Relationships and Related Transactions.",
+/// between "Item 11." and "Item 13."). Such a line starts the Item when it
+/// prints the Item's number and nothing else after it than one of the Item's
+/// titles, current or former, word for word, and it comes between two Items
+/// found that are next to each other in the chain, with the Item among those
+/// the form has between them: the chain left it out. After the last Item
+/// found, such a line starts the form's next Item only ("Exhibit 14.
+/// Principal Accountant Fees and Services" after "Item 13. Exhibits", the
+/// last heading of a 10-KSB), before the signatures. Text of the Item's own
+/// follows the line, not another Item line or the signatures, and neither the
+/// line above it nor the one below starts with "Exhibit", as the rows of a
+/// list of exhibits do, and the line above does not read on into it ("See
+/// also the information filed as", "... are filed as exhibits:"). The first
+/// such line counts, and a line that goes on for more than 400 bytes after
+/// "Exhibit" is none. To bound the work, each of these stretches of text is
+/// searched up to its 1,000th "exhibit", and of its lines that start with
+/// "Exhibit" and the number of an Item left out, only the first eight are
+/// read. Returns the lines as candidates, in the order of the text, with
+/// their keys.
+fn misprinted_items(
+    text: &str,
+    cands: &[Candidate],
+    keys: &[Key],
+    picks: &[(usize, usize)],
+) -> Vec<(Candidate, usize)> {
+    // Longer than any such heading: the longest title has under 150 bytes.
+    const MAX_LINE: usize = 400;
+    const MAX_MENTIONS: usize = 1000;
+    const MAX_READ: usize = 8;
+    const WORD: &str = "exhibit";
+    // The end of a line that reads on into the next: "... filed as", "The
+    // following plans are filed as exhibits:".
+    static LEADS_IN: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)(?:[:,;]|\b(?:as|in|to|see|and|or|of|the|with|by|under|at))$").unwrap());
+    let Some(&(last, last_key)) = picks.last() else { return Vec::new() };
+    let starts: Vec<usize> = picks.iter().map(|&(c, _)| cands[c].pos).collect();
+    // The stretches of text to search, each with the Items it may start.
+    let between = picks.windows(2).enumerate().filter(|(_, w)| w[1].1 > w[0].1 + 1);
+    let mut stretches: Vec<(usize, usize, std::ops::Range<usize>)> =
+        between.map(|(j, w)| (starts[j], starts[j + 1], w[0].1 + 1..w[1].1)).collect();
+    let after_last = cands[last].pos;
+    if last_key + 1 < keys.len() {
+        stretches.push((after_last, text.len(), last_key + 1..last_key + 2));
+    }
+    let signatures = OnceCell::new();
+    let bytes = text.as_bytes();
+    let mut found: Vec<(Candidate, usize)> = Vec::new();
+    for (from, to, left_out) in stretches {
+        let (mut at, mut mentions, mut read, mut started) = (from, 0, 0, 0);
+        while mentions < MAX_MENTIONS && read < MAX_READ && started < left_out.len() {
+            let Some(m) = EXHIBIT_WORD.find_at(&text[..to], at) else { break };
+            (at, mentions) = (m.end(), mentions + 1);
+            // The word starts its line, and the line is short.
+            let indent = bytes[..m.start()].iter().rev().take_while(|&&b| b == b' ' || b == b'\t').count();
+            let start = m.start() - indent;
+            let Some(length) = bytes[m.end()..].iter().take(MAX_LINE).position(|&b| b == b'\n') else { continue };
+            let end = m.end() + length;
+            if start > 0 && bytes[start - 1] != b'\n' {
+                continue;
+            }
+            let number = text[m.end()..end].trim_start_matches([' ', '\t']);
+            let number = &number[..number.bytes().take_while(u8::is_ascii_alphanumeric).count()];
+            let Some(ki) = left_out.clone().find(|&k| keys[k].item == number) else { continue };
+            if found.iter().any(|&(_, k)| k == ki) {
+                continue;
+            }
+            read += 1;
+            let Some(c) = EXHIBIT_FOR_ITEM.captures(&text[start..end]) else { continue };
+            let printed = c.get(2).expect("title").as_str();
+            let words = title_words(printed);
+            if &c[1] != number || !keys[ki].titles().any(|t| title_words(t) == words) {
+                continue;
+            }
+            // Text of its own follows it, and it is no row of a list of
+            // exhibits.
+            let listed = |line: &str| line.get(..WORD.len()).is_some_and(|w| w.eq_ignore_ascii_case(WORD));
+            let below = line_below(text, end);
+            let no_text = below.is_empty() || is_item_line(below) || SIGNATURES.is_match(below);
+            let above = line_above(text, start);
+            if no_text || listed(below) || listed(above) || LEADS_IN.is_match(above) {
+                continue;
+            }
+            // After the last Item found, only before the signatures.
+            let limit = || *signatures.get_or_init(|| signatures_after(text, after_last).unwrap_or(text.len()));
+            if from == after_last && start >= limit() {
+                break;
+            }
+            found.push((added_candidate(text, start, number, printed), ki));
+            started += 1;
+        }
+    }
+    found
 }
 
 /// The title the heading prints, of the titles the form has given its Item
@@ -5052,6 +5168,13 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
             picks.insert(at, (cands.len() - 1, ki));
         }
         for (cand, ki) in lettered_parts(text, &lines, &cands, keys, &picks) {
+            let at = picks.partition_point(|&(p, _)| cands[p].pos < cand.pos);
+            cands.push(cand);
+            picks.insert(at, (cands.len() - 1, ki));
+        }
+    }
+    if kind.annual() {
+        for (cand, ki) in misprinted_items(text, &cands, keys, &picks) {
             let at = picks.partition_point(|&(p, _)| cands[p].pos < cand.pos);
             cands.push(cand);
             picks.insert(at, (cands.len() - 1, ki));
@@ -10025,6 +10148,149 @@ Pursuant to ...
         let text = format!("{head}LIST OF EXHIBITS\n{answer}{index}{printed}");
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(s[1].end, text.find(index).unwrap());
+    }
+
+    #[test]
+    fn an_item_heading_misprinted_as_an_exhibit_starts_the_item() {
+        let body = BODY.repeat(30);
+        let item = |line: &str, after: &str| {
+            format!(
+                "ITEM 11. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT\n{body}\n{line}\n{body}\n\
+                 ITEM 13. EXHIBITS AND REPORTS ON FORM 8-K\n3.1\tArticles\n{after}SIGNATURES\n"
+            )
+        };
+        let text = item("Exhibit 12.  Certain Relationships and Related Transactions.", "");
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_11", "item_12", "item_13"]);
+        assert_eq!(s[1].start, text.find("Exhibit 12.").unwrap());
+        assert_eq!(s[1].title, "Certain Relationships and Related Transactions");
+        let text = item("  \tExhibit 12.  Certain Relationships and Related Transactions.", "");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), ["item_11", "item_12", "item_13"]);
+        // Not with the number and title of an Item found before the two
+        // Items around the line: only an Item left out between them counts.
+        let found = format!(
+            "ITEM 9. DIRECTORS, EXECUTIVE OFFICERS, PROMOTERS AND CONTROL PERSONS\n{body}\n\
+             ITEM 10. EXECUTIVE COMPENSATION\n{body}\n{}",
+            item("Exhibit 10. Executive Compensation", "")
+        );
+        let s = extract_sections(&found, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_9", "item_10", "item_11", "item_13"]);
+        assert_eq!(s[1].start, found.find("ITEM 10.").unwrap());
+        assert_eq!(s[2].end, found.find("ITEM 13.").unwrap());
+        // Not with other words, another Item's number or title, a lowercase
+        // title, on a line of more than 400 bytes, out of the form's order,
+        // after the last Item found or before the first.
+        let cases = [
+            item("Exhibit 12.  Certain Relationships and Related Transactions Agreement", ""),
+            item("Exhibit 14.  Certain Relationships and Related Transactions", ""),
+            item("See Exhibit 12.  Certain Relationships and Related Transactions", ""),
+            item("Exhibit 12.  Executive Compensation", ""),
+            item("Exhibit 12. certain relationships and related transactions", ""),
+            item("", "Exhibit 12.  Certain Relationships and Related Transactions\n"),
+            item(
+                "",
+                "Exhibit 12.  Certain Relationships and Related Transactions\nITEM 14. CONTROLS AND PROCEDURES\nNone.\n",
+            ),
+            item("Exhibit 14.  Principal Accountant Fees and Services", ""),
+            item(&format!("Exhibit 12.  Certain Relationships and Related Transactions{}", " ".repeat(400)), ""),
+            format!("Exhibit 10.  Executive Compensation\n{body}\n{}", item("", "")),
+            format!("{}Exhibit 12.  Certain Relationships and Related Transactions\n{body}\n", item("", "")),
+        ];
+        for (i, text) in cases.iter().enumerate() {
+            let s = extract_sections(text, FormKind::TenKsb);
+            assert!(!s.iter().any(|s| s.heading.starts_with("Exhibit")), "case {i}");
+            assert_eq!(s[0].id, "item_11", "case {i}");
+        }
+        // Not when the chain has the Item, or has no Item after the line.
+        let text = format!(
+            "ITEM 11. EXECUTIVE COMPENSATION\n{body}\nITEM 12. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS\n\
+             {body}\nExhibit 12.  Certain Relationships and Related Transactions\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_11", "item_12"]);
+        assert_eq!(s[1].start, text.find("ITEM 12.").unwrap());
+        let text = format!(
+            "ITEM 10. DIRECTORS\n{body}\nITEM 12. SECURITY OWNERSHIP\n{body}\n\
+             Exhibit 14.  Principal Accountant Fees and Services\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_10", "item_12"]);
+        // After the last Item found, the form's next Item only, before the
+        // signatures: Grand Monarch's 10-KSB for 2007 ends with "Item 13.
+        // Exhibits" and "Exhibit 14.".
+        let fees = "Exhibit 14. Principal Accountant Fees and Services";
+        let text = item("ITEM 12. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS", &format!("{fees}\n{body}\n"));
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_11", "item_12", "item_13", "item_14"]);
+        assert_eq!(s[3].start, text.find("Exhibit 14.").unwrap());
+        assert_eq!(s[2].end, s[3].start);
+        for (i, after) in [
+            "Exhibit 14. Code of Ethics\n".to_owned(),
+            "Exhibit 15. Principal Accountant Fees and Services\n".to_owned(),
+            fees.to_owned(),
+            format!("{fees}\n"),
+            format!("Exhibit 3. Articles\n{fees}\n{body}\n"),
+            format!("{fees}\nExhibit 21. Subsidiaries\n{body}\n"),
+            format!("SIGNATURES\n{body}\n{fees}\n{body}\n"),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let text = item("ITEM 12. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS", after);
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), ["item_11", "item_12", "item_13"], "case {i}");
+        }
+        let right = "Exhibit 12.  Certain Relationships and Related Transactions";
+        // Not at the end of the text, or just above the next Item.
+        let text = item("ITEM 12. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS", &format!("{fees}\n\n"))
+            .replace("SIGNATURES\n", "");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), ["item_11", "item_12", "item_13"]);
+        let text = item(right, "").replace(&format!("{right}\n{body}\n"), &format!("{right}\n"));
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), ["item_11", "item_13"]);
+        // Of two Items left out between two found, each may be misprinted.
+        let both =
+            "Exhibit 12.  Certain Relationships and Related Transactions\nNone.\nExhibit 13. Exhibits\n3.1\tArticles";
+        let text =
+            item(both, "").replace("ITEM 13. EXHIBITS AND REPORTS ON FORM 8-K", "ITEM 14. CONTROLS AND PROCEDURES");
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_11", "item_12", "item_13", "item_14"]);
+        let twice = format!("{right}\nNone.\n{right}\nNone.");
+        let text =
+            item(&twice, "").replace("ITEM 13. EXHIBITS AND REPORTS ON FORM 8-K", "ITEM 14. CONTROLS AND PROCEDURES");
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_11", "item_12", "item_14"]);
+        assert_eq!(s[1].start, text.find("Exhibit 12.").unwrap());
+        // Only the first eight lines with the number of an Item left out are
+        // read, and the text is searched up to its 1,000th "exhibit".
+        for (wrong, mentions, found) in [(7, 0, true), (8, 0, false), (0, 999, true), (0, 1000, false)] {
+            let lines = format!(
+                "{}{}{right}",
+                "Exhibit 12. Other\nNone.\n".repeat(wrong),
+                "See the exhibit.\n".repeat(mentions)
+            );
+            let s = extract_sections(&item(&lines, ""), FormKind::TenKsb);
+            assert_eq!(s.iter().any(|s| s.id == "item_12"), found, "{wrong} {mentions}");
+        }
+        // Annual reports only.
+        let text = format!(
+            "PART II\nItem 2. Changes in Securities\n{body}\nExhibit 3. Defaults Upon Senior Securities\n{body}\n\
+             Item 4. Submission of Matters to a Vote of Security Holders\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenQ)), ["part_2_item_2", "part_2_item_4"]);
+        // Of two copies, the first counts.
+        let text = item(&format!("{right}\nNone.\n{right}"), "");
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_11", "item_12", "item_13"]);
+        assert_eq!(s[1].start, text.find("Exhibit 12.").unwrap());
+        // A line that the one above reads on into is no heading.
+        for above in ["See also the information filed as", "The following plans are filed as exhibits:", "the plan,"] {
+            let text = item(&format!("{above}\n{right}"), "");
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), ["item_11", "item_13"], "{above}");
+        }
+        let text = item(&format!("None\n{right}"), "");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), ["item_11", "item_12", "item_13"]);
+        // Two such lines in a row are rows of a list.
+        let text = item(&format!("{right}\n{right}"), "");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), ["item_11", "item_13"]);
     }
 
     #[test]
