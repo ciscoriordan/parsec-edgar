@@ -81,6 +81,12 @@
 //! Item's text, a row of an index of Items printed after the body and a
 //! contents row stay out of this, and the copy after the signatures starts
 //! the Item, as when the report prints Part IV after its signatures.
+//! The last row of an index of Items without pages printed just before the
+//! signatures is no heading though the signatures' text follows it: at least
+//! three Item lines one under another in the form's order, from the line
+//! after its heading to the row, with a signatures heading under the row,
+//! each row before it a copy of a line above the index, and neither the
+//! heading nor those lines in such a run themselves.
 //! In a 10-Q or 10-QSB a `PART I` or `PART II` line just above a heading fixes
 //! its part, and without one a title that only one part uses for that Item
 //! number does. Such a line that starts with a Part I title and runs on as a
@@ -2772,21 +2778,23 @@ const SAME_BLOCK: usize = 2000;
 /// Two candidates are the same heading when they share Item and title and other
 /// Items come between them. The earlier copy is a contents entry when it starts
 /// the shorter stretch of text or is a row that prints a page (`paged_rows`),
-/// unless the signature block's sentence comes between the two (a
-/// signatures line alone does not count, since contents list "Signatures"
-/// too), the earlier copy prints no page and it sits where
-/// the Item's heading belongs (`in_body_order`): that copy is then a body
-/// heading, and the later one (an exhibit's, or the heading over statements
-/// printed after the signatures) goes. With no other Item between them, it is
-/// one when a signatures line follows it and the later copy follows that line
-/// closely, before the signatures (a list of one Item and "SIGNATURES"), or
-/// when it comes just after a page-numbered row and names a later Item (the
-/// last row of a cross-reference index, which prints no page, in a 10-K whose
-/// body prints no other Item heading), or when it prints a page itself before
-/// the body (the only row of an amendment's contents, "Item 15.<TAB>Exhibits
-/// and Financial Statement Schedules<TAB>2"), and the later copy prints its
-/// title in full (`prints_title`), which a running header that shortens the
-/// title or adds "(continued)" does not. An earlier copy before the body whose
+/// unless the later copy is the last row of an index of Items printed just
+/// before the signatures (`IndexRuns`), which goes, or the signature block's
+/// sentence comes between the two (a signatures line alone does not count,
+/// since contents list "Signatures" too), the earlier copy prints no page
+/// and it sits where the Item's heading belongs (`in_body_order`): that copy
+/// is then a body heading, and the later one (an exhibit's, or the heading
+/// over statements printed after the signatures) goes. With no other Item
+/// between them, it is one when a signatures line follows it and the later
+/// copy follows that line closely, before the signatures (a list of one Item
+/// and "SIGNATURES"), or when it comes just after a page-numbered row and
+/// names a later Item (the last row of a cross-reference index, which
+/// prints no page, in a 10-K whose body prints no other Item heading), or
+/// when it prints a page itself before the body (the only row of an
+/// amendment's contents, "Item 15.<TAB>Exhibits and Financial Statement
+/// Schedules<TAB>2"), and the later copy prints its title in full
+/// (`prints_title`), which a running header that shortens the title or adds
+/// "(continued)" does not. An earlier copy before the body whose
 /// later copy is itself a row of a contents list lists the Item too, as a
 /// 10-Q/A's explanatory note above a contents list without pages does, when
 /// no Item line with text of its own comes before it. The later copy
@@ -2935,10 +2943,24 @@ fn contents_entries(
         }
         later_copy[a] = after.find(a);
     }
+    let index = IndexRuns::new(cands, text, keys, &later_copy);
+    let mut index_copies: Vec<usize> = Vec::new();
+    // Whether the first line under an Item line, before the next one, is a
+    // signatures heading.
+    let signatures_under = |b: usize| {
+        let from = cands[b].pos + line_at(text, cands[b].pos).len();
+        let to = cands.get(b + 1).map_or(text.len(), |c| c.pos);
+        text[from..to].lines().find(|l| !l.trim().is_empty()).is_some_and(|l| SIGNATURES.is_match(l))
+    };
     for a in 0..n {
         let Some(b) = later_copy[a] else { continue };
         match signatures.sentence_between(cands[a].pos, cands[b].pos) {
             Some(start) if !paged[a] => signed_pairs.push((a, b, start)),
+            // The last row of an index of Items printed just before the
+            // signatures has their text after it, and its heading just
+            // above the index may have less: the row goes, as the copy of
+            // a heading after the signatures does.
+            _ if !paged[a] && index.ends_with_copy(a, b) && signatures_under(b) => index_copies.push(b),
             // A row with a page is a contents row however much text follows
             // it, so its later copy is no entry of a list printed after the
             // body heading: the row is not that heading.
@@ -3145,7 +3167,7 @@ fn contents_entries(
         }
     }
     let mut after = vec![false; n];
-    for b in signed_copies {
+    for b in signed_copies.into_iter().chain(index_copies) {
         after[b] = true;
     }
     if !later_copies.is_empty() {
@@ -3164,6 +3186,59 @@ fn contents_entries(
         }
     }
     (contents, after, body)
+}
+
+/// The runs of Item lines printed one under another in the form's order,
+/// with blank lines and Part lines alone between them, for telling an index
+/// of Items printed after the body from the body's headings.
+struct IndexRuns {
+    /// For each candidate, the first candidate of its run.
+    start: Vec<usize>,
+    /// For each candidate, how many candidates before it are no later copy
+    /// of a line that is in no run itself.
+    others: Vec<usize>,
+}
+
+impl IndexRuns {
+    fn new(cands: &[Candidate], text: &str, keys: &[Key], later_copy: &[Option<usize>]) -> Self {
+        let n = cands.len();
+        let mut start: Vec<usize> = (0..n).collect();
+        for i in 1..n {
+            let above = cands[i - 1].pos + line_at(text, cands[i - 1].pos).len();
+            if comes_before(&cands[i - 1], &cands[i], keys) && last_entry_line(text, above, cands[i].pos).is_none() {
+                start[i] = start[i - 1];
+            }
+        }
+        let mut copy_of: Vec<Option<usize>> = vec![None; n];
+        for (a, b) in later_copy.iter().enumerate() {
+            if let Some(b) = *b {
+                copy_of[b].get_or_insert(a);
+            }
+        }
+        let mut others = vec![0; n + 1];
+        for i in 0..n {
+            let copy = copy_of[i].is_some_and(|a| Self::alone(&start, a));
+            others[i + 1] = others[i] + usize::from(!copy);
+        }
+        Self { start, others }
+    }
+
+    /// Whether a candidate is in no run with the line before or after it.
+    fn alone(start: &[usize], i: usize) -> bool {
+        start[i] == i && start.get(i + 1) != Some(&i)
+    }
+
+    /// Whether `b`, the later copy of `a`, is the last row of an index of
+    /// Items printed just after the text of `a`: the lines from the one
+    /// after `a` to `b` are one run of at least three (in the form's
+    /// order, so it starts again at an Item before that of `a`), and each
+    /// row before `b` repeats a line before the run. Neither `a` nor those
+    /// lines are in a run themselves, as the entries of a contents list are
+    /// when the body's headings come one under another after it.
+    fn ends_with_copy(&self, a: usize, b: usize) -> bool {
+        const MIN_ROWS: usize = 3;
+        b - a >= MIN_ROWS && self.start[b] == a + 1 && self.start[a] == a && self.others[b] == self.others[a + 1]
+    }
 }
 
 /// The printed title of a candidate without its page column. With the title
@@ -7810,6 +7885,112 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_7", "item_8", "item_9", "item_9a", "item_9b", "item_10", "item_11"]);
         assert!(s[1].text.ends_with(body.trim()));
+    }
+
+    #[test]
+    fn last_row_of_an_index_without_pages_before_the_signatures_is_no_heading() {
+        // An index of Items without pages just before the signatures. Its
+        // last row has the signatures' text after it, more than the short
+        // Item 15 just above the index has. The row is a row all the same.
+        let page = BODY.repeat(37);
+        let short = BODY.repeat(2);
+        let titles = [
+            ("1", "Business"),
+            ("1B", "Unresolved Staff Comments"),
+            ("2", "Properties"),
+            ("3", "Legal Proceedings"),
+            ("4", "Mine Safety Disclosures"),
+            ("8", "Financial Statements and Supplementary Data"),
+            ("9A", "Controls and Procedures"),
+            ("10", "Directors, Executive Officers and Corporate Governance"),
+            ("15", "Exhibits and Financial Statement Schedules"),
+        ];
+        let line = |n: &str| {
+            let (number, title) = titles.iter().find(|(number, _)| *number == n).unwrap();
+            format!("Item {number}. {title}\n")
+        };
+        let rows = |items: &[&str]| items.iter().map(|n| line(n)).collect::<String>();
+        let items = ["1", "2", "3", "8", "9A", "15"];
+        let texts = [&page, &short, &short, &page, &short, &short];
+        let body: String = items.iter().zip(texts).map(|(n, text)| format!("{}{text}\n", line(n))).collect();
+        let signatures = "SIGNATURES\nPursuant to the requirements of Section 13 or 15(d) of the Securities Exchange \
+                          Act of 1934, the registrant has duly caused this report to be signed on its behalf by the \
+                          undersigned, thereunto duly authorized.\n";
+        let all = ["item_1", "item_2", "item_3", "item_8", "item_9a", "item_15"];
+        // Whether Item 15 starts at its heading above the index.
+        let at_heading = |text: &str| {
+            let s = extract_sections(text, FormKind::TenK);
+            let last = s.last().unwrap();
+            assert_eq!(last.id, "item_15", "{text}");
+            last.text.contains("INDEX OF ITEMS")
+        };
+        let index = rows(&items);
+        let spaced = index.replace("Item 8.", "\nPART II\n\nItem 8.");
+        for index in [&index, &spaced] {
+            let text = format!("{body}INDEX OF ITEMS\n{index}{signatures}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), all);
+            assert!(at_heading(&text));
+            assert_eq!(s[4].text.trim_end(), format!("{}{short}", line("9A")).trim_end());
+            assert!(s[5].text.starts_with(&format!("{}{short}", line("15"))));
+            assert!(at_heading(&format!("{body}INDEX OF ITEMS\n{index}\n\n{signatures}")));
+        }
+        // Three rows are enough.
+        assert!(at_heading(&format!("{body}INDEX OF ITEMS\n{}{signatures}", rows(&["8", "9A", "15"]))));
+        // The row stays the heading, as before, when the list is no index
+        // before the signatures. Two rows are no list:
+        assert!(!at_heading(&format!("{body}INDEX OF ITEMS\n{}{signatures}", rows(&["9A", "15"]))));
+        // nor are rows with a line of text between them,
+        let broken = index.replace("Item 15.", "See the pages that follow.\nItem 15.");
+        assert!(!at_heading(&format!("{body}INDEX OF ITEMS\n{broken}{signatures}")));
+        // rows out of the form's order,
+        let unordered = rows(&["1", "3", "2", "8", "9A", "15"]);
+        assert!(!at_heading(&format!("{body}INDEX OF ITEMS\n{unordered}{signatures}")));
+        // or rows of which one repeats no line above the list.
+        let unheard = rows(&["1", "2", "3", "8", "9A", "10", "15"]);
+        let s = extract_sections(&format!("{body}INDEX OF ITEMS\n{unheard}{signatures}"), FormKind::TenK);
+        assert_eq!(s.last().unwrap().text.trim_end(), line("15").trim_end());
+        // Text of its own under the last row, before the signatures.
+        assert!(!at_heading(&format!("{body}INDEX OF ITEMS\n{index}{page}\n{signatures}")));
+        assert!(!at_heading(&format!("{body}INDEX OF ITEMS\n{index}{short}\n{signatures}")));
+        // So is a line that names the signatures but is no heading of them.
+        assert!(!at_heading(&format!("{body}INDEX OF ITEMS\n{index}(Signature page follows)\n{signatures}")));
+        // A heading above the list that is itself one of a run of lines, as
+        // the last entry of a contents list is when the body's headings
+        // come one under another after it.
+        let run = body.replace(&format!("{}{short}\n", line("9A")), &line("9A"));
+        assert!(!at_heading(&format!("{run}INDEX OF ITEMS\n{index}{signatures}")));
+        let run = body.replace(&line("15"), &format!("{}{}", line("10"), line("15")));
+        assert!(!at_heading(&format!("{run}INDEX OF ITEMS\n{index}{signatures}")));
+        // So is a row's line above the list: here the body's Items 2 and 3
+        // come one under the other.
+        let run = body.replace(&format!("{}{short}\n", line("2")), &line("2"));
+        assert!(!at_heading(&format!("{run}INDEX OF ITEMS\n{index}{signatures}")));
+        // Or under a line that the index leaves out, or above one.
+        let run = body.replace(&line("2"), &format!("{}{}", line("1B"), line("2")));
+        assert!(!at_heading(&format!("{run}INDEX OF ITEMS\n{index}{signatures}")));
+        let run = body.replace(&format!("{}{short}\n", line("3")), &format!("{}{}{short}\n", line("3"), line("4")));
+        assert!(!at_heading(&format!("{run}INDEX OF ITEMS\n{index}{signatures}")));
+        // Lines above the list that print a page are rows of a list
+        // themselves, and the last row of the index stays the heading.
+        let numbered = body
+            .replace(&line("9A"), &line("9A").replace('\n', "\t40\n"))
+            .replace(&line("15"), &line("15").replace('\n', "\t41\n"));
+        assert!(!at_heading(&format!("{numbered}INDEX OF ITEMS\n{index}{signatures}")));
+        // A 10-Q's index goes through both parts.
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{page}\nItem 2. Management's Discussion and Analysis\n{page}\n\
+             Item 4. Controls and Procedures\n{short}\nPART II\nItem 1. Legal Proceedings\n{short}\n\
+             Item 6. Exhibits\n{short}\nINDEX OF ITEMS\nItem 1. Financial Statements\n\
+             Item 2. Management's Discussion and Analysis\nItem 4. Controls and Procedures\n\
+             Item 1. Legal Proceedings\nItem 6. Exhibits\n{signatures}"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1", "part_2_item_6"]);
+        assert!(s[4].text.contains("INDEX OF ITEMS") && !s[3].text.contains("INDEX OF ITEMS"));
+        // Rows that print pages are contents rows, as before.
+        let paged = index.replace('\n', "\t7\n");
+        assert!(at_heading(&format!("{body}INDEX OF ITEMS\n{paged}{signatures}")));
     }
 
     #[test]
