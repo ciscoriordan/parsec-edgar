@@ -275,13 +275,25 @@
 //! number with a page ("Schedule II - Valuation and Qualifying Accounts .....
 //! 55", or under a line that says "Schedules", "II. Condensed Financial
 //! Information of Registrant<TAB>88"). The schedule starts at a heading:
-//! "Schedule" and the number, then nothing, a dash, colon or period, or a
-//! title in capitals, with at least two lines after it, so a wrapped row of
-//! the exhibit list ("Schedule II thereto (filed as ...") starts none. An
-//! auditors' report, not a consent, at most 60 lines above that heading opens
-//! the schedule, and the filer's name on the line just above ("HERCULES
-//! INCORPORATED") goes with it. A list that gives no page for it ("at the
-//! conclusion of this Item") keeps the schedules in the Item. Statements
+//! "Schedule" and the number, then nothing, a title after a dash, colon or
+//! period, or a title in capitals, with at least two lines after it. A
+//! wrapped row of the exhibit list or a sentence starts none: "Schedule II
+//! thereto (filed as ...", in capitals a line that goes on with a word such
+//! as "THERETO" (but not "TO CONSOLIDATED FINANCIAL STATEMENTS") or names an
+//! exhibit by its number or letter, a line after one that ends with a comma
+//! or a joining word ("... TOGETHER WITH"), a line with no title in capitals
+//! or title case whose next line starts in lowercase (but not "SCHEDULE II"
+//! alone over its period, "for the years ended ..."), and lowercase after
+//! the separator ("Schedule II. is omitted because ...", "Schedule II - see
+//! page 55") other than a standard schedule's title ("Schedule II -
+//! valuation and qualifying accounts"). An auditors' report, not a consent,
+//! at most 60 lines above that heading opens the schedule, also under a
+//! heading that names no auditors ("ACCOUNTANTS' OPINION ON SCHEDULE"), and
+//! the filer's name on the line just above ("HERCULES INCORPORATED") goes
+//! with it when "and Subsidiaries" follows it or the schedules or the first
+//! 3,000 bytes of the signatures print it again. A list that gives no page
+//! for it ("at the conclusion of this Item") keeps the schedules in the
+//! Item. Statements
 //! printed before another Item are
 //! inside the exhibits Item. Page headers printed just above any of these
 //! headings go with the text after it: up to three lines, each printed again
@@ -4358,17 +4370,53 @@ static SCHEDULE_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^sch
 /// period ("Schedule II - Valuation and Qualifying Accounts"), or prints
 /// the rest in capitals ("SCHEDULE II VALUATION AND QUALIFYING ACCOUNTS").
 /// A line that reads on in a sentence or an exhibit's description
-/// ("Schedule II thereto (filed as ...", "Schedule II is included ...") is
-/// none, nor is one that says it continues a schedule.
+/// ("Schedule II thereto (filed as ...", "Schedule II is included ...",
+/// lowercase after the separator as in "Schedule II. is omitted because
+/// ..." and "Schedule II - see page 55", and in capitals a word that refers
+/// to the schedule or an exhibit named by its number or letter, "SCHEDULE II
+/// THERETO (FILED AS EXHIBIT 10.1 ...") is none, nor is one that says it
+/// continues a schedule. After the separator, a standard schedule's title
+/// in lowercase is a title ("Schedule II - valuation and qualifying
+/// accounts"), and in capitals "TO" and the statements the schedule goes
+/// with ("SCHEDULE II TO CONSOLIDATED FINANCIAL STATEMENTS").
 fn schedule_heading(line: &str) -> Option<String> {
     static CONTINUED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bcont(?:inued\b|['’]d\b|\.)").unwrap());
+    // In capitals after the number, a word that refers to the schedule
+    // rather than titles it, or an exhibit named anywhere by its number or
+    // letter ("EXHIBIT 10.1", "EXHIBIT A", "EXHIBIT NO. 4").
+    static REFERS: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"^(?:THERETO|HERETO|TO|OF|IS|ARE|WAS|WERE|HAS|HAVE|ATTACHED|FILED|INCLUDED|ANNEXED)\b|\bEXHIBITS?[ \t]+(?:NO\.[ \t]*)?(?:\d|[A-Z]\b)",
+        )
+        .unwrap()
+    });
+    // The statements that a schedule goes with, after "TO".
+    static TO_STATEMENTS: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"^TO[ \t]+(?:THE[ \t]+)?(?:CONSOLIDATED[ \t]+)?FINANCIAL[ \t]+STATEMENTS\b").unwrap()
+    });
+    // The titles of the standard schedules (Regulation S-X, Article 12), in
+    // lowercase.
+    static STANDARD_TITLE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"^(?:valuation and qualifying accounts|condensed financial information|real estate and accumulated depreciation|mortgage loans on real estate|summary of investments|supplementary insurance information|reinsurance|supplemental information concerning)\b",
+        )
+        .unwrap()
+    });
     const WORD: &str = "schedule";
     if !line.get(..WORD.len()).is_some_and(|w| w.eq_ignore_ascii_case(WORD)) || !statement_heading(line) {
         return None;
     }
     let number = SCHEDULE_NUMBER.captures(line)?.get(1).expect("number");
     let rest = line[number.end()..].trim_start();
-    let heads = rest.starts_with(['-', '–', '—', ':', '.']) || !rest.contains(char::is_lowercase);
+    let heads = if rest.starts_with(['-', '–', '—', ':', '.']) {
+        // A title follows the separator, not the rest of a sentence.
+        let title = rest.trim_start_matches(['-', '–', '—', ':', '.', ' ', '\t']);
+        !title.starts_with(char::is_lowercase)
+            || STANDARD_TITLE.is_match(&title.split_whitespace().collect::<Vec<_>>().join(" "))
+    } else {
+        let after_to = TO_STATEMENTS.find(rest).map_or(rest, |m| rest[m.end()..].trim_start());
+        !rest.contains(char::is_lowercase) && !REFERS.is_match(after_to)
+    };
     (heads && !CONTINUED.is_match(rest)).then(|| number.as_str().to_ascii_uppercase())
 }
 
@@ -4413,10 +4461,19 @@ fn filer_name_line(line: &str) -> bool {
 /// first auditors' report heading between the Item's last own text and the
 /// schedule, a report and not a consent, opens the schedule when it is at
 /// most 60 lines above it; when it is further, statements may come between
-/// and nothing is cut. The filer's name printed on the line just above
-/// (`filer_name_line`) goes with the schedule. A list that names a schedule
-/// with no page ("All required schedules may be found ... at the conclusion
-/// of this Item") keeps the schedules in the Item.
+/// and nothing is cut. A heading in title case or capitals that ends with
+/// "Report on Schedule" or "Opinion on Schedule" is such a report too. A
+/// schedule heading is passed over when the line above it ends with a comma
+/// or a joining word, in any case, or the line below it starts in lowercase
+/// (`SCHEDULE_PERIOD` aside under a line that prints only "Schedule" and the
+/// number): a sentence or a row of the exhibit list wraps there. The filer's
+/// name printed on the line just above (`filer_name_line`) goes with the
+/// schedule when the cut-off schedules or the first `SIGNED_WITHIN` bytes
+/// after the Item print it again, with or without "and Subsidiaries"
+/// (`names_filer`): an auditor's name under its opinion and a name that ends
+/// the last row of the exhibit list are not the filer's. A list that names a
+/// schedule with no page ("All required schedules may be found ... at the
+/// conclusion of this Item") keeps the schedules in the Item.
 fn schedules_after_items(text: &str, start: usize, end: usize) -> Option<usize> {
     const MAX_REPORT_LINES: usize = 60;
     const MIN_SCHEDULE_LINES: usize = 2;
@@ -4461,22 +4518,93 @@ fn schedules_after_items(text: &str, start: usize, end: usize) -> Option<usize> 
         }
     }
     let after = &lines[after_own..];
+    // A report or an opinion on the schedules, under a heading that does
+    // not say who gives it: "ACCOUNTANTS' OPINION ON SCHEDULE", "Report on
+    // Financial Statement Schedules".
+    static ON_SCHEDULE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"(?i)\b(?:report|opinion)[ \t]+on[ \t]+(?:the[ \t]+)?(?:financial[ \t]+statement[ \t]+)?schedules?[ \t]*$",
+        )
+        .unwrap()
+    });
+    // Each word of a heading starts with a capital, joining words aside.
+    let titled =
+        |line: &str| line.split_whitespace().all(|w| !w.starts_with(char::is_lowercase) || JOINING_WORDS.contains(&w));
     let opens_report = |line: &str| {
         statement_heading(line)
-            && AUDITORS_REPORT_HEADING.is_match(line)
+            && (AUDITORS_REPORT_HEADING.is_match(line) || (ON_SCHEDULE.is_match(line) && titled(line)))
             && !line.to_ascii_lowercase().contains("consent")
+    };
+    // A line that stops inside a sentence, in any case: it ends with a comma
+    // or a joining word ("... WITH FIRST BANK, TOGETHER WITH").
+    let reads_on = |line: &str| {
+        let last = line.rsplit([' ', '\t']).next().unwrap_or("");
+        last.ends_with(',') || JOINING_WORDS.contains(&last.to_lowercase().as_str())
     };
     for (i, &(_, line)) in after.iter().enumerate() {
         let Some(number) = schedule_heading(line) else { continue };
+        // A line that a sentence wraps onto is a row of the exhibit list or
+        // running text, and so is one that wraps on in lowercase, unless it
+        // prints a title in capitals or title case: a heading's next line
+        // can be "for the years ended ..." or "as of December 31, 2005".
+        let words = line.split_whitespace().skip(2).any(|w| w.contains(char::is_alphabetic));
+        let title = words && titled(line);
+        // Under "SCHEDULE II" alone, the schedule's period in lowercase.
+        let wraps_on =
+            |below: &str| below.starts_with(char::is_lowercase) && (words || !SCHEDULE_PERIOD.is_match(below));
+        if lines[..after_own + i].last().is_some_and(|&(_, above)| reads_on(above))
+            || (!title && after.get(i + 1).is_some_and(|&(_, below)| wraps_on(below)))
+        {
+            continue;
+        }
         let report = after[..i].iter().position(|&(_, l)| opens_report(l));
         let top = report.unwrap_or(i);
         if !listed.contains(&number) || after.len() - i <= MIN_SCHEDULE_LINES || i - top > MAX_REPORT_LINES {
             return None;
         }
-        let name = top.checked_sub(1).filter(|&above| filer_name_line(after[above].1));
+        // The filer's name on the line above: a name with "and Subsidiaries"
+        // after it, as consolidated statements and schedules print it, or a
+        // name that the schedules or the signatures after them print again;
+        // not an auditor's under its report or a name in the last row of the
+        // exhibit list.
+        let (schedules, signatures) = (&text[after[top].0..end], &text[end..]);
+        let name = top.checked_sub(1).filter(|&above| {
+            let line = after[above].1;
+            let name = WITH_SUBSIDIARIES.replace(line, "");
+            if name.len() < line.len() {
+                return filer_name_line(&name);
+            }
+            names_filer(line, schedules) || names_filer(line, &signatures[..floor_boundary(signatures, SIGNED_WITHIN)])
+        });
         return Some(after[name.unwrap_or(top)].0);
     }
     None
+}
+
+/// The period of a schedule in lowercase on the line under a heading that
+/// prints only "Schedule" and the number, which no sentence or exhibit row
+/// wraps onto: "for the years ended December 31, 2014", "for the three years
+/// ended ...", "as of December 31, 2014".
+static SCHEDULE_PERIOD: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(?:for[ \t]+the[ \t]+(?:\w+[ \t]+)?(?:fiscal[ \t]+)?(?:years?|periods?)[ \t]+ended|years?[ \t]+ended|as[ \t]+of)\b").unwrap()
+});
+
+/// "and Subsidiaries" after the filer's name over a statement or a schedule.
+static WITH_SUBSIDIARIES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i),?[ \t]+(?:and|&)[ \t]+(?:its[ \t]+)?(?:consolidated[ \t]+)?subsidiar(?:y|ies)[ \t]*$").unwrap()
+});
+
+/// The bytes of the signatures in which the registrant's name is looked for:
+/// the signature block prints it right after its opening sentence.
+const SIGNED_WITHIN: usize = 3000;
+
+/// The largest index up to `at` that is a character boundary of `text`.
+fn floor_boundary(text: &str, at: usize) -> usize {
+    let mut at = at.min(text.len());
+    while !text.is_char_boundary(at) {
+        at -= 1;
+    }
+    at
 }
 
 /// Title keys, for finding the first of them that `same_title` pairs with a
@@ -10222,16 +10350,158 @@ Pursuant to ...
             ("23\tExample Corp.\n".to_owned(), "SCHEDULE II\n"),
             ("EXAMPLE CORPORATION\nFor the year\n".to_owned(), "SCHEDULE II\n"),
         ];
+        // The signatures print the filer's names.
+        let signed = "SIGNATURES\nPursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of \
+                      1934, the registrant has duly caused this report to be signed on its behalf.\n\
+                      EXAMPLE CORPORATION\nExample Electric Company\nExample Group, Inc.\n(Registrants)\n";
         for (top, cut) in &tops {
-            let text = format!("{head}{listed}{exhibits}(B) Reports on Form 8-K\nNone.\n{top}{schedule}SIGNATURES\n");
+            let text = format!("{head}{listed}{exhibits}(B) Reports on Form 8-K\nNone.\n{top}{schedule}{signed}");
             let s = extract_sections(&text, FormKind::TenK);
-            assert_eq!(s[1].end, text.rfind(cut).unwrap(), "{top}");
+            assert_eq!(s[1].end, text.find(cut).unwrap(), "{top}");
         }
-        // A heading that prints its title in capitals with no dash.
+        // A name above the schedule is the filer's when the signatures print
+        // it within their first 3,000 bytes, or the schedules print it again.
+        // An auditor's name under its opinion and a name that ends the last
+        // row of the exhibit list are not.
+        let end = |top: &str, schedule: &str, signed: &str| {
+            let text = format!("{head}{listed}{exhibits}(B) Reports on Form 8-K\nNone.\n{top}{schedule}{signed}");
+            (text.clone(), extract_sections(&text, FormKind::TenK)[1].end)
+        };
+        let bare = "SIGNATURES\nPursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of 1934, \
+                    the registrant has duly caused this report to be signed.\n";
+        for top in [
+            "EXAMPLE CORPORATION\n",
+            "We have audited the schedule.\nArthur Andersen & Co.\n",
+            "Example Savings Bank Employee Stock Ownership Trust\n",
+        ] {
+            let (text, at) = end(top, &schedule, bare);
+            assert_eq!(at, text.find("SCHEDULE II\nVAL").unwrap(), "{top}");
+        }
+        let (text, at) =
+            end("EXAMPLE CORPORATION\n", &schedule, &format!("{bare}{}EXAMPLE CORPORATION\n", "x".repeat(2900)));
+        assert_eq!(at, text.find("SCHEDULE II\nVAL").unwrap());
+        let (text, at) =
+            end("EXAMPLE CORPORATION\n", &schedule, &format!("{bare}{}EXAMPLE CORPORATION\n", "x".repeat(2700)));
+        assert_eq!(at, text.find("EXAMPLE CORPORATION\nSCHEDULE").unwrap());
+        let (text, at) = end("EXAMPLE CORPORATION\n", &format!("{schedule}Example Corporation\n{body}\n"), bare);
+        assert_eq!(at, text.find("EXAMPLE CORPORATION\nSCHEDULE").unwrap());
+        // A name with "and Subsidiaries" after it heads consolidated
+        // schedules, printed again or not.
+        for name in [
+            "EXAMPLE CORPORATION AND SUBSIDIARIES",
+            "EXAMPLE CORPORATION AND SUBSIDIARY",
+            "EXAMPLE CORPORATION, AND ITS SUBSIDIARIES",
+            "EXAMPLE CORPORATION AND CONSOLIDATED SUBSIDIARIES",
+            "EXAMPLE CORPORATION & SUBSIDIARIES",
+            "Example Corporation and subsidiaries",
+        ] {
+            let (text, at) = end(&format!("{name}\n"), &schedule, bare);
+            assert_eq!(at, text.find(name).unwrap(), "{name}");
+        }
+        // Not when the rest is no name.
+        let (text, at) = end("List of Subsidiaries of Example Corp. and Subsidiaries\n", &schedule, bare);
+        assert_eq!(at, text.find("SCHEDULE II\nVAL").unwrap());
+        // Also right under the Item's last caption.
         let text = format!(
-            "{head}{listed}{exhibits}SCHEDULE II VALUATION AND QUALIFYING ACCOUNTS\nYears ended\n{body}\nSIGNATURES\n"
+            "{head}{listed}{exhibits}(c) Financial Statement Schedules\nEXAMPLE CORPORATION\n{schedule}{signed}"
         );
-        assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, text.find("SCHEDULE II VALUATION").unwrap());
+        assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, text.find("EXAMPLE CORPORATION\nSCHEDULE").unwrap());
+        // A report or an opinion on the schedule under a heading that does
+        // not name the auditors opens it too; a sentence does not.
+        for (top, cut) in [
+            (
+                "ACCOUNTANTS' OPINION ON SCHEDULE\nWe have audited the schedule.\nArthur Andersen & Co.\n",
+                "ACCOUNTANTS' OPINION",
+            ),
+            ("Report on Financial Statement Schedules\nTo the Board of Directors\n", "Report on Financial"),
+            ("Report on the Financial Statement Schedule\nTo the Board of Directors\n", "Report on the Financial"),
+            ("Our report on the schedule\nfollows.\n", "SCHEDULE II\nVAL"),
+            ("Our Report on the Schedule Follows\n", "SCHEDULE II\nVAL"),
+            ("Consent and Report on Schedule\n", "SCHEDULE II\nVAL"),
+        ] {
+            let (text, at) = end(top, &schedule, bare);
+            assert_eq!(at, text.find(cut).unwrap(), "{top}");
+        }
+        // A heading that prints its title in capitals with no dash, or
+        // after a period, a dash or a colon.
+        for heading in [
+            "SCHEDULE II VALUATION AND QUALIFYING ACCOUNTS",
+            "Schedule II. Valuation and qualifying accounts",
+            "Schedule II - Valuation and Qualifying Accounts",
+            "Schedule II: Valuation and Qualifying Accounts",
+            "SCHEDULE II: 2002 RESERVES",
+            "SCHEDULE II TOTAL RESERVES",
+        ] {
+            let text = format!("{head}{listed}{exhibits}{heading}\nYears ended\n{body}\nSIGNATURES\n");
+            assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, text.rfind(heading).unwrap(), "{heading}");
+        }
+        // Such a title is a heading also over a line in lowercase, which a
+        // line without one wraps onto; so is a line without one over the
+        // schedule's period.
+        for (heading, below, title) in [
+            ("SCHEDULE II - VALUATION AND QUALIFYING ACCOUNTS", "thereto, and the notes", true),
+            ("Schedule II - Consolidated Valuation and Qualifying Accounts", "thereto, and the notes", true),
+            ("SCHEDULE II", "for the years ended December 31, 2002", true),
+            ("SCHEDULE II", "for the three years ended December 31, 2002", true),
+            ("SCHEDULE II", "as of December 31, 2002", true),
+            ("SCHEDULE II", "thereto, filed as Exhibit 10.1 to the Form 10-Q", false),
+            (
+                "Schedule II - See page 55 of the annual report, which is",
+                "for the years ended December 31, 2002",
+                false,
+            ),
+        ] {
+            let text = format!("{head}{listed}{exhibits}{heading}\n{below}\n{body}\nSIGNATURES\n");
+            let at = if title { text.rfind(heading) } else { text.find("SIGNATURES") };
+            assert_eq!(extract_sections(&text, FormKind::TenK)[1].end, at.unwrap(), "{heading} / {below}");
+        }
+        // After the separator, a standard schedule's title in lowercase.
+        for heading in [
+            "Schedule II - valuation and qualifying accounts",
+            "Schedule II: valuation and  qualifying accounts",
+            "Schedule I - condensed financial information of registrant",
+            "Schedule III - real estate and accumulated depreciation",
+            "Schedule IV - mortgage loans on real estate",
+            "Schedule I - summary of investments",
+            "Schedule III - supplementary insurance information",
+            "Schedule IV - reinsurance",
+            "Schedule VI - supplemental information concerning property-casualty insurance operations",
+        ] {
+            assert!(schedule_heading(heading).is_some(), "{heading}");
+        }
+        assert_eq!(schedule_heading("Schedule II - valuations are on page 55"), None);
+        // In capitals, a word after the number that refers to the schedule
+        // rather than titles it.
+        for word in [
+            "THERETO", "HERETO", "TO", "OF", "IS", "ARE", "WAS", "WERE", "HAS", "HAVE", "ATTACHED", "FILED",
+            "INCLUDED", "ANNEXED",
+        ] {
+            assert_eq!(schedule_heading(&format!("SCHEDULE II {word} THE LOAN AGREEMENT")), None, "{word}");
+        }
+        assert_eq!(schedule_heading("SCHEDULE II TOTAL LOANS OF THE BANK").as_deref(), Some("II"));
+        // "TO" and the statements that the schedule goes with title it.
+        for heading in [
+            "SCHEDULE II TO CONSOLIDATED FINANCIAL STATEMENTS",
+            "SCHEDULE II TO THE FINANCIAL STATEMENTS",
+            "SCHEDULE II TO THE CONSOLIDATED FINANCIAL STATEMENTS",
+        ] {
+            assert_eq!(schedule_heading(heading).as_deref(), Some("II"), "{heading}");
+        }
+        assert_eq!(
+            schedule_heading("SCHEDULE II TO THE FINANCIAL STATEMENTS OF THE LENDER, FILED AS EXHIBIT 10.1"),
+            None
+        );
+        // An exhibit is named by its number or letter; the word alone is
+        // part of a title.
+        for (heading, title) in [
+            ("SCHEDULE II VALUATION OF EXHIBIT INVENTORY", true),
+            ("SCHEDULE II (EXHIBIT 10.1)", false),
+            ("SCHEDULE II, EXHIBIT A", false),
+            ("SCHEDULE II OF EXHIBITS", false),
+            ("SCHEDULE II LISTED IN EXHIBIT NO. 4", false),
+        ] {
+            assert_eq!(schedule_heading(heading).is_some(), title, "{heading}");
+        }
         // An entry of a list printed after the Item's own text is no heading.
         let entry = "Schedule II - Valuation and Qualifying Accounts\t55\n";
         let text = format!("{head}{listed}{exhibits}{entry}{schedule}SIGNATURES\n");
@@ -10261,6 +10531,18 @@ Pursuant to ...
             "Schedule II is included on page 55 of this report.\n",
             "Schedule II (continued)\n",
             "SCHEDULE II, CONTINUED\n",
+            // In capitals: the row above reads on into the line, the line
+            // refers to the schedule, or it names an exhibit.
+            "10.5\tLOAN AGREEMENT DATED JUNE 1, 2001 WITH FIRST BANK, TOGETHER WITH\n\
+             SCHEDULE II THERETO (FILED AS EXHIBIT 10.1 TO THE FORM 10-Q)\n10.6\tLEASE\n",
+            "10.5\tLOAN AGREEMENT\nSCHEDULE II THERETO\n10.6\tLEASE\n",
+            "10.5\tLOAN AGREEMENT\nSCHEDULE II (EXHIBIT 10.1 TO THE FORM 10-Q)\n10.6\tLEASE\n",
+            "10.5\tLOAN AGREEMENT AND\nSCHEDULE II\n10.6\tLEASE\n",
+            "10.5\tLOAN AGREEMENT, DATED JUNE 1, 2001,\nSCHEDULE II\n10.6\tLEASE\n",
+            // A sentence after the separator, or one that wraps on.
+            "Schedule II. is omitted because the information is in the notes.\n(See Item 8.)\n",
+            "Schedule II - see page 55 of the annual report.\n(See Item 8.)\n",
+            "Schedule II - See page 55 of the annual report to shareholders, which is incorporated\nherein by reference.\n",
         ] {
             let text = format!("{head}{listed}{exhibits}{row}{schedule}SIGNATURES\n");
             let s = extract_sections(&text, FormKind::TenK);
