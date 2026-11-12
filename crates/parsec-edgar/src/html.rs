@@ -677,6 +677,8 @@ static LABELED: LazyLock<Regex> = LazyLock::new(|| {
 /// row of `cell_rows` (byte ranges of `text`, see `Out::cell_rows`) are
 /// dropped together when the row is. A printed page ends at each of the
 /// sorted offsets `breaks`, and at the end of the text when there are any.
+/// A page number with a prefix that ends a page stays when it is the page of
+/// a contents entry (see `page_furniture`).
 fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>], breaks: &[usize]) -> Vec<&'a str> {
     debug_assert!(cell_lines.is_sorted(), "cell lines are recorded in text order");
     debug_assert!(cell_rows.is_sorted_by_key(|r| r.start), "cell rows are recorded in text order");
@@ -684,14 +686,44 @@ fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>
     let mut cell_lines = cell_lines.iter().copied().peekable();
     let mut lines = Vec::new();
     let mut is_cell = Vec::new();
+    // Whether no page ends between two offsets.
+    let same_page = |from: usize, to: usize| breaks.get(breaks.partition_point(|&b| b < from)).is_none_or(|&b| b > to);
+    // For each kept line, the bare page number dropped just before it on
+    // its page (see `AfterNumber`).
+    let mut after_number = Vec::new();
+    // The bare page number dropped since the last kept line, with where it
+    // ends and whether that line is on its page; and the last bare page
+    // number that ended a page.
+    let mut number: Option<(Option<u32>, usize, bool)> = None;
+    let mut page: Option<u32> = None;
+    let mut kept_end: Option<usize> = None;
     for line in text.lines() {
         let start = line.as_ptr() as usize - text.as_ptr() as usize;
         while cell_lines.next_if(|&p| p < start).is_some() {}
         let cell = cell_lines.next_if_eq(&start).is_some();
+        let end = start + line.len();
         let line = line.trim();
-        if line.is_empty() || line.eq_ignore_ascii_case("table of contents") || (!cell && PAGE_NUMBER.is_match(line)) {
+        if line.is_empty() || line.eq_ignore_ascii_case("table of contents") {
             continue;
         }
+        let ended = |number: Option<(Option<u32>, usize, bool)>, page: &mut Option<u32>| match number {
+            Some((value, number_end, joined)) if same_page(number_end, start) => {
+                Some(AfterNumber { value, page: *page, joined })
+            }
+            Some((value, _, _)) => {
+                *page = value;
+                None
+            }
+            None => None,
+        };
+        if !cell && let Some(c) = PAGE_NUMBER.captures(line) {
+            ended(number.take(), &mut page);
+            let value = c.get(1).or(c.get(4)).and_then(|m| m.as_str().parse().ok());
+            number = Some((value, end, kept_end.is_some_and(|k| same_page(k, start))));
+            continue;
+        }
+        after_number.push(ended(number.take(), &mut page));
+        kept_end = Some(end);
         lines.push(line);
         is_cell.push(cell);
     }
@@ -711,8 +743,20 @@ fn kept_lines<'a>(text: &'a str, cell_lines: &[usize], cell_rows: &[Range<usize>
             breaks.get(after).is_some_and(|&b| b <= next) || (i + 1 == lines.len() && !breaks.is_empty())
         })
         .collect();
-    let furniture = page_furniture(&lines, &is_cell, &rows, &ends_page);
+    let furniture = page_furniture(&lines, &is_cell, &rows, &ends_page, &after_number);
     lines.into_iter().enumerate().filter(|(i, _)| !furniture.contains(i)).map(|(_, l)| l).collect()
+}
+
+/// A bare page number dropped just before a kept line, on that line's page.
+#[derive(Clone, Copy)]
+struct AfterNumber {
+    /// The number, when it is one in digits ("45", "- 45 -", "Page 45").
+    value: Option<u32>,
+    /// The number of the page before, the last bare number before it that
+    /// ended a page, when that number is in digits.
+    page: Option<u32>,
+    /// Whether the kept line before the number is on its page.
+    joined: bool,
 }
 
 /// Each line followed by a newline.
@@ -830,7 +874,19 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
 /// wrapped onto its own line ("... begins on page" over "E-1."), or the
 /// rest of a line that ends with a colon or with a word that such a name
 /// follows: Form, Exhibit, Annex, Appendix or page ("... Registration
-/// Statement on Form" over "S-1", "... rated by S&P:" over "A-1").
+/// Statement on Form" over "S-1", "... rated by S&P:" over "A-1"). So does
+/// the page of the last entry of a contents page laid out one cell per line
+/// ("Signatures" over "S-1", `after_number`): the line above it names the
+/// entry, the bare page number above that is the page of the entry before,
+/// and the line above that number names that entry, all on one page, the
+/// two names no end of a sentence. The name of the entry
+/// has a word that starts with the first letter of the prefix, as the name
+/// of what those pages hold does ("Signatures", "Exhibit Index"), and the
+/// page number points ahead: it is higher than the number of the page before,
+/// which the numbers of an exhibit list printed over the exhibits'
+/// descriptions ("23" over "Consent of Ernst & Young LLP") at the end of a
+/// report are not. Such a page counts among the copies numbered 1, 2, 3, or
+/// the copies count so without it; either way it stays.
 ///
 /// A running header or footer that goes also takes the lines with its text
 /// and a page number with a prefix in place of its page number, as on the
@@ -848,7 +904,13 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
 /// repeat as the text of a line does, as in a footer with the company name
 /// over the report name and the page number in the next cell. Its copies
 /// must also mostly not be next to each other, as the rows of a table are.
-fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>], ends_page: &[bool]) -> HashSet<usize> {
+fn page_furniture(
+    lines: &[&str],
+    is_cell: &[bool],
+    rows: &[Range<usize>],
+    ends_page: &[bool],
+    after_number: &[Option<AfterNumber>],
+) -> HashSet<usize> {
     const MIN_REPEATS: usize = 5;
     const MIN_LETTERS: usize = 10;
     const MAX_LEN: usize = 120;
@@ -867,6 +929,18 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>], ends_
             let last = above.rsplit(|c: char| !c.is_alphanumeric()).next().unwrap_or("");
             above.ends_with(':')
                 || ["form", "exhibit", "annex", "appendix", "page"].iter().any(|w| last.eq_ignore_ascii_case(w))
+        })
+    };
+    // Whether a line is the page of a contents entry named on the line above.
+    let refers = |i: usize, prefix: &str| {
+        let initial =
+            |w: &str| w.chars().next().zip(prefix.chars().next()).is_some_and(|(a, b)| a.eq_ignore_ascii_case(&b));
+        i.checked_sub(2).is_some_and(|before| {
+            let name = i - 1;
+            after_number[name].is_some_and(|n| n.joined && n.value.zip(n.page).is_none_or(|(value, page)| value > page))
+                && !lines[name].ends_with('.')
+                && !lines[before].ends_with('.')
+                && lines[name].split(|c: char| !c.is_alphanumeric()).any(initial)
         })
     };
 
@@ -889,8 +963,11 @@ fn page_furniture(lines: &[&str], is_cell: &[bool], rows: &[Range<usize>], ends_
         let n = seen.len();
         if place == Place::Label && !before.is_empty() {
             let ending = seen.iter().filter(|&&(i, _)| ends_page[i] && !lines[i].ends_with('.') && !goes_on(i));
-            if ending.clone().zip(1..).all(|((_, p), k)| p.number == k) {
-                drop.extend(ending.map(|&(i, _)| i));
+            let labels = ending.clone().filter(|&&(i, _)| !refers(i, before));
+            if ending.clone().zip(1..).all(|((_, p), k)| p.number == k)
+                || labels.clone().zip(1..).all(|((_, p), k)| p.number == k)
+            {
+                drop.extend(labels.map(|&(i, _)| i));
             }
         }
         if n < MIN_REPEATS {
@@ -1459,6 +1536,148 @@ mod tests {
             let all: String = Html::parse_fragment(&html).root_element().text().map(|t| format!("{t}\n")).collect();
             assert_eq!(tables_of(&html).0, all, "{html}");
         }
+    }
+
+    /// A contents page laid out one cell per line ends with the page of its
+    /// last entry, "S-1" under "Signatures". The entry above has its page on
+    /// the line after its name too, so the line is a reference and stays,
+    /// while the labels at the foot of the signature pages go.
+    #[test]
+    fn page_references_of_contents_entries_that_end_a_page_stay() {
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        let contents = "<p>Item 14. Principal Accountant Fees and Services</p><p>44</p>\
+                        <p>Item 15. Exhibits and Financial Statement Schedules</p><p>45</p><p>Signatures</p><p>S-1</p>";
+        let kept = "Item 14. Principal Accountant Fees and Services\n\
+                    Item 15. Exhibits and Financial Statement Schedules\nSignatures\nS-1\n";
+        // The only line of its kind, as when the signature page prints no label.
+        let html = format!("{contents}{page_break}<p>Text.</p>{page_break}<p>Signed by the registrant.</p>");
+        assert_eq!(tables_of(&html).0, format!("{kept}Text.\nSigned by the registrant.\n"));
+        // With labels on two signature pages and on the exhibit index.
+        let html = format!(
+            "{contents}{page_break}<p>Text.</p>{page_break}<p>Signed by the registrant.</p><p>S-1</p>{page_break}\
+             <p>Signed by the directors.</p><p>S-2</p>{page_break}<p>Exhibit index.</p><p>E-1</p>"
+        );
+        assert_eq!(
+            tables_of(&html).0,
+            format!("{kept}Text.\nSigned by the registrant.\nSigned by the directors.\nExhibit index.\n")
+        );
+        // A "Table of Contents" link between the page above and the entry.
+        let html = format!(
+            "<p>Exhibit Index</p><p>45</p><p><a href=\"#toc\">Table of Contents</a></p><p>Signatures</p><p>S-1</p>\
+             {page_break}<p>Text.</p>"
+        );
+        assert_eq!(tables_of(&html).0, "Exhibit Index\nSignatures\nS-1\nText.\n");
+        // Other prefixes, and an entry that names its pages after other words.
+        for (entry, page) in
+            [("Exhibit Index", "E-1"), ("Index to Exhibits", "E - 1"), ("Financial Statement Schedules", "FS-1")]
+        {
+            let html = format!("<p>Signatures</p><p>45</p><p>{entry}</p><p>{page}</p>{page_break}<p>Text.</p>");
+            assert_eq!(tables_of(&html).0, format!("Signatures\n{entry}\n{page}\nText.\n"));
+        }
+        // A text filing.
+        let raw = "<DOCUMENT>\n<TEXT>\nItem 14. Exhibits\n     45\nSignatures\n     S-1\n<PAGE>\nText.\n<PAGE>\n\
+                   Signed by the registrant.\n     S-1\n</TEXT>";
+        assert_eq!(document_to_text(raw), "Item 14. Exhibits\nSignatures\nS-1\nText.\nSigned by the registrant.\n");
+    }
+
+    /// A label at the foot of a page still goes when the line above it does
+    /// not follow a page number printed on the same page: when that number
+    /// ends the page before, is a cell of a table, comes above another line,
+    /// or when the line above the label ends a sentence or has no word that
+    /// the prefix abbreviates, as an exhibit's description below its number.
+    #[test]
+    fn page_labels_below_lines_that_are_no_contents_entries_dropped() {
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        for (page, kept) in [
+            (format!("<p>Text.</p><p>44</p>{page_break}<p>Signatures</p><p>S-1</p>"), "Text.\nSignatures\n"),
+            (
+                format!(
+                    "<p>Text.</p>{page_break}<table><tr><td>Total</td><td>45</td></tr></table><p>Schedule II</p><p>S-1</p>"
+                ),
+                "Text.\nTotal\t45\nSchedule II\n",
+            ),
+            (
+                format!("<p>Text.</p>{page_break}<p>Exhibits</p><p>45</p><p>Signatures</p><p>John Smith</p><p>S-1</p>"),
+                "Text.\nExhibits\nSignatures\nJohn Smith\n",
+            ),
+            (
+                format!(
+                    "<p>Text.</p>{page_break}<p>Note</p><p>12</p><p>The directors signed this report.</p><p>S-1</p>"
+                ),
+                "Text.\nNote\nThe directors signed this report.\n",
+            ),
+            (
+                format!(
+                    "<p>Text.</p>{page_break}<p>24</p><p>Power of attorney</p><p>32</p><p>Certification</p><p>E-1</p>"
+                ),
+                "Text.\nPower of attorney\nCertification\n",
+            ),
+            // No line above the number, a sentence above it, or a page break
+            // between that line and the number.
+            (format!("<p>45</p><p>Signatures</p><p>S-1</p>{page_break}<p>Text.</p>"), "Signatures\nText.\n"),
+            // The number of the entry above is the number of the page before.
+            (
+                format!("<p>Text.</p><p>45</p>{page_break}<p>Exhibits</p><p>45</p><p>Signatures</p><p>S-1</p>"),
+                "Text.\nExhibits\nSignatures\n",
+            ),
+            (
+                format!("<p>The report ends here.</p><p>45</p><p>Signatures</p><p>S-1</p>{page_break}<p>Text.</p>"),
+                "The report ends here.\nSignatures\nText.\n",
+            ),
+            (
+                format!(
+                    "<p>Item 14. Exhibits</p>{page_break}<p>45</p><p>Signatures</p><p>S-1</p>{page_break}<p>Text.</p>"
+                ),
+                "Item 14. Exhibits\nSignatures\nText.\n",
+            ),
+        ] {
+            assert_eq!(tables_of(&page).0, kept, "{page}");
+        }
+    }
+
+    /// An exhibit list at the end of a report prints each exhibit's number
+    /// over its description, and its pages end with labels E-1, E-2, E-3.
+    /// The number above the first page's last description ("23" over
+    /// "Consent of Ernst & Young LLP") is lower than the number of the page
+    /// before, so it is no page of a contents entry, and every label goes.
+    #[test]
+    fn exhibit_numbers_over_descriptions_are_no_contents_pages() {
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        let html = format!(
+            "<p>Text.</p><p>45</p>{page_break}<p>EXHIBIT INDEX</p><p>21</p><p>Subsidiaries of the Registrant</p>\
+             <p>23</p><p>Consent of Ernst &amp; Young LLP</p><p>E-1</p>{page_break}<p>31</p>\
+             <p>Certification of the Chief Executive Officer</p><p>E-2</p>{page_break}<p>32</p>\
+             <p>Section 1350 Certifications</p><p>E-3</p>{page_break}<p>End.</p>"
+        );
+        assert_eq!(
+            tables_of(&html).0,
+            "Text.\nEXHIBIT INDEX\nSubsidiaries of the Registrant\nConsent of Ernst & Young LLP\n\
+             Certification of the Chief Executive Officer\nSection 1350 Certifications\nEnd.\n"
+        );
+        // Pages that point ahead stay a contents page's.
+        let html = format!(
+            "<p>Cover.</p><p>1</p>{page_break}<p>Exhibits</p><p>45</p><p>Signatures</p><p>S-1</p>{page_break}<p>Text.</p>"
+        );
+        assert_eq!(tables_of(&html).0, "Cover.\nExhibits\nSignatures\nS-1\nText.\n");
+    }
+
+    /// The signature pages are labeled from S-2 on, the first one unlabeled.
+    /// With the contents entry's page they count 1, 2, 3: the labels go and
+    /// the contents entry's page stays.
+    #[test]
+    fn page_labels_that_go_on_from_a_contents_page_dropped() {
+        let page_break = "<div style=\"page-break-after: always\"></div>";
+        let html = format!(
+            "<p>Item 14. Principal Accountant Fees and Services</p><p>44</p>\
+             <p>Item 15. Exhibits and Financial Statement Schedules</p><p>45</p><p>Signatures</p><p>S-1</p>{page_break}\
+             <p>Text.</p>{page_break}<p>Signed by the registrant.</p>{page_break}<p>Signed by the directors.</p>\
+             <p>S-2</p>{page_break}<p>Signed by more directors.</p><p>S-3</p>{page_break}<p>End.</p>"
+        );
+        assert_eq!(
+            tables_of(&html).0,
+            "Item 14. Principal Accountant Fees and Services\nItem 15. Exhibits and Financial Statement Schedules\n\
+             Signatures\nS-1\nText.\nSigned by the registrant.\nSigned by the directors.\nSigned by more directors.\nEnd.\n"
+        );
     }
 
     /// Old text filings that number their page tags, as in "<Page 2>".
