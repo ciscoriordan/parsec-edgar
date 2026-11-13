@@ -1251,12 +1251,12 @@ static LEGEND: LazyLock<Regex> = LazyLock::new(|| {
 static NAME_NOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^(?:\(a\b.*\)|\[formerly\b.*\])$").unwrap());
 
 /// The end of a name with its legal form: "Inc.", "Corp.", "Corporation",
-/// "& Co.", "L.P.", "LLC", "Ltd.", "plc", "N.A.", "Bancorp", or "and
+/// "& Co.", "L.P.", "LP", "LLC", "Ltd.", "plc", "N.A.", "Bancorp", or "and
 /// Subsidiaries", "& Subsidiary", "and its wholly-owned subsidiary", "and
 /// subsidiary companies".
 static LEGAL_FORM: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
-        r"(?i)(?:\b(?:inc|incorporated|corp|corporation|co|l\.\s?p|llc|ltd|limited|plc|n\.\s?a|s\.\s?a",
+        r"(?i)(?:\b(?:inc|incorporated|corp|corporation|co|l\.\s?p|lp|llc|ltd|limited|plc|n\.\s?a|s\.\s?a",
         r"|bancorp|bancorporation|bancshares|bankshares)\b\.?",
         r"|(?:\band|&)\s+(?:its\s+)?(?:wholly[- ]owned\s+)?subsidiar(?:y|ies)\b(?:\s+companies\b)?)[,)\]]*$",
     ))
@@ -2935,6 +2935,7 @@ mod tests {
             "Acme & Co.",
             "J.P. Morgan Chase & Co.",
             "Acme Energy Partners, L.P.",
+            "Acme Operating Partnership LP",
             "Acme Ltd.",
             "Acme Limited",
             "Acme PLC",
