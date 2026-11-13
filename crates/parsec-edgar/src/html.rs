@@ -3,7 +3,8 @@
 //! One line per block (paragraph, heading, list item, table row). Table cells
 //! are joined with tabs, with `$` and `)`/`%` cells merged into their numbers.
 //! Text inside `<pre>` keeps its own lines and the spaces inside them, as a
-//! plain-text document does.
+//! plain-text document does. Text styled `text-transform: uppercase` is in
+//! capitals, as a browser shows it.
 //! Hidden inline-XBRL headers, scripts, styles, page numbers, running page
 //! headers and footers, and repeated "Table of Contents" links are dropped.
 //!
@@ -78,8 +79,9 @@ pub struct Table {
 
 /// Convert an HTML document to clean plain text.
 pub fn html_to_text(html: &str) -> String {
+    let cases = may_set_case(html);
     let doc = Html::parse_document(html);
-    let mut out = Out::default();
+    let mut out = Out { cases, ..Out::default() };
     render(doc.tree.root(), &mut out);
     out.typed_page_numbers();
     join_lines(&kept_lines(
@@ -104,8 +106,9 @@ pub fn html_to_text(html: &str) -> String {
 /// deep are printed as plain blocks and not returned. Tables are ordered by
 /// `start`.
 pub fn html_to_text_and_tables(html: &str) -> (String, Vec<Table>) {
+    let cases = may_set_case(html);
     let doc = Html::parse_document(html);
-    let mut out = Out { rows: Some(Vec::new()), ..Out::default() };
+    let mut out = Out { rows: Some(Vec::new()), cases, ..Out::default() };
     render(doc.tree.root(), &mut out);
     out.typed_page_numbers();
     let lines = kept_lines(
@@ -227,6 +230,11 @@ struct Out {
     /// which no page ends, outside table cells, in order: a page number or
     /// table data (see `Out::typed_page_numbers`).
     typed_numbers: Vec<usize>,
+    /// The styles of the document are read for the case of its text (see
+    /// `may_set_case`).
+    cases: bool,
+    /// The text is styled to be shown in capitals (see `uppercase`).
+    upper: bool,
 }
 
 /// Where one table row was rendered in `Out::buf`.
@@ -245,6 +253,7 @@ struct RowRecord {
 
 impl Out {
     fn text(&mut self, s: &str) {
+        let from = self.buf.len();
         for c in s.chars() {
             match c {
                 '\u{200b}' | '\u{ad}' | '\u{feff}' => {}
@@ -259,6 +268,17 @@ impl Out {
                 }
             }
         }
+        self.in_case(from);
+    }
+
+    /// Put the text from `from` to the end of `buf` in capitals when it is
+    /// styled so.
+    fn in_case(&mut self, from: usize) {
+        if self.upper {
+            let upper = self.buf[from..].to_uppercase();
+            self.buf.truncate(from);
+            self.buf.push_str(&upper);
+        }
     }
 
     /// Typewriter text, the text inside `<pre>`: a line break ends the line,
@@ -266,6 +286,7 @@ impl Out {
     /// filing. The spaces at the start of a line are left out, as the lines
     /// are trimmed later anyway.
     fn typed(&mut self, s: &str) {
+        let from = self.buf.len();
         for c in s.chars() {
             match c {
                 '\u{200b}' | '\u{ad}' | '\u{feff}' => {}
@@ -279,6 +300,7 @@ impl Out {
                 }
             }
         }
+        self.in_case(from);
     }
 
     /// The lines of a `<pre>` element in which no page ends, whose text
@@ -428,6 +450,111 @@ fn page_breaks(el: &Element) -> (bool, bool) {
     (before, after)
 }
 
+/// Whether a document may style its text in capitals: whether it has the
+/// word "uppercase", in any case, or a numeric character reference to one
+/// of its letters, with which a style can spell the word too. Only then
+/// are the styles of its elements read for case (see `uppercase`), which
+/// most documents are spared. The letters "x" and "o" that filings write
+/// as references for the boxes of their cover pages open no document. It
+/// runs before the document is parsed: after, the scan took more than twice
+/// as long.
+fn may_set_case(html: &str) -> bool {
+    static UPPERCASE: LazyLock<Regex> = LazyLock::new(|| Regex::new("(?i)uppercase").unwrap());
+    static LETTER: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(concat!(
+            r"&#0*(?:65|67|69|80|82|83|85|97|99|101|112|114|115|117)(?:\D|$)",
+            r"|&#[xX]0*(?:4[135]|5[0235]|6[135]|7[0235])(?:[^0-9a-fA-F]|$)",
+        ))
+        .unwrap()
+    });
+    UPPERCASE.is_match(html) || LETTER.is_match(html)
+}
+
+/// Whether an element's style sets the text inside it in capitals,
+/// `text-transform: uppercase`, as a browser shows it, or in the case it is
+/// typed in: `none` or `initial`, `full-width`, `full-size-kana` or
+/// `math-auto` alone, and `lowercase` and `capitalize` too, which are not
+/// applied, as their words are the same words in either case. None when the
+/// style sets neither, or sets `inherit`, `unset` or `revert`, and the
+/// element's text takes its parent's case. As in a browser, the name of the
+/// property is read in any case, comments are left out, a value that is not
+/// valid is ignored, and of the valid declarations the last one marked
+/// `!important` counts, or without any the last one. Only `style`
+/// attributes are read: the filings seen set the property there, never in
+/// a style sheet. CSS escapes are not read.
+fn uppercase(el: &Element) -> Option<bool> {
+    let style = el.attr("style")?;
+    // A quick test that most styles fail.
+    if !style.as_bytes().windows(9).any(|w| w.eq_ignore_ascii_case(b"transform")) {
+        return None;
+    }
+    let uncommented;
+    let style = if style.contains("/*") {
+        uncommented = without_comments(style);
+        &uncommented
+    } else {
+        style
+    };
+    let (mut last, mut important) = (None, None);
+    for declaration in style.split(';') {
+        let Some((name, value)) = declaration.split_once(':') else { continue };
+        if !name.trim().eq_ignore_ascii_case("text-transform") {
+            continue;
+        }
+        let (value, counts) = match value.split_once('!') {
+            None => (value, &mut last),
+            Some((value, flag)) if flag.trim().eq_ignore_ascii_case("important") => (value, &mut important),
+            Some(_) => continue,
+        };
+        if let Some(case) = text_case(value) {
+            *counts = Some(case);
+        }
+    }
+    important.or(last).flatten()
+}
+
+/// The case a valid value of `text-transform` sets, as `uppercase` gives
+/// it, or None for one that is not valid: a keyword of case, `full-width`
+/// and `full-size-kana`, each at most once and in any order, or one of the
+/// keywords that stand alone.
+fn text_case(value: &str) -> Option<Option<bool>> {
+    let is = |word: &str, keywords: &[&str]| keywords.iter().any(|k| word.eq_ignore_ascii_case(k));
+    let mut words = value.split_ascii_whitespace().peekable();
+    let first = words.next()?;
+    if words.peek().is_none() {
+        if is(first, &["inherit", "unset", "revert", "revert-layer"]) {
+            return Some(None);
+        }
+        if is(first, &["none", "initial", "math-auto"]) {
+            return Some(Some(false));
+        }
+    }
+    // How many keywords of case, of full width and of full-size kana.
+    let (mut counts, mut upper) = ([0; 3], false);
+    for word in std::iter::once(first).chain(words) {
+        let kind = [&["uppercase", "lowercase", "capitalize"][..], &["full-width"], &["full-size-kana"]]
+            .iter()
+            .position(|keywords| is(word, keywords))?;
+        counts[kind] += 1;
+        upper |= word.eq_ignore_ascii_case("uppercase");
+    }
+    counts.iter().all(|&n| n <= 1).then_some(Some(upper))
+}
+
+/// A style with each CSS comment in it a space.
+fn without_comments(style: &str) -> String {
+    let mut out = String::with_capacity(style.len());
+    let mut rest = style;
+    while let Some(start) = rest.find("/*") {
+        out.push_str(&rest[..start]);
+        out.push(' ');
+        let after = &rest[start + 2..];
+        rest = after.find("*/").map_or("", |end| &after[end + 2..]);
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Depth-first render with an explicit stack: some filings nest tags thousands
 /// deep, which would overflow the call stack with naive recursion.
 ///
@@ -453,6 +580,9 @@ fn render(root: NodeRef<Node>, out: &mut Out) {
         /// where its text starts in `buf` and how many `cell_lines` and
         /// `breaks` there were then.
         EndPre(Option<(usize, usize, usize)>),
+        /// The end of an element whose style sets the case of its text, with
+        /// the case of the text around it (see `Out::upper`).
+        Case(bool),
     }
     let mut stack = vec![Step::Enter(root)];
     while let Some(step) = stack.pop() {
@@ -474,6 +604,10 @@ fn render(root: NodeRef<Node>, out: &mut Out) {
                 }
                 continue;
             }
+            Step::Case(upper) => {
+                out.upper = upper;
+                continue;
+            }
             Step::Enter(node) => node,
         };
         match node.value() {
@@ -490,6 +624,13 @@ fn render(root: NodeRef<Node>, out: &mut Out) {
                 // Pushed before the element's own steps, so it is taken after them.
                 if after {
                     stack.push(Step::Break);
+                }
+                // Set here, as a row is rendered at once below.
+                if out.cases
+                    && let Some(upper) = uppercase(el)
+                {
+                    stack.push(Step::Case(out.upper));
+                    out.upper = upper;
                 }
                 match el.name() {
                     "br" => out.newline(),
@@ -560,7 +701,13 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
     let mut cells = Vec::new();
     for (child, el) in elements {
         let columns = columns.next().unwrap_or(0..0);
-        let mut cell = Out { depth: out.depth + 1, rows: out.rows.as_ref().map(|_| Vec::new()), ..Out::default() };
+        let mut cell = Out {
+            depth: out.depth + 1,
+            cases: out.cases,
+            upper: out.upper,
+            rows: out.rows.as_ref().map(|_| Vec::new()),
+            ..Out::default()
+        };
         render(child, &mut cell);
         let text = cell.buf.len() - cell.buf.trim_start().len()..cell.buf.trim_end().len();
         if !text.is_empty() {
@@ -4349,6 +4496,134 @@ mod tests {
             html_to_text("<pre>7\nText.</pre><pre>8\nText.</pre><pre>9\nText.</pre>"),
             "7\nText.\n8\nText.\n9\nText.\n"
         );
+    }
+
+    /// Text styled `text-transform: uppercase` is in capitals, as a browser
+    /// shows it, through the elements inside, and the text after it is not.
+    #[test]
+    fn uppercase_text() {
+        let html = "<p><b><font style=\"TEXT-TRANSFORM: uppercase; FONT-SIZE: 10pt\">ITEM 1a.&nbsp; risk \
+                    <i>factors</i></font></b> and more</p><p>Item 2.</p>";
+        assert_eq!(html_to_text(html), "ITEM 1A. RISK FACTORS and more\nItem 2.\n");
+        // Letters that are two in capitals, and text that is not letters.
+        assert_eq!(html_to_text("<p style=\"text-transform:uppercase\">Straße, 1st &amp; ½</p>"), "STRASSE, 1ST & ½\n");
+        // Inside `<pre>`.
+        assert_eq!(html_to_text("<pre style=\"text-transform: uppercase\">a  b\nc</pre><p>d</p>"), "A  B\nC\nd\n");
+    }
+
+    /// `text-transform: none` gives the text back the case it is written
+    /// in, and so do `lowercase` and `capitalize`; a value browsers do not
+    /// know changes nothing. The last declaration counts, and only a
+    /// property named `text-transform` is one.
+    #[test]
+    fn uppercase_set_and_unset() {
+        let html = "<div style=\"text-transform:uppercase\">Item 2. <span style=\"text-transform: none\">Properties\
+                    </span> and <span style=\"text-transform:lowercase\">Plants</span> of <span style=\"text-transform: \
+                    Capitalize\">the firm</span><span style=\"text-transform: default\">, here</span>.</div><p>Item 3.</p>";
+        assert_eq!(html_to_text(html), "ITEM 2. Properties AND Plants OF the firm, HERE.\nItem 3.\n");
+        let html = "<p style=\"text-transform: uppercase; text-transform: none\">a</p>\
+                    <p style=\"text-transform: none; Text-Transform : Uppercase !important\">b</p>\
+                    <p style=\"x-text-transform: uppercase; color: red\">e</p><p style=\"color: red\">d</p>";
+        assert_eq!(html_to_text(html), "a\nB\ne\nd\n");
+    }
+
+    /// The values of `text-transform` and how a style declares it, read as
+    /// browsers read them.
+    #[test]
+    fn uppercase_values() {
+        let case = |style: &str| html_to_text(&format!("<p style=\"{style}\">ab</p>")).trim_end().to_string();
+        let upper = [
+            // In any place in the style, and in any case.
+            "color: red; font-size: 10pt; text-transform: uppercase",
+            "Text-TransForm:UPPERCASE",
+            // A declaration marked important wins over the others, and one
+            // that is not valid is ignored.
+            "text-transform: uppercase !important; text-transform: none",
+            "text-transform: uppercase; text-transform: none !bogus",
+            "text-transform: uppercase; text-transform: lowercase uppercase",
+            "text-transform: uppercase; text-transform: 'none'",
+            "text-transform: uppercase; text-transform: ; text-transform",
+            "text-transform: uppercase; text-transform: none uppercase",
+            // With keywords of width.
+            "text-transform: full-width uppercase",
+            "text-transform: uppercase full-size-kana full-width",
+            // Comments are left out.
+            "text-transform: uppercase /* as typed; */",
+            "text-transform: /* a; b */ uppercase",
+            "text-transform: uppercase /* to the end",
+            // Spelled with character references, and in a document without
+            // the word.
+            "text-transform: &#117;ppercase",
+            "text-transform: &#X55;PPERCASE",
+        ];
+        for style in upper {
+            assert_eq!(case(style), "AB", "{style}");
+        }
+        let typed = [
+            "text-transform: none ! IMPORTANT; text-transform: uppercase",
+            "text-transform: lowercase uppercase",
+            "text-transform: uppercase full-width full-width",
+            "text-transform: 'uppercase'",
+            "/* text-transform: uppercase */ color: red",
+            "text-transform: upper/**/case",
+        ];
+        for style in typed {
+            assert_eq!(case(style), "ab", "{style}");
+        }
+        // A comment parts the words around it, also in a document that has
+        // the word.
+        let html = "<p style=\"text-transform: upper/**/case\">ab</p><p>uppercase</p>";
+        assert_eq!(html_to_text(html), "ab\nuppercase\n");
+        // Under a parent in capitals, these keep the case the text is typed
+        // in, and these take the parent's.
+        for value in ["none", "initial", "full-width", "math-auto", "lowercase", "capitalize"] {
+            let html = format!(
+                "<div style=\"text-transform: uppercase\">ab <span style=\"text-transform: {value}\">cd</span></div>"
+            );
+            assert_eq!(html_to_text(&html), "AB cd\n", "{value}");
+        }
+        for value in ["inherit", "unset", "revert", "revert-layer", "default", "'none'"] {
+            let html = format!(
+                "<div style=\"text-transform: uppercase\">ab <span style=\"text-transform: {value}\">cd</span></div>"
+            );
+            assert_eq!(html_to_text(&html), "AB CD\n", "{value}");
+        }
+    }
+
+    /// Only a document with the word "uppercase", in any case, or with a
+    /// numeric character reference to one of its letters has its styles
+    /// read for case.
+    #[test]
+    fn documents_that_may_set_case() {
+        let letters = "UPPERCASEuppercase";
+        for c in letters.chars() {
+            for html in [format!("&#{};", c as u32), format!("&#0{}", c as u32), format!("&#x{:x};", c as u32)] {
+                assert!(may_set_case(&html), "{html}");
+            }
+        }
+        assert!(may_set_case("UpperCase") && may_set_case("&#X53"));
+        for c in ('A'..='Z').chain('a'..='z').filter(|&c| !letters.contains(c)) {
+            for html in [format!("&#{};", c as u32), format!("&#x{:X};", c as u32)] {
+                assert!(!may_set_case(&html), "{html}");
+            }
+        }
+        for html in ["upper case", "&#160;&#8217;&#1170;&#x2019;&#x410;&#x7B;&#x650;", "&#u;"] {
+            assert!(!may_set_case(html), "{html}");
+        }
+    }
+
+    /// Table cells take the case of the table, the row or the cell they
+    /// are in: Biglari Holdings' 10-Q of 2018 styles its Item headings so in
+    /// the cells of a row.
+    #[test]
+    fn uppercase_in_table_cells() {
+        let html = "<table style=\"text-transform:uppercase\"><tr><td>Item 1.</td><td>Legal Proceedings</td></tr>\
+                    <tr style=\"text-transform:none\"><td>Item 2.</td><td style=\"text-transform:uppercase\">Risk</td>\
+                    </tr></table><table><tr style=\"text-transform:uppercase\"><td>Item 3.</td><td>Defaults<br>\
+                    upon</td></tr><tr><td>Item 4.</td><td>Mine</td></tr></table>";
+        let (text, tables) = tables_of(html);
+        assert_eq!(text, "ITEM 1.\tLEGAL PROCEEDINGS\nItem 2.\tRISK\nITEM 3.\nDEFAULTS\nUPON\nItem 4.\tMine\n");
+        assert_eq!(rows(&tables[0]), [["ITEM 1.", "LEGAL PROCEEDINGS"], ["Item 2.", "RISK"]]);
     }
 
     /// Text and tables of `html`, after checking that the text is what
