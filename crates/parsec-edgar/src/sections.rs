@@ -924,15 +924,18 @@ static PERIODIC_HEADING: LazyLock<Regex> = LazyLock::new(|| {
 static CURRENT_HEADING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[ \t]*(?i:item)[ \t]*(\d{1,2}\.\d{2})[ \t]*[.:\-–—]?[ \t]*([^\n]*)$").unwrap());
 
-/// "item" in any case. Every line that an Item heading pattern
-/// (`PERIODIC_HEADING`, `CURRENT_HEADING`, `ROMAN_HEADING`) matches holds it.
-static ITEM_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i:item)").unwrap());
+/// "item" in any case, or the word broken by a space (`BROKEN_ITEM`). Every
+/// line that an Item heading pattern (`PERIODIC_HEADING`, `CURRENT_HEADING`,
+/// `ROMAN_HEADING`) matches holds it.
+static ITEM_WORD: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(?i:item)|{}", BROKEN_ITEM.join("|"))).unwrap());
 
-/// The lines of `text` that hold "item" in any case, as the start and end
-/// (before the line break) of each, in order. A heading pattern starts with
-/// `^` and spaces, so a search for it in the whole text has no word to look
-/// for and tests every position of a long filing; a search for "item" finds
-/// the few lines worth testing much faster.
+/// The lines of `text` that hold "item" in any case, or the word broken by a
+/// space, as the start and end (before the line break) of each, in order. A
+/// heading pattern starts with `^` and spaces, so a search for it in the
+/// whole text has no word to look for and tests every position of a long
+/// filing; a search for "item" finds the few lines worth testing much
+/// faster.
 fn item_word_lines(text: &str) -> Vec<(usize, usize)> {
     let mut lines = Vec::new();
     let mut from = 0;
@@ -943,6 +946,33 @@ fn item_word_lines(text: &str) -> Vec<(usize, usize)> {
         from = end;
     }
     lines
+}
+
+/// The word "Item" broken by one space, in capitals or with a capital I:
+/// `I TEM`, `IT EM`, `I tem`.
+const BROKEN_ITEM: [&str; 6] = ["I TEM", "IT EM", "ITE M", "I tem", "It em", "Ite m"];
+
+/// `text` with the word "Item" or "Items" made whole where one space breaks
+/// it at the start of a line, before an Item number: `I TEM 3. LEGAL
+/// PROCEEDINGS`, `IT EMS 10-14.`, `I tem 1.`, as a filing prints the word
+/// with a non-breaking space or a line break inside an anchor in it. The
+/// space moves to after the word (`ITEM  3.`), so every place in the text
+/// stays where it was. `lines` are the lines that hold the word
+/// (`item_word_lines`). `None` when no line starts with such a word.
+fn mend_broken_items(text: &str, lines: &[(usize, usize)]) -> Option<String> {
+    let mut mended: Option<String> = None;
+    for &(start, end) in lines {
+        let line = text[start..end].trim_start_matches([' ', '\t']);
+        let Some(broken) = BROKEN_ITEM.iter().find(|&&word| line.starts_with(word)) else { continue };
+        let rest = &line[broken.len()..];
+        let plural = usize::from(rest.starts_with(['S', 's']));
+        if rest[plural..].trim_start_matches([' ', '\t']).starts_with(|c: char| c.is_ascii_digit()) {
+            let at = end - line.len();
+            let word = broken.replace(' ', "") + &rest[..plural] + " ";
+            mended.get_or_insert_with(|| text.to_owned()).replace_range(at..at + word.len(), &word);
+        }
+    }
+    mended
 }
 
 /// Whether a line starts, after spaces and tabs, with "item" or "part" in
@@ -1511,9 +1541,18 @@ static ITEM_LIST: LazyLock<Regex> = LazyLock::new(|| {
 static ITEM_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d{1,2}[A-Ca-c]?").unwrap());
 
 /// After the first Item number of a heading, a dash and the last Item of a
-/// range: `-5.` in `Item 1-5.`, ` – 13.` in `ITEMS 10 – 13.`
-static ITEM_RANGE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[ \t]*\.?[ \t]*[-–—][ \t]*(\d{1,2}[A-Ca-c]?)(?:[ \t]*[.:])?").unwrap());
+/// range: `-5.` in `Item 1-5.`, ` – 13.` in `ITEMS 10 – 13.`; or two hyphens
+/// for the dash, and a dash before a space or the line's end after the
+/// range, as plain-text filings print them: ` -- 12 -- ` in `ITEMS 9 -- 12
+/// --  DOCUMENTS INCORPORATED BY REFERENCE`, `-12 -- ` in `ITEMS 9-12 --
+/// DOCUMENTS ...`. A dash right before a letter stays in the title, so
+/// `Item 1 - 10-K SUMMARY` names no range.
+static ITEM_RANGE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^[ \t]*\.?[ \t]*(?:-{1,2}|[–—])[ \t]*(\d{1,2}[A-Ca-c]?)(?:[ \t]*[.:]|[ \t]*(?:-{1,2}|[–—])(?:[ \t]|$))?",
+    )
+    .unwrap()
+});
 
 /// After the Item number, a comma: `Item 8, Financial Statements`.
 static ITEM_COMMA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*\.?[ \t]*,").unwrap());
@@ -1621,6 +1660,48 @@ fn split_letter<'a>(label: &str, between: &str, tail: &'a str) -> (String, &'a s
         return (label.to_owned(), tail);
     };
     (format!("{label}{}", letter as char), title)
+}
+
+/// `ITEM 7.A QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK`,
+/// `Item 1.A — Risk Factors`, `ITEM 7. A - QUANTITATIVE ...`: a capital letter
+/// after a period behind the Item number, which `split_letter` did not join
+/// to it, belongs to the number when the form defines that lettered Item
+/// and the rest of the line, past spaces, separators and dashes, or else
+/// the next line (`ITEM 1.A` above `RISK FACTORS`), starts with the Item's
+/// standard title (no lettered Item has had another). With another title
+/// (`ITEM 1. A GENERAL`), or with spaces alone before the letter (`Item 9 A
+/// Controls`), the letter starts the title. `between` is the text between
+/// the number and `tail`, and `end` the end of the line in `text`. A title
+/// on the line starts as the title after `7A.` must (`heading_tail_ok`):
+/// `Item 7.A quantitative and qualitative disclosures about market risk are
+/// discussed below` is a sentence, like the same line with `Item 7A.`
+/// Returns the lettered Item's number and title, which is empty when the
+/// title is on the next line.
+fn titled_letter<'a>(
+    label: &str,
+    between: &str,
+    tail: &'a str,
+    text: &str,
+    end: usize,
+    keys: &[Key],
+) -> Option<(String, &'a str)> {
+    let letter = tail.bytes().next().filter(u8::is_ascii_uppercase)?;
+    // A lowercase letter after it makes it the first letter of a word
+    // ("Item 1. Business", "ITEM 9. Bother information"). The test of the
+    // title below turns such a line down as well: its title starts in
+    // lowercase, which that test lets pass only as "and" or "through", and
+    // no lettered Item's title starts so. So this saves the search below
+    // and changes no result.
+    if between.trim() != "." || tail.as_bytes().get(1).is_some_and(u8::is_ascii_lowercase) {
+        return None;
+    }
+    let key = keys.iter().find(|k| k.item.strip_prefix(label).is_some_and(|l| l.as_bytes() == [letter]))?;
+    let title = tail[1..].trim_start_matches([' ', '\t', '.', ':', '-', '–', '—']);
+    if !heading_tail_ok(title) {
+        return None;
+    }
+    let printed = title_key(if title.trim().is_empty() { next_line_title(text, end) } else { title });
+    same_title(&printed, &title_key(key.title)).then(|| (key.item.to_owned(), title))
 }
 
 /// `ITEM 4(a). EXECUTIVE OFFICERS OF THE REGISTRANT` in a 10-K or 10-KSB: the
@@ -1944,7 +2025,7 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)], unread: &Has
             if !tail_ok && (kind == FormKind::EightK || !tail.as_str().starts_with('(')) {
                 return None;
             }
-            if continues_sentence(text, m.start()) {
+            if continues_sentence(text, m.start()) && !ends_heading_stack(text, m.start(), &label, keys) {
                 return None;
             }
             let heading: String = m.as_str().trim().chars().take(300).collect();
@@ -1955,7 +2036,10 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)], unread: &Has
                 let (label, tail) = if kind == FormKind::EightK {
                     (label, tail.as_str())
                 } else {
-                    let (label, tail) = split_letter(&label, &text[number.end()..tail.start()], tail.as_str());
+                    let between = &text[number.end()..tail.start()];
+                    let (label, tail) = split_letter(&label, between, tail.as_str());
+                    let (label, tail) =
+                        titled_letter(&label, between, tail, text, m.end(), keys).unwrap_or((label, tail));
                     let lettered = lettered_sub_item(&label, tail, text, m.end(), keys);
                     if !tail_ok && lettered.is_none() {
                         return None;
@@ -2594,6 +2678,39 @@ fn continues_sentence(text: &str, line_start: usize) -> bool {
     let last = line.trim_end().rsplit([' ', '\t']).next().unwrap_or("");
     let word = last.trim_start_matches(['(', '"', '“']);
     last.ends_with(',') || [JOINING_WORDS, OPEN_WORDS, CAPTION_WORDS].iter().any(|words| words.contains(&word))
+}
+
+/// Whether the Item heading of `label` on the line that starts at
+/// `line_start` is the last of a stack of headings printed as a list
+/// ("Item 1. Business;", "Item 2. Properties; and", then "Item 3. Legal
+/// Proceedings"), so that it stands although the line above it ends with
+/// "and" (`continues_sentence`). The line above ends with "; and" and is,
+/// before that, a whole heading (`PERIODIC_HEADING`) of the Item that comes
+/// right before this one in the same Part of the form (`keys`), with one of
+/// that Item's titles. A list of citations names Items out of that order, or
+/// ends its last entry with a period ("See also:", "Item 1A. Risk Factors;
+/// and", then "Item 7A. Quantitative and Qualitative Disclosures About
+/// Market Risk."), which the last heading of a stack does not.
+fn ends_heading_stack(text: &str, line_start: usize, label: &str, keys: &[Key]) -> bool {
+    let Some(above) = text[..line_start].strip_suffix('\n') else {
+        return false;
+    };
+    let above = above[above.rfind('\n').map_or(0, |i| i + 1)..].trim_end();
+    let Some((entry, "and")) = above.rsplit_once([' ', '\t']) else {
+        return false;
+    };
+    let Some(c) = entry.trim_end().strip_suffix(';').and_then(|heading| PERIODIC_HEADING.captures(heading)) else {
+        return false;
+    };
+    let (before, title) = (c[1].to_ascii_uppercase(), title_key(&c[2]));
+    let line_end = text[line_start..].find('\n').map_or(text.len(), |i| line_start + i);
+    !text[line_start..line_end].trim_end().ends_with('.')
+        && keys.windows(2).any(|pair| {
+            pair[0].item == before
+                && pair[1].item == label
+                && pair[0].part == pair[1].part
+                && pair[0].titles().any(|t| same_title(&title, &title_key(t)))
+        })
 }
 
 /// After an Item's title, a phrase that names the report or another document,
@@ -5211,10 +5328,12 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
 
 /// `ITEM I.  BUSINESS`, `ITEM IV. CONTROLS AND PROCEDURES`: an Item heading
 /// whose number is written in roman numerals, as some filings print one
-/// heading, with the letter I for the number 1.
+/// heading, with the letter I for the number 1; also with the letter of a
+/// lettered Item after it (`ITEM IA: RISK FACTORS`), or with the letter A
+/// alone, the number of Item 1A left out (`Item A. Risk Factors`).
 static ROMAN_HEADING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[\-–—]+)?[ \t]*)?(?i:item)[ \t]+([IVX]{1,5})(?-u:\b)[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
+        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[\-–—]+)?[ \t]*)?(?i:item)[ \t]+([IVX]{1,5}[A-C]?|A)(?-u:\b)[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
     )
     .unwrap()
 });
@@ -5252,9 +5371,13 @@ fn added_candidate(text: &str, pos: usize, label: &str, printed: &str) -> Candid
 }
 
 /// Items whose heading writes the number in roman numerals ("ITEM I.
-/// BUSINESS"), which the heading pattern does not read. Such a heading, with
-/// a title that starts like one of the standard titles, current or former,
-/// of the Item with that number, starts the Item when it sits where the Item
+/// BUSINESS"), also with the letter of a lettered Item after it ("ITEM IA:
+/// RISK FACTORS"), or prints the letter A alone for Item 1A ("Item A. Risk
+/// Factors"), which the heading pattern does not read. Such a heading,
+/// with a title that starts like one of the standard titles, current or
+/// former, of the Item with that number, also after "Description of" as the
+/// 10-KSB titles its Items 1 and 2 ("ITEM I: DESCRIPTION OF BUSINESS" in a
+/// 10-K), starts the Item when it sits where the Item
 /// belongs, before the signatures: after the Items found before it, which
 /// come earlier in the form's order, and before those found after it, which
 /// come later, so never when the Item was found. The title picks the Item
@@ -5282,15 +5405,27 @@ fn roman_items(
         if m.start() >= limit {
             break;
         }
-        let Some(number) = roman_number(numeral) else { continue };
-        let label = number.to_string();
+        // The letter of a lettered Item follows the numeral ("IA").
+        let roman = numeral.trim_end_matches(['A', 'B', 'C']);
+        // "Item A." leaves out the number of Item 1A, the only Item that a
+        // letter alone is read as.
+        let number = if roman.is_empty() { Some(1) } else { roman_number(roman) };
+        let Some(number) = number else { continue };
+        let label = format!("{number}{}", &numeral[roman.len()..]);
         let tail = after_dashes(c.get(2).expect("tail").as_str()).trim();
-        if !heading_tail_ok(tail) || continues_sentence(text, m.start()) {
+        if !heading_tail_ok(tail)
+            || (continues_sentence(text, m.start()) && !ends_heading_stack(text, m.start(), &label, keys))
+        {
             continue;
         }
         let printed = if tail.chars().any(char::is_alphabetic) { tail } else { next_line_title(text, m.end()) };
         let title = title_key(printed);
-        let ki = keys.iter().position(|k| k.item == label && k.titles().any(|t| same_title(&title, &title_key(t))));
+        // "DESCRIPTION OF BUSINESS", as a 10-KSB titles its Item 1, names
+        // Item 1 of a 10-K, Business.
+        let described = title.strip_prefix("descriptionof").unwrap_or(&title);
+        let ki = keys.iter().position(|k| {
+            k.item == label && k.titles().any(|t| [&title, described].iter().any(|p| same_title(p, &title_key(t))))
+        });
         if let Some(ki) = ki {
             headings.push((added_candidate(text, m.start(), &label, printed), ki, numeral));
         }
@@ -6032,6 +6167,11 @@ fn unread_headers(cands: &[Candidate], picks: &[(usize, usize)]) -> Option<HashS
 fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Section> {
     // The lines worth testing for an Item heading, found once.
     let lines = item_word_lines(text);
+    // A word "Item" that a space breaks is read whole, at the same places;
+    // the sections keep their headings and text as printed.
+    let mended = mend_broken_items(text, &lines);
+    let printed = text;
+    let text = mended.as_deref().unwrap_or(text);
     let cands = candidates(text, kind, &lines, &HashSet::new());
     // A filing that prints the Items of the form its kind replaced or was
     // replaced by (a 10-KSB numbered as a 10-K, a 10-Q numbered as a 10-QSB)
@@ -6235,10 +6375,14 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
                 } else {
                     printed_title(key, &cand.printed, &cand.printed_next, dates).to_owned()
                 },
-                heading: cand.heading.clone(),
+                heading: if mended.is_some() {
+                    line_at(printed, start).trim().chars().take(300).collect()
+                } else {
+                    cand.heading.clone()
+                },
                 start,
                 end,
-                text: text[start..end].trim().to_owned(),
+                text: printed[start..end].trim().to_owned(),
             }
         })
         .collect()
@@ -15318,5 +15462,706 @@ Pursuant to ...
             let (end, report_at, _) = split(&continued, "", header);
             assert_eq!(end, report_at, "{header}");
         }
+    }
+
+    #[test]
+    fn letter_after_a_period_before_the_lettered_items_title_is_part_of_the_number() {
+        // "ITEM 7.A QUANTITATIVE ..." (CuriosityStream 2025), "Item 1.A —
+        // Risk Factors" (Cortland Bancorp 2009), "ITEM 7. A - QUANTITATIVE
+        // ..." (Ferro 2001), and "ITEM 1.A" over its title.
+        let body = BODY.repeat(30);
+        let annual = [
+            ("ITEM 7.A QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+            ("ITEM 7. A - QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+            ("Item 7.A\tQuantitative and Qualitative Disclosures About Market Risk\t25", "item_7a"),
+            ("Item 7.A\nQuantitative and Qualitative Disclosures About Market Risk", "item_7a"),
+            ("ITEM 7. A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+            ("Item 7.A — Quantitative and Qualitative Disclosures about Market Risk", "item_7a"),
+            ("ITEM 7. A.\nQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+            ("ITEM 7.A –\nQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+        ];
+        for (heading, id) in annual {
+            let text = format!(
+                "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n{heading}\n{body}\n\
+                 ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_7", id, "item_8"], "{heading}");
+            assert_eq!(s[1].start, text.find(heading).unwrap(), "{heading}");
+            assert_eq!(s[1].title, "Quantitative and Qualitative Disclosures About Market Risk", "{heading}");
+        }
+        let text = format!("Item 1. Business\n{body}\nItem 1.A — Risk Factors\n{body}\nItem 2. Properties\n{body}\n");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_1a", "item_2"]);
+        let text = format!(
+            "ITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\nITEM 8.A CONTROLS AND PROCEDURES\n{body}\n\
+             ITEM 8.B OTHER INFORMATION\nNone.\nITEM 9. DIRECTORS\n{body}\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), ["item_8", "item_8a", "item_8b", "item_9"]);
+        let text = format!(
+            "PART II - OTHER INFORMATION\nItem 1. Legal Proceedings\nNone.\nItem 1.A Risk Factors\n{body}\n\
+             Item 2. Unregistered Sales of Equity Securities and Use of Proceeds\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_1a", "part_2_item_2"]);
+        // Another title, or no Item of that letter in the form, keeps the
+        // letter in the title; so do spaces or a dash alone before it, and
+        // a lowercase letter.
+        for heading in [
+            "ITEM 7. A DISCUSSION OF MARKET RISK",
+            "ITEM 7.A\nDiscussion of Market Risk",
+            "ITEM 7 A QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+            "ITEM 7-A QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+            "ITEM 7.a Quantitative and Qualitative Disclosures About Market Risk",
+        ] {
+            let text = format!(
+                "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n{heading}\n{body}\n\
+                 ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert!(!ids(&s).contains(&"item_7a"), "{heading}");
+        }
+        let text = format!(
+            "PART II - OTHER INFORMATION\nItem 1. Legal Proceedings\nNone.\n\
+             Item 2.A Unregistered Sales of Equity Securities\n{body}\nItem 3. Defaults Upon Senior Securities\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_2", "part_2_item_3"]);
+        let text =
+            format!("ITEM 1. BUSINESS\n{body}\nITEM 1. A GENERAL DEVELOPMENT\n{body}\nITEM 2. PROPERTIES\n{body}\n");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2"]);
+    }
+
+    #[test]
+    fn item_word_broken_by_a_space_is_read_whole() {
+        // "I TEM 3." (Envision Solar 2012, a non-breaking space), "IT EMS
+        // 10-14." (Valero 2007, a line break inside an anchor), "I tem 4."
+        // (Medical Action 2004). The sections print them as the filing does.
+        let body = BODY.repeat(30);
+        for (heading, id) in [
+            ("I TEM 3. LEGAL PROCEEDINGS", "item_3"),
+            ("IT EM 3. LEGAL PROCEEDINGS", "item_3"),
+            ("ITE M 3. LEGAL PROCEEDINGS", "item_3"),
+            ("I tem 3. Legal Proceedings", "item_3"),
+            ("It em 3.\tLegal Proceedings", "item_3"),
+            ("  Ite m 3 - Legal Proceedings", "item_3"),
+            ("I TEM\t3.\tLEGAL PROCEEDINGS", "item_3"),
+            ("IT EMS 3 AND 4. LEGAL PROCEEDINGS; MINE SAFETY", "item_3"),
+            ("I tems 3-4.", "item_3"),
+        ] {
+            let text = format!(
+                "ITEM 2. PROPERTIES\n{body}\n{heading}\n{body}\nITEM 5. MARKET FOR REGISTRANT'S COMMON EQUITY\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_2", id, "item_5"], "{heading}");
+            assert_eq!(s[1].start, text.find(heading).unwrap(), "{heading}");
+            assert_eq!(s[1].heading, heading.trim(), "{heading}");
+            assert!(s[1].text.starts_with(heading.trim()), "{heading}");
+            assert_eq!(s[0].end, s[1].start, "{heading}");
+        }
+        let text = format!(
+            "ITEM 9B. OTHER INFORMATION\nNone.\nPART III\nIT EMS 10-14.\n\
+             The information required by Items 10 through 14 is incorporated by reference.\n\
+             PART IV\nITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9b", "item_10", "item_15"]);
+        assert_eq!(s[1].heading, "IT EMS 10-14.");
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nIt em 2. Management's Discussion and Analysis\n{body}\n\
+             I tem 4. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1"]);
+        // Only at the start of a line and before a number, and only with one
+        // space in "Item" or "Items", in capitals or with a capital I.
+        for line in [
+            "See I TEM 3. LEGAL PROCEEDINGS",
+            "I TEM THREE. LEGAL PROCEEDINGS",
+            "IT EMPLOYEES 3. LEGAL PROCEEDINGS",
+            "I T E M 3. LEGAL PROCEEDINGS",
+            "i tem 3. Legal Proceedings",
+            "I TE M 3. LEGAL PROCEEDINGS",
+            "I\tTEM 3. LEGAL PROCEEDINGS",
+        ] {
+            let text = format!("ITEM 2. PROPERTIES\n{body}\n{line}\n{body}\nITEM 5. MARKET\n{body}\n");
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_2", "item_5"], "{line}");
+            assert_eq!(mend_broken_items(&text, &item_word_lines(&text)), None, "{line}");
+        }
+        let text = "I TEM 1. BUSINESS\nIt is so.\r\n  IT EMS 2 and 3\nIT EM\n";
+        let mended = mend_broken_items(text, &item_word_lines(text)).unwrap();
+        assert_eq!(mended, "ITEM  1. BUSINESS\nIt is so.\r\n  ITEMS  2 and 3\nIT EM\n");
+        assert_eq!(mended.len(), text.len());
+    }
+
+    #[test]
+    fn range_of_items_with_two_hyphens_or_a_dash_after_it_is_a_heading() {
+        // "ITEMS 9 -- 12 --  DOCUMENTS INCORPORATED BY REFERENCE" (Interactive
+        // Flight Technologies, 10-KSB 1997 and 1998) and "ITEMS 9-12 -- ..."
+        // (Global Technologies, 10-K 1999).
+        let body = BODY.repeat(30);
+        for range in [
+            "ITEMS 9 -- 12 --  DOCUMENTS INCORPORATED BY REFERENCE",
+            "ITEMS 9-12 -- DOCUMENTS INCORPORATED BY REFERENCE",
+            "Items 9 – 12 – Omitted",
+            "ITEMS 9--12--\tOMITTED",
+            "ITEMS 9 -- 12 --\nDOCUMENTS INCORPORATED BY REFERENCE",
+        ] {
+            let text = format!(
+                "ITEM 8  --  CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON\nACCOUNTING AND FINANCIAL DISCLOSURE\n\
+                 None.\nPART III\n{range}\n{body}\nITEM 13  --  EXHIBITS AND REPORTS ON FORM 8-K\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenKsb);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_13"], "{range}");
+            assert_eq!(s[1].start, text.find(range).unwrap(), "{range}");
+        }
+        assert_eq!(
+            listed_items("9", " -- 12 --  DOCUMENTS INCORPORATED BY REFERENCE", TEN_KSB),
+            Some(("DOCUMENTS INCORPORATED BY REFERENCE", Some("12".to_owned())))
+        );
+        assert_eq!(listed_items("10", "-13 - Omitted.", TEN_K), Some(("Omitted.", Some("13".to_owned()))));
+        assert_eq!(listed_items("10", " -- 13 --", TEN_K), Some(("", Some("13".to_owned()))));
+        // A cross-reference or a sentence after the range, a dash before a
+        // form's name, a year, a range that goes down or a page number.
+        for (label, after) in [
+            ("10", " -- 13 -- see the proxy statement."),
+            ("10", " -- 13 of Part III are incorporated by reference."),
+            ("1", " -- 10-K SUMMARY"),
+            ("1", " - 10-K SUMMARY"),
+            ("7", " -- 2005 compared with 2004"),
+            ("6", " -- 5 Year Summary"),
+            ("8", " -- 45 --"),
+        ] {
+            assert_eq!(listed_items(label, after, TEN_K), None, "Item {label}{after}");
+        }
+        let text = format!(
+            "Item 8. Financial Statements and Supplementary Data\n{body}\nItem 6 -- 5 Year Summary\n\
+             Items 10 -- 13 -- see the proxy statement.\n{body}\nItem 15. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_15"]);
+    }
+
+    #[test]
+    fn item_line_that_ends_with_a_semicolon_and_and_stacks_headings() {
+        // "Item 1. Business;", "Item 2. Properties; and", "Item 3. Legal
+        // Proceedings" (Arden Group, 10-K 2001 and 2002). In capitals, "AND"
+        // is no joining word, and the stack was read before (10-K 1995 to
+        // 2000).
+        let body = BODY.repeat(30);
+        for stack in [
+            "Item 1. Business;\nItem 2. Properties; and\nItem 3. Legal Proceedings",
+            "ITEM 1. BUSINESS;\nITEM 2.         PROPERTIES; AND\nITEM 3.         LEGAL PROCEEDINGS",
+            "Item 1.\tBusiness;\nItem 2.\tProperties;\tand \r\nItem 3.\tLegal Proceedings",
+        ] {
+            let text = format!(
+                "PART I\n{stack}\nGeneral\n{body}\nItem 4. Submission of Matters to a Vote of Security Holders\n\
+                 None.\nPART II\nItem 5. Market for the Registrant's Common Equity\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_2", "item_3", "item_4", "item_5"], "{stack}");
+            assert!(s[2].text.starts_with("Item 3.") || s[2].text.starts_with("ITEM 3."), "{stack}");
+        }
+        // Without the semicolon (also after a comma), with another word
+        // after it, or on a line that is no Item line, the line above goes on
+        // as a sentence.
+        for above in [
+            "Item 6. Selected Financial Data, Item 7. Management's Discussion and",
+            "Item 6. Selected Financial Data, Item 7. Management's Discussion and Analysis, and",
+            "Item 7A. Quantitative and Qualitative Disclosures About Market Risk is omitted; see",
+            "Information required by Part I, Item 1. Business; and",
+        ] {
+            let text = format!(
+                "PART II\nItem 5. Market for the Registrant's Common Equity\n{body}\n{above}\n\
+                 Item 8. Financial Statements and Supplementary Data of the 2001 Annual Report are incorporated.\n\
+                 {body}\nItem 9. Changes in and Disagreements with Accountants\nNone.\n"
+            );
+            assert!(!ids(&extract_sections(&text, FormKind::TenK)).contains(&"item_8"), "{above}");
+            assert!(continues_sentence(&format!("{above}\nItem 8. Title"), above.len() + 1), "{above}");
+        }
+        let after = |above: &str| ends_heading_stack(&format!("{above}\nItem 3. Title"), above.len() + 1, "3", TEN_K);
+        assert!(after("Item 2. Properties; and"));
+        assert!(after("  Item 2.\tProperties;\tand \r"));
+    }
+
+    #[test]
+    fn roman_numeral_with_the_letter_of_an_item_or_a_ten_ksb_title_is_a_heading() {
+        // "ITEM I: DESCRIPTION OF BUSINESS" and "ITEM IA: RISK FACTORS"
+        // (Organic Alliance, 10-K 2010 to 2013), "Item I. Legal Proceedings."
+        // and "Item IA. Risk Factors." in a 10-Q's Part II (Pathmark Charter
+        // 2010), "ITEM IC.<TAB>CYBERSECURITY" (ServiceNow 2024).
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nITEM 1.\tBUSINESS\t4\nITEM 1A.\tRISK FACTORS\t7\nITEM 2.\tPROPERTIES\t11\nPART I\n\
+             ITEM I: DESCRIPTION OF BUSINESS\n{body}\nITEM IA: RISK FACTORS\n{body}\n\
+             ITEM 1B. UNRESOLVED STAFF COMMENTS\nNone.\nITEM IC.\tCYBERSECURITY\n{body}\n\
+             ITEM 2. PROPERTIES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_1b", "item_1c", "item_2"]);
+        assert_eq!(s[0].start, text.find("ITEM I:").unwrap());
+        assert_eq!(s[0].title, "Business");
+        assert_eq!(s[1].title, "Risk Factors");
+        assert_eq!(s[3].title, "Cybersecurity");
+        // A 10-KSB's own title still counts.
+        let text = format!(
+            "PART I\nITEM I. DESCRIPTION OF BUSINESS\n{body}\nITEM 2. DESCRIPTION OF PROPERTY\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_1", "item_2"]);
+        assert_eq!(s[0].title, "Description of Business");
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             PART II — OTHER INFORMATION\nItem I. Legal Proceedings.\nNone.\nItem IA. Risk Factors.\n\
+             Not required.\nItem 2. Unregistered Sales of Equity Securities and Use of Proceeds.\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1", "part_2_item_1a", "part_2_item_2"]);
+        // A numeral and letter of no Item, a cross-reference, another title
+        // after "Description of", "Description of Business" for another
+        // number, and Part II's Item 1A among Part I's Items.
+        for line in [
+            "ITEM IVA. RISK FACTORS",
+            "Item IA of Form 10-K requires the risks.",
+            "ITEM I. DESCRIPTION OF THE TRUST",
+            "ITEM III. DESCRIPTION OF BUSINESS",
+        ] {
+            let text = format!(
+                "PART I\nITEM 1B. UNRESOLVED STAFF COMMENTS\nNone.\n{line}\n{body}\nITEM 4. MINE SAFETY DISCLOSURES\n\
+                 {body}\nSIGNATURES\n"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1b", "item_4"], "{line}");
+        }
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem IA. Risk Factors.\n{body}\n\
+             Item 2. Management's Discussion and Analysis\n{body}\nPART II\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn item_a_with_the_number_left_out_is_item_1a() {
+        // "Item A. Risk Factors" under "Item 1. Business", with "Item 1A" in
+        // the contents list (Axion International, 10-K 2011 to 2015), and
+        // "Item A.<TAB>Risk Factors" in a 10-Q's Part II (Renaissance Capital
+        // Growth & Income Fund III 2006).
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1.\tBusiness\t1\nItem 1A\tRisk Factors\t12\nItem 2.\tProperty\t17\nPART I\n\
+             Item 1. Business\n{body}\nItem A. Risk Factors\n{body}\nItem 2. Properties\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2"]);
+        assert_eq!(s[1].start, text.find("Item A.").unwrap());
+        assert_eq!((s[1].heading.as_str(), s[1].title.as_str()), ("Item A. Risk Factors", "Risk Factors"));
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             PART II\nItem 1.\tLegal Proceedings\nNone.\nITEM A.\tRISK FACTORS\n{body}\n\
+             Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1", "part_2_item_1a", "part_2_item_2"]);
+        assert_eq!(s[3].start, text.find("ITEM A.").unwrap());
+        // Another letter, also with its own Item's title, a lowercase
+        // letter, another title, an entry of a schedule, a cross-reference
+        // (wrapped, or with the report named after the title's first word in
+        // lowercase) and a letter with a number.
+        for line in [
+            "Item B. Unresolved Staff Comments",
+            "Item B. Risk Factors",
+            "Item a. Risk Factors",
+            "Item A. Financial Reporting Control Systems",
+            "Item A. Quantitative and Qualitative Disclosures About Market Risk",
+            "Item A of Exhibit B to the Bill of Sale describes the unit.",
+            "The risks are discussed in Part I,\nItem A. Risk Factors of our Annual Report on Form 10-K.",
+            "Item A. risk factors are described in the annual report.",
+            "Item A.2 Risk Factors",
+            "Item A1. Risk Factors",
+        ] {
+            let text =
+                format!("PART I\nItem 1. Business\n{body}\n{line}\n{body}\nItem 2. Properties\n{body}\nSIGNATURES\n");
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2"], "{line}");
+        }
+        // The letter alone is never Item 7A.
+        let text = format!(
+            "PART II\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             ITEM A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_7", "item_8"]);
+        // Item 1A found in digits, a line out of place, an entry of a
+        // contents list above the next entry, and Part II's Item 1A among
+        // Part I's Items of a 10-Q.
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nItem 1A. Risk Factors\n{body}\nItem A. Risk Factors\n{body}\n\
+             Item 2. Properties\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2"]);
+        assert_eq!(s[1].start, text.find("Item 1A.").unwrap());
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\nItem A. Risk Factors\n{body}\n\
+             Item 3. Legal Proceedings\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2", "item_3"]);
+        let text = format!(
+            "Item 1.\tBusiness\t1\nItem A.\tRisk Factors\t5\nItem 2.\tProperties\t9\nPART I\n\
+             Item 1. Business\n{body}\nItem 2. Properties\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2"]);
+        assert_eq!(s[0].start, text.find("Item 1. Business").unwrap());
+        // The same entry in place before the Items found, in a filing with
+        // no heading for Item 1: the entries below it are Item lines.
+        let text = format!(
+            "Item A.\tRisk Factors\t5\nItem 2.\tProperties\t9\nItem 3.\tLegal Proceedings\t9\nPART I\n{body}\n\
+             Item 2. Properties\n{body}\nItem 3. Legal Proceedings\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_2", "item_3"]);
+        assert_eq!(s[0].start, text.find("Item 2. Properties").unwrap());
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem A. Risk Factors\n{body}\n\
+             Item 2. Management's Discussion and Analysis\n{body}\nPART II\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn letter_after_a_period_is_a_capital_that_starts_no_word() {
+        // A line whose letter is in lowercase is no heading before
+        // `titled_letter` is asked ("ITEM 7.a Quantitative ..." above), so
+        // the rule is asked here: the letter is a capital, and a lowercase
+        // letter right after it makes it the first letter of a word. Such a
+        // line ("ITEM 7.Aquantitative ...", "ITEM 9. Bother information") is
+        // turned down twice: `titled_letter` also tests the title after the
+        // letter itself (`heading_tail_ok`), and that title starts in
+        // lowercase.
+        fn read(tail: &str) -> Option<(String, &str)> {
+            titled_letter("7", ".", tail, tail, tail.len(), TEN_K)
+        }
+        let title = "Quantitative and Qualitative Disclosures About Market Risk";
+        assert_eq!(read(&format!("A {title}")), Some(("7A".to_owned(), title)));
+        assert_eq!(read(&format!("A{}", title.to_uppercase())).map(|(item, _)| item), Some("7A".to_owned()));
+        assert_eq!(read(&format!("a {title}")), None);
+        assert_eq!(read(&format!("a - {title}")), None);
+        assert_eq!(read(&format!("A{}", title.to_lowercase())), None);
+        assert_eq!(titled_letter("9", ".", "Bother information", "", 0, TEN_K), None);
+        let body = BODY.repeat(30);
+        for (line, found) in [
+            ("ITEM 7.Aquantitative and qualitative disclosures about market risk", &["item_7", "item_10"][..]),
+            ("ITEM 9. Bother information", &["item_7", "item_9", "item_10"]),
+        ] {
+            let text = format!(
+                "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n{line}\n{body}\n\
+                 ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE\n{body}\nSIGNATURES\n"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), found, "{line}");
+        }
+    }
+
+    #[test]
+    fn more_than_one_dash_after_a_range_of_items_is_no_separator() {
+        // One dash, which two hyphens also print, comes after the range:
+        // three hyphens or more, or two dashes, start no title.
+        for after in [" -- 13 --- Omitted", " -- 13 ----", "-13 –– Omitted", " – 13 —- Omitted"] {
+            assert_eq!(listed_items("10", after, TEN_K), None, "Items 10{after}");
+        }
+        assert_eq!(listed_items("10", " -- 13 -- Omitted", TEN_K), Some(("Omitted", Some("13".to_owned()))));
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 8. Financial Statements and Supplementary Data\n{body}\nItems 10 -- 13 --- Omitted\n{body}\n\
+             Item 15. Exhibits\n{body}\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_8", "item_15"]);
+    }
+
+    #[test]
+    fn sentence_that_starts_with_item_7_a_and_the_title_in_lowercase_is_no_heading() {
+        // "Item 7.A quantitative ..." is read as "Item 7A. quantitative ..."
+        // is: a title on the line starts with a capital.
+        let body = BODY.repeat(30);
+        let sentence = "Item 7.A quantitative and qualitative disclosures about market risk are discussed in the \
+                        section on liquidity below.";
+        for usual in [sentence.to_owned(), sentence.replace("7.A", "7A.")] {
+            let text = format!(
+                "Item 7. Management's Discussion and Analysis\n{body}\n{usual}\n{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_7", "item_8"], "{usual}");
+            assert_eq!(s[0].start, 0, "{usual}");
+            // Item 7A stays at its heading below the sentence.
+            let heading = "Item 7A. Quantitative and Qualitative Disclosures About Market Risk";
+            let text = format!(
+                "Item 7. Management's Discussion and Analysis\n{body}\n{usual}\n{body}\n{heading}\n{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_7", "item_7a", "item_8"], "{usual}");
+            assert_eq!(s[1].start, text.find(heading).unwrap(), "{usual}");
+        }
+        // The title in sentence case alone on its line is not read either,
+        // with both prints.
+        for heading in [
+            "Item 7.A quantitative and qualitative disclosures about market risk",
+            "Item 7A. quantitative and qualitative disclosures about market risk",
+        ] {
+            let text = format!(
+                "Item 7. Management's Discussion and Analysis\n{body}\n{heading}\n{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_7", "item_8"], "{heading}");
+        }
+        // A capitalized title is read, on the line and on the next one, and
+        // a title on the next line in lowercase as under "Item 7A."
+        for heading in [
+            "Item 7.A Quantitative and Qualitative Disclosures About Market Risk",
+            "Item 7.A \"Quantitative and Qualitative Disclosures About Market Risk\"",
+            "Item 7.A\nQuantitative and Qualitative Disclosures About Market Risk",
+            "Item 7.A\nquantitative and qualitative disclosures about market risk",
+            "Item 7A.\nquantitative and qualitative disclosures about market risk",
+        ] {
+            let text = format!(
+                "Item 7. Management's Discussion and Analysis\n{body}\n{heading}\n{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_7", "item_7a", "item_8"], "{heading}");
+            assert_eq!(s[1].start, text.find(heading).unwrap(), "{heading}");
+        }
+    }
+
+    #[test]
+    fn citation_under_an_item_line_that_ends_with_a_semicolon_and_and_is_no_heading() {
+        const K: &[&str] = &[
+            "PART I",
+            "Item 1. Business",
+            "Item 1A. Risk Factors",
+            "Item 1B. Unresolved Staff Comments",
+            "Item 2. Properties",
+            "Item 3. Legal Proceedings",
+            "Item 4. Mine Safety Disclosures",
+            "PART II",
+            "Item 5. Market for Registrant's Common Equity",
+            "Item 6. Selected Financial Data",
+            "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+            "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+            "Item 8. Financial Statements and Supplementary Data",
+            "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+        ];
+        const Q: &[&str] = &[
+            "PART I - FINANCIAL INFORMATION",
+            "Item 1. Financial Statements",
+            "Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+            "Item 3. Quantitative and Qualitative Disclosures About Market Risk",
+            "Item 4. Controls and Procedures",
+            "PART II - OTHER INFORMATION",
+            "Item 1. Legal Proceedings",
+            "Item 1A. Risk Factors",
+            "Item 6. Exhibits",
+        ];
+        // A filing with the headings `heads`, each Item with four paragraphs
+        // of text, and `lines` after the first two paragraphs of the Item
+        // `under`.
+        let para = BODY.repeat(3);
+        let filing = |heads: &[&str], under: &str, lines: &[&str]| {
+            let mut text = String::new();
+            for &head in heads {
+                text += &format!("{head}\n");
+                if head.starts_with("PART") {
+                    continue;
+                }
+                text += &format!("{para}\n{para}\n");
+                if head == under {
+                    text += &format!("{}\n", lines.join("\n"));
+                }
+                text += &format!("{para}\n{para}\n");
+            }
+            text
+        };
+        let start = |text: &str, kind: FormKind, id: &str| {
+            extract_sections(text, kind).iter().find(|s| s.id == id).map(|s| s.start)
+        };
+        // A list of citations, one Item to a line, in the text of Item 7 (of
+        // Part I Item 2 in a 10-Q): its last line cites the next Item of the
+        // form, which starts at its own heading. The line above the last
+        // may start with the word "Items" only.
+        let no_7a: Vec<&str> = K.iter().copied().filter(|head| !head.starts_with("Item 7A")).collect();
+        let cases = [
+            (
+                K,
+                FormKind::TenK,
+                K[10],
+                [
+                    "See also:",
+                    "Item 1A. Risk Factors; and",
+                    "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+                ],
+                "item_7a",
+                K[11],
+            ),
+            (
+                K,
+                FormKind::TenK,
+                K[10],
+                [
+                    "The following are discussed elsewhere in this report:",
+                    "Items of other comprehensive income; and",
+                    "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+                ],
+                "item_7a",
+                K[11],
+            ),
+            (
+                no_7a.as_slice(),
+                FormKind::TenK,
+                K[10],
+                ["See also:", "Item 1A. Risk Factors; and", "Item 8. Financial Statements and Supplementary Data."],
+                "item_8",
+                K[12],
+            ),
+            (
+                Q,
+                FormKind::TenQ,
+                Q[2],
+                [
+                    "See also:",
+                    "Item 1. Financial Statements; and",
+                    "Item 3. Quantitative and Qualitative Disclosures About Market Risk.",
+                ],
+                "part_1_item_3",
+                Q[3],
+            ),
+        ];
+        for (heads, kind, under, lines, id, heading) in cases {
+            let text = filing(heads, under, &lines);
+            assert_eq!(start(&text, kind, id), text.find(&format!("{heading}\n")), "{lines:?}");
+        }
+        // The same list in the text of Item 1, which keeps its Item, also
+        // when the last line cites the Item right after the one above it and
+        // ends with a period, as the last entry of a list does.
+        for (above, last) in [
+            (
+                "Item 1A. Risk Factors; and",
+                "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations.",
+            ),
+            ("Item 1A. Risk Factors; and", "Item 2. Properties."),
+            ("Item 2. Properties; and", "Item 3. Legal Proceedings."),
+        ] {
+            let text =
+                filing(K, K[1], &["Besides the description below, our operations are described in", above, last]);
+            assert_eq!(start(&text, FormKind::TenK, "item_1"), text.find("Item 1. Business\n"), "{last}");
+            assert_eq!(start(&text, FormKind::TenK, "item_1a"), text.find("Item 1A. Risk Factors\n"), "{last}");
+        }
+        // A line "Part II. Other Information" under such a line, in the text
+        // of Part I Item 4 of a 10-Q, does not end the Item.
+        let wrapped = "of this report, which should be read with this discussion.";
+        let text = filing(
+            Q,
+            Q[4],
+            &[
+                "Changes in controls and other matters are discussed in:",
+                "Item 4. Controls and Procedures; and",
+                "Part II. Other Information",
+                wrapped,
+            ],
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            [
+                "part_1_item_1",
+                "part_1_item_2",
+                "part_1_item_3",
+                "part_1_item_4",
+                "part_2_item_1",
+                "part_2_item_1a",
+                "part_2_item_6"
+            ]
+        );
+        assert!(s[3].text.contains(wrapped) && s[3].text.matches(&para).count() == 4);
+        // The stack of headings stands with its last heading in roman
+        // numerals, and in Part II of a 10-Q.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Business;\nItem 2. Properties; and\nITEM III. LEGAL PROCEEDINGS\nGeneral\n{body}\n\
+             Item 4. Submission of Matters to a Vote of Security Holders\nNone.\nPART II\n\
+             Item 5. Market for the Registrant's Common Equity\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3", "item_4", "item_5"]);
+        assert!(s[2].text.starts_with("ITEM III."));
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 1. Legal Proceedings\n{body}\nItem 2. Unregistered Sales of Equity Securities and Use of \
+             Proceeds;\nItem 3. Defaults Upon Senior Securities; and\nItem 4. Mine Safety Disclosures\n\
+             Not applicable.\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            [
+                "part_1_item_1",
+                "part_1_item_2",
+                "part_2_item_1",
+                "part_2_item_2",
+                "part_2_item_3",
+                "part_2_item_4",
+                "part_2_item_6"
+            ]
+        );
+        // What the stack test reads: the line above up to "; and" is a whole
+        // heading of the Item right before `label` in its Part, with a title
+        // of that Item, and the line itself does not end with a period.
+        let stack = |above: &str, line: &str, label: &str, keys: &[Key]| {
+            ends_heading_stack(&format!("{above}\n{line}\n{BODY}\n"), above.len() + 1, label, keys)
+        };
+        assert!(stack("Item 2. Properties; and", "Item 3. Legal Proceedings", "3", TEN_K));
+        assert!(stack("ITEM 2 - PROPERTIES ; and", "ITEM 3 - LEGAL PROCEEDINGS", "3", TEN_K));
+        assert!(stack("Item 12. Security Ownership of Certain Beneficial Owners; and", "Item 13. Title", "13", TEN_K));
+        assert!(stack("Item 3. Defaults Upon Senior Securities; and", "Item 4. Title", "4", TEN_Q));
+        assert!(stack(
+            "Item 3. Quantitative and Qualitative Disclosures About Market Risk; and",
+            "Item 4. Title",
+            "4",
+            TEN_Q
+        ));
+        for (above, line, label, keys) in [
+            // The line ends with a period.
+            ("Item 2. Properties; and", "Item 3. Legal Proceedings.", "3", TEN_K),
+            ("Item 2. Properties; and", "Item 3. Legal Proceedings. \r", "3", TEN_K),
+            ("Item 2. Properties; and", "Item 3.", "3", TEN_K),
+            // The line above does not end with "; and".
+            ("Item 2. Properties; or", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 2. Properties, and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 2. Properties and", "Item 3. Legal Proceedings", "3", TEN_K),
+            // It is no whole heading of the Item right before: no number, no
+            // title, a title that is no Item's, the number or the title of
+            // another Item, words before it.
+            ("Items of other comprehensive income; and", "Item 7A. Title", "7A", TEN_K),
+            ("Item 2; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 2. Summary of the claims against us; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 5. Properties; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 2. Legal Proceedings; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Our plants are described in Item 2. Properties; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            // Its Item is not the one right before: later Items, an Item
+            // with another between them, the Item after, the same Item.
+            ("Item 1A. Risk Factors; and", "Item 7A. Title", "7A", TEN_K),
+            ("Item 1A. Risk Factors; and", "Item 2. Properties", "2", TEN_K),
+            ("Item 1. Business; and", "Item 2. Properties", "2", TEN_K),
+            ("Item 3. Legal Proceedings; and", "Item 2. Properties", "2", TEN_K),
+            ("Item 2. Properties; and", "Item 2. Properties", "2", TEN_K),
+            // The Item right before it in the table is of another Part.
+            ("Item 4. Controls and Procedures; and", "Item 1. Legal Proceedings", "1", TEN_Q),
+            // An 8-K's Items are not read.
+            ("Item 2.02. Results of Operations and Financial Condition; and", "Item 2.03. Title", "2.03", EIGHT_K),
+        ] {
+            assert!(!stack(above, line, label, keys), "{above} / {line}");
+        }
+        // No line above.
+        assert!(!ends_heading_stack("Item 3. Legal Proceedings\n", 0, "3", TEN_K));
+        assert!(!ends_heading_stack("\nItem 3. Legal Proceedings\n", 1, "3", TEN_K));
     }
 }
