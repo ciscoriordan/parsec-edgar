@@ -896,10 +896,21 @@ struct PageMark {
 /// of the next page is: the items of a longer numbered list start with
 /// their own titles, even when each ends with the same lines, as each
 /// proposal of a proxy statement ends with "Vote Required".
+///
+/// Such a line that is a heading (see `Kind`), such as "Notes to Financial
+/// Statements", counts only where at least two pages break inside a
+/// sentence: the last line of the page ends with no stop, and the first
+/// line of the next page that is not printed five times or more starts in
+/// lowercase. The items of a list end where their text ends, so a caption
+/// that starts each item after its number, as "Nominee for Election as
+/// Director" over each nominee, is no running header. A name, a note, a
+/// legend or a header that says it continues counts wherever it follows the
+/// number.
 fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
     const MIN_PAGES: usize = 5;
     const MIN_PAGE: usize = 500;
     const MIN_COPIES: usize = 5;
+    const MIN_INSIDE: usize = 2;
     let before = bytes_before(lines);
     let counts = |a: &PageMark, b: &PageMark| a.value + 1 == b.value && before[b.kept] - before[a.kept] >= MIN_PAGE;
     let mut ends = vec![false; lines.len()];
@@ -923,8 +934,32 @@ fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
     for &line in lines {
         *copies.entry(line).or_default() += 1;
     }
-    let headed = (0..lines.len()).filter(|&i| ends[i] && lines.get(i + 1).is_some_and(|l| copies[l] >= MIN_COPIES));
-    (headed.count() >= MIN_PAGES).then_some(ends)
+    let repeated = |i: usize| copies[lines[i]] >= MIN_COPIES;
+    // The page ends that such a line follows, and how many of those lines
+    // are headings.
+    let headed: Vec<usize> = (0..lines.len()).filter(|&i| ends[i] && i + 1 < lines.len() && repeated(i + 1)).collect();
+    let headings = headed.iter().filter(|&&i| Kind::of(lines[i + 1]) == Kind::Heading).count();
+    if headed.len() - headings >= MIN_PAGES {
+        return Some(ends);
+    }
+    if headed.len() < MIN_PAGES {
+        return None;
+    }
+    // The first line at or after each line that is not printed five times
+    // or more, to read the text that goes on past the header of a page.
+    let mut text_from = vec![None; lines.len() + 1];
+    for i in (0..lines.len()).rev() {
+        text_from[i] = if repeated(i) { text_from[i + 1] } else { Some(i) };
+    }
+    let ends_sentence =
+        |line: &str| line.trim_end_matches(['"', '\'', '”', '’', ')', ' ']).ends_with(['.', '?', '!', ':', ';']);
+    let starts_lowercase = |line: &str| line.chars().find(|c| c.is_alphanumeric()).is_some_and(char::is_lowercase);
+    let inside = (0..lines.len())
+        .filter(|&i| {
+            ends[i] && !ends_sentence(lines[i]) && text_from[i + 1].is_some_and(|j| starts_lowercase(lines[j]))
+        })
+        .count();
+    (inside >= MIN_INSIDE).then_some(ends)
 }
 
 /// The bytes of text before each of `lines`, then the bytes of all of them.
@@ -2736,7 +2771,7 @@ mod tests {
         let headed: Vec<Vec<String>> = footed
             .into_iter()
             .map(|mut page| {
-                page.insert(1, "Annual Report".into());
+                page.insert(1, "Acme Holdings, Inc.".into());
                 page
             })
             .collect();
@@ -2793,6 +2828,52 @@ mod tests {
             .map(|n| format!("<p>{n}</p><p>Proposal {n}</p><p>Text. {}</p><p>Vote Required</p>", "x".repeat(1000)))
             .collect();
         assert_eq!(html_to_text(&list).matches("Vote Required").count(), 8);
+        // Four numbers that a name follows are not enough, and five are: the
+        // name over the text before the first number stays either way.
+        for (tops, want) in [(4, 5), (5, 1)] {
+            let html: String = (0..8)
+                .map(|i| {
+                    let top = if i <= tops { "<p>Acme Corporation</p>" } else { "" };
+                    format!("{top}<p>Text of page {i}. {}</p><p>{}</p>", "x".repeat(1000), i + 3)
+                })
+                .collect();
+            assert_eq!(html_to_text(&html).matches("Acme Corporation").count(), want, "{tops}");
+        }
+        // A caption that starts each item of a list after its number is no
+        // running header, though a page of text follows it: each item ends
+        // with a sentence, or with a line printed in every item.
+        let item = |n: usize, caption: &str, last: &str| {
+            [n.to_string(), caption.into(), format!("Name {n}"), format!("Text. {}.", "x".repeat(1000)), last.into()]
+        };
+        for (caption, last) in
+            [("Nominee for Election as Director", ""), ("Property Description", "Encumbrances: None")]
+        {
+            let items: Vec<[String; 5]> = (1..13).map(|n| item(n, caption, last)).collect();
+            let html: String = items.concat().iter().filter(|l| !l.is_empty()).map(|l| format!("<p>{l}</p>")).collect();
+            let text = html_to_text(&html);
+            assert_eq!(
+                (text.matches(caption).count(), text.matches("Encumbrances").count()),
+                (12, 12 * last.len().min(1))
+            );
+            let raw: String = items.concat().iter().filter(|l| !l.is_empty()).map(|l| format!("{l:^60}\n")).collect();
+            let text = document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>"));
+            assert_eq!(text.matches(caption).count(), 12, "{caption}");
+        }
+        // A heading over the pages after the numbers is their running header
+        // where two pages break inside a sentence, and not where one does.
+        let notes = |inside: usize| -> String {
+            (0..8)
+                .map(|i| {
+                    let start = if i > 0 && i <= inside { "rest of a sentence." } else { "Text." };
+                    let end = if i < inside { "and the" } else { "end." };
+                    let text = format!("{start} {} {end}", "x".repeat(1000));
+                    format!("<p>Notes to Financial Statements</p><p>{text}</p><p>{}</p>", i + 3)
+                })
+                .collect()
+        };
+        for (inside, want) in [(2, 1), (1, 8), (0, 8)] {
+            assert_eq!(html_to_text(&notes(inside)).matches("Notes to").count(), want, "{inside}");
+        }
     }
 
     /// Copies in table data do not count against a name, a note that goes
