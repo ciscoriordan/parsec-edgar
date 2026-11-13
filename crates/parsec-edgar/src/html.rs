@@ -2,6 +2,8 @@
 //!
 //! One line per block (paragraph, heading, list item, table row). Table cells
 //! are joined with tabs, with `$` and `)`/`%` cells merged into their numbers.
+//! Text inside `<pre>` keeps its own lines and the spaces inside them, as a
+//! plain-text document does.
 //! Hidden inline-XBRL headers, scripts, styles, page numbers, running page
 //! headers and footers, and repeated "Table of Contents" links are dropped.
 //!
@@ -79,7 +81,15 @@ pub fn html_to_text(html: &str) -> String {
     let doc = Html::parse_document(html);
     let mut out = Out::default();
     render(doc.tree.root(), &mut out);
-    join_lines(&kept_lines(&out.buf, &out.cell_lines, &out.cell_rows, &data_rows(&out.table_rows), &out.breaks))
+    out.typed_page_numbers();
+    join_lines(&kept_lines(
+        &out.buf,
+        &out.cell_lines,
+        &out.cell_rows,
+        &data_rows(&out.table_rows),
+        &out.breaks,
+        &out.typed_breaks,
+    ))
 }
 
 /// Convert an HTML document to clean plain text, exactly as [`html_to_text`]
@@ -97,7 +107,15 @@ pub fn html_to_text_and_tables(html: &str) -> (String, Vec<Table>) {
     let doc = Html::parse_document(html);
     let mut out = Out { rows: Some(Vec::new()), ..Out::default() };
     render(doc.tree.root(), &mut out);
-    let lines = kept_lines(&out.buf, &out.cell_lines, &out.cell_rows, &data_rows(&out.table_rows), &out.breaks);
+    out.typed_page_numbers();
+    let lines = kept_lines(
+        &out.buf,
+        &out.cell_lines,
+        &out.cell_rows,
+        &data_rows(&out.table_rows),
+        &out.breaks,
+        &out.typed_breaks,
+    );
     let text = join_lines(&lines);
     let tables = locate_tables(&out.buf, &lines, &text, out.rows.unwrap_or_default());
     (text, tables)
@@ -164,7 +182,7 @@ fn plain_text(s: &str) -> String {
         last = all.end();
     }
     text.push_str(&s[last..]);
-    join_lines(&kept_lines(&text, &[], &[], &[], &breaks))
+    join_lines(&kept_lines(&text, &[], &[], &[], &breaks, &[]))
 }
 
 #[derive(Default)]
@@ -179,8 +197,9 @@ struct Out {
     has_table: bool,
     /// Start in `buf` of each line of the cells of rows printed cell by cell
     /// with two or more cells (in rows over 1,000 characters, only of cells of
-    /// one line), in order. These lines are table data, never page numbers or
-    /// page furniture on their own.
+    /// one line), and of the lines of a `<pre>` element in which no page ends
+    /// (see `Out::typed_data`), in order. These lines are table data, never
+    /// page numbers or page furniture on their own.
     cell_lines: Vec<usize>,
     /// Where in `buf` each row printed cell by cell with two or more cells and
     /// at most 1,000 characters is, in order. Such a row is removed as a whole
@@ -191,14 +210,23 @@ struct Out {
     /// (see `data_rows`).
     table_rows: Vec<(Range<usize>, NodeId, bool)>,
     /// Where in `buf` a printed page ends, in order: before or after each
-    /// element styled to break the page there.
+    /// element styled to break the page there, and at each `<PAGE>` tag
+    /// inside `<pre>`.
     breaks: Vec<usize>,
+    /// The `breaks` at `<PAGE>` tags inside `<pre>`, in order.
+    typed_breaks: Vec<usize>,
     /// Table rows rendered into `buf`, recorded only when tables are wanted.
     rows: Option<Vec<RowRecord>>,
     /// For each row group (`<tbody>`, `<thead>` or `<tfoot>`) whose rows are
     /// recorded, the cells of the rows so far that span rows below: the grid
     /// columns they cover and how many more rows they cover.
     spanning: HashMap<NodeId, Vec<(Range<usize>, usize)>>,
+    /// How many `<pre>` elements the text is rendered inside (see `render`).
+    pre: usize,
+    /// Start in `buf` of each bare number that ends a `<pre>` element in
+    /// which no page ends, outside table cells, in order: a page number or
+    /// table data (see `Out::typed_page_numbers`).
+    typed_numbers: Vec<usize>,
 }
 
 /// Where one table row was rendered in `Out::buf`.
@@ -230,6 +258,90 @@ impl Out {
                     self.mid_line = true;
                 }
             }
+        }
+    }
+
+    /// Typewriter text, the text inside `<pre>`: a line break ends the line,
+    /// and every space and tab inside a line stays, as in a plain-text
+    /// filing. The spaces at the start of a line are left out, as the lines
+    /// are trimmed later anyway.
+    fn typed(&mut self, s: &str) {
+        for c in s.chars() {
+            match c {
+                '\u{200b}' | '\u{ad}' | '\u{feff}' => {}
+                '\n' => self.newline(),
+                _ if !self.mid_line && c.is_whitespace() => {}
+                '\t' => self.buf.push('\t'),
+                c if c.is_whitespace() => self.buf.push(' '),
+                c => {
+                    self.buf.push(c);
+                    self.mid_line = true;
+                }
+            }
+        }
+    }
+
+    /// The lines of a `<pre>` element in which no page ends, whose text
+    /// starts at `start` in `buf` (at the start of a line), in place of the
+    /// `cell_lines` after the first `recorded`, which are lines of the rows
+    /// inside it. Such an element most often holds a table typed in columns,
+    /// and its lines are table data (see `cell_lines`). One of a single line
+    /// is an ordinary line, as a paragraph's. A bare number on the last line,
+    /// or the only one, may be the page number at the foot of a page, as in
+    /// filings that type each page number in a `<pre>` of its own: outside
+    /// table cells it waits in `typed_numbers` until the document is
+    /// rendered, inside them it is table data.
+    fn typed_data(&mut self, start: usize, recorded: usize) {
+        let end = self.buf.len();
+        let breaks = self.buf[start..].match_indices('\n').map(|(i, _)| start + i + 1);
+        let mut lines: Vec<usize> = std::iter::once(start).chain(breaks).filter(|&s| s < end).collect();
+        self.cell_lines.truncate(recorded);
+        let Some(last) = lines.pop() else { return };
+        let several = !lines.is_empty();
+        self.cell_lines.extend(lines);
+        if PAGE_NUMBER.is_match(self.buf[last..].trim()) {
+            if self.depth == 0 {
+                self.typed_numbers.push(last);
+            } else {
+                self.cell_lines.push(last);
+            }
+        } else if several {
+            self.cell_lines.push(last);
+        }
+    }
+
+    /// Settle the `typed_numbers` of a rendered document: a number is a page
+    /// number, and goes as other bare page numbers do, when a page break
+    /// follows it, or when the number before it or after it among them
+    /// counts the pages with it, written the same way and one to three
+    /// pages apart, as "9" and "10" do. Any other is table data, as "790"
+    /// after "10" in a list of amounts.
+    fn typed_page_numbers(&mut self) {
+        if self.typed_numbers.is_empty() {
+            return;
+        }
+        let line = |start: usize| self.buf[start..].lines().next().unwrap_or_default().trim();
+        let numbers: Vec<Option<(usize, u32)>> = self.typed_numbers.iter().map(|&s| page_value(line(s))).collect();
+        let counts = |a: Option<(usize, u32)>, b: Option<(usize, u32)>| match (a, b) {
+            (Some((wa, va)), Some((wb, vb))) => wa == wb && vb > va && vb - va <= 3,
+            _ => false,
+        };
+        let mut data = Vec::new();
+        for (i, &start) in self.typed_numbers.iter().enumerate() {
+            let before = i > 0 && counts(numbers[i - 1], numbers[i]);
+            let after = i + 1 < numbers.len() && counts(numbers[i], numbers[i + 1]);
+            let end = start + self.buf[start..].find('\n').unwrap_or(self.buf.len() - start);
+            let at_break = self
+                .breaks
+                .get(self.breaks.partition_point(|&b| b < end))
+                .is_some_and(|&b| self.buf[end..b].trim().is_empty());
+            if !(before || after || at_break) {
+                data.push(start);
+            }
+        }
+        if !data.is_empty() {
+            self.cell_lines.extend(data);
+            self.cell_lines.sort_unstable();
         }
     }
 
@@ -318,12 +430,29 @@ fn page_breaks(el: &Element) -> (bool, bool) {
 
 /// Depth-first render with an explicit stack: some filings nest tags thousands
 /// deep, which would overflow the call stack with naive recursion.
+///
+/// The text inside `<pre>` is typewriter text (see `Out::typed`), whatever
+/// elements it is in. Some filings are a text filing inside
+/// `<html><body><pre>`: a `<PAGE>` tag there ends a printed page as it does
+/// in a plain-text filing, and the lines of a `<pre>` element in which a
+/// page ends are cleaned as a text filing's are. Any other `<pre>` element
+/// is part of a page, often a table typed in columns, and its lines are
+/// kept as the lines of table cells are, never page numbers or running
+/// headers on their own, but for one of a single line and a page number on
+/// the last line (see `Out::typed_data`). The cells of a table row are
+/// rendered on their own (see `render_row`), so a row inside `<pre>` is an
+/// ordinary row, as in a browser, where a table in a document without a
+/// doctype does not take the white space of the `<pre>` around it.
 fn render(root: NodeRef<Node>, out: &mut Out) {
     enum Step<'a> {
         Enter(NodeRef<'a, Node>),
         Exit,
         /// The end of an element styled to break the page after it.
         Break,
+        /// The end of a `<pre>` element, with, for one not inside another,
+        /// where its text starts in `buf` and how many `cell_lines` and
+        /// `breaks` there were then.
+        EndPre(Option<(usize, usize, usize)>),
     }
     let mut stack = vec![Step::Enter(root)];
     while let Some(step) = stack.pop() {
@@ -336,9 +465,19 @@ fn render(root: NodeRef<Node>, out: &mut Out) {
                 out.breaks.push(out.buf.len());
                 continue;
             }
+            Step::EndPre(outer) => {
+                out.pre -= 1;
+                if let Some((start, lines, breaks)) = outer
+                    && out.breaks.len() == breaks
+                {
+                    out.typed_data(start, lines);
+                }
+                continue;
+            }
             Step::Enter(node) => node,
         };
         match node.value() {
+            Node::Text(t) if out.pre > 0 => out.typed(t),
             Node::Text(t) => out.text(t),
             Node::Element(el) => {
                 if is_skipped(el) {
@@ -359,6 +498,15 @@ fn render(root: NodeRef<Node>, out: &mut Out) {
                         if is_block(name) {
                             out.newline();
                             stack.push(Step::Exit);
+                        }
+                        if name == "pre" {
+                            let outer =
+                                (out.pre == 0).then_some((out.buf.len(), out.cell_lines.len(), out.breaks.len()));
+                            out.pre += 1;
+                            stack.push(Step::EndPre(outer));
+                        } else if name == "page" && out.pre > 0 {
+                            out.breaks.push(out.buf.len());
+                            out.typed_breaks.push(out.buf.len());
                         }
                         stack.extend(node.children().rev().map(Step::Enter));
                     }
@@ -460,6 +608,7 @@ fn render_row(tr: NodeRef<Node>, out: &mut Out) {
                 let moved = |p: usize| p - cell.text.start + shift;
                 let within = |p: usize| p.clamp(cell.text.start, cell.text.end);
                 out.breaks.extend(cell.out.breaks.iter().map(|&p| moved(within(p))));
+                out.typed_breaks.extend(cell.out.typed_breaks.iter().map(|&p| moved(within(p))));
                 if !all_lines {
                     out.cell_lines.extend(cell.out.cell_lines.iter().map(|&p| moved(p)));
                     out.cell_rows.extend(cell.out.cell_rows.iter().map(|r| moved(r.start)..moved(r.end)));
@@ -677,6 +826,18 @@ static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// How a bare page number (`PAGE_NUMBER`) is written, as the group of the
+/// pattern for digits, roman numerals, "F-" numbers or other prefixed ones,
+/// and its value.
+fn page_value(line: &str) -> Option<(usize, u32)> {
+    // The way of writing of each group of `PAGE_NUMBER`.
+    const WRITTEN: [usize; 8] = [0, 1, 2, 0, 1, 3, 2, 0];
+    let c = PAGE_NUMBER.captures(line)?;
+    let (g, m) = (1..9).find_map(|g| Some((g, c.get(g)?)))?;
+    let value = if WRITTEN[g - 1] == 1 { roman(m.as_str()) } else { m.as_str().parse().ok() };
+    Some((WRITTEN[g - 1], value?))
+}
+
 /// A page number alone on its line after a dash and a prefix of one to three
 /// capital letters ("FS - 12", "S-3", "II-4"), a chapter number, which may
 /// end in a letter as the Items do ("7-3", "7A-1"), or nothing ("- 4"), with
@@ -702,6 +863,9 @@ static LABELED: LazyLock<Regex> = LazyLock::new(|| {
 /// ranges of `text`, see `Out::cell_rows`) are dropped together when the
 /// row is. A printed page ends at each of the
 /// sorted offsets `breaks`, and at the end of the text when there are any.
+/// Those of them in `typed_breaks` are page tags inside `<pre>`: without
+/// other breaks, the page numbers that count the pages end pages too (see
+/// `numbered_pages`).
 /// A page number with a prefix that ends a page stays when it is the page of
 /// a contents entry (see `page_furniture`). The lines inside the byte ranges
 /// `table_rows`, the rows of tables of data (see `data_rows`), are never
@@ -712,6 +876,7 @@ fn kept_lines<'a>(
     cell_rows: &[Range<usize>],
     table_rows: &[Range<usize>],
     breaks: &[usize],
+    typed_breaks: &[usize],
 ) -> Vec<&'a str> {
     debug_assert!(cell_lines.is_sorted(), "cell lines are recorded in text order");
     debug_assert!(cell_rows.is_sorted_by_key(|r| r.start), "cell rows are recorded in text order");
@@ -797,8 +962,13 @@ fn kept_lines<'a>(
         gone[i] = true;
     }
     // Where the pages end for running headers: at the page breaks, or
-    // without any, at the page numbers that count the pages.
-    let numbered = if ends_page.contains(&true) { None } else { numbered_pages(&lines, &marks) };
+    // without any, at the page numbers that count the pages. The page tags
+    // of a `<pre>` add to the latter.
+    let numbered = if breaks.len() > typed_breaks.len() {
+        None
+    } else {
+        numbered_pages(&lines, &marks).map(|ends| ends.iter().zip(&ends_page).map(|(&a, &b)| a || b).collect())
+    };
     if let Some(ends_page) = numbered.as_ref().or(ends_page.contains(&true).then_some(&ends_page)) {
         // The table rows as sorted ranges that do not overlap.
         let mut table_rows = table_rows.to_vec();
@@ -3927,6 +4097,257 @@ mod tests {
         assert_eq!(
             document_to_text(raw),
             "ITEM 6. SELECTED FINANCIAL DATA\nNet sales   $ 6,134\nITEM 7. MANAGEMENT'S DISCUSSION\n"
+        );
+    }
+
+    /// Text inside `<pre>` keeps its line breaks and the spaces inside its
+    /// lines, through the elements inside it. Outside `<pre>` a line break
+    /// is a space as before, and so it is again after the `<pre>` ends.
+    #[test]
+    fn pre_keeps_its_lines_and_spaces() {
+        let html = "<html><body><pre>\n\n       ITEM 1.    BUSINESS\n\n  We make   things.  \n\
+                    <b>Sales</b>     <u>2003</u>   &amp;   <font size=2>2002\nNet    1</font>\n</pre>\
+                    <p>After   the\nblock.</p></body></html>";
+        let want = "ITEM 1.    BUSINESS\nWe make   things.\nSales     2003   &   2002\nNet    1\nAfter the block.\n";
+        assert_eq!(html_to_text(html), want);
+        // The same lines outside `<pre>` are one line with single spaces.
+        let flowed = html.replace("<pre>", "<div>").replace("</pre>", "</div>");
+        assert_eq!(
+            html_to_text(&flowed),
+            "ITEM 1. BUSINESS We make things. Sales 2003 & 2002 Net 1\nAfter the block.\n"
+        );
+        // A `<pre>` inside another one: the outer one goes on after it.
+        let nested = "<pre>a  b\n<pre>c  d\ne</pre>f  g\nh</pre><p>i  j\nk</p>";
+        assert_eq!(html_to_text(nested), "a  b\nc  d\ne\nf  g\nh\ni j k\n");
+        // An unclosed `<pre>` holds the rest of the document.
+        assert_eq!(html_to_text("<p>a\nb</p><pre>c  d\ne<p>f\ng"), "a b\nc  d\ne\nf\ng\n");
+    }
+
+    /// Inside `<pre>`, a tab stays, any other space is one space, as a
+    /// non-breaking space is, a `<br>` and a block break the line as
+    /// elsewhere, and characters that print nothing are left out.
+    #[test]
+    fn pre_spaces_and_breaks() {
+        let html = "<pre>\tName\tAge\u{a0}\u{a0}Held\r\nA\u{200b}B<br>C  D<div>E  F</div>G&#13;H\u{c}I</pre>";
+        assert_eq!(html_to_text(html), "Name\tAge  Held\nAB\nC  D\nE  F\nG H I\n");
+        // Lines of spaces only, and the spaces at the two ends of a line, go.
+        assert_eq!(html_to_text("<pre>   \n \u{a0} \n  a  \n\t\n  b</pre>"), "a\nb\n");
+    }
+
+    /// A text filing inside `<html><body><pre>` comes out as the same text
+    /// filed as plain text does: its page tags end the pages, so the page
+    /// numbers go, also one joined to the last line of a page and the "S-1"
+    /// and "E-1" of its last pages, and so do the running headers but for
+    /// the name on the cover.
+    #[test]
+    fn pre_text_is_cleaned_as_a_text_filing_is() {
+        let mut body = String::from("                 ACME CORP\n\n                 FORM 10-K\n<PAGE>\n");
+        for n in 2..9 {
+            body += &format!("ACME CORP\nNOTES TO FINANCIAL STATEMENTS (Continued)\n\nItem {n}.    Title {n}\n\n");
+            body += &format!("     Text of page {n}, which no other page has, to fill the page with\nwords.");
+            body += &if n == 4 { format!("{n:>40}\n<PAGE>\n") } else { format!("\n\n{n:>40}\n<PAGE>\n") };
+        }
+        body += "SIGNATURES\n\n      S-1\n<PAGE>\nEXHIBIT INDEX\n      E-1\n";
+        let plain = document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{body}</TEXT>\n</DOCUMENT>"));
+        assert_eq!(plain.lines().count(), 2 + 7 * 3 + 2, "{plain}");
+        assert!(plain.starts_with("ACME CORP\nFORM 10-K\nItem 2.") && !plain.contains("NOTES"), "{plain}");
+        assert_eq!(plain.matches("ACME").count(), 1, "{plain}");
+        assert!(
+            plain.contains(
+                "Item 4.    Title 4\nText of page 4, which no other page has, to fill the page with\nwords.\n"
+            )
+        );
+        let wrapped = format!("<DOCUMENT>\n<TEXT>\n<HTML>\n<BODY>\n<PRE>\n{body}</PRE>\n</BODY>\n</HTML>\n</TEXT>");
+        assert!(document_is_html(&wrapped));
+        assert_eq!(document_to_text(&wrapped), plain);
+        // The SGML table tags of a text filing inside `<pre>` leave its lines
+        // in place, with or without a caption.
+        let table = "ITEM 6.    SELECTED DATA\n<TABLE>\n<CAPTION>\n                Year ended\n<S>      <C>\n\
+                     Net sales   $ 6,134\n<FN>\n(1) A   note.\n</FN>\n</TABLE>\n<TABLE>\n<S>      <C>\n\
+                     Net income  $   134\n</TABLE>\nITEM 7.    DISCUSSION\n";
+        let plain = document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{table}</TEXT>"));
+        assert_eq!(plain.lines().count(), 6);
+        assert_eq!(
+            document_to_text(&format!("<DOCUMENT>\n<TEXT>\n<HTML><BODY><PRE>\n{table}</PRE></BODY></HTML></TEXT>")),
+            plain
+        );
+    }
+
+    /// A page tag ends a page only inside `<pre>`: elsewhere in HTML the
+    /// pages end where a style says so, as before. Without a page end, the
+    /// page numbers that count only at the end of a page stay.
+    #[test]
+    fn page_tags_end_pages_only_inside_pre() {
+        let pages = "Text.\n<PAGE>\nSignatures.\n\n                S-1\n<PAGE>\nIndex.\n   E-1\n";
+        assert_eq!(
+            html_to_text(&format!("<html><body><pre>{pages}</pre></body></html>")),
+            "Text.\nSignatures.\nIndex.\n"
+        );
+        let unmarked = pages.replace("<PAGE>\n", "");
+        assert_eq!(
+            html_to_text(&format!("<html><body><pre>{unmarked}</pre></body></html>")),
+            "Text.\nSignatures.\nS-1\nIndex.\nE-1\n"
+        );
+        let flowed =
+            "<html><body><p>Text.</p><PAGE><p>Signatures.</p><p>S-1</p><PAGE><p>Index.</p><p>E-1</p></body></html>";
+        assert_eq!(html_to_text(flowed), "Text.\nSignatures.\nS-1\nIndex.\nE-1\n");
+        // A page tag after the `<pre>` has ended is outside it.
+        let after =
+            "<html><body><pre>Text.</pre><PAGE><p>Signatures.</p><p>S-1</p><PAGE><p>Index.</p><p>E-1</p></body></html>";
+        assert_eq!(html_to_text(after), "Text.\nSignatures.\nS-1\nIndex.\nE-1\n");
+    }
+
+    /// A short `<pre>` in ordinary HTML: a table typed in columns keeps its
+    /// rows, and one in a table cell makes the cell one of several lines.
+    /// The cells of a table row inside `<pre>` are ordinary cells.
+    #[test]
+    fn pre_blocks_in_ordinary_html() {
+        let html = "<p>Sales by   year\nfollow.</p><pre>\n                 2003      2002\n\
+                    Net sales       6,134     5,921\nNet income        134       (21)\n</pre><p>More   text.</p>";
+        assert_eq!(
+            html_to_text(html),
+            "Sales by year follow.\n2003      2002\nNet sales       6,134     5,921\nNet income        134       (21)\nMore text.\n"
+        );
+        let html = "<table><tr><td>Office</td><td><pre>1 Main  Street\nSpringfield</pre></td></tr>\
+                    <tr><td>Phone</td><td><pre>555  0100</pre></td></tr></table>";
+        let (text, tables) = tables_of(html);
+        assert_eq!(text, "Office\n1 Main  Street\nSpringfield\nPhone\t555  0100\n");
+        assert_eq!(rows(&tables[0]), [vec!["Office", "1 Main  Street\nSpringfield"], vec!["Phone", "555  0100"]]);
+        let html = "<pre>a  b\n<table><tr><td>Net   sales\nof goods</td><td>6,134</td></tr></table>c  d\ne</pre>";
+        let (text, tables) = tables_of(html);
+        assert_eq!(text, "a  b\nNet sales of goods\t6,134\nc  d\ne\n");
+        assert_eq!(rows(&tables[0]), [vec!["Net sales of goods", "6,134"]]);
+    }
+
+    /// The lines of a `<pre>` element in which no page ends are kept as the
+    /// lines of table cells are: a number typed alone on its line in a table
+    /// stays, and so do the lines of a heading typed at the top of each page,
+    /// while in a `<pre>` with a page tag they are a page number and a
+    /// running header. A `<pre>` of one line is an ordinary line. The lines
+    /// around the `<pre>` are cleaned as before.
+    #[test]
+    fn pre_without_page_ends_is_table_data() {
+        let table = "Reserve at start of year      1,234\nCharged to expense\n                                 45\n\
+                     Reserve at end of year        1,279\n";
+        let lines =
+            "Reserve at start of year      1,234\nCharged to expense\n45\nReserve at end of year        1,279\n";
+        let html = format!("<p>12</p><p>The reserve:</p><pre>\n{table}</pre><p>13</p><p>More.</p>");
+        assert_eq!(html_to_text(&html), format!("The reserve:\n{lines}More.\n"));
+        // A `<pre>` ending in a line break, and one inside a cell.
+        assert_eq!(html_to_text(&format!("<pre>{table}</pre><p>45</p>")), lines);
+        let (text, _) = tables_of(&format!("<table><tr><td><pre>{table}</pre></td></tr></table><p>45</p>"));
+        assert_eq!(text, lines);
+        // With a page tag in it, the `<pre>` holds pages.
+        let paged = format!("<pre>{table}<PAGE>\nNext page.</pre>");
+        assert_eq!(html_to_text(&paged), lines.replace("45\n", "") + "Next page.\n");
+        // A `<pre>` inside one that holds pages is part of those pages.
+        let nested = "<pre>Charged to expense\n<pre>        45\n</pre>Next\n<PAGE>\nNext page.</pre>";
+        assert_eq!(html_to_text(nested), "Charged to expense\nNext\nNext page.\n");
+        // The line of the next `<pre>` starts after the spaces that end one.
+        assert_eq!(html_to_text("<pre>Text.\n<PAGE>\n   </pre><pre>45</pre>"), "Text.\n45\n");
+        // With a row printed cell by cell inside.
+        let html = "<pre>Reserve\n<table><tr><td>Charged<br>to expense</td><td>45</td></tr></table>12\n</pre><p>13</p>";
+        assert_eq!(html_to_text(html), "Reserve\nCharged\nto expense\n45\n12\n");
+        let html = html.replace("12\n", "Total\n");
+        assert_eq!(html_to_text(&html), "Reserve\nCharged\nto expense\n45\nTotal\n");
+
+        let page = |n: u32, head: &str| {
+            format!(
+                "<div style=\"page-break-before: always\">{head}<pre>Text of page {n}, which no other page has.\n</pre></div>"
+            )
+        };
+        let typed: String = (1..8).map(|n| page(n, "<pre>ACME CORP\nNOTES</pre>")).collect();
+        assert_eq!(html_to_text(&typed).matches("ACME CORP\nNOTES\n").count(), 7);
+        for head in ["<p>ACME CORP</p>", "<pre>ACME CORP</pre>", "<pre>\n  ACME CORP\n\n</pre>"] {
+            let one_line: String = (1..8).map(|n| page(n, head)).collect();
+            assert_eq!(html_to_text(&one_line).matches("ACME").count(), 1, "{head}");
+        }
+    }
+
+    /// A page tag inside a small `<pre>` ends a page, and in a document that
+    /// marks no page breaks the page numbers that count the pages end them
+    /// as before: the running headers they show still go, all but the first
+    /// copy of a name.
+    #[test]
+    fn page_tag_in_a_small_pre() {
+        let words = "Words of this page alone, which no other page has. ".repeat(25);
+        let page = |n: u32| format!("<p>ACME CORP</p><p>NOTES (Continued)</p><p>Page {n}: {words}</p><p>{n}</p>");
+        let pages: String = (1..9).map(page).collect();
+        let text = html_to_text(&pages);
+        assert!(text.matches("ACME CORP").count() == 1 && !text.contains("NOTES"), "{text}");
+        let stray = pages.replacen("<p>4</p>", "<pre>\n<PAGE>\n</pre><p>4</p>", 1);
+        assert_eq!(html_to_text(&stray), text);
+        // In a table cell too.
+        let in_cell =
+            pages.replacen("<p>4</p>", "<table><tr><td><pre>Note.\nMore.\n<PAGE>\n</pre></td></tr></table><p>4</p>", 1);
+        assert_eq!(html_to_text(&in_cell).matches("ACME CORP").count(), 1, "{in_cell}");
+        // A page tag also ends a page that no page number ends, as a cover.
+        let cover = format!("<p>Cover. {words}</p><pre>\n<PAGE>\n</pre>{pages}");
+        assert_eq!(html_to_text(&cover), format!("Cover. {}\n{text}", words.trim_end()));
+        // Without page numbers, the page tag ends one page, and no header
+        // repeats at the top of five pages.
+        let unnumbered: String = (1..9)
+            .map(|n| {
+                let page = page(n).replace(&format!("<p>{n}</p>"), "");
+                if n == 4 { page + "<pre>\n<PAGE>\n</pre>" } else { page }
+            })
+            .collect();
+        assert_eq!(html_to_text(&unnumbered).matches("ACME CORP").count(), 8);
+    }
+
+    /// A bare number that ends a `<pre>` element, alone in it or on its last
+    /// line, is a page number when the one before or after it among such
+    /// numbers counts the pages with it, as in a deck of slides each in
+    /// `<pre>` elements, or when a page break follows it. The running
+    /// headers of those pages then go too. An amount typed in a `<pre>` of
+    /// its own between them is table data.
+    #[test]
+    fn page_numbers_that_end_a_pre() {
+        let words = "and words that fill the slide. ".repeat(40);
+        // A name over each slide: a heading there would go only where the
+        // slides break inside sentences (see `numbered_pages`).
+        let slide = |n: u32, extra: &str| {
+            format!("<pre>Acme Corporation</pre><pre>Slide {n} has text of its own, {words}</pre>{extra}<pre>{n}</pre>")
+        };
+        // The numbers skip 5: "4" and "6" still count the pages.
+        let deck: String =
+            [1, 2, 3, 4, 6, 7, 8].map(|n| slide(n, if n == 4 { "<pre>$</pre><pre>790</pre>" } else { "" })).concat();
+        let text = tables_of(&deck).0;
+        // As the same slides in paragraphs without the amount.
+        let flowed =
+            html_to_text(&deck.replace("<pre>790</pre>", "").replace("<pre>", "<p>").replace("</pre>", "</p>"));
+        assert_eq!(text, flowed.replace("$\n", "$\n790\n"));
+        assert_eq!(text.matches("Acme Corporation").count(), 1, "{text}");
+        assert!(text.lines().all(|l| l.parse::<u32>().is_err() || l == "790"), "{text}");
+        // The last line of a longer `<pre>`, with blank lines around it, in
+        // roman numerals too.
+        let pages: String = ["i", "ii", "iii"]
+            .iter()
+            .map(|n| format!("<pre>Text of page {n}.\nMore text.\n\n   {n}\n\n</pre><hr>"))
+            .collect();
+        let text = "Text of page i.\nMore text.\nText of page ii.\nMore text.\nText of page iii.\nMore text.\n";
+        assert_eq!(html_to_text(&pages), text);
+        // A number alone that counts with no other, as the end of a typed
+        // table, stays, as do numbers written two ways or the same number
+        // twice.
+        let html = "<p>Units:</p><pre>12</pre><p>Text.</p><pre>Total\n   40</pre>";
+        assert_eq!(html_to_text(html), "Units:\n12\nText.\nTotal\n40\n");
+        let html = "<pre>Text.\n\n   ii\n</pre><p>Text.</p><pre>3</pre><p>Text.</p><pre>3</pre>";
+        assert_eq!(html_to_text(html), "Text.\nii\nText.\n3\nText.\n3\n");
+        // One that a page break follows goes, on its own, but not one with
+        // text after it on the page.
+        let broken = "<pre>Text.\n\n   17\n</pre><div style=\"page-break-before: always\"><p>Next.</p></div>";
+        assert_eq!(html_to_text(broken), "Text.\nNext.\n");
+        let later = broken.replace("<div", "<p>More.</p><div");
+        assert_eq!(html_to_text(&later), "Text.\n17\nMore.\nNext.\n");
+        // In table cells it is table data.
+        let cells: String = (1..4).map(|n| format!("<tr><td><pre>Text {n}.\n  {n}</pre></td></tr>")).collect();
+        let html = format!("<table>{cells}</table>");
+        assert_eq!(html_to_text(&html), "Text 1.\n1\nText 2.\n2\nText 3.\n3\n");
+        // A number in a `<pre>` of several lines that is not the last stays.
+        assert_eq!(
+            html_to_text("<pre>7\nText.</pre><pre>8\nText.</pre><pre>9\nText.</pre>"),
+            "7\nText.\n8\nText.\n9\nText.\n"
         );
     }
 
