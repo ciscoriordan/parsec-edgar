@@ -1035,7 +1035,11 @@ fn full_pages(mut sizes: Vec<usize>) -> bool {
 /// run of its own. So "(A Wholly-Owned Subsidiary of MetLife, Inc.)" under
 /// the name on each page stays once with the name, and a note under the
 /// name on a few of its pages stays on each, as does a note under a header
-/// that says it continues, which goes from every page.
+/// that says it continues, which goes from every page. A note that opens a
+/// parenthesis or a bracket and does not close it on its line stays where
+/// the line under it in the block stays, which holds the rest of the note:
+/// "(Information as of and for the Nine Months" over "Ended September 30,
+/// 1997 is unaudited)", a legend, in FrontierVision's 10-K of 1999.
 ///
 /// Lines that can never be running headers here, and end a block: lines of
 /// table data (`in_table`: cells and the rows of tables of data, see
@@ -1300,6 +1304,9 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             // Whether the line above in the block goes as a name or a
             // heading does, or with one.
             let mut with_name = false;
+            // Whether the line above in the block goes as a note that opens
+            // a parenthesis or a bracket and does not close it.
+            let mut open = false;
             for k in block.clone() {
                 let t = id[k];
                 // A copy starts a run of pages unless the text is in a block
@@ -1321,7 +1328,14 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
                 with_name = goes && texts[t].1 != Kind::Continues;
                 if goes {
                     found.push(kept[k]);
+                } else if open {
+                    // The rest of the note stays, so its first line does.
+                    found.pop();
                 }
+                open = goes && texts[t].1 == Kind::Note && {
+                    let line = lines[kept[k]];
+                    line.matches(['(', '[']).count() > line.matches([')', ']']).count()
+                };
             }
         }
     }
@@ -1383,10 +1397,19 @@ impl Kind {
 /// statements they are ("(Parent Company Only)", "Acme Corp. (Parent
 /// Only)", "(Registrant Only)"). A line that starts with the date or period
 /// it covers is one too, unless it says it continues (see `PERIOD`).
+///
+/// The units are also read from a line that starts with a parenthesis and
+/// gives them as "000", "$000" or "000’s" before that parenthesis closes:
+/// "($000, except share/unit data)", "(Tabular amounts in US$ 000’s, except
+/// share and per share data)". The "000" follows no digit, comma or period
+/// and a space, a comma, the ")" or the end of the line follows it, so
+/// "(Formed in 2000)", "(10,000,000 shares authorized)" and "(Commission
+/// File No. 000-12345)" give no units.
 static LEGEND: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
         r"(?i)^\(?(?:see|the accompanying)\b|\bintegral part\b|\bin (?:thousands|millions|billions)\b|\btabular dollars\b",
         r"|\b000(?:['’]?s)? omitted\b|\b(?:parent|registrant)(?: company| corporation)? only\b",
+        r"|^\((?:[^)]*[^\d,.)])?000(?:['’]?s)?(?:[\s,)]|$)",
     ))
     .unwrap()
 });
@@ -4589,5 +4612,84 @@ mod tests {
             .collect();
         let text = html_to_text(&printed(&pages));
         assert_eq!((count(&text, acme), count(&text, notes)), (1, 5), "{text}");
+    }
+
+    /// A note wrapped over two lines stays whole. Its first line opens a
+    /// parenthesis or a bracket and does not close it, and stays where the
+    /// line under it in the block stays. A note closed on its line goes with
+    /// the line above it all the same, and the rule reads notes only.
+    #[test]
+    fn first_lines_of_wrapped_notes_stay_with_the_rest() {
+        let count =
+            |pages: &[Vec<String>], line: &str| html_to_text(&printed(pages)).lines().filter(|l| *l == line).count();
+        let (acme, notes) = ("Acme Corporation", "Notes to Combined Financial Statements");
+        let date = "December 31, 2024 and 2023";
+        // The rest of the note starts with the period it covers, so it is a
+        // legend and stays on every page.
+        for (first, rest) in [
+            ("(Information as of and for the Nine Months", "Ended September 30, 1997 is unaudited)"),
+            ("[Information as of and for the Nine Months", "Ended September 30, 1997 is unaudited]"),
+        ] {
+            let pages = framed(&[notes, first, rest], &[], 1..13);
+            assert_eq!((count(&pages, notes), count(&pages, first), count(&pages, rest)), (1, 12, 12), "{first}");
+            // A first line that stays leaves the lines above it as they are.
+            let pages = framed(&[acme, date, first, rest], &[], 1..13);
+            let copies = [acme, date, first, rest].map(|line| count(&pages, line));
+            assert_eq!(copies, [1, 12, 12, 12], "{first}");
+        }
+        // The rest goes with the first line, and both stay over the first
+        // page; with nothing under it in the block the first line goes.
+        let (first, rest) = ("(A Wholly-Owned Subsidiary of", "Beta Holding Corporation)");
+        let pages = framed(&[acme, first, rest], &[], 1..13);
+        assert_eq!((count(&pages, acme), count(&pages, first), count(&pages, rest)), (1, 1, 1));
+        let pages = framed(&[acme, first], &[], 1..13);
+        assert_eq!((count(&pages, acme), count(&pages, first)), (1, 1));
+        // A note closed on its line goes over a legend.
+        for note in ["(Unaudited)", "(A Development Stage Company)", "[Formerly Beta Inc.]", "AND SUBSIDIARIES"] {
+            let pages = framed(&[acme, note, date], &[], 1..13);
+            assert_eq!((count(&pages, acme), count(&pages, note), count(&pages, date)), (1, 1, 12), "{note}");
+        }
+        // A heading that opens a parenthesis is no note: it goes as a
+        // heading does.
+        let (heading, rest) = ("Notes to Financial Statements (Information for", "September 30, 1997 is unaudited)");
+        let pages = framed(&[heading, rest], &[], 1..13);
+        assert_eq!((count(&pages, heading), count(&pages, rest)), (1, 12));
+    }
+
+    /// Units given as "000", "$000" or "000’s" in a parenthetical are a
+    /// legend, which stays on every page. A parenthetical that gives no
+    /// units is a note and goes with the heading above it, and a "000"
+    /// outside the parenthesis that starts the line makes no legend.
+    #[test]
+    fn units_given_as_000_in_parentheses_are_a_legend() {
+        let count =
+            |pages: &[Vec<String>], line: &str| html_to_text(&printed(pages)).lines().filter(|l| *l == line).count();
+        let notes = "Notes to Consolidated Financial Statements";
+        for legend in [
+            "(Tabular amounts in US$ 000’s, except share and per share data)",
+            "($000, except share/unit data)",
+            "(000’s, except per share data)",
+            "(Amounts in $000's)",
+            "(in 000s)",
+            "(US$000)",
+        ] {
+            let pages = framed(&[notes, legend], &[], 1..13);
+            assert_eq!((count(&pages, notes), count(&pages, legend)), (1, 12), "{legend}");
+        }
+        for note in [
+            "(Unaudited)",
+            "(A Development Stage Company)",
+            "(Formed in 2000)",
+            "(10,000,000 shares authorized)",
+            "(Exchange ratio of 1.000 to 1)",
+            "(Commission File No. 000-12345)",
+        ] {
+            let pages = framed(&[notes, note], &[], 1..13);
+            assert_eq!((count(&pages, notes), count(&pages, note)), (1, 1), "{note}");
+        }
+        for header in ["Acme Portfolio 000 LLC", "(Restated) Schedule 000"] {
+            let pages = framed(&[header], &[], 1..13);
+            assert_eq!(count(&pages, header), 1, "{header}");
+        }
     }
 }
