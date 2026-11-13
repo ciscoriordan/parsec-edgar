@@ -965,7 +965,11 @@ fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
 /// `CONTINUED`); a run goes on over one page without the text, as on
 /// facing pages. So with two filers, as in the 10-K that US Airways Group
 /// and US Airways file together, each name stays over the first page of
-/// each run of its filer's pages. A heading at which section splitting ends an Item (see
+/// each run of its filer's pages. A filer's name alone in a run of one
+/// page, with no copy in a block on the two pages before it or after it,
+/// runs over no pages and stays too: it heads its page, as Amazon.com's
+/// name over "FORM 10-K" or over "SCHEDULE II", or a section, as Blue Ridge
+/// Bankshares' name over the rules that apply to it. A heading at which section splitting ends an Item (see
 /// `sections::ends_items`), such as "Independent Auditors' Report", stays
 /// so even when it looks like a name. Lines that can never be running
 /// headers here, and end a block: lines of table data (`in_table`: cells
@@ -1048,8 +1052,10 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     // The texts that go everywhere, headers that say they continue and
     // names, with their copies in table data.
     let mut everywhere: Vec<Everywhere> = Vec::new();
-    // Whether each text is a legend (see `LEGEND`), which never goes.
+    // Whether each text is a legend (see `LEGEND`), which never goes, and
+    // whether it says it continues.
     let mut legend: Vec<bool> = Vec::new();
+    let mut continued: Vec<bool> = Vec::new();
     let mut id = vec![NONE; kept.len()];
     let mut at_edge: Vec<Vec<usize>> = Vec::new();
     for (p, page) in pages.iter().enumerate() {
@@ -1067,6 +1073,7 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
                     }
                     texts.push((*n, heading));
                     legend.push(stays);
+                    continued.push(continues);
                     at_edge.push(Vec::new());
                     texts.len() - 1
                 } else {
@@ -1178,6 +1185,22 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             failing.extend(touched.into_iter().filter(|&u| in_set[u] && !passes(u, &edges, &own_pages, &other_pages)));
         }
     }
+    // The pages where each text is in a block, in order.
+    let mut block_pages: Vec<Vec<usize>> = vec![Vec::new(); texts.len()];
+    for (p, (page, &(top, bottom))) in pages.iter().zip(&blocks).enumerate() {
+        for k in (page.start..page.start + top).chain(page.end - bottom..page.end) {
+            if block_pages[id[k]].last() != Some(&p) {
+                block_pages[id[k]].push(p);
+            }
+        }
+    }
+    // Whether a text in a block on a page is in a block on no other page of
+    // its run: none of the two pages before it or after it.
+    let alone = |t: usize, p: usize| {
+        let on = &block_pages[t];
+        let at = on.partition_point(|&q| q < p);
+        !(at > 0 && on[at - 1] + 2 >= p || on.get(at + 1).is_some_and(|&q| q <= p + 2))
+    };
     // The page where each heading was last in a block.
     let mut last_page = vec![NONE; texts.len()];
     let mut found = Vec::new();
@@ -1193,6 +1216,8 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
                 if starts_run {
                     continue;
                 }
+            } else if !continued[t] && alone(t, p) {
+                continue;
             }
             found.push(kept[k]);
         }
@@ -2917,6 +2942,32 @@ mod tests {
         ] {
             let text = html_to_text(&printed(&framed(&[header], &[], 1..8)));
             assert!(!text.contains(header), "{text}");
+        }
+    }
+
+    /// A filer's name stays where it is alone, with no copy in a block on the
+    /// two pages before it or after it, and goes from runs of pages. A
+    /// header that says it continues goes also alone.
+    #[test]
+    fn names_alone_on_their_page_stay() {
+        let acme = "Acme Corporation";
+        // A run of seven pages, with one more copy `gap` pages after its
+        // last, or before its first.
+        let doc = |header: &str, gap: u32, after: bool| -> Vec<Vec<String>> {
+            let (run, alone) = if after { (1..8, 7 + gap) } else { (gap + 1..gap + 8, 1) };
+            (1..16)
+                .map(|n| {
+                    let top = if run.contains(&n) || n == alone { vec![header.to_string()] } else { Vec::new() };
+                    top.into_iter().chain([format!("Text of page {n}.")]).collect()
+                })
+                .collect()
+        };
+        for after in [true, false] {
+            let count = |gap: u32| html_to_text(&printed(&doc(acme, gap, after))).matches(acme).count();
+            assert_eq!((count(2), count(3)), (0, 1), "{after}");
+            let continued = "Notes (Continued)";
+            let text = html_to_text(&printed(&doc(continued, 3, after)));
+            assert!(!text.contains(continued), "{text}");
         }
     }
 
