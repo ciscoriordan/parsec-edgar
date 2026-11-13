@@ -884,13 +884,16 @@ struct PageMark {
 ///
 /// A number shows a page end when it counts the pages: the number written
 /// in the same way before it is one less, or the one after it is one more,
-/// and at least 500 bytes of text lie between the two, as a printed page
-/// has. So the page references of a table of contents, the numbers of a
-/// list and the cells of a table printed one to a line show none. With
-/// fewer than five such page ends the pages are not known.
+/// and at least 500 bytes of text lie between the two. So the page
+/// references of a table of contents and the cells of a table printed one
+/// to a line show none. With fewer than five such page ends the pages are
+/// not known, nor when most of the pages between them hold less than 1,000
+/// bytes of text: those are the items of a numbered list, each a paragraph
+/// or two, while a page of a filing that numbers its pages holds more.
 fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
     const MIN_PAGES: usize = 5;
     const MIN_PAGE: usize = 500;
+    const MIN_MEDIAN_PAGE: usize = 1000;
     // The bytes of text before each line.
     let mut before = Vec::with_capacity(lines.len() + 1);
     before.push(0);
@@ -909,7 +912,15 @@ fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
             }
         }
     }
-    (ends.iter().filter(|&&end| end).count() >= MIN_PAGES).then_some(ends)
+    // Where each page end is, in bytes of text, and the bytes of each page
+    // between two of them.
+    let at: Vec<usize> = (0..lines.len()).filter(|&i| ends[i]).map(|i| before[i + 1]).collect();
+    if at.len() < MIN_PAGES {
+        return None;
+    }
+    let mut sizes: Vec<usize> = at.windows(2).map(|w| w[1] - w[0]).collect();
+    sizes.sort_unstable();
+    (sizes[sizes.len() / 2] >= MIN_MEDIAN_PAGE).then_some(ends)
 }
 
 /// Running page headers and footers that print no page number, such as
@@ -2433,8 +2444,8 @@ mod tests {
 
     /// In a document without page breaks, running headers go when its bare
     /// page numbers count the pages: five or more numbers written in the
-    /// same way, each one more than the one before, with a page of text
-    /// between them.
+    /// same way, each one more than the one before, with 500 bytes of text
+    /// between them and, on most pages, 1,000.
     #[test]
     fn running_headers_dropped_where_page_numbers_show_the_pages() {
         // Pages of two header lines and `filler` + 49 bytes of text, each
@@ -2467,7 +2478,7 @@ mod tests {
         ];
         for numbers in all {
             for top in [false, true] {
-                let pages = pages(&numbers, 451, top);
+                let pages = pages(&numbers, 951, top);
                 let text = html_to_text(&html(&pages));
                 assert_eq!((headers(&text), text.lines().count()), (0, 6), "{numbers:?} {top}");
                 let raw = pages.concat().join("\n");
@@ -2478,10 +2489,13 @@ mod tests {
         // Five numbers end five pages, but not when the first comes before
         // any text.
         let five = ["3", "4", "5", "6", "7", ""];
-        assert_eq!(headers(&html_to_text(&html(&pages(&five, 451, false)))), 0);
-        assert_eq!(headers(&html_to_text(&html(&pages(&five, 451, true)))), 12);
-        // Four numbers end four pages, with a fifth page after them.
-        assert_eq!(headers(&html_to_text(&html(&pages(&["3", "4", "5", "6", ""], 451, false)))), 10);
+        assert_eq!(headers(&html_to_text(&html(&pages(&five, 951, false)))), 0);
+        assert_eq!(headers(&html_to_text(&html(&pages(&five, 951, true)))), 12);
+        // Four numbers end four pages, with a fifth page after them, also
+        // when a fifth number that does not count the pages ends it.
+        for last in ["", "9"] {
+            assert_eq!(headers(&html_to_text(&html(&pages(&["3", "4", "5", "6", last], 951, false)))), 10);
+        }
         // Page breaks show the pages where there are any: numbers in the
         // middle of those pages change nothing.
         let broken: String = (3..9)
@@ -2494,8 +2508,38 @@ mod tests {
             })
             .collect();
         assert_eq!((headers(&html_to_text(&broken)), html_to_text(&broken).lines().count()), (0, 12));
-        // One byte less than a page of text between the numbers.
-        assert_eq!(headers(&html_to_text(&html(&pages(&all[0], 450, false)))), 12);
+        // Most pages one byte short of 1,000 bytes of text.
+        assert_eq!(headers(&html_to_text(&html(&pages(&all[0], 950, false)))), 12);
+        // Four of the six pages between seven page ends, and three.
+        let mut short = pages(&["3", "4", "5", "6", "7", "8", "9"], 951, false);
+        for page in &mut short[1..5] {
+            page[2].pop();
+        }
+        assert_eq!(headers(&html_to_text(&html(&short))), 14);
+        short[4][2].push('x');
+        assert_eq!(headers(&html_to_text(&html(&short))), 0);
+        // Between two pages of 500 bytes a number counts the pages; between
+        // two of 499 bytes it does not, and the headers of the second page
+        // are in the middle of a page.
+        for (cut, want) in [(500, 0), (501, 16)] {
+            let mut pages = pages(&["3", "4", "5", "6", "7", "8", "9", "10"], 951, false);
+            for page in &mut pages[5..7] {
+                let len = page[2].len();
+                page[2].truncate(len - cut);
+            }
+            assert_eq!(headers(&html_to_text(&html(&pages))), want, "{cut}");
+        }
+        // A page ends at the line before its number: with the number at the
+        // top of each page, the footers at the bottom of the page before go.
+        let footed: Vec<Vec<String>> = pages(&all[0], 951, true)
+            .into_iter()
+            .map(|mut page| {
+                let text = page.remove(3);
+                page.insert(1, text);
+                page
+            })
+            .collect();
+        assert_eq!(headers(&html_to_text(&html(&footed))), 0);
         // Numbers that do not count the pages: not one more each, the same
         // number, falling, two ways of writing in turn, and only four pages.
         for numbers in [
@@ -2508,12 +2552,17 @@ mod tests {
             ["", "", "", "", "", ""],
         ] {
             for top in [false, true] {
-                assert_eq!(headers(&html_to_text(&html(&pages(&numbers, 451, top)))), 12, "{numbers:?} {top}");
+                assert_eq!(headers(&html_to_text(&html(&pages(&numbers, 951, top)))), 12, "{numbers:?} {top}");
             }
         }
-        // The numbers of a list are no page numbers: "Director" stays.
-        let list: String = (1..9).map(|n| format!("<p>{n}</p><p>Name {n}</p><p>Director</p>")).collect();
-        assert_eq!(html_to_text(&list).matches("Director").count(), 8);
+        // The numbers of a list are no page numbers: "Director" stays, also
+        // with paragraphs of 500 bytes in the items.
+        for words in [0, 100] {
+            let list: String = (1..9)
+                .map(|n| format!("<p>{n}</p><p>Director</p><p>Name {n}</p><p>{}</p>", "Text ".repeat(words)))
+                .collect();
+            assert_eq!(html_to_text(&list).matches("Director").count(), 8, "{words}");
+        }
     }
 
     /// Copies in table data do not count against a header that says it
