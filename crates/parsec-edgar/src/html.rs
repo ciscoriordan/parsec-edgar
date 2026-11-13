@@ -2881,20 +2881,46 @@ mod tests {
             let text = document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>"));
             assert_eq!(text.matches(caption).count(), 12, "{caption}");
         }
-        // A heading over the pages after the numbers is their running header
-        // where two pages break inside a sentence, and not where one does.
-        let notes = |inside: usize| -> String {
+        // A note that follows the numbers counts as a name does: the name at
+        // the foot of each page goes.
+        let html: String = (0..8)
+            .map(|i| {
+                let text = format!("Text of page {i}. {}", "x".repeat(1000));
+                format!("<p>(Unaudited)</p><p>{text}</p><p>Acme Corporation</p><p>{}</p>", i + 3)
+            })
+            .collect();
+        let text = html_to_text(&html);
+        assert_eq!((text.matches("Acme Corporation").count(), text.matches("(Unaudited)").count()), (1, 8));
+        // A heading over the pages after the numbers, on the first page and
+        // the next `tops`, is their running header where two pages break
+        // inside a sentence: the last line of the page ends with `end`, and
+        // the next page goes on in lowercase. One such page is not enough,
+        // nor are pages that go on in lowercase after a stop, nor four
+        // numbers that the heading follows.
+        let notes = |tops: usize, inside: usize, end: &str| -> String {
             (0..8)
                 .map(|i| {
-                    let start = if i > 0 && i <= inside { "rest of a sentence." } else { "Text." };
-                    let end = if i < inside { "and the" } else { "end." };
-                    let text = format!("{start} {} {end}", "x".repeat(1000));
-                    format!("<p>Notes to Financial Statements</p><p>{text}</p><p>{}</p>", i + 3)
+                    let top = if i <= tops { "<p>Notes to Financial Statements</p>" } else { "" };
+                    let start =
+                        if i > 0 && i <= inside { format!("rest of sentence {i}.") } else { format!("Text {i}.") };
+                    let end = if i < inside { end } else { "end." };
+                    format!("{top}<p>{start} {} {end}</p><p>{}</p>", "x".repeat(1000), i + 3)
                 })
                 .collect()
         };
-        for (inside, want) in [(2, 1), (1, 8), (0, 8)] {
-            assert_eq!(html_to_text(&notes(inside)).matches("Notes to").count(), want, "{inside}");
+        for (tops, inside, end, want) in [
+            (7, 2, "and the", 1),
+            (7, 1, "and the", 8),
+            (7, 0, "and the", 8),
+            (7, 2, "the end.", 8),
+            (7, 2, "(the end.)", 8),
+            (7, 2, "as follows:", 8),
+            (7, 2, "follows;", 8),
+            (5, 2, "and the", 1),
+            (4, 2, "and the", 5),
+        ] {
+            let found = html_to_text(&notes(tops, inside, end)).matches("Notes to").count();
+            assert_eq!(found, want, "{tops} {inside} {end}");
         }
     }
 
@@ -3063,13 +3089,20 @@ mod tests {
         let top = ["Acme Corp.", date, units, "As of June 30, 2023", "Tabular dollars", "Acme Corp. LLC", notes];
         let pages = framed(&top, &[], 1..7);
         assert_eq!((count(&pages, "Acme Corp. LLC"), count(&pages, notes)), (1, 6));
+        // A legend that says it continues is a legend all the same, and past
+        // a legend a note stays in the block: the header under it goes.
+        let (continued, stated) = ("(In thousands) (Continued)", "(Stated in U.S. Dollars)");
+        let pages = framed(&["Acme Corporation", continued, stated, notes], &[], 1..7);
+        let counts = (count(&pages, "Acme Corporation"), count(&pages, continued), count(&pages, stated));
+        assert_eq!((counts, count(&pages, notes)), ((1, 6, 6), 0));
     }
 
     /// A name stays over the first page of each run of pages it heads, as a
     /// heading does, and goes from the others, whether the headers name one
     /// filer or several; a note under it stays on every page. A page without
     /// the name ends the run, and so does a page with another name in its
-    /// place.
+    /// place. A copy at the foot of a page with the name at its top goes on
+    /// with the run.
     #[test]
     fn names_stay_over_the_first_page_of_each_run() {
         let filing = |pages: &[Vec<String>]| {
@@ -3120,6 +3153,16 @@ mod tests {
             let text = html_to_text(&printed(&doc(continued, 3, after)));
             assert!(!text.contains(continued), "{text}");
         }
+        // A name at the top and at the foot of each page stays once: its
+        // second copy on a page goes on with the run.
+        let pages = framed(&[acme], &[acme], 1..7);
+        for text in [html_to_text(&printed(&pages)), filing(&pages)] {
+            assert_eq!(text.matches(acme).count(), 1, "{text}");
+        }
+        // "(Continued)" alone says it continues, though it is written as a
+        // note is, and goes from every page.
+        let text = html_to_text(&printed(&framed(&[acme, "(Continued)"], &[], 1..7)));
+        assert_eq!((text.matches(acme).count(), text.matches("(Continued)").count()), (1, 0), "{text}");
     }
 
     /// A heading that is also the running header of the pages after it stays
@@ -3361,6 +3404,12 @@ mod tests {
             (framed(&["Sept. 30, 2024, 2023 & 2022"], &[], 1..7), "Sept. 30", 6),
             (framed(&["As of June 30, 2023"], &[], 1..7), "As of June", 6),
             (framed(&["For the years ended December 31, 2024 and 2023"], &[], 1..7), "For the years", 6),
+            (
+                framed(&["For the period from inception on May 6, 2003 through December 31, 2007"], &[], 1..7),
+                "For the",
+                6,
+            ),
+            (framed(&["At December 31, 2024 and 2023"], &[], 1..7), "At December", 6),
             (vec![vec!["[THIS PAGE INTENTIONALLY LEFT BLANK]".to_string()]; 6], "[THIS PAGE", 6),
             (framed(&["• Investment"], &[], 1..7), "• Investment", 6),
             (framed(&[], &["● Audit Committee"], 1..7), "● Audit", 6),
