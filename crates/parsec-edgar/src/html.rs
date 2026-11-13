@@ -961,51 +961,41 @@ fn full_pages(mut sizes: Vec<usize>) -> bool {
 /// edge is taken out, so the work stays linear in the lines.
 ///
 /// Copies that are lines of table data, which are never in a block, do not
-/// count among the copies of a header that says it continues, nor among
-/// those of a name when the headers name one filer only (see `same_filer`;
-/// a second filer's name must be a whole name, see `whole_name`), as long
-/// as five copies are left: Flagstone Reinsurance's 10-K of 2011 prints its
-/// name over each page of the notes and also in the heading rows of ten
-/// tables. With the names of two filers in the headers, a name tells whose
-/// page it is, and its copies in tables count as before.
+/// count among the copies of a name, of a note or of a header that says it
+/// continues, as long as five copies are left: Flagstone Reinsurance's 10-K
+/// of 2011 prints its name over each page of the notes and also in the
+/// heading rows of ten tables.
 ///
-/// Every copy in a block goes, and only those: a copy in the middle of a
-/// page stays. The copy that starts each run of pages with a text in a
-/// block stays, as the heading that the pages after it repeat ("Notes to
-/// Consolidated Financial Statements", "Executive Compensation"), unless
-/// the text names the filer of a document whose headers name one filer
-/// only (see `names_filer`) or says it continues a heading (see
-/// `CONTINUED`); a run goes on over one page without the text, as on
-/// facing pages. So with two filers, as in the 10-K that US Airways Group
-/// and US Airways file together, each name stays over the first page of
-/// each run of its filer's pages. A filer's name alone in a run of one
-/// page, with no copy in a block on the two pages before it or after it,
-/// runs over no pages and stays too: it heads its page, as Amazon.com's
-/// name over "FORM 10-K" or over "SCHEDULE II", or a section, as Blue Ridge
-/// Bankshares' name over the rules that apply to it. A heading at which section splitting ends an Item (see
-/// `sections::ends_items`), such as "Independent Auditors' Report", stays
-/// so even when it looks like a name. Lines that can never be running
-/// headers here, and end a block: lines of table data (`in_table`: cells
-/// and the rows of tables of data, see `data_rows`), so a table's header
-/// row repeated over its continued pages stays a row of the table, and
-/// lines with a tab, as rows of several cells in a text filing have; lines
-/// that start with "Item" or "Part", which section splitting reads as Item
-/// headings and Part lines, so a header below such a line stays too; lines
-/// over 120 characters or with fewer than two letters; footnotes ("1
-/// Includes ...", "(2) Excludes ...", "* Restated"); sentences,
-/// lines that end with a "." after a word of five or more letters or with a
-/// number ("... Instruction I to Form 10-K."), while "MetLife, Inc." and
-/// "J.P. Morgan Chase & Co." are headers.
+/// Only copies in a block go, never a copy in the middle of a page, and of
+/// those only the ones that what the text is (see `Kind`) lets go. A header
+/// that says it continues a heading goes from every block. A name or a
+/// heading stays over the first page of each run of pages it heads and goes
+/// from the others: a run is pages next to each other with the text in a
+/// block, and a page without it ends the run. So each name stays over the
+/// first page of each run of its filer's pages, as in the 10-K that US
+/// Airways Group and US Airways file together, and over a page it heads
+/// alone, as Amazon.com's name over "FORM 10-K"; and a heading printed on
+/// every other page, as on facing pages, stays on each. A legend, or a note
+/// that qualifies the name or title above it ("(Unaudited)", "AND
+/// SUBSIDIARIES"), never goes.
 ///
-/// A line that tells how to read the page (see `LEGEND`), a reference to
-/// the notes or the auditors' report under each financial statement, the
-/// units of a table, whose statements they are ("(Parent Company Only)")
-/// or a date, never goes. One that passes the test of a
-/// running header is part of a block all the same, as the date is in
-/// "Acme Corp." over "December 31, 2024 and 2023" over "Note 2 - Accounting
-/// Policies (Continued)". Past a legend only a legend, a name or a header
-/// that says it continues goes on the block: a heading under a date or
-/// under the units of a table stays.
+/// Lines that can never be running headers here, and end a block: lines of
+/// table data (`in_table`: cells and the rows of tables of data, see
+/// `data_rows`), so a table's header row repeated over its continued pages
+/// stays a row of the table, and lines with a tab, as rows of several cells
+/// in a text filing have; lines that start with "Item" or "Part", which
+/// section splitting reads as Item headings and Part lines, so a header
+/// below such a line stays too; lines over 120 characters or with fewer
+/// than two letters; footnotes ("1 Includes ...", "(2) Excludes ...", "*
+/// Restated"); sentences, lines that end with a "." after a word of five or
+/// more letters or with a number ("... Instruction I to Form 10-K."), while
+/// "MetLife, Inc." and "J.P. Morgan Chase & Co." are headers.
+///
+/// A legend or a note that passes the test of a running header is part of a
+/// block all the same, as the date is in "Acme Corp." over "December 31,
+/// 2024 and 2023" over "Note 2 - Accounting Policies (Continued)". Past a
+/// legend a heading ends the block: a heading under a date or under the
+/// units of a table stays.
 fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: &[bool]) -> Vec<usize> {
     const MIN_COPIES: u32 = 5;
     const MAX_DEPTH: usize = 6;
@@ -1058,18 +1048,11 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             n
         })
         .collect();
-    // The texts that can be running headers, with their copies and whether
-    // each is a heading that stays where its run of pages starts; the number
-    // of the text of each kept line at the edge of a page that can be one,
-    // or NONE; and the pages where each text is at the edge.
-    let mut texts: Vec<(u32, bool)> = Vec::new();
-    // The texts that go everywhere, headers that say they continue and
-    // names, with their copies in table data.
-    let mut everywhere: Vec<Everywhere> = Vec::new();
-    // Whether each text is a legend (see `LEGEND`), which never goes, and
-    // whether it says it continues.
-    let mut legend: Vec<bool> = Vec::new();
-    let mut continued: Vec<bool> = Vec::new();
+    // The texts that can be running headers, with their copies and what each
+    // is; the number of the text of each kept line at the edge of a page
+    // that can be one, or NONE; and the pages where each text is at the
+    // edge.
+    let mut texts: Vec<(u32, Kind)> = Vec::new();
     let mut id = vec![NONE; kept.len()];
     let mut at_edge: Vec<Vec<usize>> = Vec::new();
     for (p, page) in pages.iter().enumerate() {
@@ -1079,15 +1062,14 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             let (n, t) = &mut copies[text[k]];
             if *t == UNSEEN {
                 *t = if *n >= MIN_COPIES && can_head(line) {
-                    let stays = LEGEND.is_match(line);
-                    let continues = CONTINUED.is_match(line);
-                    let heading = !continues && (stays || crate::sections::ends_items(line) || !names_filer(line));
-                    if !heading {
-                        everywhere.push(Everywhere { text: texts.len(), tabled: tabled[text[k]], continues, line });
-                    }
-                    texts.push((*n, heading));
-                    legend.push(stays);
-                    continued.push(continues);
+                    let kind = Kind::of(line);
+                    // A copy in table data is never in a block. It does not
+                    // count against a name, a note or a header that says it
+                    // continues.
+                    let tabled = tabled[text[k]];
+                    let counted =
+                        matches!(kind, Kind::Name | Kind::Note | Kind::Continues) && *n - tabled >= MIN_COPIES;
+                    texts.push((if counted { *n - tabled } else { *n }, kind));
                     at_edge.push(Vec::new());
                     texts.len() - 1
                 } else {
@@ -1106,22 +1088,6 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     if texts.is_empty() {
         return Vec::new();
     }
-    // A copy in table data is never in a block. It does not count against
-    // a header that says it continues, or against a name when the headers
-    // name one filer only.
-    let mut filers =
-        everywhere.iter().filter(|e| !e.continues && !goes_with_name(e.line) && whole_name(e.line)).map(|e| e.line);
-    let one_filer = filers.next().is_none_or(|first| filers.all(|name| same_filer(first, name)));
-    for e in &everywhere {
-        if (e.continues || one_filer) && texts[e.text].0 - e.tabled >= MIN_COPIES {
-            texts[e.text].0 -= e.tabled;
-        }
-        // With the names of two filers in the headers, each name heads the
-        // pages of its filer, as a heading does.
-        if !e.continues && !one_filer {
-            texts[e.text].1 = true;
-        }
-    }
     // Whether each page has text of its own: a line printed only once in the
     // document.
     let own: Vec<bool> = pages.iter().map(|page| page.clone().any(|k| copies[text[k]].0 == 1)).collect();
@@ -1135,14 +1101,13 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     let mut blocks = vec![(0, 0); pages.len()];
     let block_of = |page: &Range<usize>, in_set: &[bool]| {
         // The lines of a block, from the edge of the page inward. Past a
-        // legend, only a legend, a name or a header that says it continues
-        // goes on the block.
+        // legend, a heading ends the block.
         let block = |from_edge: &mut dyn Iterator<Item = usize>| {
             let mut past_legend = false;
             let inside = |k: &usize| {
                 let t = id[*k];
-                let inside = t != NONE && in_set[t] && (!past_legend || legend[t] || !texts[t].1);
-                past_legend |= inside && legend[t];
+                let inside = t != NONE && in_set[t] && !(past_legend && texts[t].1 == Kind::Heading);
+                past_legend |= inside && texts[t].1 == Kind::Legend;
                 inside
             };
             from_edge.take(MAX_DEPTH).take_while(inside).count()
@@ -1199,69 +1164,121 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             failing.extend(touched.into_iter().filter(|&u| in_set[u] && !passes(u, &edges, &own_pages, &other_pages)));
         }
     }
-    // The pages where each text is in a block, in order.
-    let mut block_pages: Vec<Vec<usize>> = vec![Vec::new(); texts.len()];
-    for (p, (page, &(top, bottom))) in pages.iter().zip(&blocks).enumerate() {
-        for k in (page.start..page.start + top).chain(page.end - bottom..page.end) {
-            if block_pages[id[k]].last() != Some(&p) {
-                block_pages[id[k]].push(p);
-            }
-        }
-    }
-    // Whether a text in a block on a page is in a block on no other page of
-    // its run: none of the two pages before it or after it.
-    let alone = |t: usize, p: usize| {
-        let on = &block_pages[t];
-        let at = on.partition_point(|&q| q < p);
-        !(at > 0 && on[at - 1] + 2 >= p || on.get(at + 1).is_some_and(|&q| q <= p + 2))
-    };
-    // The page where each heading was last in a block.
+    // The page where each text was last in a block.
     let mut last_page = vec![NONE; texts.len()];
     let mut found = Vec::new();
     for (p, (page, &(top, bottom))) in pages.iter().zip(&blocks).enumerate() {
         for k in (page.start..page.start + top).chain(page.end - bottom..page.end) {
             let t = id[k];
-            if legend[t] {
-                continue;
+            // A copy starts a run of pages unless the text is in a block on
+            // the page before or earlier on its page.
+            let starts_run = last_page[t] == NONE || last_page[t] + 1 < p;
+            last_page[t] = p;
+            let goes = match texts[t].1 {
+                Kind::Heading | Kind::Name => !starts_run,
+                Kind::Continues => true,
+                Kind::Note | Kind::Legend => false,
+            };
+            if goes {
+                found.push(kept[k]);
             }
-            if texts[t].1 {
-                let starts_run = last_page[t] == NONE || last_page[t] + 2 < p;
-                last_page[t] = p;
-                if starts_run {
-                    continue;
-                }
-            } else if !continued[t] && alone(t, p) {
-                continue;
-            }
-            found.push(kept[k]);
         }
     }
     found
+}
+
+/// What a running header is, which decides which of its copies in blocks go
+/// (see `running_headers`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    /// A heading that the pages after it repeat, such as "Notes to
+    /// Consolidated Financial Statements", a statement's title or a standard
+    /// Item title ("BUSINESS"): it stays over the first page of each run of
+    /// pages it heads.
+    Heading,
+    /// A name (see `names_filer`): it stays over the first page of each run
+    /// of pages it heads, as a heading does, but past a legend it stays in
+    /// the block, which a heading ends, and its copies in table data do not
+    /// count.
+    Name,
+    /// A note that qualifies the name or the title above it (see
+    /// `qualifies`): it never goes, and its copies in table data do not
+    /// count.
+    Note,
+    /// A line that tells how to read the page (see `LEGEND`): it never goes,
+    /// and a heading past it ends the block.
+    Legend,
+    /// A header that says it continues a heading (see `CONTINUED`): it goes
+    /// from every block, and its copies in table data do not count.
+    Continues,
+}
+
+impl Kind {
+    /// What a running header is. A heading at which section splitting ends
+    /// an Item (see `sections::ends_items`), such as "Independent Auditors'
+    /// Report", is a heading even when it looks like a name.
+    fn of(line: &str) -> Kind {
+        let continues = CONTINUED.is_match(line);
+        if LEGEND.is_match(line) || !continues && PERIOD.is_match(line) {
+            Kind::Legend
+        } else if continues {
+            Kind::Continues
+        } else if qualifies(line) {
+            Kind::Note
+        } else if !crate::sections::ends_items(line) && names_filer(line) {
+            Kind::Name
+        } else {
+            Kind::Heading
+        }
+    }
 }
 
 /// A line that tells how to read a page rather than heading it: a reference
 /// to the notes or to the auditors' report under a financial statement ("See
 /// accompanying notes", "The accompanying notes are an integral part of
 /// these statements"), the units of a table ("(In millions, except per share
-/// data)", "(Tabular dollars in thousands)", "(000's omitted)"), whose
+/// data)", "(Tabular dollars in thousands)", "(000's omitted)") or whose
 /// statements they are ("(Parent Company Only)", "Acme Corp. (Parent
-/// Only)", "(Registrant Only)") or the date or period it covers
-/// ("December 31, 2024 and 2023", "As of June 30, 2023", "For the years ended
-/// December 31, 2012 and 2011").
+/// Only)", "(Registrant Only)"). A line that starts with the date or period
+/// it covers is one too, unless it says it continues (see `PERIOD`).
 static LEGEND: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
         r"(?i)^\(?(?:see|the accompanying)\b|\bintegral part\b|\bin (?:thousands|millions|billions)\b|\btabular dollars\b",
         r"|\b000(?:['’]?s)? omitted\b|\b(?:parent|registrant)(?: company| corporation)? only\b",
-        r"|^(?:[\w ,]*\b(?:ended|ending|as of|at|through)\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?",
-        r"\s+\d{1,2},?\s+\d{4}(?:\s*(?:,|and|&)\s*(?:and\s+)?\d{4})*\.?$",
     ))
     .unwrap()
 });
 
-/// A note that goes with the filer's name, in parentheses or brackets:
-/// "(A Development Stage Company)", "(A Wholly-Owned Subsidiary of MetLife,
-/// Inc.)", "[FORMERLY JOSHUA TREE FINISHERS, INC.]".
-static NAME_NOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^(?:\(a\b.*\)|\[formerly\b.*\])$").unwrap());
+/// The start of a line that gives the date or period of the page it is
+/// printed on, with whatever follows: "December 31, 2024 and 2023", "As of
+/// June 30, 2023", "For the years ended December 31, 2012 and 2011",
+/// "Years ended December 2014, 2013, and 2012", "March 31, 2010 and
+/// December 31, 2009", "For the Periods Ended December 31, 2009, 2008 (Not
+/// Covered by the Report Included Herein)".
+static PERIOD: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?i)^(?:[\w ,]*\b(?:ended|ending|as of|at|through)\s+)?",
+        r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?",
+        r"|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?(?:\s+\d{1,2},?)?\s+\d{4}\b",
+    ))
+    .unwrap()
+});
+
+/// Whether a line qualifies the name or the title over which it is printed:
+/// a note in parentheses or brackets that runs to the end of the line
+/// ("(Unaudited)", "(Restated)", "(A Partnership)",
+/// "(Debtor-in-Possession)", "[Formerly Acme Inc.]"), or the start or the
+/// end of one ("(A Wholly-Owned Subsidiary of", "Holding Corporation)"), or
+/// a line that goes on from the name ("AND SUBSIDIARIES", "& Subsidiary",
+/// "and Predecessor"). A heading with a letter in parentheses before it,
+/// "(A) Restatement", is none.
+fn qualifies(line: &str) -> bool {
+    let (opened, closed) = (line.matches(['(', '[']).count(), line.matches([')', ']']).count());
+    line.starts_with(['(', '[']) && (line.ends_with([')', ']']) || opened > closed)
+        || line.starts_with('&')
+        || line.get(..4).is_some_and(|word| word.eq_ignore_ascii_case("and "))
+        || closed > opened
+}
 
 /// The end of a name with its legal form: "Inc.", "Corp.", "Corporation",
 /// "& Co.", "L.P.", "LP", "LLC", "Ltd.", "plc", "N.A.", "Bancorp", or "and
@@ -1276,21 +1293,17 @@ static LEGAL_FORM: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// Whether a running header names the filer rather than heading the text.
-/// A name is a note that goes with it (see `NAME_NOTE`), or a line with no
-/// word that only a heading would have ("our", "to", "about", "with",
-/// "for", or "the" after the first word) that ends with a legal form (see
-/// `LEGAL_FORM`), or with "Company", "Bank", "Trust", "Group" or "Holdings"
-/// after at least two words of the name other than a first "The" and with
-/// no "of": "THE WALT DISNEY COMPANY", "Metropolitan Life Insurance
-/// Company". So "THE COMPANY", "Investment Trust", "Executive Officers of
-/// the Company", "Information About Our Company", "Condensed Financial
-/// Statements of Parent Company" and "Notes to Financial Statements of XYZ
-/// Corp. and Subsidiaries" head the text.
+/// Whether a running header names the filer rather than heading the text:
+/// a line with no word that only a heading would have ("our", "to",
+/// "about", "with", "for", or "the" after the first word) that ends with a
+/// legal form (see `LEGAL_FORM`), or with "Company", "Bank", "Trust",
+/// "Group" or "Holdings" after at least two words of the name other than a
+/// first "The" and with no "of": "THE WALT DISNEY COMPANY", "Metropolitan
+/// Life Insurance Company". So "THE COMPANY", "Investment Trust",
+/// "Executive Officers of the Company", "Information About Our Company",
+/// "Condensed Financial Statements of Parent Company" and "Notes to
+/// Financial Statements of XYZ Corp. and Subsidiaries" head the text.
 fn names_filer(line: &str) -> bool {
-    if NAME_NOTE.is_match(line) {
-        return true;
-    }
     let words: Vec<String> =
         line.split_whitespace().map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase()).collect();
     if words
@@ -1309,52 +1322,6 @@ fn names_filer(line: &str) -> bool {
         && words
             .last()
             .is_some_and(|w| matches!(w.as_str(), "company" | "bank" | "trust" | "group" | "holding" | "holdings"))
-}
-
-/// A running header that goes wherever it is in a block: one that says it
-/// continues, or a name.
-struct Everywhere<'a> {
-    /// Its number among the texts that can be running headers.
-    text: usize,
-    /// How many of its copies are lines of table data.
-    tabled: u32,
-    /// It says it continues a heading (see `CONTINUED`).
-    continues: bool,
-    line: &'a str,
-}
-
-/// Whether a line that `names_filer` takes for a name only goes with the
-/// name above it: a note in parentheses or brackets, or the rest of a name,
-/// "and Subsidiaries" or "& Subsidiary".
-fn goes_with_name(line: &str) -> bool {
-    line.starts_with(['(', '[', '&']) || line.get(..4).is_some_and(|word| word.eq_ignore_ascii_case("and "))
-}
-
-/// Whether a line that `names_filer` takes for a name is a whole name, as
-/// the name of a second filer must be: not one word ("Corporation"), part
-/// of a sentence or an address, which starts with a word in small letters
-/// ("among Acme Corp.", "c/o Acme Inc."), a name that goes on in the next
-/// line ("Acme Corp. and its subsidiary,"), or the column heads of a text
-/// filing ("Limited      Limited").
-fn whole_name(line: &str) -> bool {
-    let mut words = line.split_whitespace();
-    words.next().is_some_and(|first| first.contains(|c: char| c.is_uppercase() || c.is_ascii_digit()))
-        && words.next().is_some()
-        && !line.ends_with(',')
-        && !line.contains("   ")
-}
-
-/// Whether two names are of one filer: the words of one, after a first
-/// "The", are the first words of the other, as "Gehl Company" and "Gehl
-/// Company and Subsidiaries".
-fn same_filer(a: &str, b: &str) -> bool {
-    let words = |name: &str| -> Vec<String> {
-        let lower = name.to_lowercase();
-        let words = lower.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty());
-        words.skip_while(|&w| w == "the").map(str::to_owned).collect()
-    };
-    let (a, b) = (words(a), words(b));
-    a.starts_with(&b) || b.starts_with(&a)
 }
 
 /// A running header that says it continues a heading: "(Continued)",
@@ -2513,9 +2480,9 @@ mod tests {
     }
 
     /// Lines printed at the top or the foot of most pages without a page
-    /// number go where the filing marks its page breaks, also when they sit
-    /// below or above another such line, while a caption printed as often in
-    /// the middle of the pages stays.
+    /// number go where the filing marks its page breaks, but for the first
+    /// copy of a name, also when they sit below or above another such line,
+    /// while a caption printed as often in the middle of the pages stays.
     #[test]
     fn running_headers_without_page_numbers_dropped() {
         let mut pages = vec![vec!["Annual Report".to_string(), "MetLife, Inc.".to_string(), "Cover.".to_string()]];
@@ -2530,9 +2497,12 @@ mod tests {
                 format!("Acme Corporation Annual Report {}", n + 40),
             ]);
         }
-        let mut want = "Annual Report\nMetLife, Inc.\nCover.\n".to_string();
+        let mut want = "Annual Report\nMetLife, Inc.\nCover.\nMetLife, Inc.\n".to_string();
         for n in 1..11 {
             want += &format!("Text of page {n}.\n(In millions)\nMore text of page {n}.\n");
+            if n == 1 {
+                want += "MetLife, Inc. and Subsidiaries\n";
+            }
         }
         let html = printed(&pages);
         assert_eq!(tables_of(&html).0, want);
@@ -2540,20 +2510,21 @@ mod tests {
         // A text filing's pages.
         let raw: String = pages.iter().map(|p| p.join("\n") + "\n<PAGE>\n").collect();
         assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")), want);
-        // Nine copies in ten at the edges of pages: those go, the other stays.
+        // Nine copies in ten at the edges of pages: those go but the first,
+        // the other stays.
         let mut pages = framed(&["Acme Corporation"], &["End of page {}."], 1..10);
         pages[4].insert(2, "Acme Corporation".into());
         let text = html_to_text(&printed(&pages));
-        assert_eq!(text.matches("Acme Corporation").count(), 1, "{text}");
+        assert_eq!(text.matches("Acme Corporation").count(), 2, "{text}");
         // Six lines deep at the top of each page; the seventh line is no
         // header.
         let top = [
-            "Acme Corp.",
+            "Acme Corp. (Continued)",
             "Notes (Continued)",
-            "Acme Corp. Tool Holdings",
-            "Acme Corp. LLC",
-            "Acme Corp. Tool Group",
-            "(A Delaware Corporation)",
+            "Balance Sheets (Continued)",
+            "Schedule I (Continued)",
+            "Segment Data (Continued)",
+            "Exhibits (continued)",
             "Seventh line",
         ];
         let text = html_to_text(&printed(&framed(&top, &[], 1..7)));
@@ -2563,7 +2534,7 @@ mod tests {
         let mut pages = framed(&["Acme Corporation"], &[], 1..4);
         pages.extend(vec![vec!["Acme Corporation".to_string(), "Blank page".to_string()]; 4]);
         let text = html_to_text(&printed(&pages));
-        assert!(!text.contains("Acme"), "{text}");
+        assert_eq!(text.matches("Acme").count(), 1, "{text}");
         // A table of one cell per row only lays out its text.
         let page_break = "<div style=\"page-break-after: always\"></div>";
         let html: String = (1..7)
@@ -2573,7 +2544,10 @@ mod tests {
                 )
             })
             .collect();
-        assert_eq!(html_to_text(&html), (1..7).map(|n| format!("Text {n}.\n")).collect::<String>());
+        assert_eq!(
+            html_to_text(&html),
+            "Acme Inc.\n".to_string() + &(1..7).map(|n| format!("Text {n}.\n")).collect::<String>()
+        );
     }
 
     /// In a document without page breaks, running headers go when its bare
@@ -2614,16 +2588,16 @@ mod tests {
             for top in [false, true] {
                 let pages = pages(&numbers, 951, top);
                 let text = html_to_text(&html(&pages));
-                assert_eq!((headers(&text), text.lines().count()), (0, 6), "{numbers:?} {top}");
+                assert_eq!((headers(&text), text.lines().count()), (1, 7), "{numbers:?} {top}");
                 let raw = pages.concat().join("\n");
                 let text = document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}\n</TEXT>"));
-                assert_eq!((headers(&text), text.lines().count()), (0, 6), "{numbers:?} {top}");
+                assert_eq!((headers(&text), text.lines().count()), (1, 7), "{numbers:?} {top}");
             }
         }
         // Five numbers end five pages, but not when the first comes before
         // any text.
         let five = ["3", "4", "5", "6", "7", ""];
-        assert_eq!(headers(&html_to_text(&html(&pages(&five, 951, false)))), 0);
+        assert_eq!(headers(&html_to_text(&html(&pages(&five, 951, false)))), 1);
         assert_eq!(headers(&html_to_text(&html(&pages(&five, 951, true)))), 12);
         // Four numbers end four pages, with a fifth page after them, also
         // when a fifth number that does not count the pages ends it.
@@ -2641,7 +2615,7 @@ mod tests {
                 format!("{page}<p>More text of page {n}.</p><div style=\"page-break-after: always\"></div>")
             })
             .collect();
-        assert_eq!((headers(&html_to_text(&broken)), html_to_text(&broken).lines().count()), (0, 12));
+        assert_eq!((headers(&html_to_text(&broken)), html_to_text(&broken).lines().count()), (1, 13));
         // Most pages one byte short of 1,000 bytes of text.
         assert_eq!(headers(&html_to_text(&html(&pages(&all[0], 950, false)))), 12);
         // Four of the six pages between seven page ends, and three.
@@ -2651,11 +2625,11 @@ mod tests {
         }
         assert_eq!(headers(&html_to_text(&html(&short))), 14);
         short[4][2].push('x');
-        assert_eq!(headers(&html_to_text(&html(&short))), 0);
+        assert_eq!(headers(&html_to_text(&html(&short))), 1);
         // Between two pages of 500 bytes a number counts the pages; between
         // two of 499 bytes it does not, and the headers of the second page
         // are in the middle of a page.
-        for (cut, want) in [(500, 0), (501, 16)] {
+        for (cut, want) in [(500, 1), (501, 16)] {
             let mut pages = pages(&["3", "4", "5", "6", "7", "8", "9", "10"], 951, false);
             for page in &mut pages[5..7] {
                 let len = page[2].len();
@@ -2673,7 +2647,7 @@ mod tests {
                 page
             })
             .collect();
-        assert_eq!(headers(&html_to_text(&html(&footed))), 0);
+        assert_eq!(headers(&html_to_text(&html(&footed))), 1);
         // Numbers that do not count the pages: not one more each, the same
         // number, falling, two ways of writing in turn, and only four pages.
         for numbers in [
@@ -2699,8 +2673,9 @@ mod tests {
         }
     }
 
-    /// Copies in table data do not count against a header that says it
-    /// continues, nor against a name when the headers name one filer.
+    /// Copies in table data do not count against a name, a note that goes
+    /// with it or a header that says it continues, while they count against
+    /// a heading.
     #[test]
     fn names_also_printed_in_tables_dropped_from_page_tops() {
         // Ten pages under each header of `tops`; the first header of `tops`
@@ -2727,56 +2702,65 @@ mod tests {
         };
         let count = |html: &str, line: &str| html_to_text(html).lines().filter(|l| *l == line).count();
         let acme = "Acme Corporation";
-        // The three copies in tables stay, the ten at the top of pages go.
-        assert_eq!(count(&doc(&[&[acme]], 3, true), acme), 3);
+        // The three copies in tables stay, and so does the first of the ten
+        // at the top of pages.
+        assert_eq!(count(&doc(&[&[acme]], 3, true), acme), 4);
         // Copies in the middle of pages count: three in thirteen keep all.
         assert_eq!(count(&doc(&[&[acme]], 3, false), acme), 13);
         // One in eleven does not, in a table or not.
-        assert_eq!(count(&doc(&[&[acme]], 1, false), acme), 1);
-        // A header that says it continues names no second filer.
+        assert_eq!(count(&doc(&[&[acme]], 1, false), acme), 2);
         let html = doc(&[&[acme, "Notes (Continued)"]], 3, true);
-        assert_eq!(count(&html, acme), 3);
+        assert_eq!(count(&html, acme), 4);
         // Five copies outside tables are enough, and four are not.
         let html = doc(&[&[acme]], 3, true);
         let eight: String = html.split_inclusive("</div>").take(5).collect();
-        assert_eq!(count(&eight, acme), 3);
+        assert_eq!(count(&eight, acme), 4);
         let six: String = html.split_inclusive("</div>").take(4).collect();
         assert_eq!(count(&six, acme), 7);
-        // The name of a second filer in the headers: both names tell whose
-        // pages they head, the copies in tables count, and each name stays
-        // over the first of its pages (see `names_of_two_filers_head_their_pages`).
-        for other in ["Beta Power LLC", "Acme Power Corporation", "The Beta Company of Ohio, Inc."] {
+        // The same with another name over the pages after them, which stays
+        // over the first of its pages, whatever filer it names.
+        for other in [
+            "Beta Power LLC",
+            "Acme Power Corporation",
+            "The Beta Company of Ohio, Inc.",
+            "Acme Corporation and Subsidiaries",
+            "ACME CORPORATION",
+            "Acme Corp.",
+        ] {
             let html = doc(&[&[acme], &[other]], 3, true);
-            assert_eq!((count(&html, acme), count(&html, other)), (13, 1), "{other}");
+            assert_eq!((count(&html, acme), count(&html, other)), (4, 1), "{other}");
         }
-        // Other ways to write the one name, and lines that go with it.
-        for other in ["Acme Corporation and Subsidiaries", "ACME CORPORATION", "The Acme Corporation", "Acme Corp."] {
-            let html = doc(&[&[acme], &[other]], 3, true);
-            let left = if other == "Acme Corp." { (13, 1) } else { (3, 0) };
-            assert_eq!((count(&html, acme), count(&html, other)), left, "{other}");
-        }
+        // A note under the name stays on every page.
         for note in [
             "(A Development Stage Company)",
             "[Formerly Beta Inc.]",
             "and Subsidiaries",
             "AND SUBSIDIARIES",
             "& Subsidiary",
+            "(A Wholly-Owned Subsidiary of",
+            "Holding Corporation)",
         ] {
             let html = doc(&[&[acme, note]], 3, true);
-            assert_eq!((count(&html, acme), count(&html, note)), (3, 0), "{note}");
+            assert_eq!((count(&html, acme), count(&html, note)), (4, 10), "{note}");
         }
+        // A note's copies in tables do not count either, so a header that
+        // says it continues stays in the block below it.
+        let html = doc(&[&["(Unaudited)", "Notes (Continued)"]], 3, true);
+        assert_eq!((count(&html, "(Unaudited)"), count(&html, "Notes (Continued)")), (13, 0));
         // A heading keeps its count, whoever the filer is.
         let heading = "Summary of Results";
         assert_eq!(count(&doc(&[&[heading]], 3, true), heading), 13);
-        // A header that says it continues does not, even with two filers.
+        // A header that says it continues does not.
         let notes = "Notes (Continued)";
         let html = doc(&[&[notes, acme], &["Beta Power LLC"]], 3, true);
         assert_eq!((count(&html, notes), count(&html, acme)), (3, 1));
     }
 
     /// A legend printed with the running header of each page stays, and a
-    /// name or a header that says it continues goes from under it or, at
-    /// the foot of the page, from over it. A heading there stays.
+    /// name or a header that says it continues under it or, at the foot of
+    /// the page, over it, is in the block all the same: the name goes but
+    /// for its first copy, the header from every page. A heading there ends
+    /// the block and stays.
     #[test]
     fn running_headers_dropped_past_a_legend() {
         let count =
@@ -2787,13 +2771,14 @@ mod tests {
             &[units],
             &[date, units],
             &["(000's omitted)", "As of June 30, 2023", date],
+            &["For the years ended December 31, 2012 and 2011", "Years ended December 2014, 2013, and 2012"],
             &["(Parent Company Only)"],
             &["Acme Corporation (Parent Only)", "(PARENT CORPORATION ONLY)", "(Registrant Only)"],
         ] {
             let top = [&["Acme Corporation"], legends, &[notes, "ACME CORPORATION"]].concat();
             let pages = framed(&top, &[], 1..7);
-            for line in ["Acme Corporation", notes, "ACME CORPORATION"] {
-                assert_eq!(count(&pages, line), 0, "{line} under {legends:?}");
+            for (line, want) in [("Acme Corporation", 1), (notes, 0), ("ACME CORPORATION", 1)] {
+                assert_eq!(count(&pages, line), want, "{line} under {legends:?}");
             }
             for legend in legends {
                 assert_eq!(count(&pages, legend), 6, "{legend}");
@@ -2801,18 +2786,28 @@ mod tests {
             // The same at the foot of the page, in the other order.
             let bottom: Vec<&str> = top.iter().rev().copied().collect();
             let pages = framed(&[], &bottom, 1..7);
-            assert_eq!((count(&pages, notes), count(&pages, "ACME CORPORATION"), count(&pages, legends[0])), (0, 0, 6));
+            assert_eq!((count(&pages, notes), count(&pages, "ACME CORPORATION"), count(&pages, legends[0])), (0, 1, 6));
         }
         // A heading past a legend stays, and so does what is past the
         // heading.
         for heading in ["Notes to Financial Statements", "Segment Information", "Item 8. Financial Statements"] {
-            let pages = framed(&["Acme Corporation", date, heading, notes], &[], 1..7);
-            assert_eq!(
-                (count(&pages, "Acme Corporation"), count(&pages, date), count(&pages, heading), count(&pages, notes)),
-                (0, 6, 6, 6),
-                "{heading}"
-            );
+            for legend in [date, units] {
+                let pages = framed(&["Acme Corporation", legend, heading, notes], &[], 1..7);
+                assert_eq!(
+                    (
+                        count(&pages, "Acme Corporation"),
+                        count(&pages, legend),
+                        count(&pages, heading),
+                        count(&pages, notes)
+                    ),
+                    (1, 6, 6, 6),
+                    "{heading} {legend}"
+                );
+            }
         }
+        // A legend at the top of the page ends no block at its foot.
+        let pages = framed(&[date], &["Segment Information"], 1..7);
+        assert_eq!((count(&pages, date), count(&pages, "Segment Information")), (6, 1));
         // A legend that is mostly in the middle of pages is in no block.
         let mut pages = framed(&[units, notes], &[], 1..7);
         for page in &mut pages {
@@ -2825,8 +2820,8 @@ mod tests {
             page.insert(0, date.to_string());
         }
         assert_eq!((count(&pages, date), count(&pages, notes)), (4, 6));
-        // A legend names no second filer, even one that ends like a name:
-        // the copies of the name in tables are left out of its count.
+        // A legend that ends like a name is a legend all the same, and the
+        // copies of the name over it in tables are left out of its count.
         for legend in [date, "In thousands - Beta Corp."] {
             let html: String = (1..11)
                 .map(|n| {
@@ -2837,24 +2832,27 @@ mod tests {
                 })
                 .collect();
             let text = html_to_text(&html);
-            assert_eq!((text.matches("Acme Corporation").count(), text.matches(legend).count()), (3, 10), "{legend}");
+            assert_eq!((text.matches("Acme Corporation").count(), text.matches(legend).count()), (4, 10), "{legend}");
         }
         // The legend counts among the six lines of a block.
         let top = ["Acme Corp.", date, units, "As of June 30, 2023", "Tabular dollars", "Acme Corp. LLC", notes];
         let pages = framed(&top, &[], 1..7);
-        assert_eq!((count(&pages, "Acme Corp. LLC"), count(&pages, notes)), (0, 6));
+        assert_eq!((count(&pages, "Acme Corp. LLC"), count(&pages, notes)), (1, 6));
     }
 
-    /// With the names of two filers in the headers, each name stays over the
-    /// first page of each run of pages it heads, as a heading does, with the
-    /// note that goes with it. A line that is no whole name is no second
-    /// filer's name.
+    /// A name stays over the first page of each run of pages it heads, as a
+    /// heading does, and goes from the others, whether the headers name one
+    /// filer or several; a note under it stays on every page. A page without
+    /// the name ends the run, and so does a page with another name in its
+    /// place.
     #[test]
-    fn names_of_two_filers_head_their_pages() {
+    fn names_stay_over_the_first_page_of_each_run() {
         let filing = |pages: &[Vec<String>]| {
             let raw: String = pages.iter().map(|p| p.join("\n") + "\n<PAGE>\n").collect();
             document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>"))
         };
+        let names =
+            |text: &str| -> Vec<String> { text.lines().filter(|l| !l.starts_with("Text")).map(String::from).collect() };
         let (acme, beta, note) =
             ("Acme Corporation", "Beta Power LLC", "(A Wholly-Owned Subsidiary of Acme Corporation)");
         // Five pages of each filer, then five more of the first.
@@ -2862,8 +2860,7 @@ mod tests {
         pages.extend(framed(&[beta, note], &[], 6..11));
         pages.extend(framed(&[acme], &[], 11..16));
         for text in [html_to_text(&printed(&pages)), filing(&pages)] {
-            let names: Vec<&str> = text.lines().filter(|l| !l.starts_with("Text")).collect();
-            assert_eq!(names, [acme, beta, note, acme], "{text}");
+            assert_eq!(names(&text), [&[acme, beta][..], &[note; 5], &[acme]].concat(), "{text}");
             assert!(text.contains(&format!("Text of page 5.\n{beta}\n{note}\nText of page 6.\n")), "{text}");
             assert!(text.contains(&format!("Text of page 10.\n{acme}\nText of page 11.\n")), "{text}");
         }
@@ -2871,55 +2868,42 @@ mod tests {
         let mut pages = framed(&[acme], &[], 1..6);
         pages.extend(framed(&["Acme Corporation and Subsidiaries"], &[], 6..11));
         pages.extend(framed(&[beta], &[], 11..16));
-        let text = filing(&pages);
-        let names: Vec<&str> = text.lines().filter(|l| !l.starts_with("Text")).collect();
-        assert_eq!(names, [acme, "Acme Corporation and Subsidiaries", beta], "{text}");
-        for other in ["i2 Technologies, Inc.", "vFinance, Inc.", "Beta  Power LLC"] {
-            let mut pages = framed(&[acme], &[], 1..11);
-            pages.extend(framed(&[other], &[], 11..16));
-            assert_eq!(filing(&pages).matches(acme).count(), 1, "{other}");
-        }
-        // One word, part of a sentence or of an address, a name that goes on
-        // in the next line, and the column heads of a text filing.
-        for other in [
-            "Corporation",
-            "among Beta Power LLC",
-            "c/o Beta Power LLC",
-            "Beta Power LLC and its subsidiary,",
-            "Limited      Limited",
-        ] {
-            let mut pages = framed(&[acme], &[], 1..11);
-            pages.extend(framed(&[other], &[], 11..16));
-            let text = filing(&pages);
-            assert_eq!((text.matches(acme).count(), text.matches(other).count()), (0, 0), "{other}: {text}");
-        }
-    }
-
-    #[test]
-    fn names_of_one_filer() {
-        for (a, b) in [
-            ("Gehl Company", "Gehl Company and Subsidiaries"),
-            ("THE TURNER CORPORATION", "The Turner Corporation and Subsidiaries"),
-            ("MetLife, Inc.", "METLIFE INC"),
-            ("Acme", "Acme"),
-        ] {
-            assert!(same_filer(a, b) && same_filer(b, a), "{a} / {b}");
-        }
-        for (a, b) in [
-            ("PSEG Power LLC", "Public Service Enterprise Group Incorporated"),
-            ("Blackstone Private Equity Strategies Fund L.P.", "Blackstone Private Equity Strategies Fund (TE) L.P."),
-            ("Prologis, Inc.", "Prologis, L.P."),
-            ("MetLife, Inc.", "Metropolitan Life Insurance Company"),
-        ] {
-            assert!(!same_filer(a, b) && !same_filer(b, a), "{a} / {b}");
+        assert_eq!(names(&filing(&pages)), [acme, "Acme Corporation and Subsidiaries", beta]);
+        // Two names over each page, the second changing: the first stays
+        // once, the second over the first page of each of its runs.
+        let mut pages = framed(&[acme, beta], &[], 1..6);
+        pages.extend(framed(&[acme, "Gamma Gas Company"], &[], 6..11));
+        pages.extend(framed(&[acme, beta], &[], 11..16));
+        assert_eq!(names(&filing(&pages)), [acme, beta, "Gamma Gas Company", beta]);
+        // A run of seven pages, and one more copy one page after its last
+        // or before its first, which goes on with the run, or two pages,
+        // which starts a run of its own. A header that says it continues
+        // goes from every page.
+        let doc = |header: &str, gap: u32, after: bool| -> Vec<Vec<String>> {
+            let (run, alone) = if after { (1..8, 7 + gap) } else { (gap + 1..gap + 8, 1) };
+            (1..16)
+                .map(|n| {
+                    let top = if run.contains(&n) || n == alone { vec![header.to_string()] } else { Vec::new() };
+                    top.into_iter().chain([format!("Text of page {n}.")]).collect()
+                })
+                .collect()
+        };
+        for after in [true, false] {
+            let count = |gap: u32| html_to_text(&printed(&doc(acme, gap, after))).matches(acme).count();
+            assert_eq!((count(1), count(2), count(3)), (1, 2, 2), "{after}");
+            let continued = "Notes (Continued)";
+            let text = html_to_text(&printed(&doc(continued, 3, after)));
+            assert!(!text.contains(continued), "{text}");
         }
     }
 
     /// A heading that is also the running header of the pages after it stays
-    /// at the top of the first page of each run of pages it heads, also when
-    /// it is printed on every other page only, while a header that says it
-    /// continues the heading, and the company name over it, go; a heading at
-    /// which an Item ends stays even when it looks like a name.
+    /// at the top of the first page of each run of pages it heads, and so on
+    /// each page when it is printed on every other page only, while a header
+    /// that says it continues the heading goes. Under a legend a heading
+    /// stays on every page and a name does not, which tells the two apart; a
+    /// heading at which an Item ends is a heading even when it looks like a
+    /// name. A note that qualifies a name stays on every page.
     #[test]
     fn headings_printed_as_running_headers_stay_once() {
         let notes = "Notes to Consolidated Financial Statements";
@@ -2934,10 +2918,10 @@ mod tests {
         ));
         let text = html_to_text(&printed(&pages));
         let lines: Vec<&str> = text.lines().filter(|l| !l.starts_with("Text")).collect();
-        assert_eq!(lines, [notes; 2], "{text}");
-        assert!(text.starts_with(&format!("{notes}\nText of page 1.\n")), "{text}");
+        assert_eq!(lines, ["Acme Corporation", notes, notes], "{text}");
+        assert!(text.starts_with(&format!("Acme Corporation\n{notes}\nText of page 1.\n")), "{text}");
         assert!(text.contains(&format!("Text of page 9.\n{notes}\nText of page 10.\n")), "{text}");
-        // On facing pages.
+        // On facing pages, each copy starts a run.
         let pages: Vec<Vec<String>> = (1..13)
             .map(|n| {
                 let top = if n % 2 == 1 { vec![notes.to_string()] } else { vec!["Acme Corporation".to_string()] };
@@ -2945,7 +2929,7 @@ mod tests {
             })
             .collect();
         let text = html_to_text(&printed(&pages));
-        assert_eq!(text.lines().filter(|l| !l.starts_with("Text")).collect::<Vec<_>>(), [notes], "{text}");
+        assert_eq!(text.lines().filter(|l| !l.starts_with("Text")).count(), 12, "{text}");
         // Other headings and Item titles.
         for title in [
             "Management's Discussion and Analysis",
@@ -3010,11 +2994,26 @@ mod tests {
             let raw: String = pages.iter().map(|p| p.join("\n") + "\n<PAGE>\n").collect();
             let text = document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>"));
             assert_eq!(text.lines().filter(|&l| l == title).count(), 1, "{text}");
+            let text = html_to_text(&printed(&framed(&["December 31, 2024", title], &[], 1..8)));
+            assert_eq!(text.lines().filter(|&l| l == title).count(), 7, "{text}");
         }
-        // Headers that continue a heading, or name the filer.
+        // Headers that continue a heading go from every page, also one that
+        // starts with a date.
         for header in [
             "Notes to Financial Statements, cont'd",
             "Notes to Financial Statements (cont.)",
+            "December 31, 2024 and 2023 (Continued)",
+        ] {
+            let text = html_to_text(&printed(&framed(&[header], &[], 1..8)));
+            assert!(!text.contains(header), "{text}");
+        }
+        // Notes stay on every page.
+        for note in ["(A Delaware Limited Partnership)", "[Formerly Acme Mining]", "(Formerly Acme Holdings)"] {
+            let text = html_to_text(&printed(&framed(&[note], &[], 1..8)));
+            assert_eq!(text.matches(note).count(), 7, "{text}");
+        }
+        // Names.
+        for header in [
             "Acme Corporation",
             "ACME INC.",
             "THE FIRST SIGNATURE BANK",
@@ -3024,8 +3023,6 @@ mod tests {
             "Cellular Communications of Puerto Rico, Inc.",
             "Acme Bancorp, Inc. and Subsidiaries",
             "Acme Holdings & Its Wholly-Owned Subsidiary",
-            "(A Delaware Limited Partnership)",
-            "[Formerly Acme Mining]",
             "Acme Bancorp",
             "THE ACME TOOL COMPANY",
             "Acme & Co.",
@@ -3044,36 +3041,11 @@ mod tests {
             "Acme Tool Holding",
             "Acme LLC",
             "Acme Tool Group",
-            "(Formerly Acme Holdings)",
         ] {
-            let text = html_to_text(&printed(&framed(&[header], &[], 1..8)));
-            assert!(!text.contains(header), "{text}");
-        }
-    }
-
-    /// A filer's name stays where it is alone, with no copy in a block on the
-    /// two pages before it or after it, and goes from runs of pages. A
-    /// header that says it continues goes also alone.
-    #[test]
-    fn names_alone_on_their_page_stay() {
-        let acme = "Acme Corporation";
-        // A run of seven pages, with one more copy `gap` pages after its
-        // last, or before its first.
-        let doc = |header: &str, gap: u32, after: bool| -> Vec<Vec<String>> {
-            let (run, alone) = if after { (1..8, 7 + gap) } else { (gap + 1..gap + 8, 1) };
-            (1..16)
-                .map(|n| {
-                    let top = if run.contains(&n) || n == alone { vec![header.to_string()] } else { Vec::new() };
-                    top.into_iter().chain([format!("Text of page {n}.")]).collect()
-                })
-                .collect()
-        };
-        for after in [true, false] {
-            let count = |gap: u32| html_to_text(&printed(&doc(acme, gap, after))).matches(acme).count();
-            assert_eq!((count(2), count(3)), (0, 1), "{after}");
-            let continued = "Notes (Continued)";
-            let text = html_to_text(&printed(&doc(continued, 3, after)));
-            assert!(!text.contains(continued), "{text}");
+            for top in [&[header][..], &["December 31, 2024", header]] {
+                let text = html_to_text(&printed(&framed(top, &[], 1..8)));
+                assert_eq!(text.lines().filter(|&l| l == header).count(), 1, "{text}");
+            }
         }
     }
 
