@@ -893,13 +893,7 @@ struct PageMark {
 fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
     const MIN_PAGES: usize = 5;
     const MIN_PAGE: usize = 500;
-    const MIN_MEDIAN_PAGE: usize = 1000;
-    // The bytes of text before each line.
-    let mut before = Vec::with_capacity(lines.len() + 1);
-    before.push(0);
-    for line in lines {
-        before.push(before[before.len() - 1] + line.len());
-    }
+    let before = bytes_before(lines);
     let counts = |a: &PageMark, b: &PageMark| a.value + 1 == b.value && before[b.kept] - before[a.kept] >= MIN_PAGE;
     let mut ends = vec![false; lines.len()];
     for written in [Written::Digits, Written::Roman, Written::Financial, Written::Prefixed] {
@@ -918,9 +912,26 @@ fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
     if at.len() < MIN_PAGES {
         return None;
     }
-    let mut sizes: Vec<usize> = at.windows(2).map(|w| w[1] - w[0]).collect();
+    full_pages(at.windows(2).map(|w| w[1] - w[0]).collect()).then_some(ends)
+}
+
+/// The bytes of text before each of `lines`, then the bytes of all of them.
+fn bytes_before(lines: &[&str]) -> Vec<usize> {
+    let mut before = Vec::with_capacity(lines.len() + 1);
+    before.push(0);
+    for line in lines {
+        before.push(before[before.len() - 1] + line.len());
+    }
+    before
+}
+
+/// Whether most of the pages whose sizes in bytes of text are `sizes` hold
+/// at least 1,000 bytes, as the pages of a filing do, while the items of a
+/// numbered list, each a paragraph or two, hold less. `sizes` is not empty.
+fn full_pages(mut sizes: Vec<usize>) -> bool {
+    const MIN_MEDIAN_PAGE: usize = 1000;
     sizes.sort_unstable();
-    (sizes[sizes.len() / 2] >= MIN_MEDIAN_PAGE).then_some(ends)
+    sizes[sizes.len() / 2] >= MIN_MEDIAN_PAGE
 }
 
 /// Running page headers and footers that print no page number, such as
@@ -1563,6 +1574,14 @@ fn page_furniture(
         })
     };
 
+    // Whether most of the pages between copies hold a page of text, counting
+    // the bytes before each line when a family first needs them.
+    let mut bytes = None;
+    let mut full = |seen: &[(usize, PageNumber)]| {
+        let before: &Vec<usize> = bytes.get_or_insert_with(|| bytes_before(lines));
+        full_pages(seen.windows(2).map(|w| before[w[1].0] - before[w[0].0]).collect())
+    };
+
     // Line indexes and page numbers, keyed as page_numbers keys them.
     let mut families: HashMap<PageKey, Vec<(usize, PageNumber)>> = HashMap::new();
     for (i, line) in lines.iter().enumerate() {
@@ -1594,7 +1613,10 @@ fn page_furniture(
         }
         let apart = mostly(seen.windows(2).filter(|w| w[1].0 > w[0].0 + 1).count(), n - 1);
         let furniture = match place {
-            Place::Label | Place::Chapter | Place::Alone | Place::Dashed => apart && mostly(page_steps(seen), n - 1),
+            Place::Label | Place::Chapter | Place::Alone => apart && mostly(page_steps(seen), n - 1),
+            // The text beside the number may be as short as "Covenant"
+            // beside the numbers of a list, so the pages must be full.
+            Place::Dashed => apart && mostly(page_steps(seen), n - 1) && full(seen),
             Place::Edge | Place::PageOf | Place::Middle => {
                 let short = letters(before) + letters(after) < MIN_LETTERS;
                 let spaced = before.contains(' ') || after.contains(' ');
@@ -1602,9 +1624,10 @@ fn page_furniture(
                 let piped = mostly(seen.iter().filter(|(_, p)| p.piped).count(), n);
                 let first = seen.iter().filter(|(_, p)| p.first).count();
                 let facing = place == Place::Edge && first >= 2 && n - first >= 2;
-                // A footer that only says the text goes on, on pages one
-                // to three apart: "47 (Continued)".
-                let continues = place == Place::Edge && GOES_ON.is_match(before) && mostly(page_steps(seen), n - 1);
+                // A footer that only says the text goes on, on full pages
+                // one to three apart: "47 (Continued)".
+                let continues =
+                    place == Place::Edge && GOES_ON.is_match(before) && mostly(page_steps(seen), n - 1) && full(seen);
                 let text = (spaced && (!short || form)) || place == Place::PageOf || piped || facing || continues;
                 text && mostly(rising(seen), n - 1) && ((!short && after.is_empty()) || apart)
             }
@@ -1956,6 +1979,22 @@ mod tests {
         pages.map(|n| n.to_string()).collect()
     }
 
+    /// "Text of page N." and more, over 1,000 bytes, as a page of a filing holds.
+    fn page_text(page: &str) -> String {
+        format!("Text of page {page}. {}", ["More text."; 100].join(" "))
+    }
+
+    /// As `paged`, with a full page of text on each page.
+    fn full_paged(footer: &str, pages: impl IntoIterator<Item = String>) -> (String, String) {
+        let (mut html, mut want) = (String::new(), String::new());
+        for page in pages {
+            let text = page_text(&page);
+            html += &format!("<p>{text}</p><p>{}</p>", footer.replace("{}", &page));
+            want += &format!("{text}\n");
+        }
+        (html, want)
+    }
+
     /// Page numbers alone on their line after a letter prefix, a chapter
     /// number or a dash go when five or more of them come a page or a few
     /// apart, with any of the dashes filings use.
@@ -2066,51 +2105,62 @@ mod tests {
     }
 
     /// A footer of a page number and "(Continued)" goes when its copies are
-    /// on pages one to three apart, on either side of the number.
+    /// on full pages one to three apart, on either side of the number.
     #[test]
     fn page_numbers_beside_continued_dropped() {
         for footer in ["{}          (Continued)", "(Continued) {}", "{} (continued)", "CONTINUED {}"] {
-            let (html, want) = paged(footer, numbered(47..53));
+            let (html, want) = full_paged(footer, numbered(47..53));
             assert_eq!(html_to_text(&html), want, "{footer}");
-            let raw: String =
-                (47..53).map(|n| format!("Text of page {n}.\n{}\n", footer.replace("{}", &n.to_string()))).collect();
+            let raw: String = (47..53)
+                .map(|n| format!("{}\n{}\n", page_text(&n.to_string()), footer.replace("{}", &n.to_string())))
+                .collect();
             assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")), want, "{footer}");
         }
         // Four copies; another word; more beside the word.
-        let (html, _) = paged("{} (Continued)", numbered(47..51));
+        let (html, _) = full_paged("{} (Continued)", numbered(47..51));
         assert_eq!(html_to_text(&html).matches("(Continued)").count(), 4);
         for footer in ["{} (Concluded)", "{} (Continued) -", "{} (Continued", "{} Discontinued"] {
-            let (html, _) = paged(footer, numbered(47..57));
+            let (html, _) = full_paged(footer, numbered(47..57));
             assert_eq!(html_to_text(&html).lines().count(), 20, "{footer}");
         }
         // Numbers that rise more than three at a time, as the notes that go
         // on over a page do, or that do not rise.
-        let (html, _) = paged("{} (Continued)", (1..9).map(|n| (4 * n).to_string()));
+        let (html, _) = full_paged("{} (Continued)", (1..9).map(|n| (4 * n).to_string()));
         assert_eq!(html_to_text(&html).matches("(Continued)").count(), 8);
-        let (html, _) = paged("{} (Continued)", [3, 3, 4, 4, 5, 5, 6, 6].map(|n| n.to_string()));
+        let (html, _) = full_paged("{} (Continued)", [3, 3, 4, 4, 5, 5, 6, 6].map(|n| n.to_string()));
         assert_eq!(html_to_text(&html).matches("(Continued)").count(), 8);
-        // Copies on lines next to each other.
-        let html: String = (47..57).map(|n| format!("<p>{n} (Continued)</p>")).collect();
-        assert_eq!(html_to_text(&html).lines().count(), 10);
+        // Pages of a paragraph, as of notes short enough that each goes on
+        // once under its number: "3 (Continued)", then "4 (Continued)".
+        let (html, _) = paged("{} (Continued)", numbered(3..9));
+        assert_eq!(html_to_text(&html).matches("(Continued)").count(), 6);
+        // Copies on lines next to each other, two steps in five.
+        let html: String = (47..53)
+            .map(|n| {
+                let text =
+                    if n == 48 || n == 50 { String::new() } else { format!("<p>{}</p>", page_text(&n.to_string())) };
+                format!("{text}<p>{n} (Continued)</p>")
+            })
+            .collect();
+        assert_eq!(html_to_text(&html).matches("(Continued)").count(), 6);
         // The middle cell of a row of three.
-        let raw: String = (47..57).map(|n| format!("Text of page {n}.\n(Continued)\t{n}\tA\n")).collect();
+        let raw: String = (47..57).map(|n| format!("{}\n(Continued)\t{n}\tA\n", page_text(&n.to_string()))).collect();
         assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).lines().count(), 20);
     }
 
     /// The running header of a text filing that starts or ends with its
     /// page number between dashes, a wide space from the text, goes when its
-    /// copies are on pages one to three apart.
+    /// copies are on full pages one to three apart.
     #[test]
     fn page_numbers_between_dashes_beside_text_dropped() {
         let text = |header: &str, pages: &[u32]| {
             let raw: String = pages
                 .iter()
-                .map(|n| format!("{}\nText of page {n}.\n", header.replace("{}", &n.to_string())))
+                .map(|n| format!("{}\n{}\n", header.replace("{}", &n.to_string()), page_text(&n.to_string())))
                 .collect();
             document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>"))
         };
         let pages: Vec<u32> = (8..14).collect();
-        let want: String = pages.iter().map(|n| format!("Text of page {n}.\n")).collect();
+        let want: String = pages.iter().map(|n| format!("{}\n", page_text(&n.to_string()))).collect();
         for header in [
             "- {} -          Docket No. 95-052",
             "-{}-   Docket No. 95-052",
@@ -2142,7 +2192,8 @@ mod tests {
         let raw: String = pages
             .iter()
             .map(|n| {
-                format!("- {n} -     Docket No. {}\nText of page {n}.\n", if n % 2 == 0 { "94-475" } else { "95-052" })
+                let docket = if n % 2 == 0 { "94-475" } else { "95-052" };
+                format!("- {n} -     Docket No. {docket}\n{}\n", page_text(&n.to_string()))
             })
             .collect();
         assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).lines().count(), 12);
@@ -2153,8 +2204,17 @@ mod tests {
         assert_eq!(text(header, &[8, 9, 10, 11]).lines().count(), 8);
         assert_eq!(text(header, &[8, 12, 16, 20, 24, 28]).lines().count(), 12);
         assert_eq!(text(header, &[8, 8, 8, 9, 9, 9]).lines().count(), 12);
-        let raw: String = pages.iter().map(|n| format!("- {n} -     Docket No. 94-475\n")).collect();
-        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).lines().count(), 6);
+        let raw: String = pages
+            .iter()
+            .map(|&n| {
+                let text = if n == 9 || n == 11 { String::new() } else { format!("{}\n", page_text(&n.to_string())) };
+                format!("{text}- {n} -     Docket No. 94-475\n")
+            })
+            .collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).lines().count(), 10);
+        // Pages of a paragraph, as of a list numbered between dashes.
+        let raw: String = pages.iter().map(|n| format!("- {n} -     Covenant\nText of covenant {n}.\n")).collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).lines().count(), 12);
     }
 
     /// "Page N of M" footers that start again at page 1 in each exhibit go,
