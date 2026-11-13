@@ -695,12 +695,13 @@ static LABELED: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// Trim the lines of `text` and drop empty lines, bare page numbers, "Table
-/// of Contents" links and running page headers and footers. Returns the lines
-/// kept, as slices of `text` in order. The lines starting at the sorted
-/// offsets `cell_lines` belong to table cells (see `Out::cell_lines`) and are
-/// not dropped as page numbers or page furniture on their own, but those of a
-/// row of `cell_rows` (byte ranges of `text`, see `Out::cell_rows`) are
-/// dropped together when the row is. A printed page ends at each of the
+/// of Contents" links, also in parentheses or brackets, and running page
+/// headers and footers. Returns the lines kept, as slices of `text` in
+/// order. The lines starting at the sorted offsets `cell_lines` belong to
+/// table cells (see `Out::cell_lines`) and are not dropped as page numbers
+/// or page furniture on their own, but those of a row of `cell_rows` (byte
+/// ranges of `text`, see `Out::cell_rows`) are dropped together when the
+/// row is. A printed page ends at each of the
 /// sorted offsets `breaks`, and at the end of the text when there are any.
 /// A page number with a prefix that ends a page stays when it is the page of
 /// a contents entry (see `page_furniture`). The lines inside the byte ranges
@@ -740,7 +741,8 @@ fn kept_lines<'a>(
         let cell = cell_lines.next_if_eq(&start).is_some();
         let end = start + line.len();
         let line = line.trim();
-        if line.is_empty() || line.eq_ignore_ascii_case("table of contents") {
+        let link = line.strip_prefix(['(', '[']).and_then(|l| l.strip_suffix([')', ']'])).unwrap_or(line);
+        if line.is_empty() || link.eq_ignore_ascii_case("table of contents") {
             continue;
         }
         let ended = |number: Option<(Option<u32>, usize, bool)>, page: &mut Option<u32>| match number {
@@ -1938,6 +1940,7 @@ mod tests {
     #[test]
     fn page_numbers_and_toc_links_dropped() {
         let html = "<p>Text</p><p>12</p><p>Table of Contents</p><p>F-3</p><p>- 7 -</p><p>ii</p><p>More</p>\
+                    <p>(table of contents)</p><p>[Table of Contents]</p>\
                     <p>F - 4</p><p>F\u{2011}5</p><p>- -8-</p><p>- ii -</p><p>-iii-</p><p>Page E-1</p><p>End</p>";
         assert_eq!(html_to_text(html), "Text\nMore\nEnd\n");
         // Only a whole line is a page number.
