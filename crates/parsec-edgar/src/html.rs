@@ -1927,9 +1927,16 @@ mod tests {
         for line in ["- F 1", "F 1 -", "- FS 1 -", "- G 1 -", "- F 1 - Text", "- F 1234 -", "- F -"] {
             assert_eq!(html_to_text(&format!("<p>Text</p><p>{line}</p>")), format!("Text\n{line}\n"));
         }
-        for line in
-            ["(Page 4", "Page 4)", "(Pages 4)", "(Page F-4)", "(Page 4) of the report", "(Page 4 of 9)", "(Page)"]
-        {
+        for line in [
+            "(Page 4",
+            "Page 4)",
+            "(Pages 4)",
+            "(Page F-4)",
+            "(Page 4) of the report",
+            "(Page 4 of 9)",
+            "(Page)",
+            "(Page 1234)",
+        ] {
             assert_eq!(html_to_text(&format!("<p>Text</p><p>{line}</p>")), format!("Text\n{line}\n"));
         }
     }
@@ -2124,9 +2131,21 @@ mod tests {
             "- {}     Docket No. 94-475",
             "ORDER     - No. {} -",
             "ORDER     - {} -     Docket No. 94-475",
+            "- ORDER     - {} -     Docket No. 94-475",
+            "- Net loss     - {}",
+            "ORDER     -  {}  -",
+            "-  {}  -     Docket No. 94-475",
         ] {
             assert_eq!(text(header, &pages).lines().count(), 12, "{header}");
         }
+        // Three copies each of two texts: neither has five.
+        let raw: String = pages
+            .iter()
+            .map(|n| {
+                format!("- {n} -     Docket No. {}\nText of page {n}.\n", if n % 2 == 0 { "94-475" } else { "95-052" })
+            })
+            .collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).lines().count(), 12);
         assert_eq!(text("ORDER     - {} -", &[1008, 1009, 1010, 1011, 1012, 1013]).lines().count(), 12);
         // Four copies; numbers that rise more than three at a time or do
         // not rise; copies on lines next to each other.
@@ -2778,6 +2797,13 @@ mod tests {
             assert!(text.contains(&format!("Text of page 5.\n{beta}\n{note}\nText of page 6.\n")), "{text}");
             assert!(text.contains(&format!("Text of page 10.\n{acme}\nText of page 11.\n")), "{text}");
         }
+        // Two names of one filer and a third name of another.
+        let mut pages = framed(&[acme], &[], 1..6);
+        pages.extend(framed(&["Acme Corporation and Subsidiaries"], &[], 6..11));
+        pages.extend(framed(&[beta], &[], 11..16));
+        let text = filing(&pages);
+        let names: Vec<&str> = text.lines().filter(|l| !l.starts_with("Text")).collect();
+        assert_eq!(names, [acme, "Acme Corporation and Subsidiaries", beta], "{text}");
         for other in ["i2 Technologies, Inc.", "vFinance, Inc.", "Beta  Power LLC"] {
             let mut pages = framed(&[acme], &[], 1..11);
             pages.extend(framed(&[other], &[], 11..16));
@@ -3296,6 +3322,8 @@ mod tests {
             "<td>{}</td><td>Acme Corporation<br>2021 Annual Report</td><td>Part II</td>",
             "<td><p>Apple Inc.</p><p>2026 Form 10-K | {}</p></td><td>Investor Relations</td>",
             "<td>Acme<br>Annual Report</td><td>Page {}</td>",
+            "<td>(Page {})</td><td>Acme Corporation<br>2021 Annual Report</td><td>Part II</td>",
+            "<td>- F {} -</td><td>Acme Corporation<br>2021 Annual Report</td><td>Part II</td>",
         ] {
             let mut html = String::new();
             let mut want = String::new();
