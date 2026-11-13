@@ -5916,9 +5916,9 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
     // block headings but not statements printed after all of its own text,
     // with pages of their own numbering or, when no Item follows it and the
     // statements Item only refers to them, with any. The other information
-    // Item (10-K Item 9B, 10-KSB Item 8B) ends at the heading of a report on
-    // internal control printed after it (`report_heading`), which belongs to
-    // the controls Item before it.
+    // Item (10-K Item 9B, 10-KSB Item 8B), and 10-K Item 9C after it, end at
+    // the heading of a report on internal control printed after them
+    // (`report_heading`), which belongs to the controls Item before them.
     let no_item_8 = !picks.iter().any(|&(_, k)| keys[k].item == "8");
     // The Item that holds the financial statements: 10-K Item 8, 10-KSB Item 7.
     let statements_key = keys.iter().position(|k| k.title.starts_with("Financial Statements"));
@@ -5943,7 +5943,7 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
         _ => after_exhibits(ki, cand),
     };
     let other_information =
-        |ki: usize| matches!((kind, keys[ki].item), (FormKind::TenK, "9B") | (FormKind::TenKsb, "8B"));
+        |ki: usize| matches!((kind, keys[ki].item), (FormKind::TenK, "9B" | "9C") | (FormKind::TenKsb, "8B"));
     // Whether the statements Item was found and only refers to the
     // statements: it prints no block heading. Only the last exhibits Item
     // asks, so the statements Item is not searched for other forms.
@@ -14252,5 +14252,28 @@ Pursuant to ...
         // Items the form did not have on the date keep their only title.
         let text = format!("Item 1. Business\n{body}\nItem 1A. Risk Factors\n{body}\nItem 2. Properties\n{body}\n");
         assert_eq!(dated(&text, FormKind::TenK, "2000-03-01")[1].title, "Risk Factors");
+    }
+
+    #[test]
+    fn reports_on_internal_control_after_item_9c_end_it() {
+        // Topgolf Callaway Brands' 10-K 2024 answers Item 9C with "Not
+        // applicable." and prints the auditors' report on internal control
+        // after it, before Part III, as others print it after Item 9B. A
+        // sentence that starts with the report's title stays in Item 9C.
+        let body = BODY.repeat(30);
+        let report = "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\nTo the shareholders\n";
+        let text = format!(
+            "Item 9A. Controls and Procedures\n{body}\nItem 9B. Other Information\n{body}\n\
+             Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspections\nNot applicable.\n\
+             {report}{body}\nPART III\nItem 10. Directors, Executive Officers and Corporate Governance\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9a", "item_9b", "item_9c", "item_10"]);
+        assert_eq!(s[1].end, s[2].start);
+        assert_eq!(s[2].end, text.find(report).unwrap());
+        let sentence = "Report of Independent Registered Public Accounting Firm appears on page 45.\n";
+        let text = text.replace(report, sentence);
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(s[2].end, s[3].start);
     }
 }
