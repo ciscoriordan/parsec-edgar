@@ -3463,6 +3463,11 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
     cands.into_iter().skip(cover_rows).collect()
 }
 
+/// The title of an index printed under a heading: `Index to Consolidated
+/// Financial Statements`, `INDEX TO MANAGEMENT'S DISCUSSION AND ANALYSIS`,
+/// `Index of Exhibits`.
+static INDEX_TITLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^[ \t]*index[ \t]+(?:to|of)[ \t]").unwrap());
+
 /// Contents rows found by their page numbers. A row is an Item line that ends
 /// with a page column after a tab, two spaces or dot leaders: a page, a range
 /// of pages, or a list of them (`Item 3. Quantitative and Qualitative
@@ -3526,6 +3531,16 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 /// it repeats. The line repeated may be a contents entry, as the line above
 /// a heading with a footnote's number is when a contents list without pages
 /// lists it (`drop_contents_entries` then reads the headers again).
+///
+/// A heading with an index of its own section under it that ends with rows
+/// of the next Items ("Item 8.<TAB>Financial Statements and Supplementary
+/// Data", the filer's name, "Index to Consolidated Financial Statements",
+/// the statements with their pages, then "Item 9.<TAB>Changes in
+/// ...<TAB>67") is no row, though its entry ends with a page and a row
+/// follows it: its own line prints no page, the Item line before it is no
+/// row, no other line names its Item, it is in the body (after an Item with
+/// text of its own), and one of the two lines under it is the index's title
+/// (`INDEX_TITLE`) and prints no page. The rows under it stay rows.
 fn paged_rows(
     cands: &[Candidate],
     text: &str,
@@ -3637,6 +3652,36 @@ fn paged_rows(
     for i in headings {
         paged[i] = false;
     }
+    // A heading with an index of its own section under it, whose last rows
+    // name the next Items with their pages, is no row. It was taken as one
+    // by the pages under it (its own line prints none) and starts the run
+    // of rows (the Item line before it is no row); no contents list, index
+    // or running header names its Item; it is in the body; and one of the
+    // first two lines under it is the title of the index, without a page.
+    // A row follows it: an Item line that prints no page is a row only
+    // before or after another.
+    let earliest = earliest_text_before(cands, keys, block);
+    let in_body =
+        |j: usize| form_places(&cands[j], keys).next_back().is_some_and(|last| earliest[j].is_some_and(|e| e < last));
+    const INDEX_TITLE_LINES: usize = 2;
+    let index_under = |i: usize| {
+        let line_end = cands[i].pos + line_at(text, cands[i].pos).len();
+        let end = cands.get(i + 1).map_or(text.len(), |o| o.pos).max(line_end);
+        let mut lines = text[line_end..end].lines().filter(|l| !l.trim().is_empty()).take(INDEX_TITLE_LINES);
+        lines.any(|l| INDEX_TITLE.is_match(l) && !ends_with_pages(l))
+    };
+    let first_rows: Vec<usize> = (1..n).filter(|&i| paged[i] && !own_pages(i) && !paged[i - 1] && in_body(i)).collect();
+    if !first_rows.is_empty() {
+        let mut lines_of: HashMap<&str, usize> = HashMap::new();
+        for c in cands {
+            *lines_of.entry(c.label.as_str()).or_default() += 1;
+        }
+        for i in first_rows {
+            if lines_of[cands[i].label.as_str()] == 1 && index_under(i) {
+                paged[i] = false;
+            }
+        }
+    }
     // A line repeats a line of its Item before it that is no row and has
     // its title (`same_title`) when it does not print that title in full.
     // The lines before `i` that are no rows are not each compared with it.
@@ -3692,9 +3737,6 @@ fn paged_rows(
     // prints another page, each compared with the last one of its title
     // only. Each is kept with the line it repeats.
     let mut headers: Vec<Option<usize>> = vec![None; n];
-    let earliest = earliest_text_before(cands, keys, block);
-    let in_body =
-        |j: usize| form_places(&cands[j], keys).next_back().is_some_and(|last| earliest[j].is_some_and(|e| e < last));
     // Pages go up through the body: a line that prints a lower page in
     // digits than a line in the body before it is no running header (a
     // heading with a footnote mark after its title).
@@ -15318,5 +15360,251 @@ Pursuant to ...
             let (end, report_at, _) = split(&continued, "", header);
             assert_eq!(end, report_at, "{header}");
         }
+    }
+
+    /// A 10-K whose body prints each Item with text of its own, for the
+    /// tests of a heading with an index of its own section under it: `front`
+    /// before Part I, the lines of `replaced` in place of the heading and
+    /// the text of the Items it names (no lines: the Item is left out).
+    fn annual_report_with(front: &str, replaced: &[(&str, &str)]) -> String {
+        const ITEMS: [(&str, &str); 18] = [
+            ("1", "Business"),
+            ("2", "Properties"),
+            ("3", "Legal Proceedings"),
+            ("4", "Submission of Matters to a Vote of Security Holders"),
+            ("5", "Market for Registrant's Common Equity and Related Stockholder Matters"),
+            ("6", "Selected Financial Data"),
+            ("7", "Management's Discussion and Analysis of Financial Condition and Results of Operations"),
+            ("7A", "Quantitative and Qualitative Disclosures about Market Risk"),
+            ("8", "Financial Statements and Supplementary Data"),
+            ("9", "Changes in and Disagreements with Accountants on Accounting and Financial Disclosure"),
+            ("9A", "Controls and Procedures"),
+            ("9B", "Other Information"),
+            ("10", "Directors and Executive Officers of the Registrant"),
+            ("11", "Executive Compensation"),
+            ("12", "Security Ownership of Certain Beneficial Owners and Management"),
+            ("13", "Certain Relationships and Related Transactions"),
+            ("14", "Principal Accountant Fees and Services"),
+            ("15", "Exhibits, Financial Statement Schedules and Reports on Form 8-K"),
+        ];
+        let body = BODY.repeat(40);
+        let mut text = format!("FORM 10-K\nWIDGET CORP\n{front}");
+        for (label, title) in ITEMS {
+            match label {
+                "1" => text.push_str("PART I\n"),
+                "5" => text.push_str("PART II\n"),
+                "10" => text.push_str("PART III\n"),
+                "15" => text.push_str("PART IV\n"),
+                _ => {}
+            }
+            match replaced.iter().find(|(l, _)| *l == label) {
+                Some((_, lines)) => text.push_str(lines),
+                None => text.push_str(&format!("Item {label}.\t{title}\n{body}\n")),
+            }
+        }
+        text + "SIGNATURES\nPursuant to the requirements of Section 13 or 15(d), the registrant has signed.\n"
+    }
+
+    const OWN_INDEX_HEADING: &str = "Item 8.\tFinancial Statements and Supplementary Data\n";
+    const OWN_INDEX_STATEMENTS: &str = "Consolidated Statements of Operations\t31\nConsolidated Balance Sheets\t32\n\
+         Notes to Consolidated Financial Statements\t35\nII - Valuation and qualifying accounts\t66\n";
+    const OWN_INDEX_NEXT_ITEMS: &str = "Item 9.\tChanges in and Disagreements with Accountants on Accounting and Financial Disclosure\t67\n\
+         Item 9A.\tControls and Procedures\t67\nItem 9B.\tOther Information\t67\n";
+
+    /// The Items of `annual_report_with`, without `left_out`.
+    fn annual_ids_without(left_out: &str) -> Vec<&'static str> {
+        let all = [
+            "item_1", "item_2", "item_3", "item_4", "item_5", "item_6", "item_7", "item_7a", "item_8", "item_9",
+            "item_9a", "item_9b", "item_10", "item_11", "item_12", "item_13", "item_14", "item_15",
+        ];
+        all.into_iter().filter(|id| *id != left_out).collect()
+    }
+
+    /// The statements under an Item 8 heading and its index.
+    fn own_index_statements() -> String {
+        let body = BODY.repeat(40);
+        format!("CONSOLIDATED STATEMENTS OF OPERATIONS\n{body}\nNOTES TO CONSOLIDATED FINANCIAL STATEMENTS\n{body}\n")
+    }
+
+    /// Issue 51, Wellman's 10-K of 2005: the Item 8 heading, the filer's
+    /// name, the title of an index of the statements, the statements with
+    /// their pages, and rows for Items 9, 9A and 9B with theirs. The heading
+    /// starts Item 8, which runs through the statements.
+    #[test]
+    fn heading_with_an_index_of_its_own_that_names_the_next_items_starts_its_item() {
+        let statements = own_index_statements();
+        for title in [
+            "WIDGET CORP\nIndex to Consolidated Financial Statements and Consolidated Financial Statement\nSchedules\n",
+            "Index to Consolidated Financial Statements\n",
+            "index of financial statements\n",
+            "WIDGET CORP\n  INDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n",
+        ] {
+            let item_8 = format!("{OWN_INDEX_HEADING}{title}{OWN_INDEX_STATEMENTS}{OWN_INDEX_NEXT_ITEMS}{statements}");
+            let text = annual_report_with("", &[("8", &item_8)]);
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), annual_ids_without(""), "{title}");
+            let heading = text.find(OWN_INDEX_HEADING).unwrap();
+            assert_eq!((s[7].end, s[8].start), (heading, heading), "{title}");
+            // The row of Item 9 in the index is no heading.
+            assert_eq!((s[8].end, s[9].start), (text.rfind("Item 9.\t").unwrap(), text.rfind("Item 9.\t").unwrap()));
+        }
+    }
+
+    /// Issue 51, NII Holdings' 10-K of 2005: the Item 7 heading, the title
+    /// of an index of MD&A on two lines, its parts with their pages, and a
+    /// row for Item 7A with its page.
+    #[test]
+    fn heading_with_an_index_of_its_parts_that_names_the_next_item_starts_its_item() {
+        let body = BODY.repeat(40);
+        let heading = "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operation\n";
+        let item_7 = format!(
+            "{heading}INDEX TO MANAGEMENT'S DISCUSSION AND ANALYSIS\nOF FINANCIAL CONDITION AND RESULTS OF OPERATION\n\
+             A. Executive Overview\t47\nB. Results of Operations\t60\nF. Effect of New Accounting Standards\t102\n\
+             Item 7A. Quantitative and Qualitative Disclosures About Market Risk\t103\n\
+             A. Executive Overview\n{body}\nB. Results of Operations\n{body}\n"
+        );
+        let text = annual_report_with("", &[("7", &item_7)]);
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), annual_ids_without(""));
+        let start = text.find(heading).unwrap();
+        assert_eq!((s[5].end, s[6].start), (start, start));
+        assert_eq!((s[6].end, s[7].start), (text.find("Item 7A.\t").unwrap(), text.find("Item 7A.\t").unwrap()));
+    }
+
+    /// Without one of the marks of such a heading the line stays a contents
+    /// row and its Item is not found, as before.
+    #[test]
+    fn heading_over_rows_of_the_next_items_stays_a_row_without_the_marks_of_an_own_index() {
+        let statements = own_index_statements();
+        let index = "WIDGET CORP\nIndex to Consolidated Financial Statements\n";
+        let under = |title: &str| format!("{title}{OWN_INDEX_STATEMENTS}{OWN_INDEX_NEXT_ITEMS}{statements}");
+        let numbered = OWN_INDEX_HEADING.replace('\n', "\t1\n");
+        for item_8 in [
+            // No title of an index under the heading, or a line that only
+            // names one.
+            format!("{OWN_INDEX_HEADING}{}", under("WIDGET CORP\n")),
+            format!(
+                "{OWN_INDEX_HEADING}{}",
+                under("WIDGET CORP\nSee the Index to Consolidated Financial Statements\n")
+            ),
+            format!("{OWN_INDEX_HEADING}{}", under("WIDGET CORP\nIndexed Consolidated Financial Statements\n")),
+            format!("{OWN_INDEX_HEADING}{}", under("WIDGET CORP\nIndex Total Return of the Peer Group\n")),
+            // The title prints a page, as a row of an index of Items does.
+            format!("{OWN_INDEX_HEADING}{}", under("Index to Consolidated Financial Statements\t30\n")),
+            format!(
+                "{OWN_INDEX_HEADING}{}",
+                under("WIDGET CORP\nIndex to Consolidated Financial Statements ..... F-1\n")
+            ),
+            // The title is the third line under the heading.
+            format!(
+                "{OWN_INDEX_HEADING}{}",
+                under("WIDGET CORP\nOne Widget Plaza\nIndex to Consolidated Financial Statements\n")
+            ),
+            // The heading's own line prints a number.
+            format!("{numbered}{}", under(index)),
+        ] {
+            let text = annual_report_with("", &[("8", &item_8)]);
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), annual_ids_without("item_8"), "{item_8}");
+            assert_eq!(s[8].start, text.rfind("Item 9.\t").unwrap(), "{item_8}");
+        }
+    }
+
+    /// Another line of the Item: a contents list that names it, with pages
+    /// or without, or a running header later in the statements, which then
+    /// starts the Item as before.
+    #[test]
+    fn heading_with_an_index_of_its_own_stays_a_row_when_another_line_names_its_item() {
+        let statements = own_index_statements();
+        let index = "WIDGET CORP\nIndex to Consolidated Financial Statements\n";
+        let item_8 = format!("{OWN_INDEX_HEADING}{index}{OWN_INDEX_STATEMENTS}{OWN_INDEX_NEXT_ITEMS}{statements}");
+        let contents = |page: &str| {
+            let rows = [
+                "1.\tBusiness",
+                "7.\tManagement's Discussion and Analysis",
+                "8.\tFinancial Statements",
+                "9A.\tControls",
+            ];
+            let rows: String = rows.iter().map(|row| format!("Item {row}{page}\n")).collect();
+            format!("TABLE OF CONTENTS\n{rows}Signatures{page}\n")
+        };
+        for front in [contents("\t3"), contents("")] {
+            let text = annual_report_with(&front, &[("8", &item_8)]);
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), annual_ids_without("item_8"), "{front}");
+        }
+        let header = "Item 8.\tFinancial Statements and Supplementary Data (continued)\n";
+        let text = annual_report_with("", &[("8", &format!("{item_8}{header}{statements}"))]);
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), annual_ids_without(""));
+        assert_eq!(s[8].start, text.find(header).unwrap());
+    }
+
+    /// A row of a contents list at the front that prints the title of an
+    /// index and the statements with their pages under it starts no Item,
+    /// with a page on the row above it or without, also in a list whose
+    /// first row holds more than 2,000 characters of rows under it. The body
+    /// prints no heading of Item 8 here, so the row is the only line of its
+    /// Item.
+    #[test]
+    fn row_of_a_contents_list_with_an_index_title_under_it_stays_a_row() {
+        let row_8 = format!("{OWN_INDEX_HEADING}Index to Consolidated Financial Statements\n{OWN_INDEX_STATEMENTS}");
+        let contents = |business: &str, row_7a: &str| {
+            format!(
+                "TABLE OF CONTENTS\nPART I\nItem 1.\tBusiness{business}\nItem 2.\tProperties\t9\nPART II\n\
+                 Item 7.\tManagement's Discussion and Analysis\t19\nItem 7A.\tMarket Risk{row_7a}\n{row_8}\
+                 Item 9.\tChanges in and Disagreements with Accountants\t67\nItem 9A.\tControls and Procedures\t67\n\
+                 Signatures\t70\n"
+            )
+        };
+        let parts: String = (0..40)
+            .map(|k| format!("\nThe Widget Business in Region {k} and the Markets It Serves There\t{}", 3 + k))
+            .collect();
+        assert!(parts.len() > 2000);
+        for (business, row_7a) in [
+            // At the front, where the row above prints no page.
+            ("\t3", ""),
+            // After a first row with its parts, where the row above prints
+            // a page.
+            (parts.as_str(), "\t29"),
+            // The same where the row above prints no page: the line is no
+            // paged row then, and is dropped with the entries around it.
+            (parts.as_str(), ""),
+        ] {
+            let text = annual_report_with(&contents(business, row_7a), &[("8", "")]);
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), annual_ids_without("item_8"), "{business}{row_7a}");
+            assert_eq!(s[0].start, text.rfind("Item 1.\tBusiness").unwrap(), "{business}{row_7a}");
+            assert_eq!(s[7].end, text.rfind("Item 9.\t").unwrap(), "{business}{row_7a}");
+        }
+    }
+
+    /// The last row of a list of Part II's Items printed after Item 7A's
+    /// text, with the title of an index and the statements under it, is no
+    /// heading though Item 9's heading follows it closely: the Item line
+    /// before it is a row. Nor is such a row in a list at the front of a
+    /// filing whose text prints no Item heading, under a first row that
+    /// prints no page: no Item with text of its own comes before it.
+    #[test]
+    fn last_row_of_a_list_with_an_index_title_under_it_stays_a_row() {
+        let body = BODY.repeat(40);
+        let row_8 = format!("{OWN_INDEX_HEADING}Index to Consolidated Financial Statements\n{OWN_INDEX_STATEMENTS}");
+        let item_7a = format!(
+            "Item 7A.\tQuantitative and Qualitative Disclosures about Market Risk\n{body}\nINDEX TO PART II\n\
+             Item 5.\tMarket for Registrant's Common Equity\t12\nItem 6.\tSelected Financial Data\t13\n\
+             Item 7.\tManagement's Discussion and Analysis\t14\nItem 7A.\tMarket Risk\t29\n{row_8}"
+        );
+        let text = annual_report_with("", &[("7A", &item_7a), ("8", "")]);
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), annual_ids_without("item_8"));
+        // Item 7A holds the row and ends at the title of the index.
+        assert_eq!(s[7].end, text.find("Index to Consolidated").unwrap());
+        assert_eq!(s[8].start, text.find("Item 9.\t").unwrap());
+
+        let text = format!(
+            "FORM 10-K\nWIDGET CORP\nItem 7.\tManagement's Discussion and Analysis\tAnnual Report\n{row_8}\
+             {OWN_INDEX_NEXT_ITEMS}BUSINESS\n{body}\nFINANCIAL STATEMENTS\n{body}\nSIGNATURES\nWIDGET CORP\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_7"]);
     }
 }
