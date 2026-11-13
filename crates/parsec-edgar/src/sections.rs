@@ -1687,7 +1687,11 @@ fn titled_letter<'a>(
 ) -> Option<(String, &'a str)> {
     let letter = tail.bytes().next().filter(u8::is_ascii_uppercase)?;
     // A lowercase letter after it makes it the first letter of a word
-    // ("Item 1. Business"); this only saves the search below.
+    // ("Item 1. Business", "ITEM 9. Bother information"). The test of the
+    // title below turns such a line down as well: its title starts in
+    // lowercase, which that test lets pass only as "and" or "through", and
+    // no lettered Item's title starts so. So this saves the search below
+    // and changes no result.
     if between.trim() != "." || tail.as_bytes().get(1).is_some_and(u8::is_ascii_lowercase) {
         return None;
     }
@@ -14760,10 +14764,14 @@ Pursuant to ...
 
     #[test]
     fn letter_after_a_period_is_a_capital_that_starts_no_word() {
-        // A line whose title starts in lowercase is no heading before
+        // A line whose letter is in lowercase is no heading before
         // `titled_letter` is asked ("ITEM 7.a Quantitative ..." above), so
         // the rule is asked here: the letter is a capital, and a lowercase
-        // letter right after it makes it the first letter of a word.
+        // letter right after it makes it the first letter of a word. Such a
+        // line ("ITEM 7.Aquantitative ...", "ITEM 9. Bother information") is
+        // turned down twice: `titled_letter` also tests the title after the
+        // letter itself (`heading_tail_ok`), and that title starts in
+        // lowercase.
         fn read(tail: &str) -> Option<(String, &str)> {
             titled_letter("7", ".", tail, tail, tail.len(), TEN_K)
         }
