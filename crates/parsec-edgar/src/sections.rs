@@ -14723,4 +14723,49 @@ Pursuant to ...
         let s = extract_sections(&text, FormKind::TenQ);
         assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
     }
+
+    #[test]
+    fn letter_after_a_period_is_a_capital_that_starts_no_word() {
+        // A line whose title starts in lowercase is no heading before
+        // `titled_letter` is asked ("ITEM 7.a Quantitative ..." above), so
+        // the rule is asked here: the letter is a capital, and a lowercase
+        // letter right after it makes it the first letter of a word.
+        fn read(tail: &str) -> Option<(String, &str)> {
+            titled_letter("7", ".", tail, tail, tail.len(), TEN_K)
+        }
+        let title = "Quantitative and Qualitative Disclosures About Market Risk";
+        assert_eq!(read(&format!("A {title}")), Some(("7A".to_owned(), title)));
+        assert_eq!(read(&format!("A{}", title.to_uppercase())).map(|(item, _)| item), Some("7A".to_owned()));
+        assert_eq!(read(&format!("a {title}")), None);
+        assert_eq!(read(&format!("a - {title}")), None);
+        assert_eq!(read(&format!("A{}", title.to_lowercase())), None);
+        assert_eq!(titled_letter("9", ".", "Bother information", "", 0, TEN_K), None);
+        let body = BODY.repeat(30);
+        for (line, found) in [
+            ("ITEM 7.Aquantitative and qualitative disclosures about market risk", &["item_7", "item_10"][..]),
+            ("ITEM 9. Bother information", &["item_7", "item_9", "item_10"]),
+        ] {
+            let text = format!(
+                "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n{line}\n{body}\n\
+                 ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE\n{body}\nSIGNATURES\n"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), found, "{line}");
+        }
+    }
+
+    #[test]
+    fn more_than_one_dash_after_a_range_of_items_is_no_separator() {
+        // One dash, which two hyphens also print, comes after the range:
+        // three hyphens or more, or two dashes, start no title.
+        for after in [" -- 13 --- Omitted", " -- 13 ----", "-13 –– Omitted", " – 13 —- Omitted"] {
+            assert_eq!(listed_items("10", after, TEN_K), None, "Items 10{after}");
+        }
+        assert_eq!(listed_items("10", " -- 13 -- Omitted", TEN_K), Some(("Omitted", Some("13".to_owned()))));
+        let body = BODY.repeat(30);
+        let text = format!(
+            "Item 8. Financial Statements and Supplementary Data\n{body}\nItems 10 -- 13 --- Omitted\n{body}\n\
+             Item 15. Exhibits\n{body}\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_8", "item_15"]);
+    }
 }
