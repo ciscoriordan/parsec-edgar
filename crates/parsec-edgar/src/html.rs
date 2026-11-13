@@ -1059,8 +1059,12 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     static FOOTNOTE: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"^(?:\d{1,2}\s+|\(\d{1,2}\)\s*|[*†‡]+\s*)\p{L}").unwrap());
     // A line that signs a page: "/s/ Jane Doe", "By: /s/ Jane Doe", "*By:
-    // Jane Doe".
+    // Jane Doe". Most lines fail at the first character, which is checked
+    // before the pattern.
     static SIGNS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^\*?\s*(?:by:?\s*)?/s/|^\*?\s*by:\s").unwrap());
+    let signs = |line: &str| {
+        line.starts_with(|c: char| matches!(c, '/' | '*' | 'b' | 'B') || c.is_whitespace()) && SIGNS.is_match(line)
+    };
     // Whether the words of a text let it be a running header (see above).
     let can_head = |line: &str| {
         line.len() <= MAX_LEN
@@ -1109,7 +1113,7 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     // How many copies of each text are on signed pages.
     let mut signed = vec![0u32; copies.len()];
     for page in &pages {
-        if page.clone().any(|k| SIGNS.is_match(lines[kept[k]])) {
+        if page.clone().any(|k| signs(lines[kept[k]])) {
             for k in page.clone() {
                 signed[text[k]] += 1;
             }
