@@ -659,21 +659,20 @@ fn ends_like_number(cell: &str) -> bool {
     rest.ends_with(|c: char| c.is_ascii_digit() || DASHES.contains(&c))
 }
 
-/// A bare page number, such as "12", "Page 12", "(Page 12)", "F-3", "F - 3",
-/// "- 7 -", "- F 7 -", "ii" or "- ii -", or "Page" and a page number with a
-/// prefix, "Page E-1", with the number in the first group that matched
-/// (roman numerals in the second and fifth, the number between dashes after
-/// an "F" in the seventh, the number in parentheses in the eighth). Old text
-/// filings escape a line that starts with a dash as "- -", so "- -7-" is one
-/// too.
+/// A bare page number, such as "12", "Page 12", "F-3", "F - 3", "- 7 -",
+/// "- F 7 -", "ii" or "- ii -", or "Page" and a page number with a prefix,
+/// "Page E-1", with the number in the first group that matched (roman
+/// numerals in the second and fifth, the number between dashes after an "F"
+/// in the seventh). Old text filings escape a line that starts with a dash
+/// as "- -", so "- -7-" is one too. A page number in parentheses after
+/// "Page", "(Page 12)", is one only in a run of them (see `page_furniture`).
 static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
         r"^(?:(?:(?i:page)\s+)?",
         r"(?:(\d{1,3})|([ivxlc]{1,7})|F\s*[-‐‑‒–—−]\s*(\d{1,3})",
         r"|(?:-\s+)?[-–—]\s*(?:(\d{1,3})|([ivxlc]{1,7}))\s*[-–—])",
         r"|(?i:page)\s+[A-Z]{1,3}\s*[-‐‑‒–—−]\s*(\d{1,3})",
-        r"|[-–—]\s*F\s*[-‐‑‒–—−]?\s*(\d{1,3})\s*[-–—]",
-        r"|\((?i:page)\s+(\d{1,3})\))$",
+        r"|[-–—]\s*F\s*[-‐‑‒–—−]?\s*(\d{1,3})\s*[-–—])$",
     ))
     .unwrap()
 });
@@ -760,11 +759,11 @@ fn kept_lines<'a>(
             let value = c.get(1).or(c.get(4)).and_then(|m| m.as_str().parse().ok());
             bare.extend(value.map(|v| (start, v)));
             // The way each group of `PAGE_NUMBER` writes its number.
-            const WRITTEN: [Written; 8] = {
+            const WRITTEN: [Written; 7] = {
                 use Written::*;
-                [Digits, Roman, Financial, Digits, Roman, Prefixed, Financial, Digits]
+                [Digits, Roman, Financial, Digits, Roman, Prefixed, Financial]
             };
-            marks.extend((1..9).find_map(|g| Some((WRITTEN[g - 1], c.get(g)?.as_str()))).and_then(|(written, n)| {
+            marks.extend((1..8).find_map(|g| Some((WRITTEN[g - 1], c.get(g)?.as_str()))).and_then(|(written, n)| {
                 let value = if written == Written::Roman { roman(n) } else { n.parse().ok() };
                 Some(PageMark { kept: lines.len(), written, value: value? })
             }));
@@ -860,7 +859,7 @@ fn unjoin_page_numbers(lines: &mut [&str], starts: &[usize], ends_page: &[bool],
 /// How a bare page number is written.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Written {
-    /// "12", "- 12 -", "Page 12", "(Page 12)".
+    /// "12", "- 12 -", "Page 12".
     Digits,
     /// "xii", "- xii -".
     Roman,
@@ -1507,6 +1506,14 @@ fn locate_tables(raw: &str, lines: &[&str], text: &str, rows: Vec<RowRecord>) ->
 /// two tests. Numbered footnotes ("(1)" over the footnote) and notes ("3."
 /// over the note's title) look the same, but do not end the pages.
 ///
+/// A page number between dashes a wide space from the text of its line
+/// ("- 12 -          Docket No. 95-052"), or after "Page" in parentheses
+/// alone on its line ("(Page 12)"), goes when its copies pass the same two
+/// tests and most of the pages between them hold a page of text (see
+/// `full_pages`). The items of a list numbered between dashes hold less,
+/// and so do the entries of an index of the Items incorporated by
+/// reference, each with the page it points to under it, "(Page 4)".
+///
 /// Lines of table cells (`is_cell`) are data and never count on their own.
 /// A short row printed cell by cell (`rows`, as ranges of `lines`) counts as
 /// one copy: its lines, with the page number taken out of one of them, must
@@ -1595,8 +1602,9 @@ fn page_furniture(
         let furniture = match place {
             Place::Label | Place::Chapter | Place::Alone => apart && mostly(page_steps(seen), n - 1),
             // The text beside the number may be as short as "Covenant"
-            // beside the numbers of a list, so the pages must be full.
-            Place::Dashed => apart && mostly(page_steps(seen), n - 1) && full(seen),
+            // beside the numbers of a list, and "(Page 4)" may point to a
+            // page, so the pages must be full.
+            Place::Dashed | Place::PageInParens => apart && mostly(page_steps(seen), n - 1) && full(seen),
             Place::Edge | Place::PageOf | Place::Middle => {
                 let short = letters(before) + letters(after) < MIN_LETTERS;
                 let spaced = before.contains(' ') || after.contains(' ');
@@ -1719,6 +1727,8 @@ enum Place {
     Chapter,
     /// Alone in parentheses or followed by a period: "(12)", "12.".
     Alone,
+    /// After "Page" in parentheses, alone on the line: "(Page 12)".
+    PageInParens,
     /// Between dashes at the start or end of the line, a wide space from
     /// its text: "- 12 -          Docket No. 95-052".
     Dashed,
@@ -1780,7 +1790,7 @@ fn page_numbers<'a>(line: &'a str) -> [Option<PageNumber<'a>>; 2] {
     let none = || [None, None];
     if let Some(c) = PAGE_NUMBER.captures(line) {
         let roman = c.get(2).or(c.get(5)).is_some();
-        let Some(m) = (1..9).find_map(|g| c.get(g)) else { return none() };
+        let Some(m) = (1..8).find_map(|g| c.get(g)) else { return none() };
         let number = if roman { self::roman(m.as_str()) } else { m.as_str().parse().ok() };
         let key = (&line[..m.start()], &line[m.end()..], Place::Edge);
         return [number.map(|number| PageNumber { roman, ..PageNumber::new(number, key) }), None];
@@ -1798,6 +1808,12 @@ fn page_numbers<'a>(line: &'a str) -> [Option<PageNumber<'a>>; 2] {
             None => PageNumber::new(number, (c.get(1).map_or("", |m| m.as_str()), "", Place::Label)),
         };
         return [Some(page), None];
+    }
+    static PAGE_IN_PARENS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\((?i:page)\s+(\d{1,3})\)$").unwrap());
+    if line.starts_with('(')
+        && let Some(c) = PAGE_IN_PARENS.captures(line)
+    {
+        return [c[1].parse().ok().map(|number| PageNumber::new(number, ("(Page", ")", Place::PageInParens))), None];
     }
     let (open, close) = if line.starts_with('(') { ("(", ")") } else { ("", ".") };
     let alone = line.strip_prefix(open).and_then(|rest| rest.strip_suffix(close));
@@ -1924,9 +1940,8 @@ mod tests {
         // Only a whole line is a page number.
         let html = "<p>- iv - Text</p><p>Page E-1 lists the exhibits.</p><p>See page A-2</p>";
         assert_eq!(html_to_text(html), "- iv - Text\nPage E-1 lists the exhibits.\nSee page A-2\n");
-        // A number between dashes after an "F", and "Page" and a number in
-        // parentheses.
-        let html = "<p>Text</p><p>- F 1 -</p><p>- F-2 -</p><p>-F3-</p><p>(Page 4)</p><p>(page 12)</p><p>End</p>";
+        // A number between dashes after an "F".
+        let html = "<p>Text</p><p>- F 1 -</p><p>- F-2 -</p><p>-F3-</p><p>End</p>";
         assert_eq!(html_to_text(html), "Text\nEnd\n");
         for line in ["- F 1", "F 1 -", "- FS 1 -", "- G 1 -", "- F 1 - Text", "- F 1234 -", "- F -"] {
             assert_eq!(html_to_text(&format!("<p>Text</p><p>{line}</p>")), format!("Text\n{line}\n"));
@@ -1942,6 +1957,53 @@ mod tests {
             "(Page 1234)",
         ] {
             assert_eq!(html_to_text(&format!("<p>Text</p><p>{line}</p>")), format!("Text\n{line}\n"));
+        }
+    }
+
+    /// "Page" and a number in parentheses alone on its line, "(Page 4)", goes
+    /// when its copies number full pages one to three apart, as the pages of
+    /// an annual report attached to a 10-K are numbered, and stays elsewhere,
+    /// as the page an Item incorporated by reference points to does.
+    #[test]
+    fn page_numbers_in_parentheses_after_page_dropped() {
+        for footer in ["(Page {})", "(page {})"] {
+            let (html, want) = full_paged(footer, numbered(1..7));
+            assert_eq!(html_to_text(&html), want, "{footer}");
+        }
+        let pages = [1, 4, 5, 6, 7, 8, 9, 12];
+        let raw: String =
+            pages.iter().map(|n| format!("{}\n          (Page {n})\n", page_text(&n.to_string()))).collect();
+        let want: String = pages.iter().map(|n| format!("{}\n", page_text(&n.to_string()))).collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")), want);
+        // Four copies; numbers that rise more than three at a time; pages of
+        // a line or two, as in an index of the Items incorporated by
+        // reference; a page reference alone.
+        let (html, _) = full_paged("(Page {})", numbered(1..5));
+        assert_eq!(html_to_text(&html).matches("(Page").count(), 4);
+        let (html, _) = full_paged("(Page {})", (1..9).map(|n| (4 * n).to_string()));
+        assert_eq!(html_to_text(&html).matches("(Page").count(), 8);
+        let (html, _) = paged("(Page {})", numbered(1..9));
+        assert_eq!(html_to_text(&html).matches("(Page").count(), 8);
+        let html =
+            "<p>Item 7. Management's Discussion and Analysis</p><p>(Page 4)</p><p>Item 8. Financial Statements</p>";
+        assert_eq!(html_to_text(html).matches("(Page 4)").count(), 1);
+        // Copies on lines next to each other, two steps in five; numbers of
+        // four digits.
+        let html: String = (1..7)
+            .map(|n| {
+                let text =
+                    if n == 2 || n == 4 { String::new() } else { format!("<p>{}</p>", page_text(&n.to_string())) };
+                format!("{text}<p>(Page {n})</p>")
+            })
+            .collect();
+        assert_eq!(html_to_text(&html).matches("(Page").count(), 6);
+        let (html, _) = full_paged("(Page {})", numbered(1001..1007));
+        assert_eq!(html_to_text(&html).matches("(Page").count(), 6);
+        // A page is the text from one copy to the next, the first copy
+        // included: most must hold 1,000 bytes.
+        for (len, copies) in [(992, 0), (991, 6)] {
+            let html: String = (1..7).map(|n| format!("<p>{}</p><p>(Page {n})</p>", "x".repeat(len))).collect();
+            assert_eq!(html_to_text(&html).matches("(Page").count(), copies, "{len}");
         }
     }
 
@@ -2590,7 +2652,7 @@ mod tests {
         let all = [
             ["3", "4", "5", "6", "7", "8"],
             ["- 3 -", "- 4 -", "- 5 -", "- 6 -", "- 7 -", "- 8 -"],
-            ["Page 3", "Page 4", "Page 5", "(Page 6)", "- 7 -", "8"],
+            ["Page 3", "Page 4", "Page 5", "PAGE 6", "- 7 -", "8"],
             ["F-3", "F-4", "F-5", "- F 6 -", "F-7", "F-8"],
             ["i", "ii", "iii", "iv", "v", "- vi -"],
             ["Page A-1", "Page A-2", "Page A-3", "Page A-4", "Page A-5", "Page A-6"],
