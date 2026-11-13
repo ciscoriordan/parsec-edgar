@@ -5084,10 +5084,11 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
 /// `ITEM I.  BUSINESS`, `ITEM IV. CONTROLS AND PROCEDURES`: an Item heading
 /// whose number is written in roman numerals, as some filings print one
 /// heading, with the letter I for the number 1; also with the letter of a
-/// lettered Item after it (`ITEM IA: RISK FACTORS`).
+/// lettered Item after it (`ITEM IA: RISK FACTORS`), or with the letter A
+/// alone, the number of Item 1A left out (`Item A. Risk Factors`).
 static ROMAN_HEADING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[\-–—]+)?[ \t]*)?(?i:item)[ \t]+([IVX]{1,5}[A-C]?)(?-u:\b)[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
+        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[\-–—]+)?[ \t]*)?(?i:item)[ \t]+([IVX]{1,5}[A-C]?|A)(?-u:\b)[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
     )
     .unwrap()
 });
@@ -5126,7 +5127,8 @@ fn added_candidate(text: &str, pos: usize, label: &str, printed: &str) -> Candid
 
 /// Items whose heading writes the number in roman numerals ("ITEM I.
 /// BUSINESS"), also with the letter of a lettered Item after it ("ITEM IA:
-/// RISK FACTORS"), which the heading pattern does not read. Such a heading,
+/// RISK FACTORS"), or prints the letter A alone for Item 1A ("Item A. Risk
+/// Factors"), which the heading pattern does not read. Such a heading,
 /// with a title that starts like one of the standard titles, current or
 /// former, of the Item with that number, also after "Description of" as the
 /// 10-KSB titles its Items 1 and 2 ("ITEM I: DESCRIPTION OF BUSINESS" in a
@@ -5160,7 +5162,10 @@ fn roman_items(
         }
         // The letter of a lettered Item follows the numeral ("IA").
         let roman = numeral.trim_end_matches(['A', 'B', 'C']);
-        let Some(number) = roman_number(roman) else { continue };
+        // "Item A." leaves out the number of Item 1A, the only Item that a
+        // letter alone is read as.
+        let number = if roman.is_empty() { Some(1) } else { roman_number(roman) };
+        let Some(number) = number else { continue };
         let label = format!("{number}{}", &numeral[roman.len()..]);
         let tail = after_dashes(c.get(2).expect("tail").as_str()).trim();
         if !heading_tail_ok(tail) || continues_sentence(text, m.start()) {
@@ -14624,6 +14629,95 @@ Pursuant to ...
         }
         let text = format!(
             "PART I\nItem 1. Financial Statements\n{body}\nItem IA. Risk Factors.\n{body}\n\
+             Item 2. Management's Discussion and Analysis\n{body}\nPART II\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
+    }
+
+    #[test]
+    fn item_a_with_the_number_left_out_is_item_1a() {
+        // "Item A. Risk Factors" under "Item 1. Business", with "Item 1A" in
+        // the contents list (Axion International, 10-K 2011 to 2015), and
+        // "Item A.<TAB>Risk Factors" in a 10-Q's Part II (Renaissance Capital
+        // Growth & Income Fund III 2006).
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1.\tBusiness\t1\nItem 1A\tRisk Factors\t12\nItem 2.\tProperty\t17\nPART I\n\
+             Item 1. Business\n{body}\nItem A. Risk Factors\n{body}\nItem 2. Properties\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2"]);
+        assert_eq!(s[1].start, text.find("Item A.").unwrap());
+        assert_eq!((s[1].heading.as_str(), s[1].title.as_str()), ("Item A. Risk Factors", "Risk Factors"));
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             PART II\nItem 1.\tLegal Proceedings\nNone.\nITEM A.\tRISK FACTORS\n{body}\n\
+             Item 2.\tUnregistered Sales of Equity Securities and Use of Proceeds\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1", "part_2_item_1a", "part_2_item_2"]);
+        assert_eq!(s[3].start, text.find("ITEM A.").unwrap());
+        // Another letter, also with its own Item's title, a lowercase
+        // letter, another title, an entry of a schedule, a cross-reference
+        // (wrapped, or with the report named after the title's first word in
+        // lowercase) and a letter with a number.
+        for line in [
+            "Item B. Unresolved Staff Comments",
+            "Item B. Risk Factors",
+            "Item a. Risk Factors",
+            "Item A. Financial Reporting Control Systems",
+            "Item A. Quantitative and Qualitative Disclosures About Market Risk",
+            "Item A of Exhibit B to the Bill of Sale describes the unit.",
+            "The risks are discussed in Part I,\nItem A. Risk Factors of our Annual Report on Form 10-K.",
+            "Item A. risk factors are described in the annual report.",
+            "Item A.2 Risk Factors",
+            "Item A1. Risk Factors",
+        ] {
+            let text =
+                format!("PART I\nItem 1. Business\n{body}\n{line}\n{body}\nItem 2. Properties\n{body}\nSIGNATURES\n");
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2"], "{line}");
+        }
+        // The letter alone is never Item 7A.
+        let text = format!(
+            "PART II\nItem 7. Management's Discussion and Analysis\n{body}\n\
+             ITEM A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK\n{body}\n\
+             Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_7", "item_8"]);
+        // Item 1A found in digits, a line out of place, an entry of a
+        // contents list above the next entry, and Part II's Item 1A among
+        // Part I's Items of a 10-Q.
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nItem 1A. Risk Factors\n{body}\nItem A. Risk Factors\n{body}\n\
+             Item 2. Properties\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_2"]);
+        assert_eq!(s[1].start, text.find("Item 1A.").unwrap());
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nItem 2. Properties\n{body}\nItem A. Risk Factors\n{body}\n\
+             Item 3. Legal Proceedings\n{body}\nSIGNATURES\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2", "item_3"]);
+        let text = format!(
+            "Item 1.\tBusiness\t1\nItem A.\tRisk Factors\t5\nItem 2.\tProperties\t9\nPART I\n\
+             Item 1. Business\n{body}\nItem 2. Properties\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2"]);
+        assert_eq!(s[0].start, text.find("Item 1. Business").unwrap());
+        // The same entry in place before the Items found, in a filing with
+        // no heading for Item 1: the entries below it are Item lines.
+        let text = format!(
+            "Item A.\tRisk Factors\t5\nItem 2.\tProperties\t9\nItem 3.\tLegal Proceedings\t9\nPART I\n{body}\n\
+             Item 2. Properties\n{body}\nItem 3. Legal Proceedings\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_2", "item_3"]);
+        assert_eq!(s[0].start, text.find("Item 2. Properties").unwrap());
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem A. Risk Factors\n{body}\n\
              Item 2. Management's Discussion and Analysis\n{body}\nPART II\nItem 6. Exhibits\n{body}\n"
         );
         let s = extract_sections(&text, FormKind::TenQ);
