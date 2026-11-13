@@ -986,7 +986,8 @@ fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
 ///
 /// A line that tells how to read the page (see `LEGEND`), a reference to
 /// the notes or the auditors' report under each financial statement, the
-/// units of a table or a date, never goes. One that passes the test of a
+/// units of a table, whose statements they are ("(Parent Company Only)")
+/// or a date, never goes. One that passes the test of a
 /// running header is part of a block all the same, as the date is in
 /// "Acme Corp." over "December 31, 2024 and 2023" over "Note 2 - Accounting
 /// Policies (Continued)". Past a legend only a legend, a name or a header
@@ -1229,14 +1230,15 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
 /// to the notes or to the auditors' report under a financial statement ("See
 /// accompanying notes", "The accompanying notes are an integral part of
 /// these statements"), the units of a table ("(In millions, except per share
-/// data)", "(Tabular dollars in thousands)", "(000's omitted)") or the date
-/// or period it covers
+/// data)", "(Tabular dollars in thousands)", "(000's omitted)"), whose
+/// statements they are ("(Parent Company Only)", "Acme Corp. (Parent
+/// Only)", "(Registrant Only)") or the date or period it covers
 /// ("December 31, 2024 and 2023", "As of June 30, 2023", "For the years ended
 /// December 31, 2012 and 2011").
 static LEGEND: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
         r"(?i)^\(?(?:see|the accompanying)\b|\bintegral part\b|\bin (?:thousands|millions|billions)\b|\btabular dollars\b",
-        r"|\b000(?:['’]?s)? omitted\b",
+        r"|\b000(?:['’]?s)? omitted\b|\b(?:parent|registrant)(?: company| corporation)? only\b",
         r"|^(?:[\w ,]*\b(?:ended|ending|as of|at|through)\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?",
         r"\s+\d{1,2},?\s+\d{4}(?:\s*(?:,|and|&)\s*(?:and\s+)?\d{4})*\.?$",
     ))
@@ -2691,7 +2693,14 @@ mod tests {
         let count =
             |pages: &[Vec<String>], line: &str| html_to_text(&printed(pages)).lines().filter(|l| *l == line).count();
         let (date, units, notes) = ("December 31, 2024 and 2023", "(In thousands)", "Note 2 - Policies (Continued)");
-        for legends in [&[date][..], &[units], &[date, units], &["(000's omitted)", "As of June 30, 2023", date]] {
+        for legends in [
+            &[date][..],
+            &[units],
+            &[date, units],
+            &["(000's omitted)", "As of June 30, 2023", date],
+            &["(Parent Company Only)"],
+            &["Acme Corporation (Parent Only)", "(PARENT CORPORATION ONLY)", "(Registrant Only)"],
+        ] {
             let top = [&["Acme Corporation"], legends, &[notes, "ACME CORPORATION"]].concat();
             let pages = framed(&top, &[], 1..7);
             for line in ["Acme Corporation", notes, "ACME CORPORATION"] {
