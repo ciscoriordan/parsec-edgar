@@ -891,10 +891,16 @@ struct PageMark {
 /// to a line show none. With fewer than five such page ends the pages are
 /// not known, nor when most of the pages between them hold less than 1,000
 /// bytes of text: those are the items of a numbered list, each a paragraph
-/// or two, while a page of a filing that numbers its pages holds more.
+/// or two, while a page of a filing that numbers its pages holds more. Nor
+/// are they when fewer than five of the numbers are followed by a line that
+/// the document prints five times or more, as a running header at the top
+/// of the next page is: the items of a longer numbered list start with
+/// their own titles, even when each ends with the same lines, as each
+/// proposal of a proxy statement ends with "Vote Required".
 fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
     const MIN_PAGES: usize = 5;
     const MIN_PAGE: usize = 500;
+    const MIN_COPIES: usize = 5;
     let before = bytes_before(lines);
     let counts = |a: &PageMark, b: &PageMark| a.value + 1 == b.value && before[b.kept] - before[a.kept] >= MIN_PAGE;
     let mut ends = vec![false; lines.len()];
@@ -911,10 +917,15 @@ fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
     // Where each page end is, in bytes of text, and the bytes of each page
     // between two of them.
     let at: Vec<usize> = (0..lines.len()).filter(|&i| ends[i]).map(|i| before[i + 1]).collect();
-    if at.len() < MIN_PAGES {
+    if at.len() < MIN_PAGES || !full_pages(at.windows(2).map(|w| w[1] - w[0]).collect()) {
         return None;
     }
-    full_pages(at.windows(2).map(|w| w[1] - w[0]).collect()).then_some(ends)
+    let mut copies: HashMap<&str, usize> = HashMap::new();
+    for &line in lines {
+        *copies.entry(line).or_default() += 1;
+    }
+    let headed = (0..lines.len()).filter(|&i| ends[i] && lines.get(i + 1).is_some_and(|l| copies[l] >= MIN_COPIES));
+    (headed.count() >= MIN_PAGES).then_some(ends)
 }
 
 /// The bytes of text before each of `lines`, then the bytes of all of them.
@@ -2553,7 +2564,8 @@ mod tests {
     /// In a document without page breaks, running headers go when its bare
     /// page numbers count the pages: five or more numbers written in the
     /// same way, each one more than the one before, with 500 bytes of text
-    /// between them and, on most pages, 1,000.
+    /// between them and, on most pages, 1,000, and five of them followed by
+    /// a line printed five times or more.
     #[test]
     fn running_headers_dropped_where_page_numbers_show_the_pages() {
         // Pages of two header lines and `filler` + 49 bytes of text, each
@@ -2626,6 +2638,15 @@ mod tests {
         assert_eq!(headers(&html_to_text(&html(&short))), 14);
         short[4][2].push('x');
         assert_eq!(headers(&html_to_text(&html(&short))), 1);
+        // The text before the first page end is no page between two of them:
+        // two short pages of the four between five page ends are not most,
+        // also after a short first page.
+        let mut cover = pages(&["3", "4", "5", "6", "7", ""], 951, false);
+        for page in &mut cover[..3] {
+            let len = page[2].len();
+            page[2].truncate(len - 400);
+        }
+        assert_eq!(headers(&html_to_text(&html(&cover))), 1);
         // Between two pages of 500 bytes a number counts the pages; between
         // two of 499 bytes it does not, and the headers of the second page
         // are in the middle of a page.
@@ -2638,7 +2659,9 @@ mod tests {
             assert_eq!(headers(&html_to_text(&html(&pages))), want, "{cut}");
         }
         // A page ends at the line before its number: with the number at the
-        // top of each page, the footers at the bottom of the page before go.
+        // top of each page over a running header, the footers at the bottom
+        // of the page before go. Without that header, the numbers show no
+        // pages.
         let footed: Vec<Vec<String>> = pages(&all[0], 951, true)
             .into_iter()
             .map(|mut page| {
@@ -2647,7 +2670,15 @@ mod tests {
                 page
             })
             .collect();
-        assert_eq!(headers(&html_to_text(&html(&footed))), 1);
+        assert_eq!(headers(&html_to_text(&html(&footed))), 12);
+        let headed: Vec<Vec<String>> = footed
+            .into_iter()
+            .map(|mut page| {
+                page.insert(1, "Annual Report".into());
+                page
+            })
+            .collect();
+        assert_eq!(headers(&html_to_text(&html(&headed))), 1);
         // Numbers that do not count the pages: not one more each, the same
         // number, falling, two ways of writing in turn, and only four pages.
         for numbers in [
@@ -2671,6 +2702,35 @@ mod tests {
                 .collect();
             assert_eq!(html_to_text(&list).matches("Director").count(), 8, "{words}");
         }
+        // A line printed five times or more, the running header at the top
+        // of the next page, follows five of the numbers; following four, the
+        // numbers show no pages and the footers stay, also when a line
+        // printed more often follows a fifth.
+        let doc = |tops: usize, fifth: &str| -> String {
+            (0..8)
+                .map(|i| {
+                    let top = match i {
+                        _ if (1..=tops).contains(&i) => "<p>Notes (Continued)</p>".to_string(),
+                        _ if i == tops + 1 && !fifth.is_empty() => format!("<p>{fifth}</p>"),
+                        _ => String::new(),
+                    };
+                    let text = format!("Text of page {i}. {}", "x".repeat(1000));
+                    format!("{top}<p>{text}</p><p>Acme Corporation</p><p>{}</p>", i + 3)
+                })
+                .collect()
+        };
+        for (tops, fifth, want) in [(5, "", (1, 0)), (4, "", (8, 4)), (4, "Acme Corporation", (9, 4))] {
+            let text = html_to_text(&doc(tops, fifth));
+            let found = (text.matches("Acme Corporation").count(), text.matches("Notes").count());
+            assert_eq!(found, want, "{tops} {fifth}");
+        }
+        // So the items of a longer list, each a page of text under its own
+        // title that ends with the same line, are no pages: "Vote Required"
+        // stays.
+        let list: String = (1..9)
+            .map(|n| format!("<p>{n}</p><p>Proposal {n}</p><p>Text. {}</p><p>Vote Required</p>", "x".repeat(1000)))
+            .collect();
+        assert_eq!(html_to_text(&list).matches("Vote Required").count(), 8);
     }
 
     /// Copies in table data do not count against a name, a note that goes
