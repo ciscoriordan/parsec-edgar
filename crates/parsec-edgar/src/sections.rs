@@ -924,15 +924,18 @@ static PERIODIC_HEADING: LazyLock<Regex> = LazyLock::new(|| {
 static CURRENT_HEADING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[ \t]*(?i:item)[ \t]*(\d{1,2}\.\d{2})[ \t]*[.:\-–—]?[ \t]*([^\n]*)$").unwrap());
 
-/// "item" in any case. Every line that an Item heading pattern
-/// (`PERIODIC_HEADING`, `CURRENT_HEADING`, `ROMAN_HEADING`) matches holds it.
-static ITEM_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i:item)").unwrap());
+/// "item" in any case, or the word broken by a space (`BROKEN_ITEM`). Every
+/// line that an Item heading pattern (`PERIODIC_HEADING`, `CURRENT_HEADING`,
+/// `ROMAN_HEADING`) matches holds it.
+static ITEM_WORD: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(?i:item)|{}", BROKEN_ITEM.join("|"))).unwrap());
 
-/// The lines of `text` that hold "item" in any case, as the start and end
-/// (before the line break) of each, in order. A heading pattern starts with
-/// `^` and spaces, so a search for it in the whole text has no word to look
-/// for and tests every position of a long filing; a search for "item" finds
-/// the few lines worth testing much faster.
+/// The lines of `text` that hold "item" in any case, or the word broken by a
+/// space, as the start and end (before the line break) of each, in order. A
+/// heading pattern starts with `^` and spaces, so a search for it in the
+/// whole text has no word to look for and tests every position of a long
+/// filing; a search for "item" finds the few lines worth testing much
+/// faster.
 fn item_word_lines(text: &str) -> Vec<(usize, usize)> {
     let mut lines = Vec::new();
     let mut from = 0;
@@ -943,6 +946,33 @@ fn item_word_lines(text: &str) -> Vec<(usize, usize)> {
         from = end;
     }
     lines
+}
+
+/// The word "Item" broken by one space, in capitals or with a capital I:
+/// `I TEM`, `IT EM`, `I tem`.
+const BROKEN_ITEM: [&str; 6] = ["I TEM", "IT EM", "ITE M", "I tem", "It em", "Ite m"];
+
+/// `text` with the word "Item" or "Items" made whole where one space breaks
+/// it at the start of a line, before an Item number: `I TEM 3. LEGAL
+/// PROCEEDINGS`, `IT EMS 10-14.`, `I tem 1.`, as a filing prints the word
+/// with a non-breaking space or a line break inside an anchor in it. The
+/// space moves to after the word (`ITEM  3.`), so every place in the text
+/// stays where it was. `lines` are the lines that hold the word
+/// (`item_word_lines`). `None` when no line starts with such a word.
+fn mend_broken_items(text: &str, lines: &[(usize, usize)]) -> Option<String> {
+    let mut mended: Option<String> = None;
+    for &(start, end) in lines {
+        let line = text[start..end].trim_start_matches([' ', '\t']);
+        let Some(broken) = BROKEN_ITEM.iter().find(|&&word| line.starts_with(word)) else { continue };
+        let rest = &line[broken.len()..];
+        let plural = usize::from(rest.starts_with(['S', 's']));
+        if rest[plural..].trim_start_matches([' ', '\t']).starts_with(|c: char| c.is_ascii_digit()) {
+            let at = end - line.len();
+            let word = broken.replace(' ', "") + &rest[..plural] + " ";
+            mended.get_or_insert_with(|| text.to_owned()).replace_range(at..at + word.len(), &word);
+        }
+    }
+    mended
 }
 
 /// Whether a line starts, after spaces and tabs, with "item" or "part" in
@@ -5858,6 +5888,11 @@ fn unread_headers(cands: &[Candidate], picks: &[(usize, usize)]) -> Option<HashS
 fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Section> {
     // The lines worth testing for an Item heading, found once.
     let lines = item_word_lines(text);
+    // A word "Item" that a space breaks is read whole, at the same places;
+    // the sections keep their headings and text as printed.
+    let mended = mend_broken_items(text, &lines);
+    let printed = text;
+    let text = mended.as_deref().unwrap_or(text);
     let cands = candidates(text, kind, &lines, &HashSet::new());
     // A filing that prints the Items of the form its kind replaced or was
     // replaced by (a 10-KSB numbered as a 10-K, a 10-Q numbered as a 10-QSB)
@@ -6054,10 +6089,14 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
                 } else {
                     printed_title(key, &cand.printed, &cand.printed_next, dates).to_owned()
                 },
-                heading: cand.heading.clone(),
+                heading: if mended.is_some() {
+                    line_at(printed, start).trim().chars().take(300).collect()
+                } else {
+                    cand.heading.clone()
+                },
                 start,
                 end,
-                text: text[start..end].trim().to_owned(),
+                text: printed[start..end].trim().to_owned(),
             }
         })
         .collect()
@@ -14354,5 +14393,67 @@ Pursuant to ...
         let text =
             format!("ITEM 1. BUSINESS\n{body}\nITEM 1. A GENERAL DEVELOPMENT\n{body}\nITEM 2. PROPERTIES\n{body}\n");
         assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2"]);
+    }
+
+    #[test]
+    fn item_word_broken_by_a_space_is_read_whole() {
+        // "I TEM 3." (Envision Solar 2012, a non-breaking space), "IT EMS
+        // 10-14." (Valero 2007, a line break inside an anchor), "I tem 4."
+        // (Medical Action 2004). The sections print them as the filing does.
+        let body = BODY.repeat(30);
+        for (heading, id) in [
+            ("I TEM 3. LEGAL PROCEEDINGS", "item_3"),
+            ("IT EM 3. LEGAL PROCEEDINGS", "item_3"),
+            ("ITE M 3. LEGAL PROCEEDINGS", "item_3"),
+            ("I tem 3. Legal Proceedings", "item_3"),
+            ("It em 3.\tLegal Proceedings", "item_3"),
+            ("  Ite m 3 - Legal Proceedings", "item_3"),
+            ("I TEM\t3.\tLEGAL PROCEEDINGS", "item_3"),
+            ("IT EMS 3 AND 4. LEGAL PROCEEDINGS; MINE SAFETY", "item_3"),
+            ("I tems 3-4.", "item_3"),
+        ] {
+            let text = format!(
+                "ITEM 2. PROPERTIES\n{body}\n{heading}\n{body}\nITEM 5. MARKET FOR REGISTRANT'S COMMON EQUITY\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_2", id, "item_5"], "{heading}");
+            assert_eq!(s[1].start, text.find(heading).unwrap(), "{heading}");
+            assert_eq!(s[1].heading, heading.trim(), "{heading}");
+            assert!(s[1].text.starts_with(heading.trim()), "{heading}");
+            assert_eq!(s[0].end, s[1].start, "{heading}");
+        }
+        let text = format!(
+            "ITEM 9B. OTHER INFORMATION\nNone.\nPART III\nIT EMS 10-14.\n\
+             The information required by Items 10 through 14 is incorporated by reference.\n\
+             PART IV\nITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_9b", "item_10", "item_15"]);
+        assert_eq!(s[1].heading, "IT EMS 10-14.");
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nIt em 2. Management's Discussion and Analysis\n{body}\n\
+             I tem 4. Controls and Procedures\n{body}\nPART II\nItem 1. Legal Proceedings\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_1_item_4", "part_2_item_1"]);
+        // Only at the start of a line and before a number, and only with one
+        // space in "Item" or "Items", in capitals or with a capital I.
+        for line in [
+            "See I TEM 3. LEGAL PROCEEDINGS",
+            "I TEM THREE. LEGAL PROCEEDINGS",
+            "IT EMPLOYEES 3. LEGAL PROCEEDINGS",
+            "I T E M 3. LEGAL PROCEEDINGS",
+            "i tem 3. Legal Proceedings",
+            "I TE M 3. LEGAL PROCEEDINGS",
+            "I\tTEM 3. LEGAL PROCEEDINGS",
+        ] {
+            let text = format!("ITEM 2. PROPERTIES\n{body}\n{line}\n{body}\nITEM 5. MARKET\n{body}\n");
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_2", "item_5"], "{line}");
+            assert_eq!(mend_broken_items(&text, &item_word_lines(&text)), None, "{line}");
+        }
+        let text = "I TEM 1. BUSINESS\nIt is so.\r\n  IT EMS 2 and 3\nIT EM\n";
+        let mended = mend_broken_items(text, &item_word_lines(text)).unwrap();
+        assert_eq!(mended, "ITEM  1. BUSINESS\nIt is so.\r\n  ITEMS  2 and 3\nIT EM\n");
+        assert_eq!(mended.len(), text.len());
     }
 }
