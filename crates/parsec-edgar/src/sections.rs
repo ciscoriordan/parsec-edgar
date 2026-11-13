@@ -2021,7 +2021,7 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)], unread: &Has
             if !tail_ok && (kind == FormKind::EightK || !tail.as_str().starts_with('(')) {
                 return None;
             }
-            if continues_sentence(text, m.start()) {
+            if continues_sentence(text, m.start()) && !ends_heading_stack(text, m.start(), &label, keys) {
                 return None;
             }
             let heading: String = m.as_str().trim().chars().take(300).collect();
@@ -2661,10 +2661,7 @@ static PART_LABEL: LazyLock<Regex> =
 /// A heading comes after the end of a paragraph, a page header, a blank line
 /// or a PART label, also one printed with a comma ("PART II,"). A line that
 /// holds only a joining word links two headings ("Item 1. Business." then
-/// "and" then "Item 2. Properties."), so the heading after it stands; so
-/// does an Item line that ends with "; and", as headings stacked as a list
-/// print it ("Item 1. Business;", "Item 2. Properties; and", then "Item 3.
-/// Legal Proceedings").
+/// "and" then "Item 2. Properties."), so the heading after it stands.
 fn continues_sentence(text: &str, line_start: usize) -> bool {
     let Some(above) = text[..line_start].strip_suffix('\n') else {
         return false;
@@ -2675,12 +2672,41 @@ fn continues_sentence(text: &str, line_start: usize) -> bool {
         return false;
     }
     let last = line.trim_end().rsplit([' ', '\t']).next().unwrap_or("");
-    let before_last = line.trim_end()[..line.trim_end().len() - last.len()].trim_end();
-    if last == "and" && before_last.ends_with(';') && is_item_line(line) {
-        return false;
-    }
     let word = last.trim_start_matches(['(', '"', '“']);
     last.ends_with(',') || [JOINING_WORDS, OPEN_WORDS, CAPTION_WORDS].iter().any(|words| words.contains(&word))
+}
+
+/// Whether the Item heading of `label` on the line that starts at
+/// `line_start` is the last of a stack of headings printed as a list
+/// ("Item 1. Business;", "Item 2. Properties; and", then "Item 3. Legal
+/// Proceedings"), so that it stands although the line above it ends with
+/// "and" (`continues_sentence`). The line above ends with "; and" and is,
+/// before that, a whole heading (`PERIODIC_HEADING`) of the Item that comes
+/// right before this one in the same Part of the form (`keys`), with one of
+/// that Item's titles. A list of citations names Items out of that order, or
+/// ends its last entry with a period ("See also:", "Item 1A. Risk Factors;
+/// and", then "Item 7A. Quantitative and Qualitative Disclosures About
+/// Market Risk."), which the last heading of a stack does not.
+fn ends_heading_stack(text: &str, line_start: usize, label: &str, keys: &[Key]) -> bool {
+    let Some(above) = text[..line_start].strip_suffix('\n') else {
+        return false;
+    };
+    let above = above[above.rfind('\n').map_or(0, |i| i + 1)..].trim_end();
+    let Some((entry, "and")) = above.rsplit_once([' ', '\t']) else {
+        return false;
+    };
+    let Some(c) = entry.trim_end().strip_suffix(';').and_then(|heading| PERIODIC_HEADING.captures(heading)) else {
+        return false;
+    };
+    let (before, title) = (c[1].to_ascii_uppercase(), title_key(&c[2]));
+    let line_end = text[line_start..].find('\n').map_or(text.len(), |i| line_start + i);
+    !text[line_start..line_end].trim_end().ends_with('.')
+        && keys.windows(2).any(|pair| {
+            pair[0].item == before
+                && pair[1].item == label
+                && pair[0].part == pair[1].part
+                && pair[0].titles().any(|t| same_title(&title, &title_key(t)))
+        })
 }
 
 /// After an Item's title, a phrase that names the report or another document,
@@ -5174,7 +5200,9 @@ fn roman_items(
         let Some(number) = number else { continue };
         let label = format!("{number}{}", &numeral[roman.len()..]);
         let tail = after_dashes(c.get(2).expect("tail").as_str()).trim();
-        if !heading_tail_ok(tail) || continues_sentence(text, m.start()) {
+        if !heading_tail_ok(tail)
+            || (continues_sentence(text, m.start()) && !ends_heading_stack(text, m.start(), &label, keys))
+        {
             continue;
         }
         let printed = if tail.chars().any(char::is_alphabetic) { tail } else { next_line_title(text, m.end()) };
@@ -14580,9 +14608,9 @@ Pursuant to ...
             assert!(!ids(&extract_sections(&text, FormKind::TenK)).contains(&"item_8"), "{above}");
             assert!(continues_sentence(&format!("{above}\nItem 8. Title"), above.len() + 1), "{above}");
         }
-        let after = |above: &str| continues_sentence(&format!("{above}\nItem 3. Title"), above.len() + 1);
-        assert!(!after("Item 2. Properties; and"));
-        assert!(!after("  Item 2.\tProperties;\tand \r"));
+        let after = |above: &str| ends_heading_stack(&format!("{above}\nItem 3. Title"), above.len() + 1, "3", TEN_K);
+        assert!(after("Item 2. Properties; and"));
+        assert!(after("  Item 2.\tProperties;\tand \r"));
     }
 
     #[test]
@@ -14829,5 +14857,237 @@ Pursuant to ...
             assert_eq!(ids(&s), ["item_7", "item_7a", "item_8"], "{heading}");
             assert_eq!(s[1].start, text.find(heading).unwrap(), "{heading}");
         }
+    }
+
+    #[test]
+    fn citation_under_an_item_line_that_ends_with_a_semicolon_and_and_is_no_heading() {
+        const K: &[&str] = &[
+            "PART I",
+            "Item 1. Business",
+            "Item 1A. Risk Factors",
+            "Item 1B. Unresolved Staff Comments",
+            "Item 2. Properties",
+            "Item 3. Legal Proceedings",
+            "Item 4. Mine Safety Disclosures",
+            "PART II",
+            "Item 5. Market for Registrant's Common Equity",
+            "Item 6. Selected Financial Data",
+            "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+            "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+            "Item 8. Financial Statements and Supplementary Data",
+            "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+        ];
+        const Q: &[&str] = &[
+            "PART I - FINANCIAL INFORMATION",
+            "Item 1. Financial Statements",
+            "Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+            "Item 3. Quantitative and Qualitative Disclosures About Market Risk",
+            "Item 4. Controls and Procedures",
+            "PART II - OTHER INFORMATION",
+            "Item 1. Legal Proceedings",
+            "Item 1A. Risk Factors",
+            "Item 6. Exhibits",
+        ];
+        // A filing with the headings `heads`, each Item with four paragraphs
+        // of text, and `lines` after the first two paragraphs of the Item
+        // `under`.
+        let para = BODY.repeat(3);
+        let filing = |heads: &[&str], under: &str, lines: &[&str]| {
+            let mut text = String::new();
+            for &head in heads {
+                text += &format!("{head}\n");
+                if head.starts_with("PART") {
+                    continue;
+                }
+                text += &format!("{para}\n{para}\n");
+                if head == under {
+                    text += &format!("{}\n", lines.join("\n"));
+                }
+                text += &format!("{para}\n{para}\n");
+            }
+            text
+        };
+        let start = |text: &str, kind: FormKind, id: &str| {
+            extract_sections(text, kind).iter().find(|s| s.id == id).map(|s| s.start)
+        };
+        // A list of citations, one Item to a line, in the text of Item 7 (of
+        // Part I Item 2 in a 10-Q): its last line cites the next Item of the
+        // form, which starts at its own heading. The line above the last
+        // may start with the word "Items" only.
+        let no_7a: Vec<&str> = K.iter().copied().filter(|head| !head.starts_with("Item 7A")).collect();
+        let cases = [
+            (
+                K,
+                FormKind::TenK,
+                K[10],
+                [
+                    "See also:",
+                    "Item 1A. Risk Factors; and",
+                    "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+                ],
+                "item_7a",
+                K[11],
+            ),
+            (
+                K,
+                FormKind::TenK,
+                K[10],
+                [
+                    "The following are discussed elsewhere in this report:",
+                    "Items of other comprehensive income; and",
+                    "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+                ],
+                "item_7a",
+                K[11],
+            ),
+            (
+                no_7a.as_slice(),
+                FormKind::TenK,
+                K[10],
+                ["See also:", "Item 1A. Risk Factors; and", "Item 8. Financial Statements and Supplementary Data."],
+                "item_8",
+                K[12],
+            ),
+            (
+                Q,
+                FormKind::TenQ,
+                Q[2],
+                [
+                    "See also:",
+                    "Item 1. Financial Statements; and",
+                    "Item 3. Quantitative and Qualitative Disclosures About Market Risk.",
+                ],
+                "part_1_item_3",
+                Q[3],
+            ),
+        ];
+        for (heads, kind, under, lines, id, heading) in cases {
+            let text = filing(heads, under, &lines);
+            assert_eq!(start(&text, kind, id), text.find(&format!("{heading}\n")), "{lines:?}");
+        }
+        // The same list in the text of Item 1, which keeps its Item, also
+        // when the last line cites the Item right after the one above it and
+        // ends with a period, as the last entry of a list does.
+        for (above, last) in [
+            (
+                "Item 1A. Risk Factors; and",
+                "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations.",
+            ),
+            ("Item 1A. Risk Factors; and", "Item 2. Properties."),
+            ("Item 2. Properties; and", "Item 3. Legal Proceedings."),
+        ] {
+            let text =
+                filing(K, K[1], &["Besides the description below, our operations are described in", above, last]);
+            assert_eq!(start(&text, FormKind::TenK, "item_1"), text.find("Item 1. Business\n"), "{last}");
+            assert_eq!(start(&text, FormKind::TenK, "item_1a"), text.find("Item 1A. Risk Factors\n"), "{last}");
+        }
+        // A line "Part II. Other Information" under such a line, in the text
+        // of Part I Item 4 of a 10-Q, does not end the Item.
+        let wrapped = "of this report, which should be read with this discussion.";
+        let text = filing(
+            Q,
+            Q[4],
+            &[
+                "Changes in controls and other matters are discussed in:",
+                "Item 4. Controls and Procedures; and",
+                "Part II. Other Information",
+                wrapped,
+            ],
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            [
+                "part_1_item_1",
+                "part_1_item_2",
+                "part_1_item_3",
+                "part_1_item_4",
+                "part_2_item_1",
+                "part_2_item_1a",
+                "part_2_item_6"
+            ]
+        );
+        assert!(s[3].text.contains(wrapped) && s[3].text.matches(&para).count() == 4);
+        // The stack of headings stands with its last heading in roman
+        // numerals, and in Part II of a 10-Q.
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nItem 1. Business;\nItem 2. Properties; and\nITEM III. LEGAL PROCEEDINGS\nGeneral\n{body}\n\
+             Item 4. Submission of Matters to a Vote of Security Holders\nNone.\nPART II\n\
+             Item 5. Market for the Registrant's Common Equity\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_2", "item_3", "item_4", "item_5"]);
+        assert!(s[2].text.starts_with("ITEM III."));
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 2. Management's Discussion and Analysis\n{body}\n\
+             PART II\nItem 1. Legal Proceedings\n{body}\nItem 2. Unregistered Sales of Equity Securities and Use of \
+             Proceeds;\nItem 3. Defaults Upon Senior Securities; and\nItem 4. Mine Safety Disclosures\n\
+             Not applicable.\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(
+            ids(&s),
+            [
+                "part_1_item_1",
+                "part_1_item_2",
+                "part_2_item_1",
+                "part_2_item_2",
+                "part_2_item_3",
+                "part_2_item_4",
+                "part_2_item_6"
+            ]
+        );
+        // What the stack test reads: the line above up to "; and" is a whole
+        // heading of the Item right before `label` in its Part, with a title
+        // of that Item, and the line itself does not end with a period.
+        let stack = |above: &str, line: &str, label: &str, keys: &[Key]| {
+            ends_heading_stack(&format!("{above}\n{line}\n{BODY}\n"), above.len() + 1, label, keys)
+        };
+        assert!(stack("Item 2. Properties; and", "Item 3. Legal Proceedings", "3", TEN_K));
+        assert!(stack("ITEM 2 - PROPERTIES ; and", "ITEM 3 - LEGAL PROCEEDINGS", "3", TEN_K));
+        assert!(stack("Item 12. Security Ownership of Certain Beneficial Owners; and", "Item 13. Title", "13", TEN_K));
+        assert!(stack("Item 3. Defaults Upon Senior Securities; and", "Item 4. Title", "4", TEN_Q));
+        assert!(stack(
+            "Item 3. Quantitative and Qualitative Disclosures About Market Risk; and",
+            "Item 4. Title",
+            "4",
+            TEN_Q
+        ));
+        for (above, line, label, keys) in [
+            // The line ends with a period.
+            ("Item 2. Properties; and", "Item 3. Legal Proceedings.", "3", TEN_K),
+            ("Item 2. Properties; and", "Item 3. Legal Proceedings. \r", "3", TEN_K),
+            ("Item 2. Properties; and", "Item 3.", "3", TEN_K),
+            // The line above does not end with "; and".
+            ("Item 2. Properties; or", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 2. Properties, and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 2. Properties and", "Item 3. Legal Proceedings", "3", TEN_K),
+            // It is no whole heading of the Item right before: no number, no
+            // title, a title that is no Item's, the number or the title of
+            // another Item, words before it.
+            ("Items of other comprehensive income; and", "Item 7A. Title", "7A", TEN_K),
+            ("Item 2; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 2. Summary of the claims against us; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 5. Properties; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Item 2. Legal Proceedings; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            ("Our plants are described in Item 2. Properties; and", "Item 3. Legal Proceedings", "3", TEN_K),
+            // Its Item is not the one right before: later Items, an Item
+            // with another between them, the Item after, the same Item.
+            ("Item 1A. Risk Factors; and", "Item 7A. Title", "7A", TEN_K),
+            ("Item 1A. Risk Factors; and", "Item 2. Properties", "2", TEN_K),
+            ("Item 1. Business; and", "Item 2. Properties", "2", TEN_K),
+            ("Item 3. Legal Proceedings; and", "Item 2. Properties", "2", TEN_K),
+            ("Item 2. Properties; and", "Item 2. Properties", "2", TEN_K),
+            // The Item right before it in the table is of another Part.
+            ("Item 4. Controls and Procedures; and", "Item 1. Legal Proceedings", "1", TEN_Q),
+            // An 8-K's Items are not read.
+            ("Item 2.02. Results of Operations and Financial Condition; and", "Item 2.03. Title", "2.03", EIGHT_K),
+        ] {
+            assert!(!stack(above, line, label, keys), "{above} / {line}");
+        }
+        // No line above.
+        assert!(!ends_heading_stack("Item 3. Legal Proceedings\n", 0, "3", TEN_K));
+        assert!(!ends_heading_stack("\nItem 3. Legal Proceedings\n", 1, "3", TEN_K));
     }
 }
