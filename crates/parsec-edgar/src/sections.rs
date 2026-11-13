@@ -5083,10 +5083,11 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
 
 /// `ITEM I.  BUSINESS`, `ITEM IV. CONTROLS AND PROCEDURES`: an Item heading
 /// whose number is written in roman numerals, as some filings print one
-/// heading, with the letter I for the number 1.
+/// heading, with the letter I for the number 1; also with the letter of a
+/// lettered Item after it (`ITEM IA: RISK FACTORS`).
 static ROMAN_HEADING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[\-–—]+)?[ \t]*)?(?i:item)[ \t]+([IVX]{1,5})(?-u:\b)[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
+        r"(?m)^[ \t]*(?:(?i:part)[ \t]+[IV]{1,3}[ \t]*(?:[,.:]|[\-–—]+)?[ \t]*)?(?i:item)[ \t]+([IVX]{1,5}[A-C]?)(?-u:\b)[ \t]*[.:\-–—]?[ \t]*([^\n]*)$",
     )
     .unwrap()
 });
@@ -5124,9 +5125,12 @@ fn added_candidate(text: &str, pos: usize, label: &str, printed: &str) -> Candid
 }
 
 /// Items whose heading writes the number in roman numerals ("ITEM I.
-/// BUSINESS"), which the heading pattern does not read. Such a heading, with
-/// a title that starts like one of the standard titles, current or former,
-/// of the Item with that number, starts the Item when it sits where the Item
+/// BUSINESS"), also with the letter of a lettered Item after it ("ITEM IA:
+/// RISK FACTORS"), which the heading pattern does not read. Such a heading,
+/// with a title that starts like one of the standard titles, current or
+/// former, of the Item with that number, also after "Description of" as the
+/// 10-KSB titles its Items 1 and 2 ("ITEM I: DESCRIPTION OF BUSINESS" in a
+/// 10-K), starts the Item when it sits where the Item
 /// belongs, before the signatures: after the Items found before it, which
 /// come earlier in the form's order, and before those found after it, which
 /// come later, so never when the Item was found. The title picks the Item
@@ -5154,15 +5158,22 @@ fn roman_items(
         if m.start() >= limit {
             break;
         }
-        let Some(number) = roman_number(numeral) else { continue };
-        let label = number.to_string();
+        // The letter of a lettered Item follows the numeral ("IA").
+        let roman = numeral.trim_end_matches(['A', 'B', 'C']);
+        let Some(number) = roman_number(roman) else { continue };
+        let label = format!("{number}{}", &numeral[roman.len()..]);
         let tail = after_dashes(c.get(2).expect("tail").as_str()).trim();
         if !heading_tail_ok(tail) || continues_sentence(text, m.start()) {
             continue;
         }
         let printed = if tail.chars().any(char::is_alphabetic) { tail } else { next_line_title(text, m.end()) };
         let title = title_key(printed);
-        let ki = keys.iter().position(|k| k.item == label && k.titles().any(|t| same_title(&title, &title_key(t))));
+        // "DESCRIPTION OF BUSINESS", as a 10-KSB titles its Item 1, names
+        // Item 1 of a 10-K, Business.
+        let described = title.strip_prefix("descriptionof").unwrap_or(&title);
+        let ki = keys.iter().position(|k| {
+            k.item == label && k.titles().any(|t| [&title, described].iter().any(|p| same_title(p, &title_key(t))))
+        });
         if let Some(ki) = ki {
             headings.push((added_candidate(text, m.start(), &label, printed), ki, numeral));
         }
@@ -14561,5 +14572,61 @@ Pursuant to ...
         let after = |above: &str| continues_sentence(&format!("{above}\nItem 3. Title"), above.len() + 1);
         assert!(!after("Item 2. Properties; and"));
         assert!(!after("  Item 2.\tProperties;\tand \r"));
+    }
+
+    #[test]
+    fn roman_numeral_with_the_letter_of_an_item_or_a_ten_ksb_title_is_a_heading() {
+        // "ITEM I: DESCRIPTION OF BUSINESS" and "ITEM IA: RISK FACTORS"
+        // (Organic Alliance, 10-K 2010 to 2013), "Item I. Legal Proceedings."
+        // and "Item IA. Risk Factors." in a 10-Q's Part II (Pathmark Charter
+        // 2010), "ITEM IC.<TAB>CYBERSECURITY" (ServiceNow 2024).
+        let body = BODY.repeat(30);
+        let text = format!(
+            "PART I\nITEM 1.\tBUSINESS\t4\nITEM 1A.\tRISK FACTORS\t7\nITEM 2.\tPROPERTIES\t11\nPART I\n\
+             ITEM I: DESCRIPTION OF BUSINESS\n{body}\nITEM IA: RISK FACTORS\n{body}\n\
+             ITEM 1B. UNRESOLVED STAFF COMMENTS\nNone.\nITEM IC.\tCYBERSECURITY\n{body}\n\
+             ITEM 2. PROPERTIES\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_1b", "item_1c", "item_2"]);
+        assert_eq!(s[0].start, text.find("ITEM I:").unwrap());
+        assert_eq!(s[0].title, "Business");
+        assert_eq!(s[1].title, "Risk Factors");
+        assert_eq!(s[3].title, "Cybersecurity");
+        // A 10-KSB's own title still counts.
+        let text = format!(
+            "PART I\nITEM I. DESCRIPTION OF BUSINESS\n{body}\nITEM 2. DESCRIPTION OF PROPERTY\n{body}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&text, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_1", "item_2"]);
+        assert_eq!(s[0].title, "Description of Business");
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem 4. Controls and Procedures\n{body}\n\
+             PART II — OTHER INFORMATION\nItem I. Legal Proceedings.\nNone.\nItem IA. Risk Factors.\n\
+             Not required.\nItem 2. Unregistered Sales of Equity Securities and Use of Proceeds.\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_4", "part_2_item_1", "part_2_item_1a", "part_2_item_2"]);
+        // A numeral and letter of no Item, a cross-reference, another title
+        // after "Description of", "Description of Business" for another
+        // number, and Part II's Item 1A among Part I's Items.
+        for line in [
+            "ITEM IVA. RISK FACTORS",
+            "Item IA of Form 10-K requires the risks.",
+            "ITEM I. DESCRIPTION OF THE TRUST",
+            "ITEM III. DESCRIPTION OF BUSINESS",
+        ] {
+            let text = format!(
+                "PART I\nITEM 1B. UNRESOLVED STAFF COMMENTS\nNone.\n{line}\n{body}\nITEM 4. MINE SAFETY DISCLOSURES\n\
+                 {body}\nSIGNATURES\n"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1b", "item_4"], "{line}");
+        }
+        let text = format!(
+            "PART I\nItem 1. Financial Statements\n{body}\nItem IA. Risk Factors.\n{body}\n\
+             Item 2. Management's Discussion and Analysis\n{body}\nPART II\nItem 6. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_1_item_1", "part_1_item_2", "part_2_item_6"]);
     }
 }
