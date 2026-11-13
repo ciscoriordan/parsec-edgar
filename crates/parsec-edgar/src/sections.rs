@@ -1623,6 +1623,38 @@ fn split_letter<'a>(label: &str, between: &str, tail: &'a str) -> (String, &'a s
     (format!("{label}{}", letter as char), title)
 }
 
+/// `ITEM 7.A QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK`,
+/// `Item 1.A — Risk Factors`, `ITEM 7. A - QUANTITATIVE ...`: a capital letter
+/// after a period behind the Item number, which `split_letter` did not join
+/// to it, belongs to the number when the form defines that lettered Item
+/// and the rest of the line, past spaces, separators and dashes, or else
+/// the next line (`ITEM 1.A` above `RISK FACTORS`), starts with the Item's
+/// standard title (no lettered Item has had another). With another title
+/// (`ITEM 1. A GENERAL`), or with spaces alone before the letter (`Item 9 A
+/// Controls`), the letter starts the title. `between` is the text between
+/// the number and `tail`, and `end` the end of the line in `text`. Returns
+/// the lettered Item's number and title, which is empty when the title is
+/// on the next line.
+fn titled_letter<'a>(
+    label: &str,
+    between: &str,
+    tail: &'a str,
+    text: &str,
+    end: usize,
+    keys: &[Key],
+) -> Option<(String, &'a str)> {
+    let letter = tail.bytes().next().filter(u8::is_ascii_uppercase)?;
+    // A lowercase letter after it makes it the first letter of a word
+    // ("Item 1. Business"); this only saves the search below.
+    if between.trim() != "." || tail.as_bytes().get(1).is_some_and(u8::is_ascii_lowercase) {
+        return None;
+    }
+    let key = keys.iter().find(|k| k.item.strip_prefix(label).is_some_and(|l| l.as_bytes() == [letter]))?;
+    let title = tail[1..].trim_start_matches([' ', '\t', '.', ':', '-', '–', '—']);
+    let printed = title_key(if title.trim().is_empty() { next_line_title(text, end) } else { title });
+    same_title(&printed, &title_key(key.title)).then(|| (key.item.to_owned(), title))
+}
+
 /// `ITEM 4(a). EXECUTIVE OFFICERS OF THE REGISTRANT` in a 10-K or 10-KSB: the
 /// executive officers caption numbered as a sub-item reads as the lettered
 /// Item `4A`, which the form does not define. It keeps its Item's number,
@@ -1955,7 +1987,10 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)], unread: &Has
                 let (label, tail) = if kind == FormKind::EightK {
                     (label, tail.as_str())
                 } else {
-                    let (label, tail) = split_letter(&label, &text[number.end()..tail.start()], tail.as_str());
+                    let between = &text[number.end()..tail.start()];
+                    let (label, tail) = split_letter(&label, between, tail.as_str());
+                    let (label, tail) =
+                        titled_letter(&label, between, tail, text, m.end(), keys).unwrap_or((label, tail));
                     let lettered = lettered_sub_item(&label, tail, text, m.end(), keys);
                     if !tail_ok && lettered.is_none() {
                         return None;
@@ -14252,5 +14287,72 @@ Pursuant to ...
         // Items the form did not have on the date keep their only title.
         let text = format!("Item 1. Business\n{body}\nItem 1A. Risk Factors\n{body}\nItem 2. Properties\n{body}\n");
         assert_eq!(dated(&text, FormKind::TenK, "2000-03-01")[1].title, "Risk Factors");
+    }
+
+    #[test]
+    fn letter_after_a_period_before_the_lettered_items_title_is_part_of_the_number() {
+        // "ITEM 7.A QUANTITATIVE ..." (CuriosityStream 2025), "Item 1.A —
+        // Risk Factors" (Cortland Bancorp 2009), "ITEM 7. A - QUANTITATIVE
+        // ..." (Ferro 2001), and "ITEM 1.A" over its title.
+        let body = BODY.repeat(30);
+        let annual = [
+            ("ITEM 7.A QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+            ("ITEM 7. A - QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+            ("Item 7.A\tQuantitative and Qualitative Disclosures About Market Risk\t25", "item_7a"),
+            ("Item 7.A\nQuantitative and Qualitative Disclosures About Market Risk", "item_7a"),
+            ("ITEM 7. A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+            ("Item 7.A — Quantitative and Qualitative Disclosures about Market Risk", "item_7a"),
+            ("ITEM 7. A.\nQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+            ("ITEM 7.A –\nQUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK", "item_7a"),
+        ];
+        for (heading, id) in annual {
+            let text = format!(
+                "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n{heading}\n{body}\n\
+                 ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_7", id, "item_8"], "{heading}");
+            assert_eq!(s[1].start, text.find(heading).unwrap(), "{heading}");
+            assert_eq!(s[1].title, "Quantitative and Qualitative Disclosures About Market Risk", "{heading}");
+        }
+        let text = format!("Item 1. Business\n{body}\nItem 1.A — Risk Factors\n{body}\nItem 2. Properties\n{body}\n");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_1a", "item_2"]);
+        let text = format!(
+            "ITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS\nNone.\nITEM 8.A CONTROLS AND PROCEDURES\n{body}\n\
+             ITEM 8.B OTHER INFORMATION\nNone.\nITEM 9. DIRECTORS\n{body}\n"
+        );
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenKsb)), ["item_8", "item_8a", "item_8b", "item_9"]);
+        let text = format!(
+            "PART II - OTHER INFORMATION\nItem 1. Legal Proceedings\nNone.\nItem 1.A Risk Factors\n{body}\n\
+             Item 2. Unregistered Sales of Equity Securities and Use of Proceeds\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_1a", "part_2_item_2"]);
+        // Another title, or no Item of that letter in the form, keeps the
+        // letter in the title; so do spaces or a dash alone before it, and
+        // a lowercase letter.
+        for heading in [
+            "ITEM 7. A DISCUSSION OF MARKET RISK",
+            "ITEM 7.A\nDiscussion of Market Risk",
+            "ITEM 7 A QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+            "ITEM 7-A QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+            "ITEM 7.a Quantitative and Qualitative Disclosures About Market Risk",
+        ] {
+            let text = format!(
+                "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\n{heading}\n{body}\n\
+                 ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert!(!ids(&s).contains(&"item_7a"), "{heading}");
+        }
+        let text = format!(
+            "PART II - OTHER INFORMATION\nItem 1. Legal Proceedings\nNone.\n\
+             Item 2.A Unregistered Sales of Equity Securities\n{body}\nItem 3. Defaults Upon Senior Securities\nNone.\n"
+        );
+        let s = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&s), ["part_2_item_1", "part_2_item_2", "part_2_item_3"]);
+        let text =
+            format!("ITEM 1. BUSINESS\n{body}\nITEM 1. A GENERAL DEVELOPMENT\n{body}\nITEM 2. PROPERTIES\n{body}\n");
+        assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_1", "item_2"]);
     }
 }
