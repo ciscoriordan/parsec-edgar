@@ -1019,8 +1019,14 @@ fn full_pages(mut sizes: Vec<usize>) -> bool {
 /// block, and a page without it ends the run. So each name stays over the
 /// first page of each run of its filer's pages, as in the 10-K that US
 /// Airways Group and US Airways file together, and over a page it heads
-/// alone, as Amazon.com's name over "FORM 10-K"; and a heading printed on
-/// every other page, as on facing pages, stays on each. A legend never
+/// alone, as Amazon.com's name over "FORM 10-K". A text printed on every
+/// other page is one run all the same where five or more pages two apart
+/// hold it in a block and no page next to them does: JPMorgan Chase's 10-K
+/// of 2014 prints "Notes to consolidated financial statements" over 74
+/// such pages, and it stays over the first. A shorter chain is a run at
+/// each page: "MORGAN STANLEY CHARTER SERIES" over three reports two pages
+/// apart, in the 10-K the Morgan Stanley Charter funds filed in 2009, stays
+/// over each. A legend never
 /// goes. A note that qualifies the name or title above it ("(Unaudited)",
 /// "AND SUBSIDIARIES") goes only as the second line of a header of two
 /// lines, where the first goes: under a name or a heading that goes, or
@@ -1058,6 +1064,7 @@ fn full_pages(mut sizes: Vec<usize>) -> bool {
 /// units of a table stays.
 fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: &[bool]) -> Vec<usize> {
     const MIN_COPIES: u32 = 5;
+    const MIN_CHAIN: usize = 5;
     const MAX_DEPTH: usize = 6;
     const MAX_LEN: usize = 120;
     const NONE: usize = usize::MAX;
@@ -1245,19 +1252,43 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     // The pages where each text is in a block, and those where each note is
     // under each line it follows in a block, with the last such page.
     let mut block_pages = vec![0u32; texts.len()];
+    let mut in_block: Vec<Vec<usize>> = vec![Vec::new(); texts.len()];
     let mut under: HashMap<(usize, usize), (u32, usize)> = HashMap::new();
     let mut last_page = vec![NONE; texts.len()];
     for (p, (page, &(top, bottom))) in pages.iter().zip(&blocks).enumerate() {
         for block in [page.start..page.start + top, page.end - bottom..page.end] {
             for k in block.clone() {
                 let t = id[k];
-                block_pages[t] += u32::from(last_page[t] != p);
+                if last_page[t] != p {
+                    block_pages[t] += 1;
+                    in_block[t].push(p);
+                }
                 last_page[t] = p;
                 if texts[t].1 == Kind::Note && k > block.start {
                     let (n, last) = under.entry((t, id[k - 1])).or_insert((0, NONE));
                     *n += u32::from(*last != p);
                     *last = p;
                 }
+            }
+        }
+    }
+    // A text printed on every other page: a chain of pages two apart that
+    // hold it in a block, with no page next to any of them holding it. A
+    // chain of MIN_CHAIN pages or more is one run, and these are its pages
+    // past the first, by text.
+    let mut chained: HashSet<(usize, usize)> = HashSet::new();
+    for (t, held) in in_block.iter().enumerate() {
+        let mut start = 0;
+        for chain in held.chunk_by(|a, b| a + 2 == *b) {
+            let end = start + chain.len();
+            // Whether the page before the chain's first page holds the
+            // text, and the page after its last: such a page is not part of
+            // the chain.
+            let first = usize::from(start > 0 && held[start - 1] + 1 == chain[0]);
+            let last = usize::from(end < held.len() && chain[chain.len() - 1] + 1 == held[end]);
+            start = end;
+            if chain.len() >= MIN_CHAIN + first + last {
+                chained.extend(chain[first + 1..chain.len() - last].iter().map(|&p| (t, p)));
             }
         }
     }
@@ -1272,8 +1303,9 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             for k in block.clone() {
                 let t = id[k];
                 // A copy starts a run of pages unless the text is in a block
-                // on the page before or earlier on its page.
-                let starts_run = last_page[t] == NONE || last_page[t] + 1 < p;
+                // on the page before or earlier on its page, or the page is
+                // a later one of a chain of every other page.
+                let starts_run = last_page[t] == NONE || last_page[t] + 1 < p && !chained.contains(&(t, p));
                 last_page[t] = p;
                 let goes = match texts[t].1 {
                     Kind::Heading | Kind::Name => !starts_run,
@@ -3210,8 +3242,8 @@ mod tests {
     }
 
     /// A heading that is also the running header of the pages after it stays
-    /// at the top of the first page of each run of pages it heads, and so on
-    /// each page when it is printed on every other page only, while a header
+    /// at the top of the first page of each run of pages it heads, and once
+    /// when it is printed on every other page of six, while a header
     /// that says it continues the heading goes. Under a legend a heading
     /// stays on every page and a name does not, which tells the two apart; a
     /// heading at which an Item ends is a heading even when it looks like a
@@ -3233,7 +3265,7 @@ mod tests {
         assert_eq!(lines, ["Acme Corporation", notes, notes], "{text}");
         assert!(text.starts_with(&format!("Acme Corporation\n{notes}\nText of page 1.\n")), "{text}");
         assert!(text.contains(&format!("Text of page 9.\n{notes}\nText of page 10.\n")), "{text}");
-        // On facing pages, each copy starts a run.
+        // On facing pages, six pages of each are one run.
         let pages: Vec<Vec<String>> = (1..13)
             .map(|n| {
                 let top = if n % 2 == 1 { vec![notes.to_string()] } else { vec!["Acme Corporation".to_string()] };
@@ -3241,7 +3273,7 @@ mod tests {
             })
             .collect();
         let text = html_to_text(&printed(&pages));
-        assert_eq!(text.lines().filter(|l| !l.starts_with("Text")).count(), 12, "{text}");
+        assert_eq!(text.lines().filter(|l| !l.starts_with("Text")).count(), 2, "{text}");
         // Other headings and Item titles.
         for title in [
             "Management's Discussion and Analysis",
@@ -4413,5 +4445,149 @@ mod tests {
         let mut pages = framed(&[acme, note], &[acme, note], 1..7);
         pages.extend(framed(&[acme], &[acme], 7..13));
         assert_eq!((count(&pages, acme), count(&pages, note)), (1, 12));
+    }
+
+    /// The text of `pages` pages, page `n` made of "Text of page n." under
+    /// the lines of `top` on the pages of `held`.
+    fn headed(top: &[&str], held: &[u32], pages: u32) -> String {
+        let pages: Vec<Vec<String>> = (1..=pages)
+            .map(|n| {
+                let top = if held.contains(&n) { top } else { &[] };
+                top.iter().map(|l| l.to_string()).chain([format!("Text of page {n}.")]).collect()
+            })
+            .collect();
+        html_to_text(&printed(&pages))
+    }
+
+    /// A heading or a name printed on every other page, as on facing pages,
+    /// is one run from five pages on: it stays over the first and goes from
+    /// the others, and the second line of the header with it.
+    #[test]
+    fn headers_on_every_other_page_of_six_stay_once() {
+        let count = |text: &str, line: &str| text.lines().filter(|l| *l == line).count();
+        for header in ["Notes to Consolidated Financial Statements", "Acme Corporation"] {
+            let text = headed(&[header], &[1, 3, 5, 7, 9, 11], 12);
+            assert_eq!(count(&text, header), 1, "{text}");
+            let start = format!("{header}\nText of page 1.\nText of page 2.\nText of page 3.\n");
+            assert!(text.starts_with(&start), "{text}");
+            // Five pages are a chain too, and it need not start the filing.
+            let text = headed(&[header], &[4, 6, 8, 10, 12], 14);
+            assert_eq!(count(&text, header), 1, "{text}");
+            assert!(text.contains(&format!("Text of page 3.\n{header}\nText of page 4.\nText of page 5.\n")), "{text}");
+            // Two chains, each with its first copy.
+            let text = headed(&[header], &[1, 3, 5, 7, 9, 11, 16, 18, 20, 22, 24, 26], 27);
+            assert_eq!(count(&text, header), 2, "{text}");
+            assert!(text.contains(&format!("Text of page 15.\n{header}\nText of page 16.\n")), "{text}");
+        }
+        let (notes, note) = ("Notes to Consolidated Financial Statements", "(Unaudited)");
+        let text = headed(&[notes, note], &[1, 3, 5, 7, 9, 11], 12);
+        assert_eq!((count(&text, notes), count(&text, note)), (1, 1), "{text}");
+    }
+
+    /// Three copies two pages apart are first copies, as a name over three
+    /// statements is: each stays.
+    #[test]
+    fn headers_on_every_other_page_of_three_stay() {
+        let count = |text: &str, line: &str| text.lines().filter(|l| *l == line).count();
+        for header in ["Notes to Consolidated Financial Statements", "Acme Corporation"] {
+            // Two chains of three, four pages apart.
+            let text = headed(&[header], &[1, 3, 5, 9, 11, 13], 14);
+            assert_eq!(count(&text, header), 6, "{text}");
+            // A chain of three after a run of four pages.
+            let text = headed(&[header], &[1, 2, 3, 4, 7, 9, 11], 12);
+            assert_eq!(count(&text, header), 4, "{text}");
+        }
+    }
+
+    /// Nor are four copies two pages apart one run, also when a fifth page
+    /// two pages before or after them holds the text next to a page that
+    /// holds it: a page with the text on the page next to it is not one of
+    /// a chain.
+    #[test]
+    fn headers_on_every_other_page_of_four_stay() {
+        let count = |text: &str, line: &str| text.lines().filter(|l| *l == line).count();
+        for header in ["Notes to Consolidated Financial Statements", "Acme Corporation"] {
+            // Two chains of four, five pages apart, and one of four with a
+            // fifth copy far from it.
+            let text = headed(&[header], &[1, 3, 5, 7, 12, 14, 16, 18], 19);
+            assert_eq!(count(&text, header), 8, "{text}");
+            let text = headed(&[header], &[1, 3, 5, 7, 12], 13);
+            assert_eq!(count(&text, header), 5, "{text}");
+            // Pages 1 and 2, then every other page to 10: page 2 goes on
+            // with the run of page 1, and 4 to 10 are a chain of four.
+            let text = headed(&[header], &[1, 2, 4, 6, 8, 10], 11);
+            assert_eq!(count(&text, header), 5, "{text}");
+            // Every other page from 1 to 9, then page 10, which goes on
+            // with the run of page 9: 1 to 7 are a chain of four.
+            let text = headed(&[header], &[1, 3, 5, 7, 9, 10], 11);
+            assert_eq!(count(&text, header), 5, "{text}");
+        }
+    }
+
+    /// With five pages left beside a page that has the text on the page
+    /// next to it, the five are a chain: its first copy stays two pages
+    /// after a run of two pages, and the page two after its last starts the
+    /// run of the page next to it.
+    #[test]
+    fn chains_of_every_other_page_end_before_a_page_next_to_one_with_the_text() {
+        let count = |text: &str, line: &str| text.lines().filter(|l| *l == line).count();
+        for header in ["Notes to Consolidated Financial Statements", "Acme Corporation"] {
+            // Pages 1 and 2, then every other page to 12: 4 to 12 are a
+            // chain of five, and the copies of pages 1 and 4 stay.
+            let text = headed(&[header], &[1, 2, 4, 6, 8, 10, 12], 13);
+            assert_eq!(count(&text, header), 2, "{text}");
+            assert!(text.contains(&format!("Text of page 3.\n{header}\nText of page 4.\nText of page 5.\n")), "{text}");
+            // Every other page from 1 to 11, then page 12: 1 to 9 are a
+            // chain of five, and the copies of pages 1 and 11 stay.
+            let text = headed(&[header], &[1, 3, 5, 7, 9, 11, 12], 13);
+            assert_eq!(count(&text, header), 2, "{text}");
+            let run = format!("Text of page 10.\n{header}\nText of page 11.\nText of page 12.\n");
+            assert!(text.contains(&run), "{text}");
+        }
+    }
+
+    /// Pages three apart are no chain, alone or after pages two apart.
+    #[test]
+    fn headers_on_every_third_page_stay() {
+        let count = |text: &str, line: &str| text.lines().filter(|l| *l == line).count();
+        for header in ["Notes to Consolidated Financial Statements", "Acme Corporation"] {
+            let text = headed(&[header], &[1, 4, 7, 10, 13, 16], 17);
+            assert_eq!(count(&text, header), 6, "{text}");
+            // Two chains of three, three pages apart.
+            let text = headed(&[header], &[1, 3, 5, 8, 10, 12], 13);
+            assert_eq!(count(&text, header), 6, "{text}");
+        }
+    }
+
+    /// A page that holds the text at its top and at its foot counts once
+    /// in a chain, and a chain is the chain of one text: a heading under
+    /// the name on every other page of the name's chain stays on each.
+    #[test]
+    fn chains_of_every_other_page_count_pages_of_one_text() {
+        let count = |text: &str, line: &str| text.lines().filter(|l| *l == line).count();
+        let (acme, notes) = ("Acme Corporation", "Notes to Consolidated Financial Statements");
+        for header in [notes, acme] {
+            let pages: Vec<Vec<String>> = (1..13)
+                .map(|n| {
+                    let text = format!("Text of page {n}.");
+                    if n % 2 == 1 { vec![header.to_string(), text, header.to_string()] } else { vec![text] }
+                })
+                .collect();
+            let text = html_to_text(&printed(&pages));
+            assert_eq!(count(&text, header), 1, "{text}");
+            assert!(text.starts_with(&format!("{header}\nText of page 1.\nText of page 2.\n")), "{text}");
+        }
+        let pages: Vec<Vec<String>> = (1..21)
+            .map(|n| {
+                let top: &[&str] = match n % 4 {
+                    1 => &[acme],
+                    3 => &[acme, notes],
+                    _ => &[],
+                };
+                top.iter().map(|l| l.to_string()).chain([format!("Text of page {n}.")]).collect()
+            })
+            .collect();
+        let text = html_to_text(&printed(&pages));
+        assert_eq!((count(&text, acme), count(&text, notes)), (1, 5), "{text}");
     }
 }
