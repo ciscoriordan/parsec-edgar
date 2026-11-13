@@ -1541,9 +1541,18 @@ static ITEM_LIST: LazyLock<Regex> = LazyLock::new(|| {
 static ITEM_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d{1,2}[A-Ca-c]?").unwrap());
 
 /// After the first Item number of a heading, a dash and the last Item of a
-/// range: `-5.` in `Item 1-5.`, ` – 13.` in `ITEMS 10 – 13.`
-static ITEM_RANGE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[ \t]*\.?[ \t]*[-–—][ \t]*(\d{1,2}[A-Ca-c]?)(?:[ \t]*[.:])?").unwrap());
+/// range: `-5.` in `Item 1-5.`, ` – 13.` in `ITEMS 10 – 13.`; or two hyphens
+/// for the dash, and a dash before a space or the line's end after the
+/// range, as plain-text filings print them: ` -- 12 -- ` in `ITEMS 9 -- 12
+/// --  DOCUMENTS INCORPORATED BY REFERENCE`, `-12 -- ` in `ITEMS 9-12 --
+/// DOCUMENTS ...`. A dash right before a letter stays in the title, so
+/// `Item 1 - 10-K SUMMARY` names no range.
+static ITEM_RANGE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^[ \t]*\.?[ \t]*(?:-{1,2}|[–—])[ \t]*(\d{1,2}[A-Ca-c]?)(?:[ \t]*[.:]|[ \t]*(?:-{1,2}|[–—])(?:[ \t]|$))?",
+    )
+    .unwrap()
+});
 
 /// After the Item number, a comma: `Item 8, Financial Statements`.
 static ITEM_COMMA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[ \t]*\.?[ \t]*,").unwrap());
@@ -14455,5 +14464,53 @@ Pursuant to ...
         let mended = mend_broken_items(text, &item_word_lines(text)).unwrap();
         assert_eq!(mended, "ITEM  1. BUSINESS\nIt is so.\r\n  ITEMS  2 and 3\nIT EM\n");
         assert_eq!(mended.len(), text.len());
+    }
+
+    #[test]
+    fn range_of_items_with_two_hyphens_or_a_dash_after_it_is_a_heading() {
+        // "ITEMS 9 -- 12 --  DOCUMENTS INCORPORATED BY REFERENCE" (Interactive
+        // Flight Technologies, 10-KSB 1997 and 1998) and "ITEMS 9-12 -- ..."
+        // (Global Technologies, 10-K 1999).
+        let body = BODY.repeat(30);
+        for range in [
+            "ITEMS 9 -- 12 --  DOCUMENTS INCORPORATED BY REFERENCE",
+            "ITEMS 9-12 -- DOCUMENTS INCORPORATED BY REFERENCE",
+            "Items 9 – 12 – Omitted",
+            "ITEMS 9--12--\tOMITTED",
+            "ITEMS 9 -- 12 --\nDOCUMENTS INCORPORATED BY REFERENCE",
+        ] {
+            let text = format!(
+                "ITEM 8  --  CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON\nACCOUNTING AND FINANCIAL DISCLOSURE\n\
+                 None.\nPART III\n{range}\n{body}\nITEM 13  --  EXHIBITS AND REPORTS ON FORM 8-K\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenKsb);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_13"], "{range}");
+            assert_eq!(s[1].start, text.find(range).unwrap(), "{range}");
+        }
+        assert_eq!(
+            listed_items("9", " -- 12 --  DOCUMENTS INCORPORATED BY REFERENCE", TEN_KSB),
+            Some(("DOCUMENTS INCORPORATED BY REFERENCE", Some("12".to_owned())))
+        );
+        assert_eq!(listed_items("10", "-13 - Omitted.", TEN_K), Some(("Omitted.", Some("13".to_owned()))));
+        assert_eq!(listed_items("10", " -- 13 --", TEN_K), Some(("", Some("13".to_owned()))));
+        // A cross-reference or a sentence after the range, a dash before a
+        // form's name, a year, a range that goes down or a page number.
+        for (label, after) in [
+            ("10", " -- 13 -- see the proxy statement."),
+            ("10", " -- 13 of Part III are incorporated by reference."),
+            ("1", " -- 10-K SUMMARY"),
+            ("1", " - 10-K SUMMARY"),
+            ("7", " -- 2005 compared with 2004"),
+            ("6", " -- 5 Year Summary"),
+            ("8", " -- 45 --"),
+        ] {
+            assert_eq!(listed_items(label, after, TEN_K), None, "Item {label}{after}");
+        }
+        let text = format!(
+            "Item 8. Financial Statements and Supplementary Data\n{body}\nItem 6 -- 5 Year Summary\n\
+             Items 10 -- 13 -- see the proxy statement.\n{body}\nItem 15. Exhibits\n{body}\n"
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_8", "item_15"]);
     }
 }
