@@ -1671,9 +1671,12 @@ fn split_letter<'a>(label: &str, between: &str, tail: &'a str) -> (String, &'a s
 /// standard title (no lettered Item has had another). With another title
 /// (`ITEM 1. A GENERAL`), or with spaces alone before the letter (`Item 9 A
 /// Controls`), the letter starts the title. `between` is the text between
-/// the number and `tail`, and `end` the end of the line in `text`. Returns
-/// the lettered Item's number and title, which is empty when the title is
-/// on the next line.
+/// the number and `tail`, and `end` the end of the line in `text`. A title
+/// on the line starts as the title after `7A.` must (`heading_tail_ok`):
+/// `Item 7.A quantitative and qualitative disclosures about market risk are
+/// discussed below` is a sentence, like the same line with `Item 7A.`
+/// Returns the lettered Item's number and title, which is empty when the
+/// title is on the next line.
 fn titled_letter<'a>(
     label: &str,
     between: &str,
@@ -1690,6 +1693,9 @@ fn titled_letter<'a>(
     }
     let key = keys.iter().find(|k| k.item.strip_prefix(label).is_some_and(|l| l.as_bytes() == [letter]))?;
     let title = tail[1..].trim_start_matches([' ', '\t', '.', ':', '-', '–', '—']);
+    if !heading_tail_ok(title) {
+        return None;
+    }
     let printed = title_key(if title.trim().is_empty() { next_line_title(text, end) } else { title });
     same_title(&printed, &title_key(key.title)).then(|| (key.item.to_owned(), title))
 }
@@ -14767,5 +14773,61 @@ Pursuant to ...
              Item 15. Exhibits\n{body}\n"
         );
         assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_8", "item_15"]);
+    }
+
+    #[test]
+    fn sentence_that_starts_with_item_7_a_and_the_title_in_lowercase_is_no_heading() {
+        // "Item 7.A quantitative ..." is read as "Item 7A. quantitative ..."
+        // is: a title on the line starts with a capital.
+        let body = BODY.repeat(30);
+        let sentence = "Item 7.A quantitative and qualitative disclosures about market risk are discussed in the \
+                        section on liquidity below.";
+        for usual in [sentence.to_owned(), sentence.replace("7.A", "7A.")] {
+            let text = format!(
+                "Item 7. Management's Discussion and Analysis\n{body}\n{usual}\n{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_7", "item_8"], "{usual}");
+            assert_eq!(s[0].start, 0, "{usual}");
+            // Item 7A stays at its heading below the sentence.
+            let heading = "Item 7A. Quantitative and Qualitative Disclosures About Market Risk";
+            let text = format!(
+                "Item 7. Management's Discussion and Analysis\n{body}\n{usual}\n{body}\n{heading}\n{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_7", "item_7a", "item_8"], "{usual}");
+            assert_eq!(s[1].start, text.find(heading).unwrap(), "{usual}");
+        }
+        // The title in sentence case alone on its line is not read either,
+        // with both prints.
+        for heading in [
+            "Item 7.A quantitative and qualitative disclosures about market risk",
+            "Item 7A. quantitative and qualitative disclosures about market risk",
+        ] {
+            let text = format!(
+                "Item 7. Management's Discussion and Analysis\n{body}\n{heading}\n{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_7", "item_8"], "{heading}");
+        }
+        // A capitalized title is read, on the line and on the next one, and
+        // a title on the next line in lowercase as under "Item 7A."
+        for heading in [
+            "Item 7.A Quantitative and Qualitative Disclosures About Market Risk",
+            "Item 7.A \"Quantitative and Qualitative Disclosures About Market Risk\"",
+            "Item 7.A\nQuantitative and Qualitative Disclosures About Market Risk",
+            "Item 7.A\nquantitative and qualitative disclosures about market risk",
+            "Item 7A.\nquantitative and qualitative disclosures about market risk",
+        ] {
+            let text = format!(
+                "Item 7. Management's Discussion and Analysis\n{body}\n{heading}\n{body}\n\
+                 Item 8. Financial Statements and Supplementary Data\n{body}\nSIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_7", "item_7a", "item_8"], "{heading}");
+            assert_eq!(s[1].start, text.find(heading).unwrap(), "{heading}");
+        }
     }
 }
