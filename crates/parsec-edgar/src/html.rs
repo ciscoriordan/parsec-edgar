@@ -1032,9 +1032,17 @@ fn full_pages(mut sizes: Vec<usize>) -> bool {
 /// section splitting reads as Item headings and Part lines, so a header
 /// below such a line stays too; lines over 120 characters or with fewer
 /// than two letters; footnotes ("1 Includes ...", "(2) Excludes ...", "*
-/// Restated"); sentences, lines that end with a "." after a word of five or
-/// more letters or with a number ("... Instruction I to Form 10-K."), while
-/// "MetLife, Inc." and "J.P. Morgan Chase & Co." are headers.
+/// Restated") and the entries of a list, which start with a bullet ("•
+/// Investment"); sentences, lines that end with a "." after a word of five
+/// or more letters or with a number ("... Instruction I to Form 10-K."),
+/// while "MetLife, Inc." and "J.P. Morgan Chase & Co." are headers.
+///
+/// Nor can a text with half or more of its copies on signed pages, pages
+/// with a line that starts with "/s/" or "By:". Such a text heads parts of
+/// the filing that are signed one by one rather than pages: "SIGNATURES"
+/// and the names and titles of the officers who sign, over the signature
+/// page of each of the registrants of United Refining's 10-Q of 2005, or
+/// the title of each auditors' report on the pages of PPL's 10-K of 2011.
 ///
 /// A legend or a note that passes the test of a running header is part of a
 /// block all the same, as the date is in "Acme Corp." over "December 31,
@@ -1047,9 +1055,13 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
     const MAX_LEN: usize = 120;
     const NONE: usize = usize::MAX;
     const UNSEEN: usize = NONE - 1;
+    const BULLETS: [char; 15] = ['•', '●', '▪', '■', '◦', '◾', '○', '□', '·', '➢', '►', '◆', '❖', '✓', '✔'];
     static FOOTNOTE: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"^(?:\d{1,2}\s+|\(\d{1,2}\)\s*|[*†‡]+\s*)\p{L}").unwrap());
-    // Whether a text can be a running header (see above).
+    // A line that signs a page: "/s/ Jane Doe", "By: /s/ Jane Doe", "*By:
+    // Jane Doe".
+    static SIGNS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^\*?\s*(?:by:?\s*)?/s/|^\*?\s*by:\s").unwrap());
+    // Whether the words of a text let it be a running header (see above).
     let can_head = |line: &str| {
         line.len() <= MAX_LEN
             && !line.contains('\t')
@@ -1057,6 +1069,7 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             && line.chars().filter(|c| c.is_alphabetic()).take(2).count() == 2
             && !is_sentence(line)
             && !FOOTNOTE.is_match(line)
+            && !line.starts_with(BULLETS)
     };
     // The kept lines, as indexes into `lines`, and the lines of each page, as
     // a range of them.
@@ -1093,6 +1106,15 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             n
         })
         .collect();
+    // How many copies of each text are on signed pages.
+    let mut signed = vec![0u32; copies.len()];
+    for page in &pages {
+        if page.clone().any(|k| SIGNS.is_match(lines[kept[k]])) {
+            for k in page.clone() {
+                signed[text[k]] += 1;
+            }
+        }
+    }
     // The texts that can be running headers, with their copies and what each
     // is; the number of the text of each kept line at the edge of a page
     // that can be one, or NONE; and the pages where each text is at the
@@ -1106,7 +1128,7 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
             let line = lines[kept[k]];
             let (n, t) = &mut copies[text[k]];
             if *t == UNSEEN {
-                *t = if *n >= MIN_COPIES && can_head(line) {
+                *t = if *n >= MIN_COPIES && can_head(line) && signed[text[k]] * 2 < *n {
                     let kind = Kind::of(line);
                     // A copy in table data is never in a block. It does not
                     // count against a name, a note or a header that says it
@@ -3340,6 +3362,8 @@ mod tests {
             (framed(&["As of June 30, 2023"], &[], 1..7), "As of June", 6),
             (framed(&["For the years ended December 31, 2024 and 2023"], &[], 1..7), "For the years", 6),
             (vec![vec!["[THIS PAGE INTENTIONALLY LEFT BLANK]".to_string()]; 6], "[THIS PAGE", 6),
+            (framed(&["• Investment"], &[], 1..7), "• Investment", 6),
+            (framed(&[], &["● Audit Committee"], 1..7), "● Audit", 6),
         ];
         for (pages, start, copies) in cases {
             let html = printed(&pages);
@@ -3371,6 +3395,59 @@ mod tests {
         // A row of cells in a text filing.
         let raw: String = (1..7).map(|n| format!("Acme\tCorporation\nText of page {n}.\n<PAGE>\n")).collect();
         assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")).matches("Acme\t").count(), 6);
+    }
+
+    /// The lines of parts of a filing signed one by one stay, at the top or
+    /// the foot of pages next to each other all the same: the signature page
+    /// of each registrant, in HTML or in a text filing, and each auditors'
+    /// report. A name over more pages than are signed still goes from the
+    /// later pages of its run.
+    #[test]
+    fn lines_of_signed_pages_stay() {
+        let pages = |lines: &[&str]| -> Vec<Vec<String>> {
+            (1..7).map(|n| lines.iter().map(|l| l.replace("{}", &n.to_string())).collect()).collect()
+        };
+        let want = |pages: &[Vec<String>]| pages.concat().join("\n") + "\n";
+        for signed in [
+            pages(&[
+                "SIGNATURES",
+                "Acme Subsidiary {} has caused this report to be signed.",
+                "/s/ Jane Doe",
+                "Jane Doe",
+                "President",
+            ]),
+            pages(&[
+                "SIGNATURES",
+                "Acme Subsidiary {} has caused this report to be signed.",
+                "By /s/ Jane Doe",
+                "President",
+            ]),
+            pages(&[
+                "Report of Independent Registered Public Accounting Firm",
+                "We have audited the balance sheets of Acme Subsidiary {}.",
+                "/s/ Ernst & Young LLP",
+                "Philadelphia, Pennsylvania",
+            ]),
+        ] {
+            assert_eq!(html_to_text(&printed(&signed)), want(&signed));
+        }
+        let signed = pages(&[
+            "SIGNATURES",
+            "Acme Subsidiary {} has caused this report to be signed.",
+            "*By:  R. Russell Davis",
+            "Attorney-in-Fact",
+        ]);
+        let raw: String = signed.iter().map(|page| page.join("\n") + "\n<PAGE>\n").collect();
+        assert_eq!(document_to_text(&format!("<DOCUMENT>\n<TEXT>\n{raw}</TEXT>")), want(&signed));
+        // The name over eight pages, the last four or three of them signed.
+        for (signed, copies) in [(4, 8), (3, 1)] {
+            let mut pages = framed(&["Acme Corporation"], &[], 1..9);
+            for page in &mut pages[8 - signed..] {
+                page.push("/s/ Jane Doe".into());
+            }
+            let text = html_to_text(&printed(&pages));
+            assert_eq!(text.matches("Acme Corporation").count(), copies, "{text}");
+        }
     }
 
     /// A text filing that prints a page's number at the end of its last line,
