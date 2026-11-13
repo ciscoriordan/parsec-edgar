@@ -4510,7 +4510,13 @@ fn reads_on(caption: &str) -> bool {
 /// printed after its own text and before the report: it is not the Item's
 /// first line of text (`body`, from `body_start`), which is then the Item's
 /// list, and no caption of the Item's own or exhibit index comes between it
-/// and the report. Otherwise the Item ends at the report. The Item's own
+/// and the report. Otherwise the Item ends at the report. Such an index
+/// heading is a line of the Item, and no place to end it, when it is a cell
+/// of the Item's exhibit list (`exhibit_cell`: "13", then "Index to Financial
+/// Statements ... from the annual report") or one of the `MAX_UNDER` lines
+/// under it, before the report, says "exhibit" ("The exhibits to this report
+/// are listed in the exhibit index"). The Item then ends at the report when
+/// that is its first report heading, and otherwise runs on. The Item's own
 /// text after the report (an exhibit list's caption or table header, or a
 /// caption such as "(b) Reports on Form 8-K") keeps the statements in the
 /// Item, up to an exhibit index, which is printed after them before the
@@ -4519,6 +4525,7 @@ fn statements_after_items(text: &str, start: usize, body: usize, end: usize, ref
     const MIN_PRINTED: usize = 3;
     const MIN_KINDS: u32 = 3;
     const MAX_PRINTED_BEFORE: usize = 1;
+    const MAX_UNDER: usize = 40;
     static INDEX_HEADING: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(&format!(
             r"(?i)^(?:{STATEMENTS_INDEX}|(?:consolidated[ \t]+)?financial[ \t]+statements?[ \t]+index\b|list[ \t]+of[ \t]+(?:the[ \t]+)?(?:consolidated[ \t]+)?financial[ \t]+statements\b)"
@@ -4526,6 +4533,7 @@ fn statements_after_items(text: &str, start: usize, body: usize, end: usize, ref
         .unwrap()
     });
     static SCHEDULES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bschedules?\b").unwrap());
+    static EXHIBITS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bexhibits?\b").unwrap());
     let lines = item_lines(text, start, end);
     let exhibit_index = |line: &str| capital_match(&EXHIBITS_INDEX_HEADING, line);
     let own_text = |line: &str| EXHIBITS_ITEM_PART.is_match(line) || exhibit_index(line);
@@ -4545,8 +4553,9 @@ fn statements_after_items(text: &str, start: usize, body: usize, end: usize, ref
         Err(lines.len())
     };
     // Where the statements open under the report at `report`, which has the
-    // report's text under it or not.
-    let opens = |report: usize, with_text: bool| -> Option<usize> {
+    // report's text under it or not, and is the Item's first report heading
+    // or a later one.
+    let opens = |report: usize, with_text: bool, first: bool| -> Option<usize> {
         if !refers && !with_text {
             return None;
         }
@@ -4628,14 +4637,20 @@ fn statements_after_items(text: &str, start: usize, body: usize, end: usize, ref
                 }
             }
         }
-        let index = index.map(|i| lines[i].0).filter(|&pos| pos > body);
-        Some(index.unwrap_or(lines[report].0))
+        let index = index.filter(|&i| lines[i].0 > body);
+        // An index heading in the Item's exhibit list, or with a line on the
+        // exhibits under it, is a line of the Item.
+        let says_exhibits = |i: usize| lines[i + 1..report].iter().take(MAX_UNDER).any(|&(_, l)| EXHIBITS.is_match(l));
+        if index.is_some_and(|i| exhibit_cell(text, lines[i].0) || says_exhibits(i)) {
+            return first.then_some(lines[report].0);
+        }
+        Some(index.map_or(lines[report].0, |i| lines[i].0))
     };
     // The Item's first report heading, when none of its own text follows.
     let first = lines.iter().position(|&(_, l)| report_line(l))?;
     // Reports before `clear` have none of the Item's own text after them.
     let (mut from, mut clear) = match own_after(first) {
-        Err(stop) => match opens(first, report_text(first)) {
+        Err(stop) => match opens(first, report_text(first), true) {
             Some(cut) => return Some(cut),
             None => (first + 1, stop),
         },
@@ -4651,7 +4666,7 @@ fn statements_after_items(text: &str, start: usize, body: usize, end: usize, ref
             Err(stop) => (from, clear) = (report + 1, stop),
         }
     };
-    opens(report, true)
+    opens(report, true, false)
 }
 
 /// Whether the lines under an auditors' report heading, up to the next line
@@ -4699,13 +4714,36 @@ fn statement_kind(line: &str) -> u8 {
 /// "Item 15. Exhibits, Financial Statement Schedules and Reports on Form 8-K
 /// (continued)" over each page of a subsidiary's statements. The header's
 /// title without that word pairs with the heading's (`same_title`). The
-/// Item runs on through such headers: the text under them is its own.
-fn continued_from(cands: &[Candidate], cand: &Candidate, from: usize, end: usize) -> bool {
+/// Item runs on through such headers: the text under them is its own. A
+/// header that prints the Item's number and no title before the word does
+/// the same ("Item 15 (continued)"). One that prints its page after the
+/// word, past a tab ("... (continued)<TAB>52"), is a contents row
+/// (`paged_rows`) and no candidate: the Item's lines from `from`, a line
+/// start, are read for it (`ITEM_NUMBER`, then the title, the word and the
+/// page).
+fn continued_from(text: &str, cands: &[Candidate], cand: &Candidate, from: usize, end: usize) -> bool {
     static CONCLUDED_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bconcluded[ \t)\].]*$").unwrap());
-    cands.iter().filter(|c| c.pos >= from && c.pos < end && c.label == cand.label).any(|c| {
-        let said = CONTINUED_END.find(&c.printed).or_else(|| CONCLUDED_END.find(&c.printed));
-        said.is_some_and(|m| same_title(&cand.title, &title_key(&c.printed[..m.start()])))
-    })
+    static ITEM_NUMBER: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)^item[ \t]*(\d{1,2}[a-c]?)(?-u:\b)[ \t.:\-–—]*").unwrap());
+    static PAGE_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\t\d{1,4}$").unwrap());
+    // Whether a header's title as printed ends with the word after the
+    // Item's title or after no title.
+    let continues = |printed: &str| {
+        let said = CONTINUED_END.find(printed).or_else(|| CONCLUDED_END.find(printed));
+        said.is_some_and(|m| {
+            let title = title_key(&printed[..m.start()]);
+            title.is_empty() || same_title(&cand.title, &title)
+        })
+    };
+    let paged = |line: &str| {
+        let Some(page) = PAGE_END.find(line) else { return false };
+        let header = &line[..page.start()];
+        ITEM_NUMBER.captures(header).is_some_and(|item| {
+            item[1].eq_ignore_ascii_case(&cand.label) && continues(&header[item.get(0).map_or(0, |m| m.end())..])
+        })
+    };
+    cands.iter().filter(|c| c.pos >= from && c.pos < end && c.label == cand.label).any(|c| continues(&c.printed))
+        || text[from..end].lines().map(str::trim).any(|line| is_item_line(line) && paged(line))
 }
 
 /// A schedule's number in an entry of the exhibits Item's list that gives
@@ -6171,7 +6209,7 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
                         statements_after_items(text, start, body, end, statements_elsewhere())
                     })
                     .flatten()
-                    .filter(|&cut| !continued_from(&cands, cand, cut, end))
+                    .filter(|&cut| !continued_from(text, &cands, cand, cut, end))
                 });
                 let schedules = last.then(|| schedules_after_items(text, start, end)).flatten();
                 let glossary = last.then(|| glossary_start(text, start, end)).flatten();
@@ -15076,5 +15114,209 @@ Pursuant to ...
         // With nothing above the index, the Item ends at its heading.
         let (end, index_at, _) = split("");
         assert_eq!(end, index_at);
+    }
+
+    #[test]
+    fn an_index_heading_in_the_items_exhibit_list_does_not_end_it() {
+        // A cell of the exhibit list, printed cell by cell, starts with the
+        // words of an index heading, and more rows follow it before the
+        // auditors' report with its text and the statements. The cell is a
+        // line of the Item.
+        let body = BODY.repeat(30);
+        let item_8 = "Item 8. Financial Statements and Supplementary Data\nSee Item 15.\n";
+        let report = "REPORT OF INDEPENDENT AUDITORS\nTo the Board of Directors of Example Corporation:\n";
+        let statements = format!(
+            "We have audited the accompanying balance sheets of Example Corporation.\n{body}\n\
+             BALANCE SHEETS\n{body}\nSTATEMENTS OF OPERATIONS\n{body}\nSTATEMENTS OF CASH FLOWS\n{body}\n"
+        );
+        // The Item's end, with `listed` as the first line of its list of the
+        // statements and `rows` after the first row of its exhibit list.
+        let split = |listed: &str, rows: &str| {
+            let text = format!(
+                "{item_8}Item 15. Exhibits and Financial Statement Schedules\n\
+                 (a)(1) Financial Statements. The following financial statements are filed as part of this report:\n\
+                 {listed}Balance Sheets\nStatements of Operations\nStatements of Cash Flows\n\
+                 (a)(2) Financial Statement Schedules\nAll schedules are omitted because they are not applicable.\n\
+                 (a)(3) Exhibits\nExhibit No.\nDescription\n3.1\nArticles of Incorporation\n{rows}\
+                 {report}{statements}SIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_15"], "{listed}{rows}");
+            (s[1].end, text.find(report).unwrap(), text.find("SIGNATURES").unwrap(), text)
+        };
+        let lease = "10.1\nLease of the plant\n";
+        let entries = "Balance Sheets\t20\nStatements of Operations\t21\nStatements of Cash Flows\t22\n";
+        // The list names the report and the Item's other captions follow
+        // it: the report with its text is not the Item's first report
+        // heading, and the Item runs on.
+        let listed = "Report of Independent Auditors\n";
+        let cell =
+            "Index to Financial Statements and the statements it names, from the annual report to shareholders\n";
+        let (end, _, signatures, _) = split(listed, &format!("13\n{cell}{lease}"));
+        assert_eq!(end, signatures);
+        // The number cell may be the one under it.
+        let (end, _, signatures, _) = split(listed, &format!("Annual report to shareholders, with its\n{cell}{lease}"));
+        assert_eq!(end, signatures);
+        // The same heading after the rows, over the entries of an index, is
+        // no cell, and the Item ends at it.
+        let (end, _, _, text) = split(listed, &format!("{lease}Index to Financial Statements\n{entries}"));
+        assert_eq!(end, text.find("Index to Financial Statements\n").unwrap());
+        // The list names no report: the report with its text is the Item's
+        // first report heading, and the Item ends at it.
+        let cell = "List of Financial Statements filed under Item 15(a)\n";
+        let (end, report_at, _, _) = split("", &format!("99\n{cell}{lease}"));
+        assert_eq!(end, report_at);
+        let (end, _, _, text) = split("", &format!("{lease}List of Financial Statements\n{entries}"));
+        assert_eq!(end, text.find("List of Financial Statements\n").unwrap());
+    }
+
+    #[test]
+    fn an_index_heading_with_a_line_on_the_exhibits_under_it_does_not_end_the_item() {
+        // The Item's own list of the statements is printed under an index
+        // heading on the Item's second line, with no lettered captions, and
+        // a sentence on the exhibits follows the list before the auditors'
+        // report with its text and the statements. The heading is a line of
+        // the Item, and the report is not the Item's first report heading:
+        // the Item runs on.
+        let body = BODY.repeat(30);
+        let item_8 = "Item 8. Financial Statements and Supplementary Data\nSee Item 15.\n";
+        let report = "REPORT OF INDEPENDENT AUDITORS\nTo the Board of Directors of Example Corporation:\n";
+        // The report's page says "exhibit" too, which is no line under the
+        // heading before the report.
+        let statements = format!(
+            "We have audited the accompanying balance sheets of Example Corporation.\n\
+             They are also filed as an exhibit to the registration statement.\n{body}\n\
+             BALANCE SHEETS\n{body}\nSTATEMENTS OF OPERATIONS\n{body}\nSTATEMENTS OF CASH FLOWS\n{body}\n"
+        );
+        let exhibits = "The exhibits to this report are listed in the exhibit index that follows the signatures.\n";
+        let schedules = "All schedules are omitted because they are not applicable.\n";
+        let lead = "The following documents are filed as part of this report:\n";
+        // The Item's end and the places of the index heading and of the
+        // report, with `lead` above the heading and `under` between the
+        // list and the report.
+        let split = |lead: &str, heading: &str, under: &str| {
+            let text = format!(
+                "{item_8}Item 15. Exhibits and Financial Statement Schedules\n{lead}{heading}\n\
+                 Report of Independent Auditors\nBalance Sheets\nStatements of Operations\n\
+                 Statements of Cash Flows\nNotes to Financial Statements\n{under}{report}{statements}SIGNATURES\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_15"], "{heading}");
+            let index_at = text.find(&format!("{heading}\n")).unwrap();
+            (s[1].end, index_at, text.find(report).unwrap(), text.find("SIGNATURES").unwrap())
+        };
+        for heading in ["List of Financial Statements", "Index to Financial Statements"] {
+            let (end, _, _, signatures) = split(lead, heading, exhibits);
+            assert_eq!(end, signatures, "{heading}");
+            // A sentence on the schedules, which an index to the statements
+            // also prints, leaves the heading the place where the Item
+            // ends.
+            let (end, index_at, _, _) = split(lead, heading, schedules);
+            assert_eq!(end, index_at, "{heading}");
+            // The line on the exhibits is one of the 40 lines under the
+            // heading: here the 40th, after the list's five, and the 41st.
+            let (end, _, _, signatures) = split(lead, heading, &format!("{}{exhibits}", schedules.repeat(34)));
+            assert_eq!(end, signatures, "{heading}");
+            let (end, index_at, _, _) = split(lead, heading, &format!("{}{exhibits}", schedules.repeat(35)));
+            assert_eq!(end, index_at, "{heading}");
+            // A heading on the Item's first line of text was no place to
+            // end it before, whatever is under it, and the Item ends at the
+            // report as it did.
+            let (end, _, report_at, _) = split("", heading, exhibits);
+            assert_eq!(end, report_at, "{heading}");
+            // The word may start with a capital letter. A longer word that
+            // starts with it does not count.
+            let (end, _, _, signatures) = split(lead, heading, "See the list of Exhibits after the signatures.\n");
+            assert_eq!(end, signatures, "{heading}");
+            let (end, index_at, _, _) = split(lead, heading, "No schedule exhibited before is repeated.\n");
+            assert_eq!(end, index_at, "{heading}");
+        }
+        // The heading's own line is not read for the word, only the lines
+        // under it.
+        let (end, index_at, _, _) = split(lead, "Index to Financial Statements and Exhibits", schedules);
+        assert_eq!(end, index_at);
+    }
+
+    #[test]
+    fn continued_headers_with_a_page_or_without_a_title_keep_the_statements_in_the_exhibits_item() {
+        // The Item's heading printed again over each page of a subsidiary's
+        // statements with "(continued)" and then, past a tab, the page, or
+        // with the Item's number and no title. The Item runs on through
+        // such headers too.
+        let body = BODY.repeat(30);
+        let heading = "Item 15. Exhibits, Financial Statement Schedules and Reports on Form 8-K";
+        let item_8 = format!(
+            "Item 8. Financial Statements and Supplementary Data\nReport of Independent Auditors\n\
+             We have audited the consolidated balance sheets of Example Corporation.\n{body}\n\
+             Item 9. Changes in and Disagreements with Accountants\nNone.\n"
+        );
+        let report = "Report of Independent Auditors\nBoard of Directors\nExample Subsidiary, Inc.\n";
+        let opinion = "We have audited the accompanying consolidated balance sheets of Example Subsidiary, Inc.\n";
+        // The Item's end and the place of the subsidiary's report, with
+        // `above` over the page of the Item's last captions, `header` over
+        // each page of the statements, and `after` printed after the
+        // signatures.
+        let split = |above: &str, header: &str, after: &str| {
+            let item_15 = format!(
+                "{heading}\n(a)\tThe following documents are filed as part of this Report:\n\
+                 (1) Consolidated Financial Statements of Example Corporation:\n\
+                 Consolidated Statements of Income\t46\nConsolidated Balance Sheets\t47-48\n\
+                 (3) Exhibits:\n3(a)\tAmended and Restated Certificate of Incorporation.\n{body}\n\
+                 {above}(b)\tReports on Form 8-K:\nNo reports on Form 8-K were filed.\n\
+                 (d)\tFinancial Statements of Subsidiaries Not Consolidated:\n"
+            );
+            let statements = format!(
+                "{header}Consolidated Balance Sheets\n{body}\n{header}Consolidated Statements of Income\n{body}\n\
+                 {header}Consolidated Statements of Cash Flows\n{body}\n\
+                 {header}Notes to Consolidated Financial Statements\n{body}\n"
+            );
+            let text = format!("{item_8}{item_15}{report}{opinion}{body}\n{statements}SIGNATURES\n{body}\n{after}");
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_8", "item_9", "item_15"], "{above}{header}{after}");
+            assert_eq!(s[2].start, text.find(heading).unwrap(), "{above}{header}{after}");
+            (s[2].end, text.rfind(report).unwrap(), text.find("SIGNATURES").unwrap())
+        };
+        let continued = format!("{heading} (continued)\n");
+        let paged = format!("{heading} (continued)\t52\n");
+        for header in [
+            paged.as_str(),
+            &format!("{heading} (concluded)\t107\n"),
+            &format!("{heading} (continued)\t1052\n"),
+            "Item 15. Exhibits, Financial Statement Schedules (Cont'd)\t52\n",
+            "Item 15 (continued)\n",
+            "ITEM 15. (CONTINUED)\n",
+            "Item 15 (continued)\t52\n",
+        ] {
+            let (end, _, signatures) = split(&continued, header, "");
+            assert_eq!(end, signatures, "{header}");
+        }
+        // Under headers with another Item's number or another title, with
+        // a page and no such word, or with a number after the word and no
+        // tab, the Item still ends at the report. So does it under a title
+        // too short to compare, a page of five digits, text after the page,
+        // or a longer number that starts with the Item's.
+        for header in [
+            "Item 5. Exhibits, Financial Statement Schedules and Reports on Form 8-K (continued)\t52\n",
+            "Item 15. Subsequent Events of the Subsidiary (continued)\t52\n",
+            "Item 15. Exhibits, Financial Statement Schedules and Reports on Form 8-K\t52\n",
+            "Item 15. Exhibits, Financial Statement Schedules and Reports on Form 8-K (continued) 52\n",
+            "Item 5 (continued)\n",
+            "Item 5 (continued)\t52\n",
+            "Item 15. Note (continued)\n",
+            "Item 15. Exhibits, Financial Statement Schedules and Reports on Form 8-K (continued)\t10520\n",
+            "Item 15. Exhibits, Financial Statement Schedules and Reports on Form 8-K (continued)\t52 of 60\n",
+            "Item 150 (continued)\t52\n",
+        ] {
+            let (end, report_at, _) = split(&continued, header, "");
+            assert_eq!(end, report_at, "{header}");
+        }
+        // So does it with such a header only before the report, or only
+        // after the signatures.
+        for header in [paged.as_str(), "Item 15 (continued)\n", "Item 15 (continued)\t52\n"] {
+            let (end, report_at, _) = split(header, "", "");
+            assert_eq!(end, report_at, "{header}");
+            let (end, report_at, _) = split(&continued, "", header);
+            assert_eq!(end, report_at, "{header}");
+        }
     }
 }
