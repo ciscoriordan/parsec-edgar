@@ -2655,7 +2655,10 @@ static PART_LABEL: LazyLock<Regex> =
 /// A heading comes after the end of a paragraph, a page header, a blank line
 /// or a PART label, also one printed with a comma ("PART II,"). A line that
 /// holds only a joining word links two headings ("Item 1. Business." then
-/// "and" then "Item 2. Properties."), so the heading after it stands.
+/// "and" then "Item 2. Properties."), so the heading after it stands; so
+/// does an Item line that ends with "; and", as headings stacked as a list
+/// print it ("Item 1. Business;", "Item 2. Properties; and", then "Item 3.
+/// Legal Proceedings").
 fn continues_sentence(text: &str, line_start: usize) -> bool {
     let Some(above) = text[..line_start].strip_suffix('\n') else {
         return false;
@@ -2666,6 +2669,10 @@ fn continues_sentence(text: &str, line_start: usize) -> bool {
         return false;
     }
     let last = line.trim_end().rsplit([' ', '\t']).next().unwrap_or("");
+    let before_last = line.trim_end()[..line.trim_end().len() - last.len()].trim_end();
+    if last == "and" && before_last.ends_with(';') && is_item_line(line) {
+        return false;
+    }
     let word = last.trim_start_matches(['(', '"', '“']);
     last.ends_with(',') || [JOINING_WORDS, OPEN_WORDS, CAPTION_WORDS].iter().any(|words| words.contains(&word))
 }
@@ -14512,5 +14519,47 @@ Pursuant to ...
         );
         let s = extract_sections(&text, FormKind::TenK);
         assert_eq!(ids(&s), ["item_8", "item_15"]);
+    }
+
+    #[test]
+    fn item_line_that_ends_with_a_semicolon_and_and_stacks_headings() {
+        // "Item 1. Business;", "Item 2. Properties; and", "Item 3. Legal
+        // Proceedings" (Arden Group, 10-K 2001 and 2002). In capitals, "AND"
+        // is no joining word, and the stack was read before (10-K 1995 to
+        // 2000).
+        let body = BODY.repeat(30);
+        for stack in [
+            "Item 1. Business;\nItem 2. Properties; and\nItem 3. Legal Proceedings",
+            "ITEM 1. BUSINESS;\nITEM 2.         PROPERTIES; AND\nITEM 3.         LEGAL PROCEEDINGS",
+            "Item 1.\tBusiness;\nItem 2.\tProperties;\tand \r\nItem 3.\tLegal Proceedings",
+        ] {
+            let text = format!(
+                "PART I\n{stack}\nGeneral\n{body}\nItem 4. Submission of Matters to a Vote of Security Holders\n\
+                 None.\nPART II\nItem 5. Market for the Registrant's Common Equity\n{body}\n"
+            );
+            let s = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&s), ["item_1", "item_2", "item_3", "item_4", "item_5"], "{stack}");
+            assert!(s[2].text.starts_with("Item 3.") || s[2].text.starts_with("ITEM 3."), "{stack}");
+        }
+        // Without the semicolon (also after a comma), with another word
+        // after it, or on a line that is no Item line, the line above goes on
+        // as a sentence.
+        for above in [
+            "Item 6. Selected Financial Data, Item 7. Management's Discussion and",
+            "Item 6. Selected Financial Data, Item 7. Management's Discussion and Analysis, and",
+            "Item 7A. Quantitative and Qualitative Disclosures About Market Risk is omitted; see",
+            "Information required by Part I, Item 1. Business; and",
+        ] {
+            let text = format!(
+                "PART II\nItem 5. Market for the Registrant's Common Equity\n{body}\n{above}\n\
+                 Item 8. Financial Statements and Supplementary Data of the 2001 Annual Report are incorporated.\n\
+                 {body}\nItem 9. Changes in and Disagreements with Accountants\nNone.\n"
+            );
+            assert!(!ids(&extract_sections(&text, FormKind::TenK)).contains(&"item_8"), "{above}");
+            assert!(continues_sentence(&format!("{above}\nItem 8. Title"), above.len() + 1), "{above}");
+        }
+        let after = |above: &str| continues_sentence(&format!("{above}\nItem 3. Title"), above.len() + 1);
+        assert!(!after("Item 2. Properties; and"));
+        assert!(!after("  Item 2.\tProperties;\tand \r"));
     }
 }
