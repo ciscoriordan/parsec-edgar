@@ -2178,6 +2178,7 @@ mod tests {
             "ORDER     - {}",
             "ORDER     {} -",
             "{} -     Docket No. 94-475",
+            "{} -     Docket No. 94-475 -",
             "- {}     Docket No. 94-475",
             "ORDER     - No. {} -",
             "ORDER     - {} -     Docket No. 94-475",
@@ -2627,10 +2628,10 @@ mod tests {
             assert_eq!(headers(&html_to_text(&html(&pages(&["3", "4", "5", "6", last], 951, false)))), 10);
         }
         // Page breaks show the pages where there are any: numbers in the
-        // middle of those pages change nothing.
+        // middle of those pages change nothing, even with full pages between.
         let broken: String = (3..9)
             .map(|n| {
-                let filler = "x".repeat(500);
+                let filler = "x".repeat(1000);
                 let page =
                     ["Acme Corporation", "Notes (Continued)", &format!("Text of page {n}. {filler}"), &n.to_string()];
                 let page: String = page.iter().map(|l| format!("<p>{l}</p>")).collect();
@@ -2751,7 +2752,13 @@ mod tests {
             let left = if other == "Acme Corp." { (13, 1) } else { (3, 0) };
             assert_eq!((count(&html, acme), count(&html, other)), left, "{other}");
         }
-        for note in ["(A Development Stage Company)", "[Formerly Beta Inc.]", "and Subsidiaries", "& Subsidiary"] {
+        for note in [
+            "(A Development Stage Company)",
+            "[Formerly Beta Inc.]",
+            "and Subsidiaries",
+            "AND SUBSIDIARIES",
+            "& Subsidiary",
+        ] {
             let html = doc(&[&[acme, note]], 3, true);
             assert_eq!((count(&html, acme), count(&html, note)), (3, 0), "{note}");
         }
