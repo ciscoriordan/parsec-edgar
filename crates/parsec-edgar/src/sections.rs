@@ -3141,10 +3141,28 @@ fn contents_entries(
     };
     let quarterly = keys.first().is_some_and(|key| key.part.is_some());
     let earliest_before = OnceCell::new();
-    let mut in_paged_run = false;
+    let mut last_index_page = None;
     for a in 0..n {
         if quarterly && a > 0 {
-            in_paged_run = (paged[a - 1] || in_paged_run) && cands[a].pos - cands[a - 1].pos <= SAME_BLOCK;
+            let previous = &cands[a - 1];
+            let current = &cands[a];
+            if current.pos - previous.pos > SAME_BLOCK {
+                last_index_page = None;
+            } else {
+                if paged[a - 1] {
+                    last_index_page = page_value(line_at(text, previous.pos)).and_then(|page| page.parse::<u32>().ok());
+                }
+                if last_index_page.is_some()
+                    && text[previous.pos..current.pos].lines().skip(1).any(|line| {
+                        let line = line.trim().trim_end_matches(['.', ':']);
+                        ["end of index", "end of contents", "end of table of contents"]
+                            .iter()
+                            .any(|marker| line.eq_ignore_ascii_case(marker))
+                    })
+                {
+                    last_index_page = None;
+                }
+            }
         }
         let Some(b) = later_copy[a] else { continue };
         match signatures.sentence_between(cands[a].pos, cands[b].pos) {
@@ -3167,12 +3185,20 @@ fn contents_entries(
             // A quarterly contents list can print answers instead of pages
             // for several Items, then end with a paged row. A long block of
             // statements after the list can make that row's gap misleading.
-            _ if in_paged_run
-                && ROW_PAGES.is_match(line_at(text, cands[a].pos).trim_end())
-                && prints_title(&cands[a], &cands[b])
-                && !form_places(&cands[a], keys).next_back().is_some_and(|last| {
-                    let earliest = earliest_before.get_or_init(|| earliest_text_before(cands, keys, SAME_BLOCK));
-                    earliest[a].is_some_and(|first| first < last)
+            // Require a higher page to distinguish the row from a footnote.
+            _ if last_index_page.is_some_and(|previous| {
+                page_value(line_at(text, cands[a].pos))
+                    .and_then(|page| page.parse::<u32>().ok())
+                    .is_some_and(|page| page > previous)
+            }) && prints_title(&cands[a], &cands[b])
+                && form_places(&cands[a], keys).next_back().is_some_and(|last| {
+                    let follows_earlier_item = form_places(&cands[a - 1], keys)
+                        .next_back()
+                        .is_some_and(|previous| previous < last && keys[previous].part == keys[last].part);
+                    follows_earlier_item && {
+                        let earliest = earliest_before.get_or_init(|| earliest_text_before(cands, keys, SAME_BLOCK));
+                        earliest[a].is_none_or(|first| first >= last)
+                    }
                 }) =>
             {
                 contents[a] = true;
@@ -16950,6 +16976,8 @@ Pursuant to ...
         );
         for (case, variant) in [
             ("no page on the last row", text.replacen(&format!("{row}\t14"), row, 1)),
+            ("page number goes backward", text.replacen(&format!("{row}\t14"), &format!("{row}\t1"), 1)),
+            ("explicit end of index", text.replacen(row, &format!("END OF INDEX\n{row}"), 1)),
             ("no prior paged row", text.replace("\t3\n", "\n").replace("\t4\n", "\n").replace("\t10\n", "\n")),
             ("already in the body", text.replacen("INDEX\n", &earlier_body, 1)),
             ("continued heading", text.replace(exhibits, &format!("{exhibits} (Continued)"))),
@@ -16958,6 +16986,32 @@ Pursuant to ...
             let sections = extract_sections(&variant, FormKind::TenQ);
             let item = sections.iter().find(|s| s.id == "part_2_item_6").expect(case);
             assert_eq!(item.start, variant.find(row).unwrap(), "{case}");
+        }
+    }
+    #[test]
+    fn quarterly_index_run_does_not_reclassify_a_body_heading_with_a_footnote() {
+        let litigation = BODY.repeat(60);
+        let heading = "Item 1. Legal Proceedings";
+        for (boundary, footnote) in
+            [("END OF INDEX\n", 14), ("End of Table of Contents:\n", 14), ("", 1), ("", 10), ("", 14)]
+        {
+            let answer = if boundary.is_empty() { "Item 2. Changes in Securities (not applicable)\n" } else { "" };
+            let text = format!(
+                "FORM 10-Q\nINDEX\nPART I. FINANCIAL INFORMATION\nItem 1. Financial Statements\t3\n\
+                 Item 2. Management's Discussion and Analysis\t10\n{answer}{boundary}PART II. OTHER INFORMATION\n\
+                 {heading}\t{footnote}\n{litigation}\n\
+                 Item 2. Unregistered Sales of Equity Securities and Use of Proceeds\nNone.\n\
+                 {heading}\nSee the body for the litigation disclosures.\nSIGNATURES\n"
+            );
+            let sections = extract_sections(&text, FormKind::TenQ);
+            let part_ii: Vec<_> = sections.iter().filter(|section| section.part.as_deref() == Some("II")).collect();
+            assert_eq!(
+                part_ii.iter().map(|section| section.id.as_str()).collect::<Vec<_>>(),
+                ["part_2_item_1", "part_2_item_2"],
+                "{boundary:?}, {footnote}"
+            );
+            assert_eq!(part_ii[0].start, text.find(heading).unwrap());
+            assert!(part_ii[0].text.contains(litigation.trim_end()));
         }
     }
 }
