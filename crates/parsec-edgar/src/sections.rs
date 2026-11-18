@@ -2114,7 +2114,8 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)], unread: &Has
     let mut cands: Vec<Candidate> =
         cands.into_iter().zip(part_title).filter(|&(_, part_title)| !part_title).map(|(c, _)| c).collect();
     set_gaps(&mut cands, text.len());
-    let cands = drop_item_references(drop_contents_entries(cands, text, keys, unread), keys, kind.annual());
+    let cands =
+        drop_item_references(drop_contents_entries(cands, text, keys, unread, kind.annual()), keys, kind.annual());
     let mut cands = drop_running_headers(cands, keys);
     // Score by the gap to the next heading of a different Item, so repeated
     // running headers of one Item do not split its score.
@@ -2937,7 +2938,16 @@ const SAME_BLOCK: usize = 2000;
 /// neither entries nor later copies, and are marked `repeats` with the place
 /// of the line they repeat, which has no later copy; the headers of a line at
 /// a place in `unread`, or of a line that goes, are read as any other line.
-fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key], unread: &HashSet<usize>) -> Vec<Candidate> {
+/// In an annual report (`annual`), an earlier copy with the shorter stretch
+/// of text stays when it is printed in the form's order between the text of
+/// an earlier Item and the text of a later one (`heading_in_form_order`).
+fn drop_contents_entries(
+    cands: Vec<Candidate>,
+    text: &str,
+    keys: &[Key],
+    unread: &HashSet<usize>,
+    annual: bool,
+) -> Vec<Candidate> {
     let n = cands.len();
     // The signature block's sentences and the signatures heading lines of
     // the whole text, looked for only when a rule asks.
@@ -2958,7 +2968,7 @@ fn drop_contents_entries(cands: Vec<Candidate>, text: &str, keys: &[Key], unread
         *h = h.filter(|&j| !unread.contains(&cands[j].pos));
     }
     let read = |headers: &[Option<usize>]| {
-        contents_entries(&cands, text, keys, &signatures, &next_other, &groups, &paged, headers)
+        contents_entries(&cands, text, keys, &signatures, &next_other, &groups, &paged, headers, annual)
     };
     let (mut contents, mut after, mut body) = read(&headers);
     // Running headers of a line that goes as a contents entry repeat no body
@@ -3013,6 +3023,58 @@ fn continued_headers(cands: &[Candidate], paged: &[bool], block: usize) -> Vec<(
     headers
 }
 
+/// Whether the earlier copy `a` of a heading printed twice, with less text
+/// before the next Item line than the later copy `b`, is printed in the
+/// form's order between the text of two other Items (`rows` are the contents
+/// rows and entries found so far). It prints no page at its end
+/// (`ROW_PAGES`), as a row does. The nearest line before it with text of
+/// its own, more than `SAME_BLOCK` characters, is no row and names an Item
+/// earlier in the form's order. The lines from the next one of another Item
+/// on, up to the first with text of its own, come before `b`, are no rows
+/// and name Items later in the form's order. And `b` does not say
+/// "continued" (`CONTINUED_END`): a running header is no second heading.
+/// So the later copy is printed after a later Item's text, out of the
+/// form's order. An entry of a contents list has another entry after it,
+/// and a line of an earlier Item's text has that Item's text after it. At
+/// most `keys.len()` lines are read each way.
+fn heading_in_form_order(
+    cands: &[Candidate],
+    text: &str,
+    keys: &[Key],
+    rows: &[bool],
+    next_other: &[Option<usize>],
+    a: usize,
+    b: usize,
+) -> bool {
+    let own_text = |i: usize| cands[i].gap > SAME_BLOCK;
+    if CONTINUED_END.is_match(&cands[b].printed) || ROW_PAGES.is_match(line_at(text, cands[a].pos).trim_end()) {
+        return false;
+    }
+    let before = (0..a).rev().take(keys.len()).find(|&i| own_text(i));
+    if !before.is_some_and(|i| !rows[i] && comes_before(&cands[i], &cands[a], keys)) {
+        return false;
+    }
+    // A caption immediately above the short copy can mark it as a reference.
+    let caption = text[cands[a - 1].pos..cands[a].pos].trim_end().lines().next_back().unwrap_or("").trim();
+    if caption.strip_suffix(':').is_some_and(|caption| {
+        ["See also", "Cross-reference", "Cross-references", "Cross-reference only"]
+            .iter()
+            .any(|label| caption.eq_ignore_ascii_case(label))
+    }) {
+        return false;
+    }
+    let after = next_other[a].unwrap_or(b);
+    for i in (after..b).take(keys.len()) {
+        if rows[i] || !comes_before(&cands[a], &cands[i], keys) {
+            return false;
+        }
+        if own_text(i) {
+            return true;
+        }
+    }
+    false
+}
+
 /// The contents entries of `drop_contents_entries`, the short entries just
 /// after them and the body headings matched with them, with the rows and
 /// running headers that `paged_rows` found.
@@ -3026,6 +3088,7 @@ fn contents_entries(
     groups: &TitleGroups,
     paged: &[bool],
     headers: &[Option<usize>],
+    annual: bool,
 ) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
     let n = cands.len();
     // A contents entry, the body heading it was matched with, and pairs whose
@@ -3038,6 +3101,9 @@ fn contents_entries(
     // Pairs whose later copy comes after the signature block's sentence, which
     // starts at the third value.
     let mut signed_pairs: Vec<(usize, usize, usize)> = Vec::new();
+    // Pairs whose earlier copy prints no page and starts the shorter stretch
+    // of text.
+    let mut shorter_pairs: Vec<(usize, usize)> = Vec::new();
     // Rows and running headers are never the later copy of a pair.
     let skip: Vec<bool> = (0..n).map(|i| paged[i] || headers[i].is_some()).collect();
     // The later copy of each candidate: the first line of its Item with the
@@ -3088,10 +3154,27 @@ fn contents_entries(
             _ if cands[b].gap > cands[a].gap || paged[a] => {
                 contents[a] = true;
                 body[b] = true;
+                if annual && !paged[a] {
+                    shorter_pairs.push((a, b));
+                }
             }
             _ => later_copies.push((a, b)),
         }
         paired[b] = true;
+    }
+    // The earlier copy of such a pair in an annual report is the body
+    // heading all the same when it is printed in the form's order
+    // (`heading_in_form_order`): a short Item with a pointer to statements
+    // or exhibits printed after later Items, under its heading again. The
+    // pair is then read as one whose later copy has no more text.
+    if !shorter_pairs.is_empty() {
+        let rows: Vec<bool> = (0..n).map(|i| contents[i] || paged[i]).collect();
+        shorter_pairs.retain(|&(a, b)| heading_in_form_order(cands, text, keys, &rows, next_other, a, b));
+        for &(a, b) in &shorter_pairs {
+            contents[a] = false;
+            body[b] = false;
+            later_copies.push((a, b));
+        }
     }
     // The earlier copy of a pair that the signatures split is a body heading
     // when it sits where the Item's heading belongs (`in_body_order`), and the
@@ -16504,5 +16587,317 @@ Pursuant to ...
              {OWN_INDEX_NEXT_ITEMS}BUSINESS\n{body}\nFINANCIAL STATEMENTS\n{body}\nSIGNATURES\nWIDGET CORP\n"
         );
         assert_eq!(ids(&extract_sections(&text, FormKind::TenK)), ["item_7"]);
+    }
+
+    #[test]
+    fn heading_in_form_order_with_a_longer_copy_after_later_items_starts_its_item() {
+        let page = BODY.repeat(37);
+        let short = BODY.repeat(5);
+        // Whether a section `id` starts at the first line `heading`.
+        let starts_at = |text: &str, kind: FormKind, id: &str, heading: &str| {
+            let at = text.find(heading).unwrap();
+            extract_sections(text, kind).iter().any(|x| x.id == id && x.start == at && x.heading == heading)
+        };
+        // Item 15 with a list of what is filed, Item 16, the statements,
+        // then Item 15 again above the exhibit table (0001493152-21-006675).
+        let exhibits = "Item 15. Exhibits and Financial Statement Schedules";
+        let table = "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES";
+        let pointer = "(a) The following documents are filed as part of this Annual Report on Form 10-K\n\
+                       (1) Financial Statements\nSee Index to Financial Statements on page F-1 of this Annual Report\n\
+                       (3) Exhibits";
+        let fees = format!("Item 14. Principal Accounting Fees and Services\n{short}\n");
+        let summary =
+            format!("Item 16. Form 10-K Summary\nNot applicable.\nCONSOLIDATED BALANCE SHEETS\n{page}\n{page}\n");
+        let ten_k = |above: &str, between: &str, again: &str| {
+            format!(
+                "{above}PART IV\n{exhibits}\n{pointer}\n{between}PART IV\n{again}\n\
+                 The following exhibits are filed with this Form 10-K.\n{page}\n{page}\nSIGNATURES\n"
+            )
+        };
+        let part_3 = format!(
+            "PART I\nItem 1. Business\n{page}\nItem 1A. Risk Factors\n{page}\nPART III\n\
+             Item 13. Certain Relationships and Related Transactions\n{page}\n{fees}"
+        );
+        let text = ten_k(&part_3, &summary, table);
+        let s = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&s), ["item_1", "item_1a", "item_13", "item_14", "item_15", "item_16"]);
+        assert_eq!((s[4].start, s[4].heading.as_str()), (text.find(exhibits).unwrap(), exhibits));
+        assert!(s[4].text.ends_with("(3) Exhibits"), "{:?}", s[4].text);
+        assert!(!s[3].text.contains("Item 15"), "{:?}", s[3].text);
+        // A later copy that says "continued" is a running header, and the
+        // pair is read as before.
+        for again in [format!("{table} (Continued)"), format!("{exhibits} - continued")] {
+            assert!(!starts_at(&ten_k(&part_3, &summary, &again), FormKind::TenK, "item_15", exhibits), "{again}");
+        }
+        // So is it with no Item with text of its own before the heading:
+        // nothing, or only a short Item.
+        for above in ["", fees.as_str()] {
+            assert!(!starts_at(&ten_k(above, &summary, table), FormKind::TenK, "item_15", exhibits), "{above}");
+        }
+        // Or when the Item with text of its own before the heading is an
+        // entry of a contents list, here the last one, above a note.
+        // Item 16 has more text here than the Items after it, so that the
+        // heading would start Item 15 if it stayed.
+        let long = format!("{summary}{}\n", page.repeat(8));
+        let listed = format!("Item 1. Business\nItem 1A. Risk Factors\n{page}\n");
+        let bodies = format!("{long}PART I\nItem 1. Business\n{page}\n{page}\nItem 1A. Risk Factors\n{page}\n{page}\n");
+        assert!(!starts_at(&ten_k(&listed, &bodies, table), FormKind::TenK, "item_15", exhibits));
+        // Or a row of one with pages.
+        let rows = format!(
+            "Item 1. Business\t3\nItem 1A. Risk Factors\t9\nItem 13. Certain Relationships and Related Transactions\t40\n\
+             Item 14. Principal Accounting Fees and Services\t41\n{page}\n"
+        );
+        assert!(!starts_at(&ten_k(&rows, &long, table), FormKind::TenK, "item_15", exhibits));
+        assert!(starts_at(&ten_k(&part_3, &long, table), FormKind::TenK, "item_15", exhibits));
+
+        // A pointer under Item 7, short Items, Items with text, then Item 7
+        // again above the statements, in a 10-KSB (0001144204-06-007775).
+        let statements = "ITEM 7. FINANCIAL STATEMENTS";
+        let ksb = format!(
+            "PART I\nITEM 1. DESCRIPTION OF BUSINESS\n{page}\nPART II\n\
+             ITEM 6. MANAGEMENT'S DISCUSSION AND ANALYSIS OR PLAN OF OPERATION\n{page}\n{statements}\n\
+             See \"Index to Financial Statements\" for a description of the financial statements.\n\
+             ITEM 8. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE\nNone.\n\
+             ITEM 8A. CONTROLS AND PROCEDURES\n{short}\nPART III\n\
+             ITEM 9. DIRECTORS, EXECUTIVE OFFICERS, PROMOTERS AND CONTROL PERSONS\n{page}\n\
+             ITEM 14: PRINCIPAL ACCOUNTANT FEES AND SERVICES\n{short}\nItem 7.  Financial Statements\n\
+             INDEX TO CONSOLIDATED FINANCIAL STATEMENTS\n{page}\n{page}\n{page}\nSIGNATURES\n"
+        );
+        let s = extract_sections(&ksb, FormKind::TenKsb);
+        assert_eq!(ids(&s), ["item_1", "item_6", "item_7", "item_8", "item_8a", "item_9", "item_14"]);
+        assert_eq!((s[2].start, s[2].heading.as_str()), (ksb.find(statements).unwrap(), statements));
+        assert!(s[2].text.ends_with("financial statements."), "{:?}", s[2].text);
+
+        // A short Item between two Items with text, printed again after
+        // them with more text, as a row of an index of Items is
+        // (0000950124-03-001029).
+        let nine = "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure";
+        let again = nine.to_uppercase();
+        let data = "Item 8. Financial Statements and Supplementary Data";
+        let controls = "Item 9A. Controls and Procedures";
+        let twice = |before: &str, first: &str, after: &str, own: &str, again: &str| {
+            format!(
+                "PART I\nItem 1. Business\n{page}\n{before}\n{page}\n{first}\nNone.\n{after}\n{own}\n\
+                 {again}\n{page}\n{page}\nSIGNATURES\n"
+            )
+        };
+        let k = FormKind::TenK;
+        assert!(starts_at(&twice(data, nine, controls, &page, &again), k, "item_9", nine));
+        // Short later Items may come before the one with text.
+        let other = format!("{controls}\nNone.\nItem 9B. Other Information");
+        assert!(starts_at(&twice(data, nine, &other, &page, &again), k, "item_9", nine));
+        // The pair is read as before when the Item with text before the
+        // heading is a later one in the form's order,
+        let directors = "Item 10. Directors, Executive Officers and Corporate Governance";
+        assert!(!starts_at(
+            &twice(directors, nine, "Item 11. Executive Compensation", &page, &again),
+            k,
+            "item_9",
+            nine
+        ));
+        // (here a line of Item 7's text that starts like Item 5's heading,
+        // with more text up to the next Item line than Item 7's heading has)
+        let market = "Item 5. Market for Registrant's Common Equity";
+        let mdna = "Item 7. Management's Discussion and Analysis";
+        let risk = "Item 7A. Quantitative and Qualitative Disclosures About Market Risk";
+        let text = format!(
+            "PART I\nItem 1. Business\n{page}\nPART II\n{mdna}\n{page}\n{market}\n{page}\n{page}\n{risk}\n{page}\n\
+             {data}\n{page}\n{}\n{page}\n{page}\n{short}\nItem 6. Selected Financial Data\n{short}\nSIGNATURES\n",
+            market.to_uppercase()
+        );
+        assert_eq!(ids(&extract_sections(&text, k)), ["item_1", "item_7", "item_7a", "item_8"]);
+        // when the next Item is an earlier one (a line of an earlier Item's
+        // text that starts like the heading), also after a short later one,
+        let text = format!(
+            "PART I\nItem 1. Business\n{page}\n{mdna}\n{page}\n{page}\nItem 1A. Risk Factors\n{page}\n\
+             {nine}\n{page}\n{page}\n{page}\n{page}\n{}\n{page}\n{page}\n{short}\nSIGNATURES\n",
+            mdna.to_uppercase()
+        );
+        assert_eq!(ids(&extract_sections(&text, k)), ["item_1", "item_1a", "item_9"]);
+        assert!(!starts_at(&twice(data, nine, risk, &page, &again), k, "item_9", nine));
+        let mixed = format!("{controls}\nNone.\n{risk}");
+        assert!(!starts_at(&twice(data, nine, &mixed, &page, &again), k, "item_9", nine));
+        // when no later Item between the two copies has text of its own,
+        assert!(!starts_at(&twice(data, nine, controls, &short, &again), k, "item_9", nine));
+        assert!(!starts_at(&twice(data, nine, &other, &short, &again), k, "item_9", nine));
+        // when the later copy says "continued",
+        let continued = format!("{nine} (continued)");
+        assert!(!starts_at(&twice(data, nine, controls, &page, &continued), k, "item_9", nine));
+        // and when the earlier copy prints a page, as a row does.
+        for paged in [format!("{nine}\t45"), format!("{nine}  45"), format!("{nine} ..... 45")] {
+            assert!(!starts_at(&twice(data, &paged, controls, &page, &again), k, "item_9", &paged), "{paged}");
+        }
+        // So is a row whose title wraps, with its page at the end of the
+        // next line, after a row with a page: its later copy stays the
+        // body heading, here after a signatures line.
+        let wrapped = "Item 8. Financial Statements and\nSupplementary Data\t46";
+        let upper = data.to_uppercase();
+        let text = format!(
+            "PART I\nItem 1. Business\n{page}\nPART II\n{mdna}\n{page}\n{risk}\t45\n{wrapped}\n{controls}\n{page}\n\
+             SIGNATURES\n{short}\n{upper}\n{page}\n{page}\nSIGNATURES\n"
+        );
+        assert!(starts_at(&text, k, "item_8", &upper));
+        // The text of its own is more than 2,000 characters up to the next
+        // Item line: of the Item after the heading,
+        for (own, kept) in [(SAME_BLOCK, false), (SAME_BLOCK + 1, true)] {
+            let under = &BODY.repeat(30)[..own - controls.len() - 2];
+            let text = twice(data, nine, controls, under, &again);
+            assert_eq!(text.find(&again).unwrap() - text.find(controls).unwrap(), own);
+            assert_eq!(starts_at(&text, k, "item_9", nine), kept, "{own}");
+        }
+        // and of the Item before it.
+        for (own, kept) in [(SAME_BLOCK, false), (SAME_BLOCK + 1, true)] {
+            let under = format!("{}.", &BODY.repeat(30)[..own - data.len() - 3]);
+            let text = format!(
+                "PART I\nItem 1. Business\n{short}\n{data}\n{under}\n{nine}\nNone.\n{controls}\n{page}\n\
+                 {again}\n{short}\nSIGNATURES\n"
+            );
+            assert_eq!(text.find(nine).unwrap() - text.find(data).unwrap(), own);
+            assert_eq!(starts_at(&text, k, "item_9", nine), kept, "{own}");
+        }
+        // A line of the heading's own Item after the next Item, before one
+        // with text, is not passed over.
+        let own = format!("{controls}\nNone.\nItem 9. Subsequent Events\nNone.\nItem 9B. Other Information");
+        assert!(!starts_at(&twice(data, nine, &own, &page, &again), k, "item_9", nine));
+        // Nor is one with text of its own before the heading, here a bare
+        // header of its Item a page above it.
+        let header = format!("{data}\n{page}\nItem 9");
+        assert!(!starts_at(&twice(&header, nine, controls, &page, &again), k, "item_9", nine));
+        // At most as many lines as the form has Items are read each way:
+        // after the heading up to the Item with text,
+        let most = keys_for(k).len();
+        for (lines, kept) in [(most - 1, true), (most, false)] {
+            let after = format!("{}Item 9B. Other Information", format!("{controls}\nNone.\n").repeat(lines));
+            assert_eq!(starts_at(&twice(data, nine, &after, &page, &again), k, "item_9", nine), kept, "{lines}");
+        }
+        // and before it back to one.
+        for (lines, kept) in [(most - 1, true), (most, false)] {
+            let before = format!("{data}\n{page}\n{}", "Item 2. Properties\nNone.\n".repeat(lines));
+            let text = twice(&before, nine, controls, &page, &again).replacen(&format!("None.\n\n{page}"), "None.", 1);
+            assert_eq!(starts_at(&text, k, "item_9", nine), kept, "{lines}");
+        }
+        // A later copy after a signatures line goes, however much text it
+        // has: statements under the heading again after the signatures
+        // (0001749723-25-000029).
+        let pointer = "Our Consolidated Financial Statements begin on page F-1.";
+        let text = format!(
+            "PART I\nItem 1. Business\n{page}\nPART II\n{risk}\n{page}\n{data}\n{pointer}\n{controls}\n{page}\n\
+             PART IV\nItem 15. Exhibits\n{short}\nSIGNATURES\n{short}\nPART II\n{}\n{}\n",
+            data.to_uppercase(),
+            page.repeat(12)
+        );
+        let s = extract_sections(&text, k);
+        assert_eq!(ids(&s), ["item_1", "item_7a", "item_8", "item_9a", "item_15"]);
+        assert_eq!(s[2].text, format!("{data}\n{pointer}"));
+        // Also with so much text that it would start the Item if it stayed:
+        // more than the heading and the Item after it count for together.
+        let text = format!(
+            "PART I\nItem 1. Business\n{page}\nPART II\n{risk}\n{page}\n{data}\n{pointer}\n{controls}\n{page}\n\
+             SIGNATURES\n{short}\nPART II\n{}\n{}\n",
+            data.to_uppercase(),
+            page.repeat(200)
+        );
+        let s = extract_sections(&text, k);
+        assert_eq!(ids(&s), ["item_1", "item_7a", "item_8", "item_9a"]);
+        assert_eq!(s[2].text, format!("{data}\n{pointer}"));
+
+        // Quarterly and current reports are read as before.
+        let market = "Item 3. Quantitative and Qualitative Disclosures About Market Risk";
+        let quarterly = format!(
+            "PART I\nItem 1. Financial Statements\n{page}\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n{page}\n\
+             {market}\nSee the notes.\nItem 4. Controls and Procedures\n{page}\n{}\n{page}\n{page}\n\
+             PART II\nItem 1. Legal Proceedings\n{short}\nItem 6. Exhibits\n{short}\nSIGNATURES\n",
+            market.to_uppercase()
+        );
+        assert!(!starts_at(&quarterly, FormKind::TenQ, "part_1_item_3", market));
+        let obligation = "Item 2.03 Creation of a Direct Financial Obligation";
+        let current = format!(
+            "Item 1.01 Entry into a Material Definitive Agreement\n{page}\n{obligation}\nSee Item 1.01.\n\
+             Item 9.01 Financial Statements and Exhibits\n{page}\n{}\n{page}\n{page}\nSIGNATURES\n",
+            obligation.to_uppercase()
+        );
+        assert!(!starts_at(&current, FormKind::EightK, "item_2.03", obligation));
+    }
+
+    #[test]
+    fn contents_entries_and_notes_with_a_longer_body_heading_are_not_headings_in_form_order() {
+        let page = BODY.repeat(37);
+        let body = format!("{page}\n{page}");
+        let starts = |text: &str, id: &str, heading: &str| {
+            let s = extract_sections(text, FormKind::TenK);
+            let x = s.iter().find(|x| x.id == id).unwrap_or_else(|| panic!("{id}: {:?}", ids(&s)));
+            assert_eq!(x.start, text.rfind(heading).unwrap(), "{id}");
+        };
+        let business = "Item 1. Business";
+        let properties = "Item 2. Properties";
+        let market = "Item 5. Market for Registrant's Common Equity";
+        let mdna = "Item 7. Management's Discussion and Analysis";
+        let data = "Item 8. Financial Statements and Supplementary Data";
+        let exhibits = "Item 15. Exhibits and Financial Statement Schedules";
+        let all = [business, properties, market, mdna, data, exhibits];
+        let bodies = |of: &[&str]| of.iter().map(|h| format!("{h}\n{body}\n")).collect::<String>();
+        // A contents list without pages, and one whose last entry has a
+        // cover note under it, longer than a block.
+        for note in ["", page.as_str()] {
+            let text = format!("{}\n{note}\nPART I\n{}SIGNATURES\n", all.join("\n"), bodies(&all));
+            for (id, heading) in [("item_1", business), ("item_5", market), ("item_15", exhibits)] {
+                starts(&text, id, heading);
+            }
+        }
+        // A list of Part II's Items in the middle of the body, with text
+        // under its last entry.
+        let part_2 = [market, mdna, data];
+        let text = format!(
+            "PART I\n{}PART II\n{}\n{page}\n{}{}SIGNATURES\n",
+            bodies(&all[..2]),
+            part_2.join("\n"),
+            bodies(&part_2),
+            bodies(&all[5..])
+        );
+        for (id, heading) in [("item_5", market), ("item_7", mdna), ("item_8", data)] {
+            starts(&text, id, heading);
+        }
+        // The same list when Item 5's text is printed after Item 8's: its
+        // entry, with entries after it, is no heading.
+        let text = format!(
+            "PART I\n{}PART II\n{}\n{page}\n{}{}{}SIGNATURES\n",
+            bodies(&all[..2]),
+            part_2.join("\n"),
+            bodies(&part_2[1..]),
+            bodies(&part_2[..1]),
+            bodies(&all[5..])
+        );
+        let s = extract_sections(&text, FormKind::TenK);
+        assert!(s.iter().all(|x| x.start != text.find(market).unwrap()), "{:?}", ids(&s));
+        starts(&text, "item_7", mdna);
+        starts(&text, "item_8", data);
+        // An amendment's note names the Item on a line of its own above the
+        // contents list.
+        let text = format!(
+            "EXPLANATORY NOTE\nThis Amendment No. 1 amends and restates the following Item.\n{data}\n{}\n{}\n\
+             PART I\n{}SIGNATURES\n",
+            BODY.repeat(5),
+            all.join("\n"),
+            bodies(&all)
+        );
+        starts(&text, "item_8", data);
+        starts(&text, "item_15", exhibits);
+    }
+    #[test]
+    fn short_cross_reference_does_not_replace_the_later_item_heading() {
+        let body = BODY.repeat(40);
+        let properties = "Item 2. Properties";
+        for caption in ["Cross-reference only:", "CROSS-REFERENCES:", "See also:"] {
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\n{caption}\n\n{properties}\n\
+                 This heading is reproduced in the reference list.\nItem 3. Legal Proceedings\n{body}\n\
+                 {properties}\n{body}\n{body}\nItem 4. Submission of Matters to a Vote of Security Holders\n{body}\n\
+                 SIGNATURES\n"
+            );
+            let sections = extract_sections(&text, FormKind::TenK);
+            let item = sections.iter().find(|section| section.id == "item_2").unwrap();
+            assert_eq!(item.start, text.rfind(properties).unwrap(), "{caption}");
+        }
     }
 }
