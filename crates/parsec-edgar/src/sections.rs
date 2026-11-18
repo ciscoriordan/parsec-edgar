@@ -3465,8 +3465,8 @@ fn drop_item_references(cands: Vec<Candidate>, keys: &[Key], annual: bool) -> Ve
 
 /// The title of an index printed under a heading: `Index to Consolidated
 /// Financial Statements`, `INDEX TO MANAGEMENT'S DISCUSSION AND ANALYSIS`,
-/// `Index of Exhibits`.
-static INDEX_TITLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^[ \t]*index[ \t]+(?:to|of)[ \t]").unwrap());
+/// `Index of Exhibits`. The match ends where the subject begins.
+static INDEX_TITLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^[ \t]*index[ \t]+(?:to|of)[ \t]+").unwrap());
 
 /// Contents rows found by their page numbers. A row is an Item line that ends
 /// with a page column after a tab, two spaces or dot leaders: a page, a range
@@ -3540,7 +3540,8 @@ static INDEX_TITLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^[ \t]*i
 /// follows it: its own line prints no page, the Item line before it is no
 /// row, no other line names its Item, it is in the body (after an Item with
 /// text of its own), and one of the two lines under it is the index's title
-/// (`INDEX_TITLE`) and prints no page. The rows under it stay rows.
+/// (`INDEX_TITLE`), names the same subject as the heading, and prints no page.
+/// The rows under it stay rows.
 fn paged_rows(
     cands: &[Candidate],
     text: &str,
@@ -3668,7 +3669,16 @@ fn paged_rows(
         let line_end = cands[i].pos + line_at(text, cands[i].pos).len();
         let end = cands.get(i + 1).map_or(text.len(), |o| o.pos).max(line_end);
         let mut lines = text[line_end..end].lines().filter(|l| !l.trim().is_empty()).take(INDEX_TITLE_LINES);
-        lines.any(|l| INDEX_TITLE.is_match(l) && !ends_with_pages(l))
+        let heading = cands[i].title.as_str();
+        lines.any(|line| {
+            INDEX_TITLE.find(line).is_some_and(|prefix| {
+                let subject = title_key(without_qualifiers(&line[prefix.end()..]));
+                ["financialstatements", "managementsdiscussion", "exhibits"]
+                    .iter()
+                    .any(|topic| heading.starts_with(topic) && subject.starts_with(topic))
+                    && !ends_with_pages(line)
+            })
+        })
     };
     let first_rows: Vec<usize> = (1..n).filter(|&i| paged[i] && !own_pages(i) && !paged[i - 1] && in_body(i)).collect();
     if !first_rows.is_empty() {
@@ -12614,7 +12624,7 @@ Pursuant to ...
             ("2", "business"),
             ("1", "busin"),
             ("1", "abc"),
-            ("7", "managementsdiscussionandanalysis"),
+            ("7", "managementsdiscussions"),
             ("1", "businessx"),
             ("1", "business"),
             ("7", "manag"),
@@ -15489,6 +15499,9 @@ Pursuant to ...
             ),
             format!("{OWN_INDEX_HEADING}{}", under("WIDGET CORP\nIndexed Consolidated Financial Statements\n")),
             format!("{OWN_INDEX_HEADING}{}", under("WIDGET CORP\nIndex Total Return of the Peer Group\n")),
+            // An index with a different subject does not belong to Item 8.
+            format!("{OWN_INDEX_HEADING}{}", under("Index of Defined Terms\n")),
+            format!("{OWN_INDEX_HEADING}{}", under("Index of Exhibits\n")),
             // The title prints a page, as a row of an index of Items does.
             format!("{OWN_INDEX_HEADING}{}", under("Index to Consolidated Financial Statements\t30\n")),
             format!(
