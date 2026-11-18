@@ -3139,7 +3139,13 @@ fn contents_entries(
         let to = cands.get(b + 1).map_or(text.len(), |c| c.pos);
         text[from..to].lines().find(|l| !l.trim().is_empty()).is_some_and(|l| SIGNATURES.is_match(l))
     };
+    let quarterly = keys.first().is_some_and(|key| key.part.is_some());
+    let earliest_before = OnceCell::new();
+    let mut in_paged_run = false;
     for a in 0..n {
+        if quarterly && a > 0 {
+            in_paged_run = (paged[a - 1] || in_paged_run) && cands[a].pos - cands[a - 1].pos <= SAME_BLOCK;
+        }
         let Some(b) = later_copy[a] else { continue };
         match signatures.sentence_between(cands[a].pos, cands[b].pos) {
             Some(start) if !paged[a] => signed_pairs.push((a, b, start)),
@@ -3157,6 +3163,20 @@ fn contents_entries(
                 if annual && !paged[a] {
                     shorter_pairs.push((a, b));
                 }
+            }
+            // A quarterly contents list can print answers instead of pages
+            // for several Items, then end with a paged row. A long block of
+            // statements after the list can make that row's gap misleading.
+            _ if in_paged_run
+                && ROW_PAGES.is_match(line_at(text, cands[a].pos).trim_end())
+                && prints_title(&cands[a], &cands[b])
+                && !form_places(&cands[a], keys).next_back().is_some_and(|last| {
+                    let earliest = earliest_before.get_or_init(|| earliest_text_before(cands, keys, SAME_BLOCK));
+                    earliest[a].is_some_and(|first| first < last)
+                }) =>
+            {
+                contents[a] = true;
+                body[b] = true;
             }
             _ => later_copies.push((a, b)),
         }
@@ -16898,6 +16918,46 @@ Pursuant to ...
             let sections = extract_sections(&text, FormKind::TenK);
             let item = sections.iter().find(|section| section.id == "item_2").unwrap();
             assert_eq!(item.start, text.rfind(properties).unwrap(), "{caption}");
+        }
+    }
+
+    #[test]
+    fn quarterly_contents_rows_with_worded_answers_give_way_to_the_body_heading() {
+        let statements = BODY.repeat(60);
+        let discussion = BODY.repeat(5);
+        let exhibits = "Part II, Item 6. Exhibits and Reports on Form 8-K";
+        let text = format!(
+            "FORM 10-Q\nINDEX\nPage Number\nPART I. FINANCIAL INFORMATION\n\
+             Item 1. Financial Statements (Unaudited)\nConsolidated Balance Sheets\t3\n\
+             Statements of Operations\t4\nItem 2. Management's Discussion and Analysis\t10\n\
+             PART II. OTHER INFORMATION:\nItem 1. Legal Proceedings (not applicable).\n\
+             Item 2. Changes in Securities (not applicable).\nItem 3. Defaults Upon Senior Securities\n\
+             (not applicable).\nItem 4. Submission of Matters to a Vote of\n\
+             Security Holders (not applicable).\nItem 5. Other Information (not applicable)\n\
+             Item 6. Exhibits and Reports on Form 8-K\t14\nCONSOLIDATED BALANCE SHEETS\n{statements}\n\
+             Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations\n\
+             {discussion}\n{exhibits}\n(a) Exhibits\n(b) Reports on Form 8-K\nNone\nSIGNATURES\n"
+        );
+        let sections = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&sections), ["part_1_item_2", "part_2_item_6"]);
+        assert_eq!(sections[1].start, text.find(exhibits).unwrap());
+        assert!(sections[1].text.ends_with("None"));
+
+        let row = "Item 6. Exhibits and Reports on Form 8-K";
+        let earlier_body = format!(
+            "PART I. FINANCIAL INFORMATION\nItem 3. Quantitative and Qualitative Disclosures About Market Risk\n\
+             {statements}\nINDEX\n"
+        );
+        for (case, variant) in [
+            ("no page on the last row", text.replacen(&format!("{row}\t14"), row, 1)),
+            ("no prior paged row", text.replace("\t3\n", "\n").replace("\t4\n", "\n").replace("\t10\n", "\n")),
+            ("already in the body", text.replacen("INDEX\n", &earlier_body, 1)),
+            ("continued heading", text.replace(exhibits, &format!("{exhibits} (Continued)"))),
+            ("shortened heading", text.replace(exhibits, "Part II, Item 6. Exhibits")),
+        ] {
+            let sections = extract_sections(&variant, FormKind::TenQ);
+            let item = sections.iter().find(|s| s.id == "part_2_item_6").expect(case);
+            assert_eq!(item.start, variant.find(row).unwrap(), "{case}");
         }
     }
 }
