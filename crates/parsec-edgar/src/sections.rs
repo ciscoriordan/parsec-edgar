@@ -2933,6 +2933,15 @@ fn heading_in_form_order(
     if !before.is_some_and(|i| !rows[i] && comes_before(&cands[i], &cands[a], keys)) {
         return false;
     }
+    // A caption immediately above the short copy can mark it as a reference.
+    let caption = text[cands[a - 1].pos..cands[a].pos].trim_end().lines().next_back().unwrap_or("").trim();
+    if caption.strip_suffix(':').is_some_and(|caption| {
+        ["See also", "Cross-reference", "Cross-references", "Cross-reference only"]
+            .iter()
+            .any(|label| caption.eq_ignore_ascii_case(label))
+    }) {
+        return false;
+    }
     let after = next_other[a].unwrap_or(b);
     for i in (after..b).take(keys.len()) {
         if rows[i] || !comes_before(&cands[a], &cands[i], keys) {
@@ -15688,5 +15697,21 @@ Pursuant to ...
         );
         starts(&text, "item_8", data);
         starts(&text, "item_15", exhibits);
+    }
+    #[test]
+    fn short_cross_reference_does_not_replace_the_later_item_heading() {
+        let body = BODY.repeat(40);
+        let properties = "Item 2. Properties";
+        for caption in ["Cross-reference only:", "CROSS-REFERENCES:", "See also:"] {
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\n{caption}\n\n{properties}\n\
+                 This heading is reproduced in the reference list.\nItem 3. Legal Proceedings\n{body}\n\
+                 {properties}\n{body}\n{body}\nItem 4. Submission of Matters to a Vote of Security Holders\n{body}\n\
+                 SIGNATURES\n"
+            );
+            let sections = extract_sections(&text, FormKind::TenK);
+            let item = sections.iter().find(|section| section.id == "item_2").unwrap();
+            assert_eq!(item.start, text.rfind(properties).unwrap(), "{caption}");
+        }
     }
 }
