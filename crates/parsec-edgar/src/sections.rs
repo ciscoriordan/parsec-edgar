@@ -1608,7 +1608,11 @@ fn listed_items<'a>(label: &str, after: &'a str, keys: &[Key]) -> Option<(&'a st
         labels.push(list[2].to_ascii_uppercase());
         (labels, list.get(0).expect("whole match").end())
     } else if let Some(range) = ITEM_RANGE.captures(after) {
-        (vec![label.to_owned(), range[1].to_ascii_uppercase()], range.get(0).expect("whole match").end())
+        let end = range.get(0).expect("whole match").end();
+        if after[end..].trim_end().ends_with('?') {
+            return None;
+        }
+        (vec![label.to_owned(), range[1].to_ascii_uppercase()], end)
     } else {
         let rest = after[ITEM_COMMA.find(after)?.end()..].trim_start();
         let words = title_words(rest);
@@ -5422,9 +5426,17 @@ fn roman_items(
         let title = title_key(printed);
         // "DESCRIPTION OF BUSINESS", as a 10-KSB titles its Item 1, names
         // Item 1 of a 10-K, Business.
-        let described = title.strip_prefix("descriptionof").unwrap_or(&title);
+        let alias = match (label.as_str(), title.as_str()) {
+            ("1", "descriptionofbusiness") => Some("business"),
+            ("2", "descriptionofproperty") => Some("properties"),
+            _ => None,
+        };
         let ki = keys.iter().position(|k| {
-            k.item == label && k.titles().any(|t| [&title, described].iter().any(|p| same_title(p, &title_key(t))))
+            k.item == label
+                && k.titles().any(|t| {
+                    let key = title_key(t);
+                    same_title(&title, &key) || alias == Some(key.as_str())
+                })
         });
         if let Some(ki) = ki {
             headings.push((added_candidate(text, m.start(), &label, printed), ki, numeral));
@@ -16163,5 +16175,33 @@ Pursuant to ...
         // No line above.
         assert!(!ends_heading_stack("Item 3. Legal Proceedings\n", 0, "3", TEN_K));
         assert!(!ends_heading_stack("\nItem 3. Legal Proceedings\n", 1, "3", TEN_K));
+    }
+    #[test]
+    fn item_range_in_a_question_does_not_end_the_previous_item() {
+        let body = BODY.repeat(30);
+        let question = "Item 7 -- 8 -- Is this disclosure required?";
+        let text = format!(
+            "PART I\nItem 1. Business\n{body}\nFrequently asked questions\n{question}\n{body}\n\
+             Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure\n{body}\n"
+        );
+        let sections = extract_sections(&text, FormKind::TenK);
+        assert_eq!(ids(&sections), ["item_1", "item_9"]);
+        assert!(sections[0].text.contains(question));
+    }
+
+    #[test]
+    fn description_of_does_not_make_a_roman_item_title() {
+        let body = BODY.repeat(30);
+        for caption in
+            ["ITEM IA. DESCRIPTION OF RISK FACTORS", "ITEM VII. DESCRIPTION OF MANAGEMENT'S DISCUSSION AND ANALYSIS"]
+        {
+            let text = format!(
+                "PART I\nItem 1. Business\n{body}\n{caption}\n{body}\n\
+                 Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure\n{body}\n"
+            );
+            let sections = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&sections), ["item_1", "item_9"], "{caption}");
+            assert!(sections[0].text.contains(caption));
+        }
     }
 }
