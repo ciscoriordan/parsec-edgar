@@ -4331,10 +4331,57 @@ fn page_headers_above(text: &str, body: usize, cut: usize, end: usize) -> usize 
         }
         (header, moved) = (pos, moved + 1);
     }
-    match above {
+    let header = match above {
         Some(line) if moved > 0 && line_copies(cut_off, line) > 0 => cut,
         _ => header,
+    };
+    if header < cut {
+        return header;
     }
+    lone_name_above(text, &lines, cut_off).unwrap_or(cut)
+}
+
+/// Start of the filer's name printed once just above an
+/// index to the statements that ends a section, with one line in brackets
+/// or "AND SUBSIDIARIES" under it or none: the name has the shape of one
+/// (`filer_name_line`), the document's first `COVER_BYTES` print it, the
+/// text cut off prints it again as a whole line, and the line above it ends
+/// the section's text (a period, "None", "Not applicable").
+fn lone_name_above(text: &str, lines: &[(usize, &str)], cut_off: &str) -> Option<usize> {
+    const MAX_CHARS: usize = 100;
+    const COVER_BYTES: usize = 2_000;
+    static SECOND_LINE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)^(?:\(.*\)|\[.*\]|(?:and|&)[ \t]+subsidiar(?:y|ies))$").unwrap());
+    static ENDS_TEXT: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)^(?:none|not[ \t]+applicable)$|\.$").unwrap());
+    static SUBSIDIARIES: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?i),?[ \t]+(?:and|&)[ \t]+(?:its[ \t]+)?(?:consolidated[ \t]+)?subsidiar(?:y|ies)$").unwrap()
+    });
+    if !STATEMENTS_INDEX_HEADING.is_match(cut_off.lines().next().unwrap_or("")) {
+        return None;
+    }
+    let again = |line: &str| line.len() <= MAX_CHARS && line_copies(cut_off, line) > 0;
+    let mut above = lines.iter().rev().filter(|(_, l)| !l.is_empty());
+    let mut name = above.next()?;
+    let second = SECOND_LINE.is_match(name.1) && again(name.1);
+    if second {
+        name = above.next()?;
+    }
+    let &(_, before) = above.next()?;
+    let letters =
+        |t: &str| -> String { t.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect() };
+    let mut cover = COVER_BYTES.min(name.0);
+    while !text.is_char_boundary(cover) {
+        cover -= 1;
+    }
+    let on_cover = || letters(&text[..cover]).contains(&letters(&SUBSIDIARIES.replace(name.1, "")));
+    // Under a second line, a name that is a page header by its copies too.
+    let paged = || {
+        let after = line_copies(cut_off, name.1);
+        second && after >= 2 && after > line_copies(&text[..name.0], name.1)
+    };
+    let named = (filer_name_line(name.1) && again(name.1) && on_cover()) || paged();
+    (ENDS_TEXT.is_match(before) && named).then_some(name.0)
 }
 
 /// The last line of an address block, with a city, a state and a ZIP code:
@@ -17012,6 +17059,39 @@ Pursuant to ...
             );
             assert_eq!(part_ii[0].start, text.find(heading).unwrap());
             assert!(part_ii[0].text.contains(litigation.trim_end()));
+        }
+    }
+
+    #[test]
+    fn filer_letterhead_belongs_to_the_index_after_a_completed_item() {
+        let name = "EXAMPLE CORP.";
+        let second = "(A DEVELOPMENT STAGE COMPANY)";
+        let index = "INDEX TO FINANCIAL STATEMENTS";
+        let make = |cover: &str, before: &str, suffix: &str, cut_heading: &str, repeats: &str| {
+            format!(
+                "FORM 10-K\n{cover}\nItem 16. Form 10-K Summary\n{before}\n{name}\n{suffix}{cut_heading}\n{repeats}\n"
+            )
+        };
+        for suffix in [String::new(), format!("{second}\n")] {
+            let repeats = format!("{name}\n{suffix}CONSOLIDATED BALANCE SHEETS");
+            let text = make(name, "None.", &suffix, index, &repeats);
+            let body = text.find("None.").unwrap();
+            let cut = text.find(index).unwrap();
+            assert_eq!(page_headers_above(&text, body, cut, text.len()), text[body..].find(name).unwrap() + body);
+        }
+        for text in [
+            make("OTHER CORP.", "None.", "", index, name),
+            make(name, "The registrant is", "", index, name),
+            make(name, "None.", "", index, "CONSOLIDATED BALANCE SHEETS"),
+            make(name, "None.", "", "REPORT OF INDEPENDENT AUDITORS", name),
+        ] {
+            let body = text.find("Summary\n").unwrap() + "Summary\n".len();
+            let cut = text[body..]
+                .find("INDEX TO FINANCIAL STATEMENTS")
+                .or_else(|| text[body..].find("REPORT OF INDEPENDENT AUDITORS"))
+                .unwrap()
+                + body;
+            assert_eq!(page_headers_above(&text, body, cut, text.len()), cut, "{text}");
         }
     }
 }
