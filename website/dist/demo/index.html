@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Explore Apple’s fiscal 2026 Form 10-K, extracted with Parsec EDGAR.">
+  <link rel="canonical" href="https://pars.ec/demo/">
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script defer src="/assets/site.js"></script>
+  <title>Filing demo · Parsec EDGAR</title>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="mast wrap"><a href="/" aria-label="Parsec home"><img class="mark" src="/assets/wordmark-light.svg" alt="Parsec"></a><nav aria-label="Main"><a href="/demo/" aria-current="page">Filing demo</a><a href="/#install">Install</a><a href="https://github.com/ciscoriordan/parsec-edgar">GitHub</a></nav></header>
+  <main id="main" class="wrap demo">
+    <div class="section-heading"><p class="eyebrow">FILING DEMO · FORM 10-K</p><h1>Apple Inc.</h1><p>Fiscal year ended September 26, 2026 · Filed November 3, 2026</p><div class="source-links"><a href="https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/aapl-20260926.htm">Original SEC filing</a><a href="/assets/filing.json" download>Download extracted JSON</a></div></div>
+    <div class="filing" data-demo>
+      <aside class="outline-panel"><label for="section-picker">Filing outline</label><select id="section-picker" disabled><option>Loading Items...</option></select><nav aria-label="Filing Items" class="item-outline"></nav></aside>
+      <article class="reader" aria-labelledby="item-title">
+        <div class="reader-head"><p class="eyebrow" id="item-label">FORM 10-K</p><h2 id="item-title">Extracted Items</h2><div class="command"><code id="demo-command">parsec-edgar sections AAPL --accession 0000320193-26-000026</code><button type="button" data-copy hidden>Copy</button></div></div>
+        <p id="demo-status" role="status" hidden></p>
+        <div id="sample-table" hidden></div>
+        <div id="item-text" class="item-text" tabindex="0" aria-label="Extracted Item text"></div>
+        <noscript><p>Enable JavaScript to use the outline, or download the extracted JSON above.</p></noscript>
+      </article>
+    </div>
+    <p class="note">This snapshot was extracted with Parsec EDGAR 0.2.2. Browsing it makes no requests to EDGAR.</p>
+  </main>
+  <footer class="wrap footer"><img class="mark" src="/assets/wordmark-light.svg" alt="Parsec"><div><a href="https://github.com/ciscoriordan/parsec-edgar">Source</a><a href="/#install">Install</a></div></footer>
+</body>
+</html>

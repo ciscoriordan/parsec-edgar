@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Parsec EDGAR turns SEC filings into clean text, named Item sections and structured tables.">
+  <link rel="canonical" href="https://pars.ec/">
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script defer src="/assets/site.js"></script>
+  <title>Parsec EDGAR</title>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="mast wrap">
+    <a href="/" aria-label="Parsec home"><img class="mark" src="/assets/wordmark-light.svg" alt="Parsec"></a>
+    <nav aria-label="Main"><a href="/demo/">Filing demo</a><a href="#install">Install</a><a href="https://github.com/ciscoriordan/parsec-edgar">GitHub</a></nav>
+  </header>
+  <main id="main">
+    <section class="hero">
+      <div class="wrap spread">
+        <div>
+          <p class="eyebrow">OPEN SOURCE · SEC EDGAR</p>
+          <h1>Read SEC filings<br>one Item at a time.</h1>
+          <p class="intro">Parsec turns filings into clean text, named Item sections, and structured tables. Use it from the command line, Python, Rust, or an MCP client.</p>
+          <div class="actions"><a class="button primary" href="/demo/">Try a filing</a><a class="button outline" href="#install">Install Parsec</a></div>
+        </div>
+        <div class="preview">
+          <div class="preview-top"><span>APPLE INC.</span><span>FORM 10-K</span></div>
+          <div class="preview-title"><p>FISCAL YEAR 2026</p><h2>Annual report</h2></div>
+          <ul>
+            <li><a href="/demo/#item_1"><span>Item 1</span>Business</a></li>
+            <li><a href="/demo/#item_1a"><span>Item 1A</span>Risk Factors</a></li>
+            <li><a href="/demo/#item_7"><span>Item 7</span>Management’s Discussion &amp; Analysis</a></li>
+            <li><a href="/demo/#item_8"><span>Item 8</span>Financial Statements</a></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section class="wrap install" id="install">
+      <div class="section-heading"><h2>Install Parsec</h2><p>Choose how you want to work with filings.</p></div>
+      <div class="install-grid">
+        <article><h3>Command line</h3><p>Download a binary for Linux, macOS, or Windows, or build it with Cargo.</p><div class="command"><code>cargo install parsec-edgar-cli</code><button type="button" data-copy hidden>Copy</button></div><a href="https://github.com/ciscoriordan/parsec-edgar/releases/latest">Download a binary</a></article>
+        <article><h3>Python</h3><p>Import the Python library or run the bundled command-line tool.</p><div class="command"><code>pip install parsec-edgar</code><button type="button" data-copy hidden>Copy</button></div><a href="https://pypi.org/project/parsec-edgar/">Python package</a></article>
+        <article><h3>Rust</h3><p>Add the EDGAR client and parser to a Rust project.</p><div class="command"><code>cargo add parsec-edgar</code><button type="button" data-copy hidden>Copy</button></div><a href="https://docs.rs/parsec-edgar/latest/parsec_edgar/">Rust reference</a></article>
+        <article><h3>MCP</h3><p>Run the local MCP server from a compatible client using uv.</p><div class="command"><code>uvx parsec-edgar mcp</code><button type="button" data-copy hidden>Copy</button></div><a href="https://github.com/ciscoriordan/parsec-edgar#mcp-server">MCP setup</a></article>
+      </div>
+      <p class="note">When making live SEC requests, set <code>PARSEC_EDGAR_USER_AGENT</code> to your name or organization and contact email. <a href="https://github.com/ciscoriordan/parsec-edgar#the-sec-user-agent-requirement">See usage</a>.</p>
+    </section>
+  </main>
+  <footer class="wrap footer"><img class="mark" src="/assets/wordmark-light.svg" alt="Parsec"><div><a href="https://github.com/ciscoriordan/parsec-edgar">Source</a><a href="https://github.com/ciscoriordan/parsec-edgar/blob/main/bench/README.md">Benchmarks</a><a href="https://github.com/ciscoriordan/parsec-edgar/blob/main/LICENSE">MIT license</a></div></footer>
+</body>
+</html>
