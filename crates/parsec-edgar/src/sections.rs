@@ -1150,6 +1150,17 @@ static MARKER_CELL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(?:[*†‡
 static SUB_ITEM: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:\((?:[a-z]|\d{1,2}|[ivx]{1,4})\))+[\s.:\-–—]*$").unwrap());
 
+/// Sub-paragraphs of an Item joined by commas, "and", "&" or
+/// "or", with the Item's number printed again or not: `(a)(1) and (2), (c)
+/// and (d)`, `(a) AND 14 (d)`, `(a) (1) AND (2) AND ITEM 14(d)`.
+static SUB_ITEM_LIST: LazyLock<Regex> = LazyLock::new(|| {
+    let subs = r"(?:\((?:[a-z]|\d{1,2}|[ivx]{1,4})\)[ \t]*)+";
+    Regex::new(&format!(
+        r"^{subs}(?:(?:,[ \t]*(?i:and[ \t]+)?|(?i:and|or)[ \t]+|&[ \t]*)(?:(?i:items?[ \t]*)?\d{{1,2}}[ \t]*)?{subs})+[.:]?[ \t]*$"
+    ))
+    .unwrap()
+});
+
 /// A title that names executive officers: Form 10-K lets a filer list them in
 /// Part I under a caption of its own ("Executive Officers of the Registrant"),
 /// which is not one of the form's Items.
@@ -2113,6 +2124,15 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)], unread: &Has
         .collect();
     let mut cands: Vec<Candidate> =
         cands.into_iter().zip(part_title).filter(|&(_, part_title)| !part_title).map(|(c, _)| c).collect();
+    // A statement cover after the signature sentence can name the
+    // sub-paragraphs it answers without repeating the Item's own heading.
+    let subparagraph_cover = |candidate: &Candidate| !candidate.bare && SUB_ITEM_LIST.is_match(&candidate.printed);
+    if kind.annual()
+        && cands.iter().any(subparagraph_cover)
+        && let Some((signed, _)) = signature_sentences(text).next()
+    {
+        cands.retain(|candidate| candidate.pos <= signed || !subparagraph_cover(candidate));
+    }
     set_gaps(&mut cands, text.len());
     let cands =
         drop_item_references(drop_contents_entries(cands, text, keys, unread, kind.annual()), keys, kind.annual());
@@ -17013,5 +17033,38 @@ Pursuant to ...
             assert_eq!(part_ii[0].start, text.find(heading).unwrap());
             assert!(part_ii[0].text.contains(litigation.trim_end()));
         }
+    }
+
+    #[test]
+    fn subparagraph_only_cover_after_signatures_does_not_start_an_item() {
+        let body = BODY.repeat(30);
+        let long = BODY.repeat(250);
+        let prefix = format!(
+            "PART I\nITEM 1. BUSINESS\n{body}\nITEM 2. PROPERTIES\n{body}\nITEM 3. LEGAL PROCEEDINGS\nNone.\n\
+             ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS\n{body}\nITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\n\
+             See the separate section.\nITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS\nNot applicable.\n"
+        );
+        let heading = "ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES AND REPORTS ON FORM 8-K";
+        let sentence = "Pursuant to the requirements of Section 13 or 15(d) of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed.";
+        let cover = "ITEM 14(a)(1) and (2), (c) and (d)";
+        let signed = format!("SIGNATURES\n{sentence}\nEXAMPLE CORPORATION\nBy: /s/ A. Person\n");
+        let text = format!(
+            "{prefix}PART IV\n{heading}\n(a)(1) and (2) - submitted as a separate section of this report.\n\
+             (b) Reports on Form 8-K\nItem 5. Other Events - Disclosure of a court decision.\n\
+             Item 7. Financial Statements and Exhibits - Exhibit, press release.\n\
+             {signed}ANNUAL REPORT ON FORM 10-K\n{cover}\nLIST OF FINANCIAL STATEMENTS\n{long}\n"
+        );
+        let sections = extract_sections(&text, FormKind::TenK);
+        let item = sections.iter().find(|s| s.id == "item_14").unwrap();
+        assert_eq!(item.start, text.find(heading).unwrap());
+        assert_eq!(item.end, text.find("SIGNATURES").unwrap());
+        let after_signatures = |line: &str| {
+            format!("{prefix}{signed}ANNUAL REPORT ON FORM 10-K\n{line}\nLIST OF FINANCIAL STATEMENTS\n{long}\n")
+        };
+        let has_item = |text: &str| extract_sections(text, FormKind::TenK).iter().any(|s| s.id == "item_14");
+        assert!(!has_item(&after_signatures("ITEM 14 (a) AND 14 (d)")));
+        assert!(has_item(&after_signatures("ITEM 14(a)(1) and (2). FINANCIAL STATEMENTS AND SCHEDULES")));
+        assert!(has_item(&after_signatures(cover).replace(sentence, "Signed on behalf of the company.")));
+        assert!(has_item(&format!("{prefix}PART IV\n{cover}\nFINANCIAL STATEMENTS\n{long}\n{signed}")));
     }
 }
