@@ -938,7 +938,7 @@ fn numbered_pages(lines: &[&str], marks: &[PageMark]) -> Option<Vec<bool>> {
     // The page ends that such a line follows, and how many of those lines
     // are headings.
     let headed: Vec<usize> = (0..lines.len()).filter(|&i| ends[i] && i + 1 < lines.len() && repeated(i + 1)).collect();
-    let headings = headed.iter().filter(|&&i| Kind::of(lines[i + 1]) == Kind::Heading).count();
+    let headings = headed.iter().filter(|&&i| matches!(Kind::of(lines[i + 1]), Kind::Heading | Kind::Units)).count();
     if headed.len() - headings >= MIN_PAGES {
         return Some(ends);
     }
@@ -1323,7 +1323,7 @@ fn running_headers(lines: &[&str], in_table: &[bool], ends_page: &[bool], gone: 
                     Kind::Note => {
                         with_name && !starts_run && under[&(t, id[k - 1])].0 * 10 >= block_pages[id[k - 1]] * 9
                     }
-                    Kind::Legend => false,
+                    Kind::Legend | Kind::Units => false,
                 };
                 with_name = goes && texts[t].1 != Kind::Continues;
                 if goes {
@@ -1364,6 +1364,9 @@ enum Kind {
     /// A line that tells how to read the page (see `LEGEND`): it never goes,
     /// and a heading past it ends the block.
     Legend,
+    /// A parenthetical with units in thousands. Keep it without changing
+    /// which nearby headings count as running headers.
+    Units,
     /// A header that says it continues a heading (see `CONTINUED`): it goes
     /// from every block, and its copies in table data do not count.
     Continues,
@@ -1377,6 +1380,8 @@ impl Kind {
         let continues = CONTINUED.is_match(line);
         if LEGEND.is_match(line) || !continues && PERIOD.is_match(line) {
             Kind::Legend
+        } else if ZERO_UNITS.is_match(line) {
+            Kind::Units
         } else if continues {
             Kind::Continues
         } else if qualifies(line) {
@@ -1389,6 +1394,17 @@ impl Kind {
     }
 }
 
+/// A parenthetical specifying units in thousands, including period headers
+/// that say they continue. Bare 000 needs an explicit units cue or must come
+/// at the start of the parenthesis.
+static ZERO_UNITS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?i)^\((?:[^)]*\$[ \t]*|(?:[^)]*\b(?:amounts|dollars|figures|units)[ \t]+)?(?:in[ \t]+)?)",
+        r"000(?:['’]?s)?(?:[ \t,][^)]*)?\)(?:[ \t]+(?:\(continued\)|-[ \t]*continued))?$",
+    ))
+    .unwrap()
+});
+
 /// A line that tells how to read a page rather than heading it: a reference
 /// to the notes or to the auditors' report under a financial statement ("See
 /// accompanying notes", "The accompanying notes are an integral part of
@@ -1397,19 +1413,11 @@ impl Kind {
 /// statements they are ("(Parent Company Only)", "Acme Corp. (Parent
 /// Only)", "(Registrant Only)"). A line that starts with the date or period
 /// it covers is one too, unless it says it continues (see `PERIOD`).
-///
-/// The units are also read from a line that starts with a parenthesis and
-/// gives them as "000", "$000" or "000’s" before that parenthesis closes:
-/// "($000, except share/unit data)", "(Tabular amounts in US$ 000’s, except
-/// share and per share data)". The "000" follows no digit, comma or period
-/// and a space, a comma, the ")" or the end of the line follows it, so
-/// "(Formed in 2000)", "(10,000,000 shares authorized)" and "(Commission
-/// File No. 000-12345)" give no units.
 static LEGEND: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
         r"(?i)^\(?(?:see|the accompanying)\b|\bintegral part\b|\bin (?:thousands|millions|billions)\b|\btabular dollars\b",
         r"|\b000(?:['’]?s)? omitted\b|\b(?:parent|registrant)(?: company| corporation)? only\b",
-        r"|^\((?:[^)]*[^\d,.)])?000(?:['’]?s)?(?:[\s,)]|$)",
+
     ))
     .unwrap()
 });
@@ -4672,6 +4680,8 @@ mod tests {
             "(Amounts in $000's)",
             "(in 000s)",
             "(US$000)",
+            "(Dollars in 000s) (Continued)",
+            "(Unaudited, $000) - continued",
         ] {
             let pages = framed(&[notes, legend], &[], 1..13);
             assert_eq!((count(&pages, notes), count(&pages, legend)), (1, 12), "{legend}");
@@ -4691,5 +4701,43 @@ mod tests {
             let pages = framed(&[header], &[], 1..13);
             assert_eq!(count(&pages, header), 1, "{header}");
         }
+    }
+
+    #[test]
+    fn units_in_a_caption_do_not_turn_list_numbers_into_pages() {
+        let caption = "($000) Estimated Remaining Cost";
+        let footer = "Encumbrances: None";
+        let html = (1..=12)
+            .map(|n| {
+                format!(
+                    "<p>{n}</p><p>{caption}</p><p>Project {n} is under construction. {}</p><p>{footer}</p>",
+                    "Work continues within the approved appropriation. ".repeat(26)
+                )
+            })
+            .collect::<String>();
+        let text = html_to_text(&html);
+        assert_eq!(text.lines().filter(|line| *line == footer).count(), 12);
+    }
+
+    #[test]
+    fn units_do_not_make_a_repeated_form_title_a_running_header() {
+        let title = "Form of Subscription Agreement";
+        let units = "(US$000)";
+        let mut pages = framed(&[units], &[], 1..6);
+        pages.extend(framed(&[title], &[], 6..14));
+        for n in 0..12 {
+            let mut page = vec![
+                title.to_owned(),
+                "Name of subscriber".to_owned(),
+                "Amount subscribed".to_owned(),
+                "Signature of subscriber".to_owned(),
+            ];
+            if n == 5 || n == 11 {
+                page.insert(0, units.to_owned());
+            }
+            pages.push(page);
+        }
+        let text = html_to_text(&printed(&pages));
+        assert_eq!(text.lines().filter(|line| *line == title).count(), 20);
     }
 }
