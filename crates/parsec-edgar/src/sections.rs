@@ -5655,6 +5655,53 @@ fn unnumbered_item_1(text: &str, cands: &[Candidate], keys: &[Key], picks: &[(us
     Some(added_candidate(text, pos, item_1.item, line))
 }
 
+/// Recover Part I Item 1 when only the quarterly contents list numbers it.
+/// Start at the balance sheet after the paged Part II rows, with another
+/// primary statement before the body heading of Part I Item 2.
+fn quarterly_statements_item_1(text: &str, item_2: usize) -> Option<Candidate> {
+    const BALANCE_SHEET: u8 = 1;
+    const PRIMARY_STATEMENTS: u8 = 0b1111;
+    static CONTENTS_TITLE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)^item[ \t]+1[.: \t]+.{0,100}\bfinancial[ \t]+statements\b").unwrap());
+    let lines: Vec<_> = lines_in(text, 0, item_2).into_iter().filter(|&(_, line)| !line.is_empty()).collect();
+    let part_i = lines.iter().position(|&(_, line)| PART_MARK.captures(line).is_some_and(|c| &c[1] == "I"))?;
+    let part_ii = (part_i + 1..lines.len()).find(|&i| PART_MARK.is_match(lines[i].1))?;
+    if PART_MARK.captures(lines[part_ii].1).is_none_or(|c| &c[1] != "II") {
+        return None;
+    }
+    let contents = &lines[part_i + 1..part_ii];
+    let item_1 = contents.iter().position(|&(_, line)| CONTENTS_TITLE.is_match(line))?;
+    let listed = contents[item_1 + 1..]
+        .iter()
+        .take_while(|&(_, line)| !is_item_line(line))
+        .filter(|&(_, line)| PAGE_REFERENCE.is_match(line))
+        .fold(0, |kinds, &(_, line)| kinds | statement_kind(line));
+    if listed & BALANCE_SHEET == 0 || (listed & PRIMARY_STATEMENTS).count_ones() < 2 {
+        return None;
+    }
+    let after_part_ii = &lines[part_ii + 1..];
+    let rows =
+        after_part_ii.iter().take_while(|&(_, line)| is_item_line(line) && PAGE_REFERENCE.is_match(line)).count();
+    if rows < 2 {
+        return None;
+    }
+    let body = &after_part_ii[rows..];
+    let sheet =
+        body.iter().take(6).position(|&(_, line)| statement_heading(line) && statement_kind(line) == BALANCE_SHEET)?;
+    // A later paged entry means the contents list did not end with the
+    // Part II Item rows. Do not treat that layout as this one.
+    if body[..sheet].iter().any(|&(_, line)| PAGE_REFERENCE.is_match(line))
+        || body.iter().any(|&(_, line)| is_item_line(line))
+        || !body[sheet + 1..].iter().any(|&(_, line)| {
+            statement_heading(line) && statement_kind(line) & listed & (PRIMARY_STATEMENTS ^ BALANCE_SHEET) != 0
+        })
+    {
+        return None;
+    }
+    let (pos, line) = body[sheet];
+    Some(added_candidate(text, pos, "1", line))
+}
+
 /// `ITEM I.  BUSINESS`, `ITEM IV. CONTROLS AND PROCEDURES`: an Item heading
 /// whose number is written in roman numerals, as some filings print one
 /// heading, with the letter I for the number 1; also with the letter of a
@@ -6568,6 +6615,18 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
         cands.push(item_1);
         let ki = keys.iter().position(|k| k.item == "1").expect("an annual form has Item 1");
         picks.insert(0, (cands.len() - 1, ki));
+    }
+
+    if kind.quarterly()
+        && let Some(&(first, key)) = picks.first()
+        && keys[key].part == Some("I")
+        && keys[key].item == "2"
+        && let Some(item_1) = keys.iter().position(|k| k.part == Some("I") && k.item == "1")
+        && !picks.iter().any(|&(_, key)| key == item_1)
+        && let Some(statements) = quarterly_statements_item_1(text, cands[first].pos)
+    {
+        cands.push(statements);
+        picks.insert(0, (cands.len() - 1, item_1));
     }
 
     let starts: Vec<usize> = picks.iter().map(|&(c, _)| cands[c].pos).collect();
@@ -17275,5 +17334,42 @@ Pursuant to ...
         ] {
             assert_ne!(cut(&control), control.find(index));
         }
+    }
+
+    #[test]
+    fn quarterly_financial_statements_without_an_item_heading_start_at_body() {
+        let balance = "CONSOLIDATED STATEMENTS OF FINANCIAL CONDITION";
+        let operations = "CONSOLIDATED STATEMENTS OF OPERATIONS";
+        let text = format!(
+            "FORM 10-Q\nINDEX\nPART I. FINANCIAL INFORMATION\n\
+             Item 1. Interim Condensed Consolidated Financial Statements (Unaudited):\n\
+             Consolidated Statements of Financial Condition.....3\nConsolidated Statements of Operations.....4\n\
+             Item 2. Management's Discussion and Analysis.....15\nPART II. OTHER INFORMATION\n\
+             Item 1. Legal Proceedings.....26\nItem 2. Changes in Securities.....26\n\
+             EXAMPLE CORPORATION AND SUBSIDIARIES\n{balance}\n(Unaudited)\nASSETS\nCash and cash equivalents\t278\n\
+             {operations}\nInterest income\t77\n\
+             ITEM 2. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS\n{}\n\
+             PART II. OTHER INFORMATION\nItem 1. Legal Proceedings.\nNone.\nSIGNATURES\n",
+            BODY.repeat(40)
+        );
+        let sections = extract_sections(&text, FormKind::TenQ);
+        assert_eq!(ids(&sections), ["part_1_item_1", "part_1_item_2", "part_2_item_1"]);
+        assert_eq!(sections[0].start, text.find(balance).unwrap());
+        assert_eq!(sections[0].end, sections[1].start);
+        assert!(sections[0].text.contains("Interest income\t77"));
+        for control in [
+            text.replace("Item 1. Interim Condensed Consolidated Financial Statements (Unaudited):", "Contents"),
+            text.replace("Item 1. Legal Proceedings.....26\nItem 2. Changes in Securities.....26", "Other information"),
+            text.replace(operations, "Additional disclosures"),
+            text.replace(
+                "EXAMPLE CORPORATION AND SUBSIDIARIES",
+                "SIGNATURES\t27\nEXAMPLE CORPORATION AND SUBSIDIARIES",
+            ),
+        ] {
+            assert!(!ids(&extract_sections(&control, FormKind::TenQ)).contains(&"part_1_item_1"));
+        }
+        let explicit = text.replace(balance, &format!("Item 1. Financial Statements\n{balance}"));
+        let sections = extract_sections(&explicit, FormKind::TenQ);
+        assert_eq!(sections[0].start, explicit.find("Item 1. Financial Statements\n").unwrap());
     }
 }
