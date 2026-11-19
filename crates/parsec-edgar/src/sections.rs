@@ -4672,6 +4672,9 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     if printed.len() < 2 || own_text_after {
         return None;
     }
+    if let Some(index) = wrapped_statements_index(text, &lines, last, statements, end) {
+        return Some(index);
+    }
     let opens =
         (first.saturating_sub(MAX_GAP_LINES + 1)..first).find(|&i| STATEMENTS_INDEX_HEADING.is_match(lines[i].1));
     if statements != last + 1 {
@@ -4726,6 +4729,60 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
         return Some(lines[statements].0);
     }
     Some(lines[top].0)
+}
+
+/// A second financial-statement index can follow the exhibits and wrap a row
+/// that looks like the first statement heading. Confirm the wrapped page
+/// references and the auditors' report that follows the index before cutting.
+fn wrapped_statements_index(
+    text: &str,
+    lines: &[(usize, &str)],
+    first_index_end: usize,
+    apparent_statement: usize,
+    end: usize,
+) -> Option<usize> {
+    const MAX_INDEX_LINES: usize = 32;
+    const MAX_ROW_LINES: usize = 4;
+    const MAX_FIRST_ENTRY: usize = 5;
+    const MIN_ENTRIES: usize = 3;
+    static LETTERED_EXHIBITS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^[a-z]\.[ \t]+exhibits\b").unwrap());
+    let from = (first_index_end + 1).max(apparent_statement.saturating_sub(MAX_INDEX_LINES));
+    let index = (from..apparent_statement).rev().find(|&i| {
+        let line = lines[i].1;
+        statement_heading(line) && STATEMENTS_INDEX_HEADING.is_match(line)
+    })?;
+    // The exhibits and at least one line answering their caption precede
+    // the second index.
+    let caption = (first_index_end + 1..index).rev().find(|&i| {
+        let line = lines[i].1;
+        LETTERED_EXHIBITS.is_match(line) || EXHIBITS_ITEM_PART.is_match(line) && lists_no_statements(line)
+    })?;
+    if !lines[caption + 1..index].iter().any(|&(_, line)| !line.is_empty()) {
+        return None;
+    }
+    let is_report = |line: &str| AUDITORS_REPORT_HEADING.is_match(line) && statement_heading(line);
+    let mut previous = index;
+    let mut entries = 0;
+    let mut wrapped = false;
+    for i in index + 1..lines.len().min(index + MAX_INDEX_LINES + 1) {
+        if F_PAGE_ENTRY.is_match(lines[i].1) {
+            let limit = if entries == 0 { MAX_FIRST_ENTRY } else { MAX_ROW_LINES };
+            if i - previous > limit {
+                return None;
+            }
+            wrapped |= previous < apparent_statement && apparent_statement < i;
+            previous = i;
+            entries += 1;
+        } else if is_report(lines[i].1) {
+            return (entries >= MIN_ENTRIES
+                && wrapped
+                && lines[previous + 1..i].iter().all(|&(_, line)| line.is_empty())
+                && report_heading(text, lines[i].0)
+                && report_text_under(text, &lines[i + 1..], end, is_report))
+            .then_some(lines[index].0);
+        }
+    }
+    None
 }
 
 /// A line of the exhibits Item that starts one of its parts: `(a)`, `(3)`,
@@ -17092,6 +17149,38 @@ Pursuant to ...
                 .unwrap()
                 + body;
             assert_eq!(page_headers_above(&text, body, cut, text.len()), cut, "{text}");
+        }
+    }
+
+    #[test]
+    fn wrapped_rows_in_a_second_statements_index_do_not_start_the_statements() {
+        let index = "INDEX TO FINANCIAL STATEMENTS";
+        let report = "INDEPENDENT AUDITORS' REPORT";
+        let wrapped = "Consolidated Statements of Operations for the Years Ended";
+        let audit = "We have audited the accompanying consolidated balance sheets.";
+        let exhibits = "C. Exhibits filed as part of this Report";
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON FORM 8-K\n\
+             A. List of Financial Statements and Schedules\nIndependent Auditors' Report.....F-1\n\
+             Consolidated Balance Sheets.....F-2\nConsolidated Statements of Operations.....F-3\n\
+             Schedules other than those referred to above are omitted.\n{exhibits}\n\
+             27    Financial Data Schedule for the Registrant's Form 10-K.\n{index}\n\
+             Consolidated Financial Statements through December 31, 1998:\n\
+             Independent Auditors' Report.....F-1\nConsolidated Balance Sheets as of December 31.....F-2\n\
+             {wrapped}\nDecember 31, 1998 and 1997, and for the Cumulative Period\n\
+             from February 21, 1991 to\nDecember 31, 1998.....F-3\n\
+             Notes to the Consolidated Financial Statements.....F-4\n{report}\nBoard of Directors\n{audit}\n\
+             CONSOLIDATED BALANCE SHEETS\n{body}\nCONSOLIDATED STATEMENTS OF OPERATIONS\n{body}\n"
+        );
+        let cut = |text: &str| separate_statements(text, 0, text.len());
+        assert_eq!(cut(&text), text.find(index));
+        for control in [
+            text.replace(audit, "See the separate auditors' report."),
+            text.replace(exhibits, "Reference material"),
+            text.replace("December 31, 1998.....F-3", "December 31, 1998"),
+        ] {
+            assert_ne!(cut(&control), control.find(index));
         }
     }
 }
