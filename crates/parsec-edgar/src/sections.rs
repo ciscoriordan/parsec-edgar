@@ -4606,6 +4606,11 @@ fn capital_match(re: &Regex, line: &str) -> bool {
     line.starts_with(char::is_uppercase) && re.is_match(line)
 }
 
+enum StatementsBoundary {
+    Cut(usize),
+    Keep,
+}
+
 /// Start of financial statements that the exhibits Item prints after its own
 /// text with pages numbered apart from the report's (F-1, F-2, ...). Such
 /// pages are a separately paginated part of the report and belong to no Item.
@@ -4634,7 +4639,7 @@ fn capital_match(re: &Regex, line: &str) -> bool {
 /// header ("Exhibit No.", "Exhibit<TAB>Description"), or the caption of
 /// another of its parts ("(b) Reports on Form 8-K", "2. Financial Statement
 /// Schedules"); all of them in `EXHIBITS_ITEM_PART`.
-fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
+fn separate_statements(text: &str, start: usize, end: usize) -> Option<StatementsBoundary> {
     const MIN_ENTRIES: usize = 3;
     // Other lines allowed between two entries, or between an index and its
     // heading.
@@ -4694,13 +4699,29 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     if printed.len() < 2 || own_text_after {
         return None;
     }
+    if let Some((index, report)) = wrapped_statements_index(text, &lines, last, statements, end) {
+        // A lettered exhibit caption after the report still belongs to the
+        // Item, even when the second index would otherwise end it.
+        static LATER_PART: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(
+                r"(?i)^[a-z]\.[ \t]+(?:exhibits\b|financial[ \t]+statement[ \t]+schedules?\b|reports?[ \t]+on[ \t]+form[ \t]+8-?k\b)",
+            )
+            .unwrap()
+        });
+        let boundary = if lines[report + 1..].iter().any(|&(_, line)| LATER_PART.is_match(line)) {
+            StatementsBoundary::Keep
+        } else {
+            StatementsBoundary::Cut(lines[index].0)
+        };
+        return Some(boundary);
+    }
     let opens =
         (first.saturating_sub(MAX_GAP_LINES + 1)..first).find(|&i| STATEMENTS_INDEX_HEADING.is_match(lines[i].1));
     if statements != last + 1 {
-        return Some(lines[statements].0);
+        return Some(StatementsBoundary::Cut(lines[statements].0));
     }
     if let Some(i) = opens {
-        return Some(lines[i].0);
+        return Some(StatementsBoundary::Cut(lines[i].0));
     }
     // An index with no heading, printed after the answer to the Item's
     // exhibits or reports caption ("(b) Exhibits", then "The exhibits
@@ -4709,12 +4730,12 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     // head them, such as the date ("DECEMBER 31, 2014").
     let own_caption = lines[..first].iter().rposition(|&(_, l)| EXHIBITS_ITEM_PART.is_match(l));
     let Some(caption) = own_caption.filter(|&c| lists_no_statements(lines[c].1)) else {
-        return Some(lines[statements].0);
+        return Some(StatementsBoundary::Cut(lines[statements].0));
     };
     let between = || (caption + 1..first).filter(|&i| !lines[i].1.is_empty());
     let own_list = |line: &str| ITEM_PART_START.is_match(line) || capital_match(&EXHIBITS_INDEX_HEADING, line);
     if between().any(|i| own_list(lines[i].1)) {
-        return Some(lines[statements].0);
+        return Some(StatementsBoundary::Cut(lines[statements].0));
     }
     let cut_off = &text[lines[first].0..end];
     // A cover page of the statements, in any case: the lines just above the
@@ -4745,9 +4766,63 @@ fn separate_statements(text: &str, start: usize, end: usize) -> Option<usize> {
     // counts above a cover page.
     let answered = between().any(|i| i < top) || (cover.is_some() && reads_on(lines[caption].1));
     if !answered {
-        return Some(lines[statements].0);
+        return Some(StatementsBoundary::Cut(lines[statements].0));
     }
-    Some(lines[top].0)
+    Some(StatementsBoundary::Cut(lines[top].0))
+}
+
+/// A second financial-statement index can follow the exhibits and wrap a row
+/// that looks like the first statement heading. Confirm the wrapped page
+/// references and the auditors' report that follows the index before cutting.
+fn wrapped_statements_index(
+    text: &str,
+    lines: &[(usize, &str)],
+    first_index_end: usize,
+    apparent_statement: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
+    const MAX_INDEX_LINES: usize = 32;
+    const MAX_ROW_LINES: usize = 4;
+    const MAX_FIRST_ENTRY: usize = 5;
+    const MIN_ENTRIES: usize = 3;
+    static LETTERED_EXHIBITS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^[a-z]\.[ \t]+exhibits\b").unwrap());
+    let from = (first_index_end + 1).max(apparent_statement.saturating_sub(MAX_INDEX_LINES));
+    let index = (from..apparent_statement).rev().find(|&i| {
+        let line = lines[i].1;
+        statement_heading(line) && STATEMENTS_INDEX_HEADING.is_match(line)
+    })?;
+    // The exhibits and at least one line answering their caption precede
+    // the second index.
+    let caption = (first_index_end + 1..index).rev().find(|&i| {
+        let line = lines[i].1;
+        LETTERED_EXHIBITS.is_match(line) || EXHIBITS_ITEM_PART.is_match(line) && lists_no_statements(line)
+    })?;
+    if !lines[caption + 1..index].iter().any(|&(_, line)| !line.is_empty()) {
+        return None;
+    }
+    let is_report = |line: &str| AUDITORS_REPORT_HEADING.is_match(line) && statement_heading(line);
+    let mut previous = index;
+    let mut entries = 0;
+    let mut wrapped = false;
+    for i in index + 1..lines.len().min(index + MAX_INDEX_LINES + 1) {
+        if F_PAGE_ENTRY.is_match(lines[i].1) {
+            let limit = if entries == 0 { MAX_FIRST_ENTRY } else { MAX_ROW_LINES };
+            if i - previous > limit {
+                return None;
+            }
+            wrapped |= previous < apparent_statement && apparent_statement < i;
+            previous = i;
+            entries += 1;
+        } else if is_report(lines[i].1) {
+            return (entries >= MIN_ENTRIES
+                && wrapped
+                && lines[previous + 1..i].iter().all(|&(_, line)| line.is_empty())
+                && report_heading(text, lines[i].0)
+                && report_text_under(text, &lines[i + 1..], end, is_report))
+            .then_some((index, i));
+        }
+    }
+    None
 }
 
 /// A line of the exhibits Item that starts one of its parts: `(a)`, `(3)`,
@@ -6605,14 +6680,16 @@ fn split_sections(text: &str, kind: FormKind, dates: Option<Dates>) -> Vec<Secti
                 // pages, and a glossary end it when no Item follows it. The
                 // statements stay when the Item's "(continued)" headers run
                 // on over them.
-                let statements = separate_statements(text, start, end).or_else(|| {
-                    last.then(|| {
+                let statements = match separate_statements(text, start, end) {
+                    Some(StatementsBoundary::Cut(cut)) => Some(cut),
+                    Some(StatementsBoundary::Keep) => None,
+                    None if last => {
                         let body = body_start(text, cand, key, end);
                         statements_after_items(text, start, body, end, statements_elsewhere())
-                    })
-                    .flatten()
-                    .filter(|&cut| !continued_from(text, &cands, cand, cut, end))
-                });
+                            .filter(|&cut| !continued_from(text, &cands, cand, cut, end))
+                    }
+                    None => None,
+                };
                 let schedules = last.then(|| schedules_after_items(text, start, end)).flatten();
                 let glossary = last.then(|| glossary_start(text, start, end)).flatten();
                 statements.into_iter().chain(schedules).chain(glossary).min()
@@ -17154,5 +17231,49 @@ Pursuant to ...
         );
         let item = extract_sections(&quoted, FormKind::TenK).into_iter().find(|s| s.id == "item_14").unwrap();
         assert_eq!(item.start, quoted.find(cover).unwrap());
+    }
+
+    #[test]
+    fn wrapped_rows_in_a_second_statements_index_do_not_start_the_statements() {
+        let index = "INDEX TO FINANCIAL STATEMENTS";
+        let report = "INDEPENDENT AUDITORS' REPORT";
+        let wrapped = "Consolidated Statements of Operations for the Years Ended";
+        let audit = "We have audited the accompanying consolidated balance sheets.";
+        let exhibits = "C. Exhibits filed as part of this Report";
+        let body = BODY.repeat(30);
+        let text = format!(
+            "ITEM 14. EXHIBITS, FINANCIAL STATEMENT SCHEDULES, AND REPORTS ON FORM 8-K\n\
+             A. List of Financial Statements and Schedules\nIndependent Auditors' Report.....F-1\n\
+             Consolidated Balance Sheets.....F-2\nConsolidated Statements of Operations.....F-3\n\
+             Schedules other than those referred to above are omitted.\n{exhibits}\n\
+             27    Financial Data Schedule for the Registrant's Form 10-K.\n{index}\n\
+             Consolidated Financial Statements through December 31, 1998:\n\
+             Independent Auditors' Report.....F-1\nConsolidated Balance Sheets as of December 31.....F-2\n\
+             {wrapped}\nDecember 31, 1998 and 1997, and for the Cumulative Period\n\
+             from February 21, 1991 to\nDecember 31, 1998.....F-3\n\
+             Notes to the Consolidated Financial Statements.....F-4\n{report}\nBoard of Directors\n{audit}\n\
+             CONSOLIDATED BALANCE SHEETS\n{body}\nCONSOLIDATED STATEMENTS OF OPERATIONS\n{body}\n"
+        );
+        let cut = |text: &str| match separate_statements(text, 0, text.len()) {
+            Some(StatementsBoundary::Cut(cut)) => Some(cut),
+            _ => None,
+        };
+        assert_eq!(cut(&text), text.find(index));
+        for caption in [
+            "(d) Exhibits",
+            "D. Exhibits filed as part of this Report",
+            "D. Financial Statement Schedules",
+            "D. Reports on Form 8-K",
+        ] {
+            let with_later_part = format!("{text}\n{caption}\n10.7    License and Distribution Agreement.\n");
+            assert_eq!(cut(&with_later_part), None, "{caption}");
+        }
+        for control in [
+            text.replace(audit, "See the separate auditors' report."),
+            text.replace(exhibits, "Reference material"),
+            text.replace("December 31, 1998.....F-3", "December 31, 1998"),
+        ] {
+            assert_ne!(cut(&control), control.find(index));
+        }
     }
 }
