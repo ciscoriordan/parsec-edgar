@@ -2040,7 +2040,11 @@ fn candidates(text: &str, kind: FormKind, lines: &[(usize, usize)], unread: &Has
             if !tail_ok && (kind == FormKind::EightK || !tail.as_str().starts_with('(')) {
                 return None;
             }
-            if continues_sentence(text, m.start()) && !ends_heading_stack(text, m.start(), &label, keys) {
+            if continues_sentence(text, m.start())
+                && !ends_heading_stack(text, m.start(), &label, keys)
+                && (kind == FormKind::EightK
+                    || !stands_below_comma(text, m.start(), m.as_str(), &label, tail.as_str(), keys))
+            {
                 return None;
             }
             let heading: String = m.as_str().trim().chars().take(300).collect();
@@ -2705,6 +2709,34 @@ fn continues_sentence(text: &str, line_start: usize) -> bool {
     let last = line.trim_end().rsplit([' ', '\t']).next().unwrap_or("");
     let word = last.trim_start_matches(['(', '"', '“']);
     last.ends_with(',') || [JOINING_WORDS, OPEN_WORDS, CAPTION_WORDS].iter().any(|words| words.contains(&word))
+}
+
+/// At the end of a line, a Part or an Item cited before a comma: `in Part
+/// II,`, `see Item 1,`.
+static CITED_PLACE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i:\bpart|\bitems?)[ \t]+(?:[IVX]{1,4}|\d{1,2}[A-Ca-c]?)[ \t]*,$").unwrap());
+
+/// Whether the Item line `line`, which starts at `line_start` below a line
+/// that ends with a comma, is a heading all the same: it is in capitals and
+/// holds only the Item's number and one of its standard titles, whole, with
+/// at most a period after it, and the line above is not in capitals itself
+/// and does not end by citing a Part or an Item ("in Part II,").
+fn stands_below_comma(text: &str, line_start: usize, line: &str, label: &str, tail: &str, keys: &[Key]) -> bool {
+    let Some(above) = text[..line_start].strip_suffix('\n') else {
+        return false;
+    };
+    let above = above.strip_suffix('\r').unwrap_or(above);
+    let above = above[above.rfind('\n').map_or(0, |i| i + 1)..].trim_end();
+    let capitals = |t: &str| t.chars().any(char::is_uppercase) && !t.chars().any(char::is_lowercase);
+    let title = after_dashes(tail).trim();
+    if !above.ends_with(',') || capitals(above) || CITED_PLACE.is_match(above) || PERIODIC_HEADING.is_match(above) {
+        return false;
+    }
+    if !capitals(line) || !title.ends_with(|c: char| c.is_alphabetic() || c == '.') {
+        return false;
+    }
+    let words = title_words(title);
+    keys.iter().filter(|k| k.item == label).flat_map(Key::titles).any(|standard| title_words(standard) == words)
 }
 
 /// Whether the Item heading of `label` on the line that starts at
@@ -10926,6 +10958,25 @@ Pursuant to ...
         // period.
         for above in ["Item and Caption", "CAPTION", "HEADING", "under this heading."] {
             assert!(!after(above), "{above:?}");
+        }
+    }
+
+    #[test]
+    fn standard_item_heading_can_follow_a_comma() {
+        let title = "FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA.";
+        let body = "The company describes its business and financial position in this report. ".repeat(12);
+        for (above, heading, expected) in [
+            ("2021,", format!("ITEM 8.\t{title}"), true),
+            ("The amount was paid at closing,", format!("ITEM 8. {title}"), true),
+            ("The statements are included in Part II,", format!("ITEM 8. {title}"), false),
+            ("For more information see Item 15,", format!("ITEM 8. {title}"), false),
+            ("INCOME, EXPENSES,", format!("ITEM 8. {title}"), false),
+            ("The amount was paid at closing,", format!("ITEM 8. {title} (CONTINUED)"), false),
+            ("The amount was paid at closing,", "Item 8. Financial Statements and Supplementary Data.".into(), false),
+        ] {
+            let text = format!("ITEM 1. BUSINESS\n{body}\n{above}\n{heading}\n{body}\nSIGNATURES\n");
+            let sections = extract_sections(&text, FormKind::TenK);
+            assert_eq!(ids(&sections).contains(&"item_8"), expected, "{above}\n{heading}");
         }
     }
 
