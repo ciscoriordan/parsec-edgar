@@ -8,6 +8,7 @@ description = "Fast SEC EDGAR client and filing parser written in Rust: companie
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["sec", "edgar", "10-k", "filings", "finance", "mcp"]
 classifiers = [
     "Development Status :: 3 - Alpha",
